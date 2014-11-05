@@ -1389,7 +1389,7 @@ lang_add_section (ptr, section, output, file)
 	 to see .text with SEC_LINK_ONCE set.  */
 
       if (! link_info.relocateable)
-	flags &= ~ (SEC_LINK_ONCE | SEC_LINK_DUPLICATES);
+	flags &= ~ (SEC_LINK_ONCE | SEC_LINK_DUPLICATES | SEC_RELOC);
 
       /* If this is not the first input section, and the SEC_READONLY
          flag is not currently set, then don't set it just because the
@@ -3275,11 +3275,9 @@ lang_check_section_addresses ()
 	  */
 	  {
             int s_pmem  = PIC30_SECTION_IN_PROGRAM_MEMORY(s) |
-                          PIC30_SECTION_IN_PSV_MEMORY(s) |
-                          PIC30_IS_PACKEDFLASH_ATTR(s);
+                          PIC30_SECTION_IN_PSV_MEMORY(s);
             int os_pmem = PIC30_SECTION_IN_PROGRAM_MEMORY(os) |
-                          PIC30_SECTION_IN_PSV_MEMORY(os) |
-                          PIC30_IS_PACKEDFLASH_ATTR(os);
+                          PIC30_SECTION_IN_PSV_MEMORY(os);
             int ex_mem  = PIC30_IS_MEMORY_ATTR(s) |
                           PIC30_IS_MEMORY_ATTR(os);
 
@@ -3508,8 +3506,18 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                                        abs_output_section,
                                        lang_allocating_phase_enum,
                                        dot, &dot);
-                    os->bfd_section->lma = r.value +
+                    /*xc16-337*/
+                    if (!r.valid_p) {
+                      einfo (_("%P: warning: non constant address "
+                               "expression specified for section  %s. "
+                               "Section %s will be allocated at the "
+                               "current address in %s memory.\n"), 
+                            os->name, os->name, os->region->name);
+                    }
+                    else {
+                       os->bfd_section->lma = r.value +
                                            r.section->bfd_section->lma;
+                    }
                   }
 #endif
 	      }

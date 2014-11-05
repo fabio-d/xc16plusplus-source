@@ -64,6 +64,12 @@ pic30_list_options (file)
                    " (default=16)\n")); 
   fprintf (file, _("  --stackguard SIZE    Set stack guardband to SIZE bytes"
                    " (default=16)\n")); 
+  fprintf (file, _("  --psv-override       Override PSV safegaurds when"
+                   " allocating data memory"));
+  fprintf (file, _("  --local-stack        Prevent allocating the stack in"
+                   " extended data space memory (default)\n"));
+  fprintf (file, _("  --no-local-stack     Allow allocating the stack in"
+                   " extended data space memory\n"));
 } /* static void pic30_list_options () */
 
 
@@ -613,6 +619,9 @@ pic30_parse_args (argc, argv)
       pic30_process_fill_argument (optarg);
       pic30_has_fill_option = TRUE;
       break;
+    case NO_LOCAL_STACK_OPTION:
+      pic30_local_stack = FALSE;
+      break;
     case LOCAL_STACK_OPTION:
       pic30_local_stack = TRUE;
       break;
@@ -639,7 +648,9 @@ pic30_parse_args (argc, argv)
         pic30_has_icd2_option = 1;
       optind =  prevoptind; 
       return 0;
-    } 
+    case PSV_OVERRIDE_OPTION:
+      pic30_psv_override = TRUE;
+    }
   
   return 1; 
 } /* static int pic30_parse_args ()*/

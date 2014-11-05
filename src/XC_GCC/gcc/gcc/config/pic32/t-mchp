@@ -4,7 +4,7 @@
 # instuction won't work across the divide (no jx instruction).
 # Compile libraries with -mcode-xonly, so that they are link-compatible
 # with both -mcode-readable=pcrel and -mcode-readable=yes.
-TARGET_LIBGCC2_CFLAGS = -G 0 -fno-optimize-sibling-calls -mcode-xonly
+TARGET_LIBGCC2_CFLAGS = -G 0 -fno-optimize-sibling-calls -mcode-xonly -fno-common -msmart-io=0 -mmips16-exceptions
 
 
 # Don't let CTOR_LIST end up in sdata section.

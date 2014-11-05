@@ -16,30 +16,30 @@
 # To install in $HOME instead of /usr/local, use:
 #    make install prefix=$HOME
 
-CC=i686-pc-mingw32-gcc
+CC=/usr/bin/gcc
 
-CFLAGS=-O3
+CFLAGS= -DUSE_MMAP
 #CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
 #CFLAGS=-g -DDEBUG
 #CFLAGS=-O3 -Wall -Wwrite-strings -Wpointer-arith -Wconversion \
 #           -Wstrict-prototypes -Wmissing-prototypes
 
 LDFLAGS=-L. libz.a
-LDSHARED=i686-pc-mingw32-gcc
-CPP=i686-pc-mingw32-gcc -E
+LDSHARED=/usr/bin/gcc
+CPP=/usr/bin/gcc -E
 
 LIBS=libz.a
-SHAREDLIB=libz.so
-SHAREDLIBV=libz.so.1.2.3
-SHAREDLIBM=libz.so.1
+SHAREDLIB=libz.dylib
+SHAREDLIBV=libz.1.2.3.dylib
+SHAREDLIBM=libz.1.dylib
 
 AR=ar
 RANLIB=ranlib
 TAR=tar
 SHELL=/bin/sh
-EXE=.exe
+EXE=
 
-prefix =/home/Administrator/src_archive_v111/bin/gcc-coff-native//host-libs
+prefix =/Users/cawilkie/dev/builds/build_20130930_1/bin/XC_GCC-elf-native-xclm//host-libs
 exec_prefix =${prefix}
 libdir =${exec_prefix}/lib
 includedir =${prefix}/include

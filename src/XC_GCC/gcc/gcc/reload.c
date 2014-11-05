@@ -365,9 +365,31 @@ push_secondary_reload (int in_p, rtx x, int opnum, int optional,
      a secondary reload is needed since whether or not a reload is needed
      might be sensitive to the form of the MEM.  */
 
+#ifdef _BUILD_C30_
+  /* CAW - I have seen cases where the above statement is *not* true, but it
+     does have a reg_equiv_address that just gets substituted at the end of
+     reload here: reload1.c Now eliminate all pseudo regs ...
+
+     This means that we don't alwasy get to go through a secondary reload
+     which we need to do for some modes on the dsPIC.  see extra code below...
+  */ 
+#endif
+
   if (REG_P (x) && REGNO (x) >= FIRST_PSEUDO_REGISTER
       && reg_equiv_mem[REGNO (x)] != 0)
     x = reg_equiv_mem[REGNO (x)];
+
+#ifdef _BUILD_C30_
+  else if (REG_P(x) && REGNO(x) >= FIRST_PSEUDO_REGISTER
+     && reg_equiv_address[REGNO (x)] != 0) {
+     rtx addr = reg_equiv_address[REGNO(x)];
+     rtx new_x;
+   
+     new_x = gen_rtx_MEM(GET_MODE(x), addr);
+     reg_equiv_mem[REGNO(x)] = new_x;
+     x = new_x;
+  }
+#endif
 
   sri.icode = CODE_FOR_nothing;
   sri.prev_sri = prev_sri;
@@ -2924,6 +2946,18 @@ find_reloads (rtx insn, int replace, int ind_levels, int live_known,
 	      substed_operand[i] = recog_data.operand[i]
 		= reg_equiv_constant[regno];
 	    }
+          /* If this instruction doesn't accept a MEM then this will cause
+             2 reloads to be generated; one to convert it to an address and
+             one to load the value ... for large operands on a small machine
+             this can easily cause all the registers to be used and end up
+             in failure, IMHO (CAW) */
+          /* (CAW) commenting it out to test the theory; causes us to 
+             generate fewer reloads for the subha case (which means we only
+             need 9 registers instead of 12) still fails, however
+
+             Leaving it uncommented to better trace the reload failure 
+           */
+#if 1
 	  if (reg_equiv_memory_loc[regno] != 0
 	      && (reg_equiv_address[regno] != 0 || num_not_at_initial_offset))
 	    /* We need not give a valid is_set_dest argument since the case
@@ -2932,6 +2966,7 @@ find_reloads (rtx insn, int replace, int ind_levels, int live_known,
 	      = find_reloads_toplev (recog_data.operand[i], i, address_type[i],
 				     ind_levels, 0, insn,
 				     &address_reloaded[i]);
+#endif
 	}
       /* If the operand is still a register (we didn't replace it with an
 	 equivalent), get the preferred class to reload it into.  */
@@ -4695,6 +4730,9 @@ find_reloads (rtx insn, int replace, int ind_levels, int live_known,
      destination of a hard reg, if the hard reg is ok, use it.  */
   for (i = 0; i < n_reloads; i++)
     if (rld[i].when_needed == RELOAD_FOR_INPUT
+#ifdef _BUILD_C30_
+        && rld[i].secondary_in_reload == -1
+#endif
 	&& GET_CODE (PATTERN (insn)) == SET
 	&& REG_P (SET_DEST (PATTERN (insn)))
 	&& (SET_SRC (PATTERN (insn)) == rld[i].in

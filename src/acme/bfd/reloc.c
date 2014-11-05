@@ -594,9 +594,6 @@ bfd_perform_relocation (abfd, reloc_entry, data, input_section, output_bfd,
      bfd *output_bfd;
      char **error_message;
 {
-  if (input_section->packedflash) {
-    reloc_entry->address = ((reloc_entry->address / 2) * 4) / 3;
-  }
   bfd_vma relocation;
   bfd_reloc_status_type flag = bfd_reloc_ok;
   bfd_size_type octets = reloc_entry->address * bfd_octets_per_byte (abfd);

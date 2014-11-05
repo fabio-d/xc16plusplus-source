@@ -431,7 +431,7 @@ extern void pic30_frob_file_after_relocs PARAMS ((void));
  * A string to use on the header line of a listing.  The default value is
  * simply "GAS LISTING"
  */
-#define LISTING_HEADER "MPLAB ASM30 Listing: "
+#define LISTING_HEADER "MPLAB XC16 ASSEMBLY Listing: "
 
 /*
  * The number of bytes to put into a word in a listing.  This affects the way
@@ -673,22 +673,6 @@ extern void pic30_list_section_info PARAMS ((FILE *));
                PIC30_PHANTOM_BYTE_LOCATION)                              \
       {                                                                  \
          PIC30_FRAG_APPEND_1_CHAR(PIC30_PHANTOM_BYTE);                   \
-      } /* if (PIC30_PHANTOM_BYTE_LOCATION) */                           \
-   }
-
-#define PIC30_PAD_BYTES_PROGRAM_MEMORY_AFTER_INSERT(bytes_to_add, padding) \
-   {  padding=0;                                                         \
-      if ((((global_current_location+bytes_to_add) %                     \
-             PIC30_SIZE_OF_PROGRAM_WORD) ==                              \
-               PIC30_PROGRAM_MEMORY_UPPER_BYTE_LOCATION) &&              \
-          (!global_p_directive_active))                                  \
-      {                                                                  \
-         padding++;                                                      \
-      } /* if (PIC30_PROGRAM_MEMORY_UPPER_BYTE_LOCATION) */              \
-      if (((global_current_location+bytes_to_add+padding) %              \
-             PIC30_SIZE_OF_PROGRAM_WORD) == PIC30_PHANTOM_BYTE_LOCATION) \
-      {                                                                  \
-         padding++;                                                      \
       } /* if (PIC30_PHANTOM_BYTE_LOCATION) */                           \
    }
 

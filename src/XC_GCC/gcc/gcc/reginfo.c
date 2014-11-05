@@ -638,6 +638,15 @@ init_reg_modes_target (void)
     {
       reg_raw_mode[i] = choose_hard_reg_mode (i, 1, false);
 
+#ifdef _BUILD_C30_
+      /* (CAW) Why does the previous mode have any relation to this
+         one? Sounds like HARD_REGNO_NREGS for mips needs to return 1 for 
+         some reg/mode combinations.
+
+         If the reg is not really assignable to any mode then it consumes 1
+         reg. */
+      if (reg_raw_mode[i] == VOIDmode) reg_raw_mode[i] = word_mode;
+#else
       /* If we couldn't find a valid mode, just use the previous mode.
          ??? One situation in which we need to do this is on the mips where
 	 HARD_REGNO_NREGS (fpreg, [SD]Fmode) returns 2.  Ideally we'd like
@@ -645,6 +654,7 @@ init_reg_modes_target (void)
 	 (for the cpu models where the odd ones are inaccessible).  */
       if (reg_raw_mode[i] == VOIDmode)
 	reg_raw_mode[i] = i == 0 ? word_mode : reg_raw_mode[i-1];
+#endif
     }
 }
 
@@ -776,6 +786,31 @@ choose_hard_reg_mode (unsigned int regno ATTRIBUTE_UNUSED,
 
   if (found_mode != VOIDmode)
     return found_mode;
+
+#ifdef _BUILD_C30_
+  /* look for largest fractional mode (ACCUM first) */
+  for (mode = GET_CLASS_NARROWEST_MODE (MODE_ACCUM);
+       mode != VOIDmode; 
+       mode = GET_MODE_WIDER_MODE (mode))
+    if ((unsigned) hard_regno_nregs[regno][mode] == nregs
+        && HARD_REGNO_MODE_OK (regno, mode)
+        && (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+      found_mode = mode;
+
+  if (found_mode != VOIDmode)
+    return found_mode;
+
+ for (mode = GET_CLASS_NARROWEST_MODE (MODE_FRACT);
+       mode != VOIDmode;  
+       mode = GET_MODE_WIDER_MODE (mode))
+    if ((unsigned) hard_regno_nregs[regno][mode] == nregs
+        && HARD_REGNO_MODE_OK (regno, mode)
+        && (! call_saved || ! HARD_REGNO_CALL_PART_CLOBBERED (regno, mode)))
+      found_mode = mode;
+
+  if (found_mode != VOIDmode)
+    return found_mode;
+#endif
 
   /* Iterate over all of the CCmodes.  */
   for (m = (unsigned int) CCmode; m < (unsigned int) NUM_MACHINE_MODES; ++m)

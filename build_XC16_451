@@ -8,11 +8,12 @@ SRC_DIR=`pwd`
 WORKING_DIR=`pwd`
 OMF=elf
 TARGET_OS=native
-UNAME=`uname -s | sed -e 's/[^a-Z].*$//' | tr "[:upper:]" "[:lower:]"`
+UNAME=`uname -s | sed -e 's/[^a-zA-Z].*$//' | tr "[:upper:]" "[:lower:]"`
 BUILD_OS="i386-$UNAME"
 EXTRA_DEFINES=
 EXTRA_OPTS=
 CROSS=
+STATIC=
 
 BUGURL="http://www.microchip.com/support"
 
@@ -24,6 +25,7 @@ while [ "$DONE" = "0" ]; do
     case $1 in
       -user)
          BUGURL="email:`whoami`@`hostname`"
+         EXTRA_DEFINES="-DRESOURCE_MISMATCH_OK"
          shift 1;;
       -install=*) 
          INSTALL=`echo $1 | sed 's/.*=//'`;
@@ -89,8 +91,29 @@ if [ "$BUILD" = "" ]; then
   BUILD="gmp cloog libelf zlib gcc"
 fi
 
+if [ -f $SRC_DIR/../c30_resource/src/c30/resource_info.h ]; then
+  C30_RESOURCE_DIR="$SRC_DIR/../c30_resource/src/c30/";
+elif [ -f $SRC_DIR/../../c30_resource/src/c30/resource_info.h ]; then
+  C30_RESOURCE_DIR="$SRC_DIR/../../c30_resource/src/c30/";
+elif [ -f $SRC_DIR/../c30_resource/c30_resource/src/c30/resource_info.h ]; then
+  C30_RESOURCE_DIR="$SRC_DIR/../c30_resource/c30_resource/src/c30/"
+elif [ -f $SRC_DIR/../../c30_resource/c30_resource/src/c30/resource_info.h ]; then
+  C30_RESOURCE_DIR="$SRC_DIR/../../c30_resource/c30_resource/src/c30"
+else
+  echo "**** cannot find c30_resource"
+fi
+
+if [ "$TARGET_OS" = "i386-darwin" ]; then
+  if ( `echo $EXTRA_CFLAGS | grep -v -q -- -arch` ); then
+    echo "**** Extra C Flags for mac not set"
+    echo "setting them"
+    EXTRA_CFLAGS="-arch i386 -isysroot /Developer/SDKs/MacOSX10.5.sdk -mmacosx-version-min=10.5"
+  fi
+fi
+
 if [ "$BUILD_OS" != "i386-darwin" ]; then
   BUILD="$BUILD ppl"
+  STATIC="-Wl,-Bstatic,-lstdc++,-Bdynamic"
 fi
 
 if ( echo $EXTRA_CFLAGS | grep -q -e "cover" ); then
@@ -111,8 +134,8 @@ echo
 mkdir -p gmp
 ( cd gmp
 
-#  ABI=32 $SRC_DIR/gmp/configure --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm'
-  ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm' --build=$BUILD_OS
+#  ABI=32 $SRC_DIR/gmp/configure --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC -lm"
+  ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" --build=$BUILD_OS
 
   make -j 2 install
 )
@@ -129,7 +152,7 @@ mkdir -p ppl
   export CFLAGS=-m32
   export CXXFLAGS=-m32
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm' --build=$BUILD_OS
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" --build=$BUILD_OS
 
   make -j 2 install
 )
@@ -144,7 +167,7 @@ mkdir -p cloog
 (
   cd cloog
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld '--with-host-libstdcxx=-lstdc++' --build=$BUILD_OS
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld --with-host-libstdcxx="$STATIC" --build=$BUILD_OS
 
   make -j 2 install
 )
@@ -199,8 +222,8 @@ mkdir -p gcc
 (
   cd gcc
 
-  if [ -d $SRC_DIR/../c30_resource ]; then
-    EXTRA_OPTS="$EXTRA_OPTS -I $SRC_DIR/../c30_resource/src/c30"
+  if [ -d $C30_RESOURCE_DIR ]; then
+    EXTRA_OPTS="$EXTRA_OPTS -I $C30_RESOURCE_DIR"
   else
     echo "***** cannot find c30_resource"
     exit
@@ -215,13 +238,14 @@ mkdir -p gcc
     DWARF="--with-dwarf2"
   fi
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=${BUGURL} --with-host-libstdcxx="-lstdc++"
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
 
 
   
   make 
-)
+  )
 fi
+
 
 # install it
 

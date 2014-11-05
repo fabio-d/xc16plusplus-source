@@ -155,7 +155,7 @@ MASK2( persist, address, near, xmemory, ymemory, reverse, align, noload, 0, 0, d
 MASK2( psv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep )
 MASK2( eedata, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, 0, keep )
 MASK2( memory, address, 0, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, 0, 0, keep )
-MASK2( heap, address, xmemory, ymemory, 0, 0, align, 0, 0, 0, 0, 0, 0, 0, 0, keep )
+MASK2( heap, address, xmemory, ymemory, 0, 0, align, 0, 0, 0, 0, 0, 0, eds, 0, keep )
 MASK2( stack, address, 0, 0, 0, 0, align, 0, 0, 0, 0, 0, 0, 0, 0, keep )
 MASK2( auxflash, address, 0, 0, 0, 0, align, noload, merge, info, 0, 0, 0, 0, page, keep )
 MASK2( packedflash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep) 

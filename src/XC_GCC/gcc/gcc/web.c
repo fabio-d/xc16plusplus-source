@@ -255,9 +255,20 @@ entry_register (struct web_entry *entry, df_ref ref, unsigned int *used)
 static void
 replace_ref (df_ref ref, rtx reg)
 {
-  rtx oldreg = DF_REF_REAL_REG (ref);
-  rtx *loc = DF_REF_REAL_LOC (ref);
-  unsigned int uid = DF_REF_INSN_UID (ref);
+  rtx oldreg;
+  rtx *loc;
+  unsigned int uid;
+
+#if _BUILD_C30_
+  /* CAW - not the same as current branch but... a comment is check that
+           loc is defined first.  It is possible to create a DF record with
+           no loc, so this could make sense */
+  if (!DF_REF_LOC(ref)) return;
+#endif
+
+  oldreg = DF_REF_REAL_REG (ref);
+  loc = DF_REF_REAL_LOC (ref);
+  uid = DF_REF_INSN_UID (ref);
 
   if (oldreg == reg)
     return;
@@ -357,7 +368,7 @@ web_main (void)
 	  for (use_rec = DF_INSN_UID_USES (uid); *use_rec; use_rec++)
 	    {
 	      df_ref use = *use_rec;
-	      if (DF_REF_REGNO (use) >= FIRST_PSEUDO_REGISTER)
+	      if (DF_REF_REGNO (use) >= FIRST_PSEUDO_REGISTER) 
 		replace_ref (use, entry_register (use_entry + DF_REF_ID (use), use, used));
 	    }
 	  for (use_rec = DF_INSN_UID_EQ_USES (uid); *use_rec; use_rec++)

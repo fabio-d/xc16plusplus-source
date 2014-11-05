@@ -47,7 +47,7 @@ mkdir bin
        cd acme-${OMF}-native
        lconfigure=`echo $ACME_CONFIGURE | sed -e 's/@omf/${OMF}/g'`
        lconfigure=`eval echo $lconfigure`
-       $THIS_DIR/src/acme/configure $lconfigure
+       CFLAGS="-DRESOURCE_MISMATCH_OK" $THIS_DIR/src/acme/configure $lconfigure
        make
        cp -f gas/as-new${EXE} ${install_dir}/bin/bin/${OMF}-as${EXE}
        cp -f ld/ld-new${EXE}  ${install_dir}/bin/bin/${OMF}-ld${EXE}
@@ -57,7 +57,7 @@ mkdir bin
        cp -f binutils/ar${EXE}        ${install_dir}/bin/bin/${OMF}-ar${EXE}
     )
 
-    SRC=`ls -1d $THIS_DIR/src/XC16*`
+    SRC=`ls -1d $THIS_DIR/src/XC*`
     mkdir gcc-${OMF}-native
     (
        cd gcc-${OMF}-native

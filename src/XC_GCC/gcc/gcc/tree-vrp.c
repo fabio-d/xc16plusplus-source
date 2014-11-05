@@ -1215,6 +1215,32 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
 	{
 	  if (strict_overflow_p != NULL)
 	    *strict_overflow_p = true;
+#ifndef _BUILD_C30_
+          /* CAW I don't get it, but I must be stupid 
+             if a value has overflowed then we can't tell the result of
+             any comparison...
+
+             failing code looks like this:
+
+             int Variable;
+
+             int IncrAndSaturate(void)
+             {
+              if (Variable > 2048)
+               Variable += 2000;
+              if (Variable > 4096)
+               Variable += 3000;
+              if (Variable < 0)
+               Variable = 0x7fff;
+              return 0;
+             }
+
+             if Variable comes in near the overflow point (30000 on our 16-bit
+             machine) jump threading will assert that we don't need to test
+             < 0 after adding 3000.   On the real machine, this will overflow
+             to a negative number; clearly we do.
+          */
+
 	  if (is_negative_overflow_infinity (val1))
 	    return is_negative_overflow_infinity (val2) ? 0 : -1;
 	  else if (is_negative_overflow_infinity (val2))
@@ -1223,6 +1249,34 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
 	    return is_positive_overflow_infinity (val2) ? 0 : 1;
 	  else if (is_positive_overflow_infinity (val2))
 	    return -1;
+#endif
+#if 0
+          /* As an example, this sort of thing fixes XC16-523 (which is 
+             broken with or without the code above).  Here 
+             extract_range_from_binary_expr is looking for a range, but
+             in the end if one of them is an overflow it returns
+             VARYING.  */
+	  if ((is_negative_overflow_infinity (val1)) &&
+              (!is_negative_overflow_infinity (val2)))
+            /* (val1 == -INF) == (val2) -> val1 is less than val2 */
+	    return -1;
+	  else if (is_negative_overflow_infinity (val2))
+            /* (val1) == (val2 == -INF) -> val1 is > val2 */
+	    return 1;
+	  else if ((is_positive_overflow_infinity (val1)) &&
+                   (!is_positive_overflow_infinity (val2)))
+            /* (val1 == +INF) == (val2) -> val1 is > val2 */
+	    return 1;
+	  else if (is_positive_overflow_infinity (val2))
+            /* (val1) == (val2 == +INF) -> val1 is < va1 */
+	    return -1;
+          /* return -2 to jump threading, because we don't really know
+             what an overflow value is... a positive overflow could wrap 
+             negative */
+          /* For xc16-523 modify extract_range_from_binary_expr to mark
+             varying earlier. NB, extract_range_from_binary_expr is already
+             much different in the later GCC release branches */
+#endif
 	  return -2;
 	}
 
@@ -2488,8 +2542,13 @@ extract_range_from_binary_expr (value_range_t *vr,
 	      if (val[i])
 		{
 		  if (!is_gimple_min_invariant (val[i])
+#ifndef _BUILD_C30_
 		      || (TREE_OVERFLOW (val[i])
-			  && !is_overflow_infinity (val[i])))
+			  && !is_overflow_infinity (val[i]))
+#else
+                      || TREE_OVERFLOW(val[i])
+#endif
+                     )
 		    {
 		      /* If we found an overflowed value, set MIN and MAX
 			 to it so that we set the resulting range to

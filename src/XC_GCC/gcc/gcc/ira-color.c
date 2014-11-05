@@ -2986,6 +2986,14 @@ ira_reuse_stack_slot (int regno, unsigned int inherent_size,
   bitmap_iterator bi;
   struct ira_spilled_reg_stack_slot *slot = NULL;
 
+#ifdef _BUILD_C30_
+  /* initiate_allocnos/ create_allocnos does not create an allocno for
+     ever pseudo up to max_reg_num(),  but reload calls alter_reg from 
+     LAST_REGNUM to max_reg_num() (possibly caling ira_reuse_stack_slot
+     for a allocno that has not been created */
+  if (allocno == 0) return NULL_RTX;
+#endif
+
   ira_assert (inherent_size == PSEUDO_REGNO_BYTES (regno)
 	      && inherent_size <= total_size
 	      && ALLOCNO_HARD_REGNO (allocno) < 0);
@@ -3100,6 +3108,12 @@ ira_mark_new_stack_slot (rtx x, int regno, unsigned int total_size)
 
   ira_assert (PSEUDO_REGNO_BYTES (regno) <= total_size);
   allocno = ira_regno_allocno_map[regno];
+
+#ifdef _BUILD_C30_
+  /* no allocno to record */
+  if (allocno == 0) return;
+#endif
+
   slot_num = -ALLOCNO_HARD_REGNO (allocno) - 2;
   if (slot_num == -1)
     {

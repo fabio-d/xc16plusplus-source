@@ -6802,6 +6802,8 @@ $as_echo "$as_me: WARNING: fixed-point is not supported on IRIX" >&2;}
 	  ;;
       esac
       ;;
+    pic30*-*-*) enable_fixed_point=yes;;
+
     *)
       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: fixed-point is not supported for this target" >&5
 $as_echo "$as_me: WARNING: fixed-point is not supported for this target" >&2;}

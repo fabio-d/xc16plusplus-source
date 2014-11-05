@@ -1229,6 +1229,9 @@ gen_lowpart_common (enum machine_mode mode, rtx x)
     }
   else if (GET_CODE (x) == SUBREG || REG_P (x)
 	   || GET_CODE (x) == CONCAT || GET_CODE (x) == CONST_VECTOR
+#ifdef _BUILD_C30_
+           || GET_CODE (x) == CONST_FIXED
+#endif
 	   || GET_CODE (x) == CONST_DOUBLE || CONST_INT_P (x))
     return simplify_gen_subreg (mode, x, innermode, offset);
 

@@ -357,16 +357,20 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
     pic30_resource_version = xmalloc(strlen(version_part1) + 
                                      strlen(version_part2) + 40);
     version = rib->version.major * 100 + rib->version.minor;
+#ifndef RESOURCE_MISMATCH_OK
     if (version != pic30_tool_version) {
       fprintf(stderr,"Warning: resource version (%d.%.2d) does not match!\n",
               rib->version.major, rib->version.minor);
       sprintf(pic30_resource_version,"%s, resource version %d.%02d (%c), %s",
               version_part1, rib->version.major, rib->version.minor, 
               rib->resource_version_increment,version_part2);
-    } else {
+    }  
+#else
+    else {
       sprintf(pic30_resource_version,"%s (%c) %s",
               version_part1, rib->resource_version_increment, version_part2);
     }
+#endif
   }
 
   if ((mode == ARCH_TABLE) && rib->field_count >= 3) {

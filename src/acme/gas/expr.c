@@ -1159,7 +1159,7 @@ operand (expressionP)
 	   if (input_line_pointer[1] == 't'
 		     || input_line_pointer[1] == 'T') {
         
-            if (strchr(input_line_pointer,'_')) {
+            if (input_line_pointer[7] == '_') {
               start_hi = 1;
               input_line_pointer += 11;
             }
@@ -1169,7 +1169,7 @@ operand (expressionP)
             }
            }
           else {
-           if (strchr(input_line_pointer,'_')) {
+           if (input_line_pointer[6] == '_') {
               size_hi = 1;              
               input_line_pointer += 10;
             }
@@ -1180,7 +1180,7 @@ operand (expressionP)
           }
         }
         else {
-	    if (strchr(input_line_pointer,'_')) {
+	    if (input_line_pointer[5] == '_') {
                end_hi = 1;
                input_line_pointer += 9;
              }

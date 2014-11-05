@@ -8096,11 +8096,7 @@ elf_gc_sweep (info, gc_sweep_hook)
 	{
 	  /* Keep special sections.  Keep .debug sections.  */
 	  if ((o->flags & SEC_LINKER_CREATED)
-	      || (o->flags & SEC_DEBUGGING)
-#if PIC30
-	      || (o->absolute)
-#endif
-	     )
+	      || (o->flags & SEC_DEBUGGING))
 	     
 	    o->gc_mark = 1;
 

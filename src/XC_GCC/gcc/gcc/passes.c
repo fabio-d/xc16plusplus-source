@@ -871,6 +871,9 @@ init_optimization_passes (void)
 	 opportunities.  */
       NEXT_PASS (pass_phi_only_cprop);
       NEXT_PASS (pass_dse);
+#ifdef _BUILD_C30_
+      NEXT_PASS (pass_optimize_widening_mul);
+#endif
       NEXT_PASS (pass_reassoc);
       NEXT_PASS (pass_dce);
       NEXT_PASS (pass_forwprop);
@@ -1027,6 +1030,9 @@ init_optimization_passes (void)
       NEXT_PASS (pass_sms);
       NEXT_PASS (pass_sched);
       NEXT_PASS (pass_ira);
+#ifdef _BUILD_C30_
+      NEXT_PASS (pass_track_sfrs);
+#endif
       NEXT_PASS (pass_postreload);
 	{
 	  struct opt_pass **p = &pass_postreload.pass.sub;

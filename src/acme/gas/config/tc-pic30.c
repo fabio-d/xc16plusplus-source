@@ -727,12 +727,12 @@ pic30_init(int argc __attribute__ ((__unused__)), char **argv)
         if (*c == PATH_SEPARATOR_STR[0]) {
           *c = 0;
           sprintf(buf, "%s%c%s", base, DIR_SEPARATOR_2, start);
-          add_include_dir(buf);
+          add_include_dir(xstrdup(buf));
           *c = ':';
           start = ++c;
         } else if (*c == 0) {
           sprintf(buf, "%s%c%s", base, DIR_SEPARATOR_2, start);
-          add_include_dir(buf);
+          add_include_dir(xstrdup(buf));
           break;
         }
       }
@@ -4058,7 +4058,6 @@ pic30_cons_emit_expr (exp, number_of_bytes)
       unsigned int number_of_bytes_to_allocate = number_of_bytes;
       int j = global_current_location;
       int i;
-      int padding;
 
       if (flag_debug)
          printf ("    pic30_cons_emit_expr::global_current_location = %lu\n",
@@ -4081,15 +4080,8 @@ pic30_cons_emit_expr (exp, number_of_bytes)
        */
       global_must_align_location_counter = TRUE;
 
-      /*
-       * determine whether or not we have enough space in the frag/obstack
-       * for the number of bytes we are going to dump and any padding that
-       * we might need afterwards.  (FS)
-       */
-      PIC30_PAD_BYTES_PROGRAM_MEMORY_AFTER_INSERT(number_of_bytes_to_allocate,
-        padding);
-      p = frag_more (number_of_bytes_to_allocate+padding);
-      memset (p, 0, number_of_bytes_to_allocate+padding);
+      p = frag_more (number_of_bytes_to_allocate);
+      memset (p, 0, number_of_bytes_to_allocate);
 
       TC_CONS_FIX_NEW (frag_now, p - frag_now->fr_literal,
                        (int) number_of_bytes, exp);
@@ -4100,18 +4092,12 @@ pic30_cons_emit_expr (exp, number_of_bytes)
        * PIC30_INSERT_VALUE_INTO_PROGRAM_MEMORY macro.  This will allow
        * alignments and fills to work properly.
        */
-      global_current_location += number_of_bytes_to_allocate + padding;
+      global_current_location += number_of_bytes_to_allocate;
 
-#if 0
-      /* 
-       * PIC30_PAD_BYTES.... previously called causes frag_more() to add
-       * the appropriate padding (FS) 
-       */
       /*
        * Test and pad the program word, if necessary.
        */
       PIC30_PAD_PROGRAM_MEMORY_AFTER_INSERT();
-#endif
 
       rc = TRUE;
    } /* if ((subseg_text_p (now_seg)) || (now_seg == text_section)) */
@@ -7920,14 +7906,19 @@ pic30_create_2word_insn (opcode, operands)
          BAD_CASE (insn_word1);
          break;
    } /* switch (insn_word1) */
+
 #if defined(OBJ_ELF)
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
     dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD*2/2);
+  }
+#endif
+  /* Start a new frag after each statement Whether 
+     we generate debugging info or not bin30-223 */
+  {
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
   }
-#endif
 
    if (flag_debug)
       printf ("<-- pic30_create_2word_insn::exit\n");
@@ -8337,14 +8328,19 @@ pic30_create_insn (opcode, operands, operand_count)
 
    /* Write out the instruction. */
    md_number_to_chars (output_frag, insn, PIC30_SIZE_OF_PROGRAM_WORD);
+
 #if defined(OBJ_ELF)
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
     dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD/2);
+  }
+#endif
+  /* Start a new frag after each statement Whether 
+     we generate debugging info or not bin30-223 */
+  {
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
   }
-#endif
 
   if (flag_debug) {
       printf ("    pic30_create_insn::opcode = %#x\n", insn);

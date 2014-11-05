@@ -1,6 +1,8 @@
 #ifndef _PIC30_H_
 #define _PIC30_H_
 
+/* Hello */
+
 /* Definitions of target machine for GNU compiler.
    Copyright (C) 1994, 95-98, 1999 Free Software Foundation, Inc.
    Contributed by Microchip.
@@ -125,7 +127,8 @@ enum pic30_builtins
    MCHP_BUILTIN_GET_ISR_STATE,
    MCHP_BUILTIN_SET_ISR_STATE,
    MCHP_BUILTIN_DISABLE_ISR,
-   MCHP_BUILTIN_ENABLE_ISR
+   MCHP_BUILTIN_ENABLE_ISR,
+   MCHP_BUILTIN_SOFTWARE_BREAK,
 };
 
 #define       TARGET_USE_PA   1
@@ -190,19 +193,19 @@ enum pic30_builtins
 #undef   LIB_SPEC
 #define  ALT_LIB_SPECS
 #if (PIC30_DWARF2)
-#define   LIB_SPEC   "-start-group -lpic30-elf -lm-elf -lc-elf -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group -lpic30-elf -lfastm-elf -lc-elf -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
+#define   LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lm-elf -lc-elf -end-group"
+#define   ALT_FM_LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lfastm-elf -lc-elf -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
+#define   ALT_LC_LIB_SPEC   "-start-group -lfx-elf -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
+#define   ALT_FMLC_LIB_SPEC "-start-group -lfx-elf -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group -lfx-elf -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
 #else
-#define   LIB_SPEC   "-start-group -lpic30-coff -lm-coff -lc-coff -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group -lpic30-coff -lfastm-coff -lc-coff -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
+#define   LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lm-coff -lc-coff -end-group"
+#define   ALT_FM_LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lfastm-coff -lc-coff -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
+#define   ALT_LC_LIB_SPEC   "-start-group -lfx-coff -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
+#define   ALT_FMLC_LIB_SPEC "-start-group -lfx-coff -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group -lfx-coff -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
 #endif
 
 /*
@@ -570,6 +573,18 @@ extern int         pic30_clear_fn_list;
 */
 #define DATA_ALIGNMENT(type, align) pic30_data_alignment(type, align)
 
+/*
+ * Define the sizes of fixed point types 
+ */
+#define SHORT_FRACT_TYPE_SIZE 16
+#define FRACT_TYPE_SIZE 16
+#define LONG_FRACT_TYPE_SIZE 32
+#define LONG_LONG_FRACT_TYPE_SIZE 32
+
+#define SHORT_ACCUM_TYPE_SIZE 48
+#define ACCUM_TYPE_SIZE 48
+#define LONG_ACCUM_TYPE_SIZE 48
+
 /************************************************************************/
 
 /* Standard register usage.  */
@@ -596,7 +611,7 @@ extern int         pic30_clear_fn_list;
 #define WR15_REGNO   15
 #define RCOUNT_REGNO 16
 #define A_REGNO      17
-#define B_REGNO      18
+#define B_REGNO      18    /* we dont' allocate below here (or RCOUNT) */
 #define PSVPAG       19
 #define DSRPAG       19
 #define PMADDR       20
@@ -612,6 +627,10 @@ extern int         pic30_clear_fn_list;
 #define SINK5        30    /* a register that means we don't need the result */
 #define SINK6        31    /* a register that means we don't need the result */
 #define SINK7        32    /* a register that means we don't need the result */
+#define CORCON_SATA  33
+#define CORCON_SATB  34
+#define CORCON_RND   35
+#define CORCON       36    /* some part of CORCON as yet TBD */
 
 /*
 ** Number of actual hardware registers.
@@ -620,7 +639,7 @@ extern int         pic30_clear_fn_list;
 ** All registers that the compiler knows about must be given numbers,
 ** even those that are not normally considered general registers.
 */
-#define FIRST_PSEUDO_REGISTER 33
+#define FIRST_PSEUDO_REGISTER 37
 
 /* Mappings for dsPIC registers */
 
@@ -647,7 +666,7 @@ extern int         pic30_clear_fn_list;
    /* WREG8 */  0, 0, 0, 0, 0, 0, 0, 1,   \
    /* RCOUNT */ 1, 0, 0, 1, 0, 0, 0, 0,   \
    /* DSWPAG */ 1, 1, 1, 1, 1, 1, 1, 1,   \
-   /* SINK7 */  1                         \
+   /* SINK7 */  1, 1, 1, 1, 1             \
 }
 
 /*
@@ -679,7 +698,7 @@ extern int         pic30_clear_fn_list;
  /* WREG8 */  0, 0, 0, 0, 0, 0, 0, 1,   \
  /* RCOUNT */ 1, 0, 0, 1, 0, 0, 0, 0,   \
  /* DSWPAG */ 1, 1, 1, 1, 1, 1, 1, 1,   \
- /* SINK7 */  1                         \
+ /* SINK7 */  1, 1, 1, 1, 1             \
 }
 
 /*
@@ -690,9 +709,12 @@ extern int         pic30_clear_fn_list;
 ** available for storage of persistent values.
 */
 
-/* #define REG_ALLOC_ORDER \
-   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 }
- */
+/* try allocating the scratch regsiters backwards to see if we can improve
+   parameter access for small functions 
+*/
+
+#define REG_ALLOC_ORDER \
+   {  4, 5, 6, 7, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 17, 18 }
 
 /*
 ** Return number of consecutive hard regs needed starting at reg REGNO
@@ -702,7 +724,11 @@ extern int         pic30_clear_fn_list;
 ** All dsPIC registers are one word long.
 */
 #define HARD_REGNO_NREGS(REGNO, MODE)   \
+   pic30_regno_nregs(REGNO,MODE)
+
+/*
    ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
+*/
 
 /*
 ** Value is 1 if hard register REGNO (or several registers starting
@@ -820,22 +846,23 @@ enum reg_class
    A_REGS,          /* 'a': accumulator regs (w0) */
    B_REGS,          /* 'b': accumulator regs (w1) */
    C_REGS,          /* 'c': accumulator regs (w2) */
-   AWB_REGS,        /*  w13 */
-   PSV_REGS,        /*  PSVPAG */
    CC_REGS,         /* 'C': accumulator regs 32 bit (w2-w3) */
    ABC_REGS,        /* 'a+b+c': accumulator regs (w0..w2) */
    X_PREFETCH_REGS, /*  w8,w9: X prefetch registers */
    Y_PREFETCH_REGS, /*  w10,w11: Y prefetch registers */
-   ACCUM_REGS,      /*  A,B: accumulators */
    VERY_RESTRICTED_PRODUCT_REGS,  /* w7 */
    RESTRICTED_PRODUCT_REGS,       /* W4-W6 */
    PRODUCT_REGS,    /*  w4 - w7: mac product registers  */
+   AWB_REGS,        /*  w13 */
+   ER_REGS,         /* even working regs (w0..w12) */
    E_REGS,          /* 'e': data regs (w2..w14) */
    AE_REGS,         /* 'a+e': data regs (w0,w2..w14) */
    D_REGS,          /* 'd': data regs (w1..w14) */
    W_REGS,          /* 'w': working regs (w0..w15) */
-   ER_REGS,         /* even working regs (w0..w12) */
    SINK_REGS,       /* sink */
+   ACCUM_REGS,      /*  A,B: accumulators */
+   W_ACCUM_REGS,    /*  ACCUM + W_REGS */
+   SFR_REGS,        /*  PSVPAG &c */
    ALL_REGS,        /* 'r': (w0..w14) */
    LIM_REG_CLASSES
 };
@@ -864,22 +891,23 @@ enum reg_class
   "W0REG",      \
   "W1REG",      \
   "W2REG",      \
-  "AWB",        \
-  "PSV",        \
   "W2REG32",    \
   "W0+W1+W2",   \
   "W8..W9",     \
   "W10..W11",   \
-  "A..B",       \
   "W7",         \
   "W4..W6",     \
   "W4..W7",     \
+  "AWB",        \
+  "ERREGS",     \
   "W2..W14",    \
   "W0+W2..W14", \
   "W1..W14",    \
   "W0..W15",    \
-  "ERREGS",     \
   "SINK",       \
+  "A..B",       \
+  "AB..W",      \
+  "SFR",        \
   "ALL_REGS"    \
 }
 
@@ -898,28 +926,32 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS   \
 { \
-        { 0x00000000, 0x00000000 }, \
-        { 0x00000001, 0x00000000 }, \
-        { 0x00000002, 0x00000000 }, \
-        { 0x00000004, 0x00000000 }, \
-/*AWB*/ { 0x00002000, 0x00000000 }, \
-/*PSV*/ { 0x01080000, 0x00000000 }, \
-        { 0x0000000c, 0x00000000 }, \
-        { 0x00000007, 0x00000000 }, \
-/*XPF*/ { 0x00000300, 0x00000000 }, \
-/*YPF*/ { 0x00000c00, 0x00000000 }, \
-/*ACC*/ { 0x00060000, 0x00000000 }, \
-/*VRP*/ { 0x00000080, 0x00000000 }, \
-/* RP*/ { 0x00000070, 0x00000000 }, \
-/*PRG*/ { 0x000000f0, 0x00000000 }, \
-        { 0x0000fffc, 0x00000000 }, \
-        { 0x0000fffd, 0x00000000 }, \
-        { 0x0000fffe, 0x00000000 }, \
-        { 0xff08ffff, 0x00000001 }, \
-/*ER*/  { 0x00001555, 0x00000000 }, \
-        { 0xfe000000, 0x00000001 }, \
-        { 0x0000ffff, 0x00000000 }  \
+/* NO_REGS */        { 0x00000000, 0x00000000 }, \
+/* A_REGS */         { 0x00000001, 0x00000000 }, \
+/* B_REGS */         { 0x00000002, 0x00000000 }, \
+/* C_REGS */         { 0x00000004, 0x00000000 }, \
+/* CC_REGS */        { 0x0000000c, 0x00000000 }, \
+/* ABC_REGS */       { 0x00000007, 0x00000000 }, \
+/* X_PREFETCH_REGS */{ 0x00000300, 0x00000000 }, \
+/* Y_PREFETCH_REGS */{ 0x00000c00, 0x00000000 }, \
+/* V.R.PRODUCT_REGS*/{ 0x00000080, 0x00000000 }, \
+/* R.PRODUCt_REGS */ { 0x00000070, 0x00000000 }, \
+/* PRODUCT_REGS */   { 0x000000f0, 0x00000000 }, \
+/* AWB_REGS */       { 0x00002000, 0x00000000 }, \
+/* ER_REGS */        { 0x00001555, 0x00000000 }, \
+/* E_REGS */         { 0x0000fffc, 0x00000000 }, \
+/* AE_REGS */        { 0x0000fffd, 0x00000000 }, \
+/* D_REGS */         { 0x0000fffe, 0x00000000 }, \
+/* W_REGS */         { 0xff08ffff, 0x00000001 }, \
+/* SINK_REGS */      { 0xfe000000, 0x00000001 }, \
+/* ACCUM_REGS */     { 0x00060000, 0x00000000 }, \
+/* W_ACCUM_REGS */   { 0x0006ffff, 0x00000000 }, \
+/* SFR_REGS */       { 0x01F90000, 0x0000001E }, \
+/* ALL_REGS */       { 0x0006ffff, 0x00000000 }  \
 }
+
+#define IRA_COVER_CLASSES_FP { W_ACCUM_REGS, LIM_REG_CLASSES }
+#define IRA_COVER_CLASSES_NOFP { W_REGS, ACCUM_REGS, LIM_REG_CLASSES }
 
 /*
 ** The same information, inverted:
@@ -950,7 +982,8 @@ enum reg_class
 #define IS_PRODUCT_REG(r)           (((r) >= WR4_REGNO) && ((r) <= WR7_REGNO))
 #define IS_XPREFETCH_REG(r)         (((r) == WR8_REGNO) || ((r) == WR9_REGNO))
 #define IS_YPREFETCH_REG(r)         (((r) == WR10_REGNO) || ((r) == WR11_REGNO))
-#define IS_PSV_REG(r)               (((r) == PSVPAG) || ((r) == DSWPAG))
+#define IS_SFR_REG(r)               ((((r) >= PSVPAG) && ((r) <= DSWPAG)) || \
+                                     (((r) >= CORCON_SATA) && ((r) <= CORCON)))
 #ifdef IGNORE_ACCUM_CHECK
 #define MAYBE_IS_ACCUM_REG(r)       (1)
 #else
@@ -975,7 +1008,7 @@ enum reg_class
    IS_EREG_REG(REGNO) ? E_REGS :   \
    IS_DREG_REG(REGNO) ? D_REGS :   \
    IS_WREG_REG(REGNO) ? W_REGS :   \
-   IS_PSV_REG(REGNO) ? PSV_REGS :  \
+   IS_SFR_REG(REGNO) ? SFR_REGS :  \
    IS_SINK_REG(REGNO) ? SINK_REGS : \
    ALL_REGS)
 
@@ -1003,14 +1036,17 @@ enum reg_class
  D   - [C3- - see below]
  e   - [C30 - see below]
  E   - const double vector
- f   - unused
+ f   - various fixed values
+     - fA => A reg
+     - fB => B reg
+     - fO => 0.0
  F   - const double vector
  g   - 
  G   - const double
  h   - unused
  H   - const double
  i   - integer
- I   - const int matching CONST_OK_FOR_CONSTRAINT_P
+ I   - const int matching CONST_tK_FOR_CONSTRAINT_P
  j   - unused
  J   - const int matching CONST_OK_FOR_CONSTRAINT_P
  k   - unused
@@ -1077,22 +1113,22 @@ enum reg_class
 ** `E' is sink
 */
 
-#define REG_CLASS_FROM_LETTER(Q) (      \
-     ((Q) == 'e') ? E_REGS :            \
-     ((Q) == 'd') ? D_REGS :            \
-     ((Q) == 'D') ? ER_REGS :           \
-     ((Q) == 'c') ? C_REGS :            \
-     ((Q) == 'C') ? CC_REGS :           \
-     ((Q) == 'b') ? B_REGS :            \
-     ((Q) == 'a') ? A_REGS :            \
-     ((Q) == 't') ? VERY_RESTRICTED_PRODUCT_REGS : \
-     ((Q) == 'u') ? RESTRICTED_PRODUCT_REGS :      \
-     ((Q) == 'v') ? AWB_REGS :          \
-     ((Q) == 'w') ? ACCUM_REGS :        \
-     ((Q) == 'x') ? X_PREFETCH_REGS :   \
-     ((Q) == 'y') ? Y_PREFETCH_REGS :   \
-     ((Q) == 'z') ? PRODUCT_REGS :      \
-     ((Q) == 'B') ? SINK_REGS:          \
+#define REG_CLASS_FROM_LETTER(Q) (                         \
+     ((Q) == 'e') ? E_REGS :                               \
+     ((Q) == 'd') ? D_REGS :                               \
+     ((Q) == 'D') ? ER_REGS :                              \
+     ((Q) == 'c') ? C_REGS :                               \
+     ((Q) == 'C') ? CC_REGS :                              \
+     ((Q) == 'b') ? B_REGS :                               \
+     ((Q) == 'a') ? A_REGS :                               \
+     ((Q) == 't') ? VERY_RESTRICTED_PRODUCT_REGS :         \
+     ((Q) == 'u') ? RESTRICTED_PRODUCT_REGS :              \
+     ((Q) == 'v') ? AWB_REGS :                             \
+     (((Q) == 'w') && (pic30_dsp_target())) ? ACCUM_REGS : \
+     ((Q) == 'x') ? X_PREFETCH_REGS :                      \
+     ((Q) == 'y') ? Y_PREFETCH_REGS :                      \
+     ((Q) == 'z') ? PRODUCT_REGS :                         \
+     ((Q) == 'B') ? SINK_REGS:                             \
      NO_REGS )
 
 /*
@@ -1102,7 +1138,11 @@ enum reg_class
 ** since class doesn't make any difference.
 */
 #define CLASS_MAX_NREGS(CLASS,MODE) \
+   pic30_class_max_nregs(CLASS,MODE)
+
+/*
    ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
+*/
 
 /*
 ** Return the register class of a scratch register needed to load
@@ -1172,10 +1212,12 @@ enum reg_class
 { \
  "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7",   \
  "w8", "w9","w10","w11","w12","w13","w14","w15",   \
- "_RCOUNT", "A", "B", "PSVPAG", "PMADDR", "PMMODE", "PMDIN1", "PMDIN2", \
+ "RCOUNT", "A", "B", "PSVPAG", "PMADDR", "PMMODE", "PMDIN1", "PMDIN2", \
  "DSWPAG","SINK0", "SINK1", "SINK2", "SINK3", "SINK4", "SINK5", "SINK6", \
- "SINK7" \
+ "SINK7", "SATA", "SATB", "RND", "CORCON" \
 }
+
+/* Constraint matching */
 
 /*
 ** The letters I,J,K,... to P in an operand constraint string
@@ -1256,6 +1298,14 @@ enum reg_class
     : ((C) == 'T') ? (pic30_T_constraint(OP)) \
     : ((C) == 'U') ? (pic30_U_constraint(OP,VOIDmode)) \
     : 0 )
+
+#define EXTRA_CONSTRAINT_STR pic30_extra_constraint_p
+
+/* unfortunately this dumb macro must be an expression -
+   why it can't just default to looking for a ',' or NULL I don't know... */
+#define CONSTRAINT_LEN(C,STR) \
+     ((C) == 'f' ? 2 : DEFAULT_CONSTRAINT_LEN(C,STR))
+
 
 /*
  * we don't want to reload memory addresses, our machine can handle it 
@@ -1733,6 +1783,7 @@ typedef struct pic30_args
 #define PIC30_AUXPSV_FLAG     PIC30_EXTENDED_FLAG "xpsv"    PIC30_EXTENDED_FLAG
 #define PIC30_DF_FLAG         PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
 #define PIC30_KEEP_FLAG       PIC30_EXTENDED_FLAG "keep"    PIC30_EXTENDED_FLAG
+#define PIC30_QLIBFN_FLAG     PIC30_EXTENDED_FLAG "qlib"    PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -2843,6 +2894,36 @@ do {                                                                      \
 } while(0)
 
 #define TARGET_WARN_ADDRESS pic30_warn_address
+
+enum pic30_fp_support_modes {
+  pic30_none = 0,
+  pic30_truncation,
+  pic30_conventional,
+  pic30_convergent,
+  pic30_fastest
+}; 
+
+extern enum pic30_fp_support_modes pic30_fp_round_p();
+extern bool pic30_fp_inline_p();
+
+#define CORCON_SET_SATA (1<<7)
+#define CORCON_SET_SATB (1<<6)
+
+/* for "save()" function attribute use in .md file */
+struct saved_list {
+  rtx saved_value;
+  tree decl;
+  struct saved_list *next;
+};
+
+/* Memory sizes for current device; */
+struct pic30_mem_info_ {
+  int flash[2];
+  int ram[2];
+  int eeprom[2];
+};
+
+extern struct pic30_mem_info_ pic30_mem_info;
 
 #endif
 

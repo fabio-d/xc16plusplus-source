@@ -74,7 +74,7 @@
 
 
 /* message strings */
-static const char *str1 = "%X Link Error: %s is needed, but not defined (check linker script?)\n";
+static const char *str1 = "%X Link Error: The used device does not support DPSRAM \n";
 static const char *str2 = "__YDATA_BASE";
 static const char *str3 = "__DMA_BASE";
 static const char *str4 = "__DMA_END";
@@ -123,9 +123,11 @@ static bfd_vma get_max_stack() {
         max_stack = DATA_BUS_LIMIT;
     } else max_stack = LOCAL_DATA_LIMIT;
   } else {
+    max_stack = DATA_BUS_LIMIT;
     if (pic30_is_eds_machine(global_PROCESSOR)) {
-      max_stack = LOCAL_DATA_LIMIT;
-    } else max_stack = DATA_BUS_LIMIT;
+      if (!pic30_is_ecore_machine(global_PROCESSOR))
+        max_stack = LOCAL_DATA_LIMIT;
+    }
   }
   return max_stack;
 }
@@ -561,7 +563,7 @@ allocate_data_memory() {
   /* heap */
   if (has_unified_data_model) {
     max_heap = data_end_address();
-  } else if (has_psvpag_reference || pic30_is_eds_machine(global_PROCESSOR)) {
+  } else if (has_psvpag_reference) {
     max_heap = LOCAL_DATA_LIMIT;
   } else max_heap = DATA_BUS_LIMIT;
 
@@ -1241,8 +1243,7 @@ prev_aligned_address( bfd_vma start, unsigned int align_power) {
 static void
 confirm_dma_range_defined() {
   struct bfd_link_hash_entry *h;
-  static bfd_boolean base_err_reported = FALSE;
-  static bfd_boolean end_err_reported = FALSE;
+  static bfd_boolean err_reported = FALSE;
 
   if ((!dma_base_defined) || (!dma_end_defined)) {
 
@@ -1251,22 +1252,16 @@ confirm_dma_range_defined() {
       dma_base = h->u.def.value;
       dma_base_defined = TRUE;
     }
-    else {
-      if (!base_err_reported) {
-        einfo(_(str1), str3);
-        base_err_reported = TRUE;
-      }
-    }
 
     h = bfd_pic30_is_defined_global_symbol(str4);
     if (h) {
       dma_end = h->u.def.value;
       dma_end_defined = TRUE;
     }
-    else {
-      if (!end_err_reported) {
-        einfo(_(str1), str4);
-        end_err_reported = TRUE;
+    if ((!dma_base_defined) || (!dma_end_defined)) {
+      if (!err_reported) {
+        einfo(_(str1));
+        err_reported = TRUE;
       }
     }
   }
@@ -1418,10 +1413,14 @@ select_free_block(struct pic30_section *s, unsigned int len,
     if (PIC30_IS_NEAR_ATTR(s->sec) && !VALID_NEAR(b->addr, len))
       continue;
 
-    if (pic30_is_eds_machine(global_PROCESSOR) || has_psv_section)
+    /* CAW - pic30_psv_override allows us to force all 'data' style
+             definitions to be placed anywhere in RAM */
+    if ((pic30_psv_override == FALSE) &&
+        (pic30_is_eds_machine(global_PROCESSOR) || has_psv_section)) {
       /* qualify LOCAL_DATA with leftmost position in free block */
       if (PIC30_IS_LOCAL_DATA(s->sec) && !VALID_LOCAL_DATA(b->addr, len))
         continue;
+    }
 
     /* qualify LOW_ADDR with leftmost position in free block */
     if (IS_LOCATE_OPTION(EXCLUDE_HIGH_ADDR) &&
@@ -1682,7 +1681,8 @@ select_free_block(struct pic30_section *s, unsigned int len,
           continue;
         }
 
-        if ((pic30_is_eds_machine(global_PROCESSOR) || has_psv_section) &&
+        if ((pic30_psv_override == FALSE) &&
+            (pic30_is_eds_machine(global_PROCESSOR) || has_psv_section) &&
             PIC30_IS_LOCAL_DATA(s->sec) && !VALID_LOCAL_DATA(option2, len)) {
           option2 = EDS_BOUNDARY - len + 2;  /* skip back */
           if (pic30_debug)

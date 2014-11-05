@@ -2020,6 +2020,7 @@ df_ref_change_reg_with_loc_1 (struct df_reg_info *old_df,
 			      struct df_reg_info *new_df,
 			      int new_regno, rtx loc)
 {
+  int old_regno = -1;
   df_ref the_ref = old_df->reg_chain;
 
   while (the_ref)
@@ -2047,6 +2048,7 @@ df_ref_change_reg_with_loc_1 (struct df_reg_info *old_df,
           }
 #endif
 
+          old_regno = DF_REF_REGNO(the_ref);
 	  DF_REF_REGNO (the_ref) = new_regno;
 	  DF_REF_REG (the_ref) = regno_reg_rtx[new_regno];
 
@@ -2077,8 +2079,14 @@ df_ref_change_reg_with_loc_1 (struct df_reg_info *old_df,
 	  else
 	    ref_vec = insn_info->uses;
 	  if (dump_file)
-	    fprintf (dump_file, "changing reg in insn %d\n",
-		     DF_REF_INSN_UID (the_ref));
+	    fprintf (dump_file, 
+                     "changing reg in insn %d from %d (%s) to %d (%s)\n",
+		     DF_REF_INSN_UID (the_ref), 
+                     old_regno, (old_regno < FIRST_PSEUDO_REGISTER) && 
+                                (old_regno >= 0) ? 
+                                   reg_names[old_regno] : "",
+                     new_regno, new_regno < FIRST_PSEUDO_REGISTER ? 
+                                   reg_names[new_regno] : "");
 
 	  ref_vec_t = ref_vec;
 

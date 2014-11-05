@@ -3671,7 +3671,13 @@ build2_stat (enum tree_code code, tree tt, tree arg0, tree arg1 MEM_STAT_DECL)
 
   if ((code == MINUS_EXPR || code == PLUS_EXPR || code == MULT_EXPR)
       && arg0 && arg1 && tt && POINTER_TYPE_P (tt)
-      /* When sizetype precision doesn't match that of pointers
+#ifdef _BUILD_C30_
+      /* address space pointers might be bigger or smaller than size_type
+         and not behave like integers, so size_t might not be an appropriate
+         representation for the pointer */
+      && (!TYPE_ADDR_SPACE (TREE_TYPE (tt)))
+#endif
+       /* When sizetype precision doesn't match that of pointers
          we need to be able to build explicit extensions or truncations
 	 of the offset argument.  */
       && TYPE_PRECISION (sizetype) == TYPE_PRECISION (tt))

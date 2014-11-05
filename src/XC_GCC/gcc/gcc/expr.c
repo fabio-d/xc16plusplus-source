@@ -815,7 +815,12 @@ convert_modes (enum machine_mode mode, enum machine_mode oldmode, rtx x, int uns
 #endif
 #endif
   if ((CONST_INT_P (x)
-       && GET_MODE_BITSIZE (mode) <= HOST_BITS_PER_WIDE_INT)
+       && GET_MODE_BITSIZE (mode) <= HOST_BITS_PER_WIDE_INT
+#ifdef _BUILD_C30_
+       && GET_MODE_CLASS(mode) == MODE_INT  /* can't gent_int_mode for */
+       && GET_MODE_CLASS(mode) == MODE_INT  /* something that is not MODE_INT */
+#endif
+      )
       || (GET_MODE_CLASS (mode) == MODE_INT
 	  && GET_MODE_CLASS (oldmode) == MODE_INT
 	  && (GET_CODE (x) == CONST_DOUBLE
@@ -7763,8 +7768,12 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	  optab other_optab = zextend_p ? smul_widen_optab : umul_widen_optab;
 	  this_optab = zextend_p ? umul_widen_optab : smul_widen_optab;
 
-	  if (mode == GET_MODE_2XWIDER_MODE (innermode))
-	    {
+#ifdef _BUILD_C30_
+              /* why check == GET_MODE2XWIDER_MODE ?
+                 all comments say AT LEAST 2X Wider ... 
+
+                 if there is a handler, user it (CAW) */
+
 	      if (optab_handler (this_optab, mode)->insn_code != CODE_FOR_nothing)
 		{
 		  expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1,
@@ -7773,6 +7782,20 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 					       unsignedp, this_optab);
 		  return REDUCE_BIT_FIELD (temp);
 		}
+#endif
+
+	  if (mode == GET_MODE_2XWIDER_MODE (innermode))
+	    {
+#ifndef _BUILD_C30_
+	      if (optab_handler (this_optab, mode)->insn_code != CODE_FOR_nothing)
+		{
+		  expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1,
+				   EXPAND_NORMAL);
+		  temp = expand_widening_mult (mode, op0, op1, target,
+					       unsignedp, this_optab);
+		  return REDUCE_BIT_FIELD (temp);
+		}
+#endif
 	      if (optab_handler (other_optab, mode)->insn_code != CODE_FOR_nothing
 		  && innermode == word_mode)
 		{

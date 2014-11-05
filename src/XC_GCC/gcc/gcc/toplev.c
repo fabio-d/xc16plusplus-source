@@ -2549,6 +2549,7 @@ do_compile (void)
 int
 toplev_main (int argc, char **argv)
 {
+
   expandargv (&argc, &argv);
 
   save_argv = CONST_CAST2 (const char **, char **, argv);
