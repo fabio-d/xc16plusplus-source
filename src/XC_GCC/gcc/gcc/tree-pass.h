@@ -627,6 +627,7 @@ extern void do_per_function_toporder (void (*) (void *), void *);
 extern struct rtl_opt_pass pass_validate_dsp_instructions;
 extern struct rtl_opt_pass pass_merge_accumulators;
 extern struct rtl_opt_pass pass_track_sfrs;
+extern struct rtl_opt_pass pass_RAW_count;
 #endif
 
 #endif /* GCC_TREE_PASS_H */

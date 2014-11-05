@@ -16,7 +16,7 @@
 # To install in $HOME instead of /usr/local, use:
 #    make install prefix=$HOME
 
-CC=/Developer/usr/bin/gcc-4.2
+CC=i386-linux-gcc
 
 CFLAGS= -DUSE_MMAP
 #CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
@@ -25,8 +25,8 @@ CFLAGS= -DUSE_MMAP
 #           -Wstrict-prototypes -Wmissing-prototypes
 
 LDFLAGS=-L. libz.a
-LDSHARED=/Developer/usr/bin/gcc-4.2
-CPP=/Developer/usr/bin/gcc-4.2 -E
+LDSHARED=i386-linux-gcc
+CPP=i386-linux-gcc -E
 
 LIBS=libz.a
 SHAREDLIB=libz.dylib
@@ -39,7 +39,7 @@ TAR=tar
 SHELL=/bin/sh
 EXE=
 
-prefix =/Users/cawilkie/dev/builds/build_20140819/bin/XC_GCC-elf-native-xclm//host-libs
+prefix =/Users/cawilkie/dev/builds/build_20140925/bin/XC_GCC-elf-linux-xclm//host-libs
 exec_prefix =${prefix}
 libdir =${exec_prefix}/lib
 includedir =${prefix}/include

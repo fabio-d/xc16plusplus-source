@@ -2293,6 +2293,31 @@ reemit_notes (rtx insn)
 static void
 move_insn (rtx insn, rtx last, rtx nt)
 {
+
+#if  defined(_BUILD_C30_) && 0
+  /* not needed - but we do need to add the note problem sometime after this 
+       pass - peephole2 could do it for us */
+  /* remove any dead or unused notes - these will get re-added by 
+       df_analyze later if needed */
+  rtx *notes = &REG_NOTES(insn);
+  rtx link = *notes;
+
+  while (link) 
+    {
+      switch (REG_NOTE_KIND(*notes)) {
+        case REG_DEAD:
+        case REG_UNUSED: {
+           rtx next = XEXP(link,1);
+           *notes = link = next;
+           break;
+        }
+        default:
+           notes = &XEXP(link, 1);
+           link = *notes;
+      }
+    }
+#endif
+           
   if (PREV_INSN (insn) != last)
     {
       basic_block bb;

@@ -594,8 +594,7 @@ get_section (const char *name, unsigned int flags, tree decl)
       /* not all targets must have all section flags identical,
          eg its okay not to specify address() on subsequent sections */
       if ((sect->common.flags & ~SECTION_DECLARED) != flags
-	  && (TARGET_CHECK_SECTION_FLAGS(sect->common.flags & ~SECTION_DECLARED,
-                                         flags)))
+	  && (TARGET_CHECK_SECTION_FLAGS(sect->common.flags, flags)))
 #else
       if ((sect->common.flags & ~SECTION_DECLARED) != flags
 	  && ((sect->common.flags | flags) & SECTION_OVERRIDE) == 0)
@@ -2368,11 +2367,7 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
                                  sect->named.decl);
 #endif
     output_addressed_constants (DECL_INITIAL (decl));
-#ifdef _BUILD_C30_
-    if (SECTION_STYLE(sect) == SECTION_NAMED) 
-      pic30_set_constant_section(0,0,sect->named.decl);
   }
-#endif
 
   /* dbxout.c needs to know this.  */
   if (sect && (sect->common.flags & SECTION_CODE) != 0)
@@ -2402,10 +2397,14 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
       if (DECL_ALIGN (decl) > BITS_PER_UNIT)
 	ASM_OUTPUT_ALIGN (asm_out_file, floor_log2 (DECL_ALIGN_UNIT (decl)));
       assemble_variable_contents (decl, name, dont_output_data);
-    }
+#ifdef _BUILD_C30_
+    if (SECTION_STYLE(sect) == SECTION_NAMED) 
+      pic30_set_constant_section(0,0,sect->named.decl);
+#endif
 #ifdef _BUILD_C30_
    pic30_emit_fillupper(decl,0);
 #endif
+    }
 }
 
 /* Return 1 if type TYPE contains any pointers.  */

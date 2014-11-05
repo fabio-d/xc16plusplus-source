@@ -1057,6 +1057,9 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_split_before_sched2);
 	  NEXT_PASS (pass_sched2);
 	  NEXT_PASS (pass_peephole2);
+#if defined(_BUILD_C30_)
+          NEXT_PASS (pass_RAW_count);
+#endif
 	  NEXT_PASS (pass_stack_regs);
 	    {
 	      struct opt_pass **p = &pass_stack_regs.pass.sub;

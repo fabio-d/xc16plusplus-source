@@ -1247,6 +1247,10 @@ case "${target}" in
   mn10300-*-*)
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
+  pic30*)
+    noconfigdirs="$noconfigdirs sim gdb"
+    target_makefile_frag="${target_makefile_frag} config/mt-pic30"
+    ;;
   powerpc-*-aix*)
     # copied from rs6000-*-* entry
     noconfigdirs="$noconfigdirs gprof target-libgloss ${libgcj}"

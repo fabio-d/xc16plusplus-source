@@ -1838,6 +1838,13 @@ final_scan_insn (rtx insn, FILE *file, int optimize ATTRIBUTE_UNUSED,
 #endif
   rtx next;
 
+#if defined(_BUILD_C30_)
+  /* if we wish to use DF analysis we could rebuild notes here ...
+       right now we wish to not use DF analysis in peep */
+  df_note_add_problem();
+  df_analyze ();
+#endif
+
   insn_counter++;
 
   /* Ignore deleted insns.  These can occur when we split insns (due to a
