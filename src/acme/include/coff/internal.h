@@ -824,5 +824,5 @@ struct internal_reloc
 #define R_PIC30_UNSIGNED_10_PSVPTR     239
 #define R_PIC30_WORD_PACKED_HI         240
 #define R_PIC30_WORD_PACKED_LO         241
-
+#define R_PIC30_UNSIGNED_3             242
 #endif /* GNU_COFF_INTERNAL_H */

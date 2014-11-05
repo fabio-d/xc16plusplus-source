@@ -5688,6 +5688,10 @@ swap_out_syms (abfd, sttp, relocatable_p)
 
 	      if (shndx == -1)
 		{
+#if defined(PIC30)
+                  if (sec->output_section == NULL)
+                    continue;
+#endif
 		  asection *sec2;
 
 		  /* Writing this would be a hell of a lot easier if

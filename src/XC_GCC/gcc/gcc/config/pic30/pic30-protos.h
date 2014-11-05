@@ -64,7 +64,7 @@ extern unsigned int mchp_pragma_printf_args;
 extern unsigned int mchp_pragma_scanf_args;
 extern unsigned int mchp_pragma_inline;
 
-void pic30_validate_dsp_instructions(void);
+unsigned int pic30_validate_dsp_instructions(void);
 int pic30_lnk_removed(rtx insn, int lnk);
 int pic30_frame_pointer_needed_p(int size); 
 tree pic30_extended_pointer_integer_type(enum machine_mode);
@@ -212,6 +212,8 @@ extern void pic30_set_function_return(int bState);
 extern int pic30_get_function_return(void);
 extern void pic30_identify_used_regs(rtx, int*);
 extern int pic30_trace_all_addresses(void);
+extern int pic30_function_uses_w0(int);
+
 
 
 #ifdef TREE_CODE
@@ -265,6 +267,7 @@ extern int  pic30_Q_constraint(rtx);
 extern int  pic30_Q_constraint_displacement(rtx, int *);
 extern int  pic30_Q_operand(rtx, enum machine_mode);
 extern int  pic30_R_constraint(rtx);
+extern int  pic30_R_constraint_strict(rtx,int);
 extern int  pic30_R_operand(rtx, enum machine_mode);
 extern int  pic30_S_constraint(rtx);
 extern int  pic30_S_constraint_ecore(rtx, int ecore_okay);
@@ -349,6 +352,7 @@ extern int  pic30_near_math_operand(rtx, enum machine_mode);
 extern int  pic30_near_mode2_operand(rtx, enum machine_mode);
 extern int  pic30_near_mode2_APSV_operand(rtx, enum machine_mode);
 extern int  pic30_reg_or_symbolic_address(rtx, enum machine_mode);
+extern int  pic30_neardata_space_operand_offset(rtx, HOST_WIDE_INT *);
 extern int  pic30_neardata_space_operand_p(rtx);
 extern int  pic30_IndexEqual(rtx, rtx);
 extern unsigned int  pic30_Q_base(rtx);
@@ -373,6 +377,9 @@ extern int pic30_sfr_operand_helper(rtx op);
 
 #endif /* RTX_CODE */
 
+extern int pic30_validate_config_setting(struct mchp_config_specification *,
+                                         struct mchp_config_setting *);
+
 extern void pic30_common_override_options(void);
 
 struct isr_info {
@@ -394,6 +401,8 @@ extern int pic30_smart_io_warning;
 extern int pic30_fillupper_value;
 extern int pic30_device_id;
 extern int pic30_device_mask;
+
+extern tree pic30_target_pointer_sizetype(tree);
 
 
 #ifdef GCC_C_PRAGMA_H

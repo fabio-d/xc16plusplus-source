@@ -15461,6 +15461,12 @@ add_const_value_attribute (dw_die_ref die, rtx rtl)
 	}
       return false;
 
+#if defined(_BUILD_C30_)
+    case SUBREG:
+      /* (CAW) we can take a subreg of a symbol to convert it do an int
+               of a different size */
+	return add_const_value_attribute (die, XEXP (rtl, 0));
+#endif
     case CONST:
       if (CONSTANT_P (XEXP (rtl, 0)))
 	return add_const_value_attribute (die, XEXP (rtl, 0));
@@ -15502,6 +15508,7 @@ add_const_value_attribute (dw_die_ref die, rtx rtl)
       return false;
 
     default:
+      /* CAW - is this an 'abort' error or 'return false'? */
       /* No other kinds of rtx should be possible here.  */
       gcc_unreachable ();
     }

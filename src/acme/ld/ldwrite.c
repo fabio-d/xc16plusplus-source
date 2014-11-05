@@ -52,7 +52,11 @@ build_link_order (statement)
 	bfd_boolean big_endian = FALSE;
 
 	output_section = statement->data_statement.output_section;
-	ASSERT (output_section->owner == output_bfd);
+        /* Return if this section is not in the output bfd (floating aivt)*/
+        if (output_section)
+	  ASSERT (output_section->owner == output_bfd);
+        else 
+          return;
 
 	link_order = bfd_new_link_order (output_bfd, output_section);
 	if (link_order == NULL)

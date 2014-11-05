@@ -155,6 +155,7 @@ bfd_boolean pic30_select_objects = TRUE;
 bfd_boolean pic30_has_fill_option = 0;
 bfd_boolean pic30_local_stack = TRUE;
 bfd_boolean pic30_psv_override = 0;
+bfd_boolean pic30_partition_flash = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -1482,6 +1483,20 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          SRC_MASK(0x0ffff0),            /* src_mask */
          0x0ffff0,                      /* dst_mask */
          FALSE),                        /* pcrel_offset? */
+ /* 3-bit immediate */
+   HOWTO(R_PIC30_UNSIGNED_3,           /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         3,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_unsigned,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_GENERIC,      /* special_function */
+         "UNSIGNED 3",                 /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x000007),            /* src_mask */
+         0x000007,                      /* dst_mask */
+         FALSE),
 };
 
 /* A mapping from BFD reloc types to PIC30 ELF reloc types.  */
@@ -1576,8 +1591,9 @@ static const struct elf_reloc_map pic30_reloc_map[] =
   { BFD_RELOC_PIC30_UNSIGNED_10_EDSOFFSET,  R_PIC30_UNSIGNED_10_EDSOFFSET },
   { BFD_RELOC_PIC30_UNSIGNED_10_PSVPTR,	    R_PIC30_UNSIGNED_10_PSVPTR },
   { BFD_RELOC_PIC30_UNSIGNED_10_ACCESS,     R_PIC30_UNSIGNED_10_ACCESS },
-  { BFD_RELOC_PIC30_WORD_PACKED_HI,        R_PIC30_WORD_PACKED_HI },
-  { BFD_RELOC_PIC30_WORD_PACKED_LO,        R_PIC30_WORD_PACKED_LO },
+  { BFD_RELOC_PIC30_WORD_PACKED_HI,         R_PIC30_WORD_PACKED_HI },
+  { BFD_RELOC_PIC30_WORD_PACKED_LO,         R_PIC30_WORD_PACKED_LO },
+  { BFD_RELOC_PIC30_UNSIGNED_3,             R_PIC30_UNSIGNED_3 },
 };
 
 /* Given a BFD reloc type, return a howto structure.  */

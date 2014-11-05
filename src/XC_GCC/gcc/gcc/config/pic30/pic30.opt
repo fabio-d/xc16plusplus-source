@@ -208,6 +208,9 @@ Target Var(TARGET_FORCE_EP) VarExists Undocumented
 mlnk
 Target RejectNegative Var(pic30_peep_lnk) Undocumented
 
+menable-fixed
+Target RejectNegative JoinedOrMissing Var(pic30_fp_support) VarExists
+
 ;
 ; **************************** CAUTION
 ; **************************** Ensure that the '=' sign is not followed by
@@ -258,5 +261,6 @@ mext=
 Target Joined Var(mchp_import)
 Enable support for importing external code from another vendor
 
-menable-fixed
-Target RejectNegative JoinedOrMissing Var(pic30_fp_support) VarExists
+mpartition=
+Target Joined Var(pic30_partition) Undocumented
+

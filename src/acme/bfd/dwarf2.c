@@ -549,8 +549,6 @@ read_abbrevs (abfd, offset, stash)
 						     stash->syms);
       if (! stash->dwarf_abbrev_buffer)
 	  return 0;
-    }
-
 #if defined(PIC30)
         /*
         ** Convert 16-bit octets to 8-bit bytes
@@ -565,8 +563,8 @@ read_abbrevs (abfd, offset, stash)
               stash->dwarf_abbrev_size = j/2;
         }
 #endif
-
-  if (offset >= stash->dwarf_abbrev_size)
+     }
+  if (offset != 0 && offset >= stash->dwarf_abbrev_size)
     {
       (*_bfd_error_handler) (_("Dwarf Error: Abbrev offset (%lu) greater than or equal to .debug_abbrev size (%lu)."),
 			     (unsigned long) offset, stash->dwarf_abbrev_size);
@@ -1055,7 +1053,6 @@ decode_line_info (unit, stash)
 						     stash->syms);
       if (! stash->dwarf_line_buffer)
 	return 0;
-    }
 
 #if defined(PIC30)
         /*
@@ -1072,9 +1069,11 @@ decode_line_info (unit, stash)
         }
 #endif
 
+     }
   /* It is possible to get a bad value for the line_offset.  Validate
      it here so that we won't get a segfault below.  */
-  if (unit->line_offset >= stash->dwarf_line_size)
+  if (unit->line_offset != 0 && unit->line_offset >= stash->dwarf_line_size)
+
     {
       (*_bfd_error_handler) (_("Dwarf Error: Line offset (%lu) greater than or equal to .debug_line size (%lu)."),
 			     unit->line_offset, stash->dwarf_line_size);
@@ -1228,7 +1227,10 @@ decode_line_info (unit, stash)
 	      /* Append row to matrix using current values.  */
 	      add_line_info (table, address, filename, line, column, 0);
 	      basic_block = 1;
+              if (low_pc == 0 || ((address != 0) && (address < low_pc)))
+#if 0
 	      if (low_pc == 0 || address < low_pc)
+#endif
 		low_pc = address;
 	      if (address > high_pc)
 		high_pc = address;
@@ -1247,7 +1249,10 @@ decode_line_info (unit, stash)
 		  end_sequence = 1;
 		  add_line_info (table, address, filename, line, column,
 				 end_sequence);
-		  if (low_pc == 0 || address < low_pc)
+		  if (low_pc == 0 || ((address != 0) && (address < low_pc)))
+#if 0
+	          if (low_pc == 0 || address < low_pc)
+#endif
 		    low_pc = address;
 		  if (address > high_pc)
 		    high_pc = address;
@@ -1290,7 +1295,10 @@ decode_line_info (unit, stash)
 	    case DW_LNS_copy:
 	      add_line_info (table, address, filename, line, column, 0);
 	      basic_block = 0;
+              if (low_pc == 0 || ((address != 0) && (address < low_pc)))
+#if 0
 	      if (low_pc == 0 || address < low_pc)
+#endif
 		low_pc = address;
 	      if (address > high_pc)
 		high_pc = address;

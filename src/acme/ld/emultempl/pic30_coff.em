@@ -365,6 +365,7 @@ static void pic30_create_unused_auxflash_sections
   PARAMS ((struct pic30_fill_option *));
 
 int fill_section_count = 0;
+unsigned int enable_fixed = 0;
 
 static void gld${EMULATION_NAME}_before_parse PARAMS ((void));
 static void gld${EMULATION_NAME}_after_parse PARAMS ((void));
@@ -3407,6 +3408,17 @@ bfd_pic30_process_bfd_after_open (abfd, info)
         }
       }
 
+      if (PIC30_IS_INFO_ATTR(symbols[i]->section) &&
+          strcmp(symbols[i]->section->name, "__c30_info") == 0) {
+        sym_name = bfd_asymbol_name(symbols[i]);
+        if (strstr(sym_name, "__enable_fixed")) {
+          enable_fixed = 1;
+
+          if (pic30_debug)
+            printf("    %s\n", sym_name);
+        }
+      }
+
       /* look for __psv_trap_errata flag */
       if (PIC30_IS_INFO_ATTR(symbols[i]->section) &&
           strcmp(symbols[i]->section->name, "__c30_info") == 0) {
@@ -4339,6 +4351,14 @@ bfd_pic30_finish()
                                     "__const_length", BSF_GLOBAL,
                                     bfd_abs_section_ptr, const_length,
                                     "__const_length", 1, 0, 0);
+
+  if (pic30_debug)
+    printf("Creating __enable_fixed = %x\n", enable_fixed);
+  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+                                    "__enable_fixed", BSF_GLOBAL,
+                                    bfd_abs_section_ptr, enable_fixed,
+                                    "__enable_fixed", 1, 0, 0);
+
 
   /*
   ** Set some CodeGuard symbols
@@ -5292,8 +5312,10 @@ gld${EMULATION_NAME}_after_open()
   /*
   ** Load the set of valid CodeGuard options, based on device
   */
-  if (global_PROCESSOR)
+  if (global_PROCESSOR) {
     pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
+    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
+  }
 
 
   /*
@@ -5891,6 +5913,9 @@ pic30_set_output_section_flags(lang_output_section_statement_type *os)
 static void  
 gld${EMULATION_NAME}_before_allocation()
 {
+  extern bfd_vma aivt_address;
+  extern bfd_vma aivt_len;
+
   if (pic30_debug)
     {
       printf("\nBefore allocation:\n");
@@ -5909,6 +5934,29 @@ gld${EMULATION_NAME}_before_allocation()
       region->current = base_address[GENERALx][FLASHx];
     }
   }
+
+  if (aivt_address) {
+     /* we have movable aivt section - adjust the start address of the
+        program region to be aivt_address + aivt_len */
+    lang_memory_region_type *region;
+
+    region = lang_memory_region_lookup ("program");
+    region->length = region->length -
+                       ((aivt_address + aivt_len) - region->origin);
+    region->origin = aivt_address + aivt_len;
+    region->current = region->origin;
+  }
+
+  if (pic30_debug)
+    {
+      printf("\nBefore sequential allocation:\n");
+      bfd_pic30_print_section_header();
+      bfd_map_over_sections(output_bfd, &bfd_pic30_report_sections, 0);
+
+      printf("\nMemory Regions\n");
+      bfd_pic30_print_region_info("data");
+      bfd_pic30_print_region_info("program");
+    }
 
 } /*static void gld${EMULATION_NAME}_before_allocation ()*/
 

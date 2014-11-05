@@ -121,6 +121,7 @@ bfd_boolean pic30_select_objects = TRUE;
 bfd_boolean pic30_has_fill_option = 0;
 bfd_boolean pic30_local_stack = TRUE;
 bfd_boolean pic30_psv_override = 0;
+bfd_boolean pic30_partition_flash = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -553,6 +554,9 @@ reloc_howto_type pic30_coff_howto_table[] =
   HOWTO(R_PIC30_WORD_PACKED_LO, 0, 2, 16, FALSE, 4, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - PACKED_LO",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
+  HOWTO(R_PIC30_UNSIGNED_3, 0, 1, 3, FALSE, 0, complain_overflow_unsigned,
+         RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 3",
+         TRUE, 0x000007, 0x000007, FALSE),
 };
 
 /******************************************************************************/
@@ -980,6 +984,9 @@ void pic30_rtype2howto (internal, dst)
      case R_PIC30_WORD_PACKED_LO:
          internal->howto = pic30_coff_howto_table + 83;
          break;
+      case R_PIC30_UNSIGNED_3:
+         internal->howto = pic30_coff_howto_table + 84;
+         break;
 
       default:
          abort ();
@@ -1323,6 +1330,9 @@ static reloc_howto_type * pic30_bfd_reloc_type_lookup (abfd, code)
          break;
      case BFD_RELOC_PIC30_WORD_PACKED_LO:
          return pic30_coff_howto_table + 83;
+         break;
+      case BFD_RELOC_PIC30_UNSIGNED_3:
+         return pic30_coff_howto_table + 84;
          break;
 
       default:

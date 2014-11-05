@@ -572,7 +572,7 @@ extern void pic30_list_section_info PARAMS ((FILE *));
 #define PIC30_FRAG_APPEND_1_CHAR(value) \
    {                                    \
       FRAG_APPEND_1_CHAR(value);        \
-      global_current_location++;        \
+      global_current_location++;         \
    }
 
 /******************************************************************************/
@@ -711,3 +711,4 @@ extern void pic30_init(int argc, char **argv);
 #define HOST_SPECIAL_INIT pic30_init
 
 extern char *pic30_resource_version;
+extern int pic30_partition_flash;

@@ -284,6 +284,7 @@ static struct section_stack *section_stack;
 #define PIC30_NO_RELAX             (PIC30_BASE_OPTION + 0)
 #define PIC30_RELAX                (PIC30_BASE_OPTION + 1)
 #define PIC30_CPU                  (PIC30_BASE_OPTION + 2)
+#define PIC30_PARTITION            (PIC30_BASE_OPTION + 3)
 
 /* Number of littlenums required to hold an extended precision number */
 #define MAX_LITTLENUMS 6
@@ -311,6 +312,7 @@ struct option md_longopts[] =
    { "processor",    required_argument, NULL, 'p'             },
    { "cpu",          required_argument, NULL, PIC30_CPU       },
    { "g",            no_argument,       NULL, 'g'             },
+   { "partition",    no_argument,       NULL, PIC30_PARTITION },
    { NULL,           no_argument,       NULL, 0               }
 };
 
@@ -3535,6 +3537,9 @@ pic30_section (push)
      }
    } /* new style section directive */
 
+/* Took off the warning as we using the noload attribute
+   DEV_TOOL_HOPPER-164 */
+#if 0
    /*
    ** Detect invalid attribute combinations
    */
@@ -3544,6 +3549,7 @@ pic30_section (push)
 	  || (( flags & SEC_NEVER_LOAD) && (now_seg->auxflash == 1))))
        as_warn (_("This executable section is not loadable.\n"));
    }
+#endif
 
    /* Reset the global values for the new section */
    pic30_set_global_info ();
@@ -4080,7 +4086,7 @@ pic30_cons_emit_expr (exp, number_of_bytes)
        */
       global_must_align_location_counter = TRUE;
 
-      p = frag_more (number_of_bytes_to_allocate);
+      p = frag_more (number_of_bytes_to_allocate); 
       memset (p, 0, number_of_bytes_to_allocate);
 
       TC_CONS_FIX_NEW (frag_now, p - frag_now->fr_literal,
@@ -4283,6 +4289,9 @@ md_parse_option (option, argument)
            rc = pic30_update_processor(argument);
          }
          break;
+      case PIC30_PARTITION:
+         pic30_partition_flash = TRUE;
+         break;
 
       default :
          rc = 0;
@@ -4323,6 +4332,7 @@ md_show_usage (stream)
       "  --relax                 Use shorter branches and RCALLs when possible.\n"
       "  -p,--processor=PROC     Specify the target processor "
                                 "(e.g., 30F2010).\n"
+      "  --partition             Limit memory for a single partition\n"
       );
 } /* void md_show_usage(FILE *) */
 
@@ -4351,14 +4361,18 @@ md_begin (void)
    register const struct pic30_opcode * last_opcode;
    int symbol_count = 0;
    int is_ecore = pic30_is_ecore_machine(global_PROCESSOR);
+   int is_dualpartition = pic30_is_dualpartition_machine(global_PROCESSOR);
 
    if (flag_debug)
       printf ("--> md_begin::begin\n");
 
    pic30_opcodes_hash = hash_new ();
 
-   if (flag_debug)
+   if (flag_debug) {
       printf ("    md_begin::inserting opcodes...\n");
+      if (is_ecore) printf ("      HAS_ECORE...\n");
+      if (is_dualpartition) printf ("      HAS_DUALPARTITION...\n");
+   }
 
    last_opcode = pic30_opcodes + pic30_num_opcodes;
    for (opcode = pic30_opcodes; opcode < last_opcode; opcode++)
@@ -4368,8 +4382,14 @@ md_begin (void)
       add_me |= ((opcode->flags & F_FCORE) && (!is_ecore));
       add_me |= (((opcode->flags & F_ECORE) == 0) && 
 		 ((opcode->flags & F_FCORE) == 0));
+      if ((opcode->flags & F_DUALPARTITION) && !is_dualpartition) {
+        /* don't add a dualpartition instruction if we have onle partition */
+        add_me = 0;
+      }
       if ((strcmp (opcode->name, previous_name) != 0) && add_me)
       {
+         if (flag_debug) 
+           printf ("      adding %s\n",opcode->name);
          previous_name = (char *)opcode->name;
          hash_insert (pic30_opcodes_hash, opcode->name, (void *) opcode);
       } /* if (strcmp (opcode->name, previous_name) != 0) */
@@ -7911,14 +7931,11 @@ pic30_create_2word_insn (opcode, operands)
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
     dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD*2/2);
-  }
-#endif
-  /* Start a new frag after each statement Whether 
-     we generate debugging info or not bin30-223 */
-  {
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
+    frag_align(0, 0, 0);
   }
+#endif
 
    if (flag_debug)
       printf ("<-- pic30_create_2word_insn::exit\n");
@@ -8333,14 +8350,11 @@ pic30_create_insn (opcode, operands, operand_count)
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
     dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD/2);
-  }
-#endif
-  /* Start a new frag after each statement Whether 
-     we generate debugging info or not bin30-223 */
-  {
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
+    frag_align(0, 0, 0);
   }
+#endif
 
   if (flag_debug) {
       printf ("    pic30_create_insn::opcode = %#x\n", insn);

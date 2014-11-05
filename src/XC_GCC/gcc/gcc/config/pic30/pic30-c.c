@@ -176,6 +176,11 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     cpp_define(pfile,buffer);
   }
 
+  if (pic30_partition) {
+    sprintf(buffer,"__DUAL_PARTITION=%c", pic30_partition[0]);
+    cpp_define(pfile,buffer);
+  }
+
   mchp_init_cci(pfile_v);
 }
 
@@ -197,7 +202,8 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
 ** Parse the <#pragma <section> [section]> pragma.
 */
 /************************************************************************/
-static void pic30_handle_section_pragma(struct cpp_reader *pfile ATTRIBUTE_UNUSED,
+static void pic30_handle_section_pragma(struct cpp_reader *pfile 
+                                          ATTRIBUTE_UNUSED,
                                         tree *pvalue) {
   int c;
   const char *pszScnName;
@@ -229,31 +235,40 @@ static void pic30_handle_section_pragma(struct cpp_reader *pfile ATTRIBUTE_UNUSE
         break;
       }
     }
-    *pvalue = build_string(strlen(pszScnName),pszScnName);
     /*
      ** Check for <location> specification
      */
     if (c == CPP_EQ) {
-      warning(0,"absolute address specification ignored");
-      do {
-        c = pragma_lex(&x);
-      } while (c != CPP_EOF);
-    } else if (c != CPP_EOF) {
-      if (pic30_parse_pragma_option(c) == 0) {
-        error("Invalid location qualifier: '%s'", pszScnName);
+      char buffer[256];
+
+      c = pragma_lex(&x);
+      if ((c != CPP_NUMBER) || (TREE_CODE(x) != INTEGER_CST)) {
+        error("Invalid address format");
         return;
       }
-      pszScnName = IDENTIFIER_POINTER(x);
+      sprintf(buffer,"%s,address(0x%6.6x)", pszScnName, TREE_INT_CST_LOW(x));
+      *pvalue = build_string(strlen(buffer), buffer);
+      return;
+    } else if (c != CPP_EOF) {
+      char *location_qualifier;
+
+      if (pic30_parse_pragma_option(c) == 0) {
+        error("Invalid location qualifier: '%s'", pszScnName);
+	return;
+      }
+      location_qualifier = IDENTIFIER_POINTER(x);
       /*
        ** Validate the location qualifier
        */
-      if ((strcmp("gpr", pszScnName) == 0) || (strcmp("sfr", pszScnName) == 0)){
+      if ((strcmp("gpr", location_qualifier) == 0) || 
+          (strcmp("sfr", location_qualifier) == 0)){
         warning(0,"location qualifier '%s' ignored", pszScnName);
-        pszScnName = NULL;
+        location_qualifier = NULL;
       } else {
         error("Invalid location qualifier: '%s'", pszScnName);
       }
     }
+    *pvalue = build_string(strlen(pszScnName),pszScnName);
   }
 }
 

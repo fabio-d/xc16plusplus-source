@@ -812,8 +812,15 @@ determine_base_object (tree expr)
       if (TREE_CODE (base) == INDIRECT_REF)
 	return determine_base_object (TREE_OPERAND (base, 0));
 
+#ifdef _BUILD_C30_
+      /* if the base is in a different address space, then casting it
+         to ptr_type_node is bad - shouldn't build_fold_addr_expr produce
+         a well typed pointer? */
+      return  build_fold_addr_expr (base);
+#else
       return fold_convert (ptr_type_node,
 		           build_fold_addr_expr (base));
+#endif
 
     case POINTER_PLUS_EXPR:
       return determine_base_object (TREE_OPERAND (expr, 0));

@@ -1822,8 +1822,26 @@ print_scc (FILE *out, VEC (tree, heap) *scc)
 static inline bool
 set_ssa_val_to (tree from, tree to)
 {
-  tree currval;
+  tree currval = SSA_VAL(from);
 
+  if (from != to)
+    {
+      if (currval == from) 
+       {
+         if (dump_file && (dump_flags & TDF_DETAILS))
+           {
+             fprintf (dump_file, "Not changing value number of ");
+             print_generic_expr (dump_file, from, 0);
+             fprintf (dump_file, " from VARYING to ");
+             print_generic_expr (dump_file, to, 0);
+             fprintf (dump_file, "\n");
+           }
+         return false;
+       }
+     else if (TREE_CODE (to) == SSA_NAME
+             && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (to))
+      to = from;
+   }
   if (from != to
       && TREE_CODE (to) == SSA_NAME
       && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (to))
@@ -1843,8 +1861,6 @@ set_ssa_val_to (tree from, tree to)
       fprintf (dump_file, " to ");
       print_generic_expr (dump_file, to, 0);
     }
-
-  currval = SSA_VAL (from);
 
   if (currval != to  && !operand_equal_p (currval, to, OEP_PURE_SAME))
     {
@@ -2535,6 +2551,15 @@ visit_use (tree use)
 	       || gimple_has_volatile_ops (stmt)
 	       || stmt_could_throw_p (stmt))
 	changed = defs_to_varying (stmt);
+#ifdef _BUILD_C30_
+      /* if we have a pointer type and the object that we point to is
+         volatile then set_ssa_val_to will always return 'changed' and we
+         will loop forever and ever and ever and ... */
+      else if ((POINTER_TYPE_P(TREE_TYPE(use))) &&
+               TREE_THIS_VOLATILE(TREE_TYPE(TREE_TYPE(use)))) {
+	  changed = defs_to_varying (stmt);
+        }
+#endif
       else if (is_gimple_assign (stmt))
 	{
 	  tree lhs = gimple_assign_lhs (stmt);
@@ -2867,6 +2892,8 @@ process_scc (VEC (tree, heap) *scc)
 	{
 	  changed = false;
 	  iterations++;
+          if (dump_file && (dump_flags & TDF_DETAILS))
+            fprintf (dump_file, "Starting iteration %d\n", iterations);
 	  /* As we are value-numbering optimistically we have to
 	     clear the expression tables and the simplified expressions
 	     in each iteration until we converge.  */

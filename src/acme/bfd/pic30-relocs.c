@@ -105,6 +105,7 @@
 #define R_PIC30_UNSIGNED_10_HANDLE     233
 #define R_PIC30_UNSIGNED_10_DMAPAGE    234
 #define R_PIC30_UNSIGNED_10_DMAOFFSET  235
+#define R_PIC30_UNSIGNED_3             236
 
 /*
 ** relocation field descriptions
@@ -326,6 +327,9 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_UNSIGNED_10_DMAOFFSET, 0, 1, 10, FALSE, 0, complain_overflow_dont,
          RELOC_SPECIAL_FN_DMAOFFSET_DMAPAGE, "UNSIGNED 10 - DMAOFFSET",
          TRUE, 0x0003ff, 0x0003ff, FALSE),
+   HOWTO(R_PIC30_UNSIGNED_3, 0, 1, 3, FALSE, 0, complain_overflow_unsigned,
+         RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 3",
+         TRUE, 0x000007, 0x000007, FALSE),
 };
 
 

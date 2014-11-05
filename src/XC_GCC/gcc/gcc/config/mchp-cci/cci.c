@@ -249,18 +249,22 @@ get_line (char *buf, size_t n, FILE *fptr)
 /* Verify the header record for the configuration data file
  */
 static int
-verify_configuration_header_record(FILE *fptr)
+verify_configuration_header_record(FILE *fptr,int *aux)
 {
   char header_record[MCHP_CONFIGURATION_HEADER_SIZE + 1];
+
   /* the first record of the file is a string identifying
      file and its format version number. */
+  /* an auxiliary header has a version number, but it doesn't have to
+     match anything - we just return it */
+
   if (get_line (header_record, MCHP_CONFIGURATION_HEADER_SIZE + 1, fptr)
       == NULL)
     {
       warning (0, "Malformed configuration word definition file.");
       return 1;
     }
-  /* verify that this file is a daytona configuration word file */
+  /* verify that this file is a XC configuration word file */
   if (strncmp (header_record, MCHP_CONFIGURATION_HEADER_MARKER,
                sizeof (MCHP_CONFIGURATION_HEADER_MARKER) - 1) != 0)
     {
@@ -268,16 +272,40 @@ verify_configuration_header_record(FILE *fptr)
       return 1;
     }
 
-  /* verify that the version number is one we can deal with */
-  if (strncmp (header_record + sizeof (MCHP_CONFIGURATION_HEADER_MARKER) - 1,
-               MCHP_CONFIGURATION_HEADER_VERSION,
-               sizeof (MCHP_CONFIGURATION_HEADER_VERSION) - 1))
-    {
-      warning (0, "Configuration word definition file version mismatch.");
-      return 1;
-    }
+  if (aux != 0) {
+    /* capture the version number, in case we need it to help count fields */
+    *aux = (int)strtol(header_record+sizeof(MCHP_CONFIGURATION_HEADER_MARKER)-1,
+                       NULL, 10);
+  } else {
+    /* verify that the version number is one we can deal with */
+    if (strncmp (header_record + sizeof (MCHP_CONFIGURATION_HEADER_MARKER) - 1,
+                 MCHP_CONFIGURATION_HEADER_VERSION,
+                 sizeof (MCHP_CONFIGURATION_HEADER_VERSION) - 1))
+      {
+        warning (0, "Configuration word definition file version mismatch.");
+        return 1;
+      }
+  }
   return 0;
 }
+
+#define FIELD_SEPARATOR(X,FAIL)                                  \
+  if (*(X) != ':') {                                             \
+    warning (0, "Malformed configuration word definition file. " \
+                "Bad config word record");                       \
+    FAIL;                                                        \
+  }                                                              \
+  (X)++
+
+#define HEX_BYTE(X,FAIL)                                         \
+  if (X <= '9') X = X - '0';                                     \
+  else if (X <= 'F') X = 10 + X - 'A';                           \
+  else X = 10 + X - 'a';                                         \
+  if ((X < 0) || (X>15)) {                                       \
+    warning (0, "Malformed configuration word definition file. " \
+                "Bad config word record");                       \
+    FAIL;                                                        \
+  } (void)0
 
 /* Load the configuration word definitions from the data file
  */
@@ -287,12 +315,17 @@ mchp_load_configuration_definition(const char *fname)
   int retval = 0;
   FILE *fptr;
   char line [MCHP_MAX_CONFIG_LINE_LENGTH];
+  int aux = 0;
+  char *next_field;
 
   if ((fptr = fopen (fname, "rb")) == NULL)
     return 1;
 
-  if (verify_configuration_header_record (fptr))
+  if (verify_configuration_header_record (fptr, &aux))
     return 1;
+
+  /* aux == 1 is an old-style value */
+  aux--;
 
   while (get_line (line, sizeof (line), fptr) != NULL)
     {
@@ -302,29 +335,45 @@ mchp_load_configuration_definition(const char *fname)
           CWORD       Add a new word to the word list and make it the
                         current word
           SETTING     If there is no current word, diagnostic and abort
-                      Add a new setting to the current word and make
-                        it the current setting
+                        Add a new setting to the current word and make
+                          it the current setting
           VALUE       If there is no current setting, diagnostic and abort
-                      Add a new value to the current setting
+                        Add a new value to the current setting
           other       Diagnostic and abort
         */
       if (!strncmp (MCHP_WORD_MARKER, line, MCHP_WORD_MARKER_LEN))
         {
+          /* CWORD format - increasing versions ADD to fields, fields 
+           *                are separated by colon
+           * Version 0001
+           *   TEXT       - CWORD marker
+           *   HEX WORD   - address of configuration word
+           *   HEX WORD   - mask of available bits
+           *   HEX WORD   - default value
+           * Version 0002
+           *   HEX BYTE   - is paritioned 
+           * Version 0003 - (for example - not implemented for dsPIC)
+           *   HEX BYTE*  - valid partition number: 00 => all or a single,
+           *                this may be a list (delimited by eol or colon)
+           */
+
           struct mchp_config_specification *spec;
 
-          /* This is a fixed length record. we validate the following:
-              - total record length
-              - delimiters in the expected locations */
-          if (strlen (line) != (MCHP_WORD_MARKER_LEN
-                                + 24   /* two 8-byte hex value fields */
-                                + 2)   /* two ':' delimiters */
-              || line [MCHP_WORD_MARKER_LEN + 8] != ':'
-              || line [MCHP_WORD_MARKER_LEN + 17] != ':')
-            {
-              warning (0, "Malformed configuration word definition file. "
-                          "Bad config word record");
-              break;
-            }
+          if (aux == 0) {
+            /* This is a fixed length record. we validate the following:
+                - total record length
+                - delimiters in the expected locations */
+            if (strlen (line) != (MCHP_WORD_MARKER_LEN
+                                  + 24   /* two 8-byte hex value fields */
+                                  + 2)   /* two ':' delimiters */
+                || line [MCHP_WORD_MARKER_LEN + 8] != ':'
+                || line [MCHP_WORD_MARKER_LEN + 17] != ':')
+              {
+                warning (0, "Malformed configuration word definition file. "
+                            "Bad config word record");
+                break;
+              }
+          }
 
           spec = (struct mchp_config_specification *)
                  xmalloc (sizeof (struct mchp_config_specification));
@@ -332,10 +381,31 @@ mchp_load_configuration_definition(const char *fname)
 
           spec->word = (struct mchp_config_word *)
                        xcalloc (sizeof (struct mchp_config_word), 1);
-          spec->word->address = strtoul (line + MCHP_WORD_MARKER_LEN, NULL, 16);
-          spec->word->mask = strtoul(line + MCHP_WORD_MARKER_LEN + 9, NULL, 16);
-          spec->word->default_value =
-            strtoul (line + MCHP_WORD_MARKER_LEN + 18, NULL, 16);
+ 
+          if (aux >= 0) {
+            /* of course, this is always true */
+            spec->word->address = strtoul(line+MCHP_WORD_MARKER_LEN, 
+                                          &next_field, 16);
+
+            FIELD_SEPARATOR(next_field, break);
+            spec->word->mask = strtoul(next_field, &next_field, 16);
+
+            FIELD_SEPARATOR(next_field, break);
+            spec->word->default_value = strtoul (next_field, &next_field, 16);
+          }
+
+          spec->word->partitioned = 0;
+          if (aux >= 1) {
+            unsigned int v = 0;
+
+            FIELD_SEPARATOR(next_field, break);
+            v = *next_field++;
+            HEX_BYTE(v,break);
+            spec->word->partitioned = v*16;
+            v = *next_field++;
+            HEX_BYTE(v,break);
+            spec->word->partitioned += v;
+          }
 
           /* initialize the value to the default with no bits referenced */
           spec->value = spec->word->default_value;
@@ -345,6 +415,15 @@ mchp_load_configuration_definition(const char *fname)
         }
       else if (!strncmp (MCHP_SETTING_MARKER, line, MCHP_SETTING_MARKER_LEN))
         {
+          /* SETTING format - increasing versions ADD to fields, fields
+           *                  are separated by colon
+           * Version 0001
+           *   TEXT         - CSETTING marker
+           *   HEX WORD     - setting mask
+           *   TEXT         - setting description
+           * Version 0002   - no changes
+           */
+
           struct mchp_config_setting *setting;
           size_t len;
 
@@ -374,18 +453,25 @@ mchp_load_configuration_definition(const char *fname)
                     xcalloc (sizeof (struct mchp_config_setting), 1);
           setting->next = mchp_configuration_values->word->settings;
 
-          setting->mask = strtoul (line + MCHP_SETTING_MARKER_LEN, NULL, 16);
-          len = strcspn (line + MCHP_SETTING_MARKER_LEN + 9, ":");
-          /* Validate that the name is not empty */
-          if (len == 0)
+          if (aux >= 0) {
+            setting->mask = strtoul(line+MCHP_SETTING_MARKER_LEN, &next_field,
+                                    16);
+            FIELD_SEPARATOR(next_field, break);
+
+            len = strcspn (next_field, ":");
+            /* Validate that the name is not empty */
+            if (len == 0)
             {
-              warning (0, "Malformed configuration word definition file. "
-                          "Bad setting record");
-              break;
+                warning (0, "Malformed configuration word definition file. "
+                            "Bad setting record");
+                break;
             }
-          setting->name = (char*)xmalloc (len + 1);
-          strncpy (setting->name, line + MCHP_SETTING_MARKER_LEN + 9, len);
-          setting->name [len] = '\0';
+            setting->name = (char*)xmalloc (len + 1);
+            strncpy (setting->name, next_field, len);
+            setting->name [len] = '\0';
+            next_field += len;
+          }
+
           setting->description =
             (char*)xmalloc(strlen(line + MCHP_SETTING_MARKER_LEN + len + 10)+2);
           strcpy (setting->description,
@@ -395,6 +481,16 @@ mchp_load_configuration_definition(const char *fname)
         }
       else if (!strncmp (MCHP_VALUE_MARKER, line, MCHP_VALUE_MARKER_LEN))
         {
+          /* VALUE format   - increasing versions ADD to fields, fields
+           *                  are separated by colon
+           * Version 0001
+           *   TEXT         - CVALUE marker
+           *   HEX WORD     - value value
+           *   TEXT         - value name
+           *   TEXT         - value description
+           * Version 0002   - no changes
+           */
+
           struct mchp_config_value *value;
           size_t len;
           if (!mchp_configuration_values
@@ -422,22 +518,30 @@ mchp_load_configuration_definition(const char *fname)
                   xcalloc (sizeof (struct mchp_config_value), 1);
           value->next = mchp_configuration_values->word->settings->values;
 
-          value->value = strtoul (line + MCHP_VALUE_MARKER_LEN, NULL, 16);
-          len = strcspn (line + MCHP_VALUE_MARKER_LEN + 9, ":");
-          /* Validate that the name is not empty */
-          if (len == 0)
-            {
+          if (aux >= 0) {
+            value->value = strtoul(line + MCHP_VALUE_MARKER_LEN,&next_field,16);
+            FIELD_SEPARATOR(next_field, break);
+
+            len = strcspn (next_field, ":");
+            /* Validate that the name is not empty */
+            if (len == 0) {
               warning (0, "Malformed configuration word definition file. "
                           "Bad setting record");
               break;
             }
-          value->name = (char*)xmalloc (len + 1);
-          strncpy (value->name, line + MCHP_VALUE_MARKER_LEN + 9, len);
-          value->name [len] = '\0';
-          value->description =
-            (char*)xmalloc (strlen (line + MCHP_VALUE_MARKER_LEN + len + 10)+2);
-          strcpy (value->description,
-                  line + MCHP_VALUE_MARKER_LEN + len + 10);
+            value->name = (char*)xmalloc (len + 1);
+            strncpy (value->name, next_field, len);
+            value->name [len] = '\0';
+            next_field += len;
+            FIELD_SEPARATOR(next_field, break);
+
+            
+            len = strcspn (next_field, ":");
+            value->description = (char*)xmalloc (len+1);
+            strncpy (value->description, next_field, len);
+            value->description[len] = 0;
+            next_field += len;
+          }
 
           mchp_configuration_values->word->settings->values = value;
         }
@@ -460,11 +564,37 @@ mchp_load_configuration_definition(const char *fname)
   return retval;
 }
 
+static unsigned int bitsSet(unsigned int i) {
+  /* see 
+   * http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+   */
+  i = i - ((i >> 1) & 0x55555555);
+  i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+  return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+}
+   
+static unsigned int zeroBits(unsigned int v) {
+  unsigned int c = 32;
+  
+  v &= -(signed)v;
+  if (v) c--;
+  if (v & 0x0000FFFF) c -= 16;
+  if (v & 0x00FF00FF) c -= 8;
+  if (v & 0x0F0F0F0F) c -= 4;
+  if (v & 0x33333333) c -= 2;
+  if (v & 0x55555555) c -= 1;
+  return c;
+}
+
 static void
 mchp_handle_configuration_setting (const char *name,
                                    const unsigned char *value_name)
 {
   struct mchp_config_specification *spec;
+  char *endptr;
+  long long numeric_value = 0;
+
+  numeric_value = strtoll(value_name,&endptr,0);
 
   /* Look up setting in the definitions for the configuration words */
   for (spec = mchp_configuration_values ; spec ; spec = spec->next)
@@ -476,6 +606,10 @@ mchp_handle_configuration_setting (const char *name,
             {
               struct mchp_config_value *value;
 
+#ifdef MCHP_VALIDATE_SETTING_CHOICE
+              MCHP_VALIDATE_SETTING_CHOICE(spec, setting, continue);
+#endif
+            
               /* If we've already specified this setting, that's an
                  error, even if the new value and the old value match */
               if (spec->referenced_bits & setting->mask)
@@ -485,10 +619,31 @@ mchp_handle_configuration_setting (const char *name,
                   return;
                 }
 
-              /* look up the value */
-              for (value = setting->values ;
-                   value ;
-                   value = value->next)
+              if ((*value_name) && (*endptr == 0)) {
+                /* we have been given a value to match */
+                if ((*value_name) && (*endptr == 0)) {
+                  int zeros,width,max=0;
+                  /* entire string is a number, 
+                   * don't look for setting but see if the numeric_value can fit
+                   */
+              
+                  width = bitsSet(setting->mask);
+                  max = (1 << width) - 1;
+                  if ((numeric_value < 0) || (numeric_value > max)) {
+                    error("Cannot squeeze value 0x%llx into setting '%s' "
+                          "which is only %d bits wide\n", 
+                          numeric_value, setting->name, width);
+                    return;
+                  }
+                  zeros = zeroBits(setting->mask);
+                  spec->referenced_bits |= setting->mask;
+                  spec->value = (spec->value & ~setting->mask) | 
+                                (numeric_value << zeros);
+                  return;
+                }
+              } else {
+                /* look up the value */
+                for (value = setting->values ; value ; value = value->next)
                 {
                   if (strcmp (value->name, (const char*)value_name) == 0)
                     {
@@ -497,18 +652,19 @@ mchp_handle_configuration_setting (const char *name,
                       /* update the value of the word with the value
                          indicated */
                       spec->value = (spec->value & ~setting->mask)
-                                    | value->value;
+                                    | (value->value);
                       return;
                     }
                 }
-              /* If we got here, we didn't match the value name */
-              if (value_name) {
-                error ("unknown value for configuration setting '%s': '%s'",
-                       name, value_name);
-              } else {
-                error ("unknown value for configuration setting '%s'", name);
+                /* If we got here, we didn't match the value name */
+                if (value_name) {
+                  error ("unknown value for configuration setting '%s': '%s'",
+                         name, value_name);
+                } else {
+                  error ("unknown value for configuration setting '%s'", name);
+                }
+                return;
               }
-              return;
             }
         }
     }
@@ -549,25 +705,44 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
     {
       /* alloc space for the filename: directory + '/' + "configuration.data"
        */
-      char *fname = (char*)alloca (strlen (mchp_config_data_dir) + 1 +
-                            strlen (MCHP_CONFIGURATION_DATA_FILENAME));
-      strcpy (fname, mchp_config_data_dir);
-      if (fname [strlen (fname) - 1] != '/'
-          && fname [strlen (fname) - 1] != '\\')
-        strcat (fname, "/");
-      strcat (fname, MCHP_CONFIGURATION_DATA_FILENAME);
 
-      if (mchp_load_configuration_definition (fname))
-        {
-          if (!shown_no_config_warning)
-            {
-              shown_no_config_warning = 1;
-              warning (0, "Configuration word information not available for "
-                       "this processor. #pragma config is ignored.");
-            }
-          CLEAR_REST_OF_INPUT_LINE();
-          return;
+#ifndef AUX_MCHP_CONFIGURATION_DATA_FILENAME
+#define AUX_MCHP_CONFIGURATION_DATA_FILENAME MCHP_CONFIGURATION_DATA_FILENAME
+#endif
+
+      char *try[] = {
+        AUX_MCHP_CONFIGURATION_DATA_FILENAME,
+        MCHP_CONFIGURATION_DATA_FILENAME,
+        0
+      };
+      int t;
+      char *fname;
+
+      for (t = 0; try[t] != 0; t++) {
+        
+        fname = (char*)alloca (strlen(mchp_config_data_dir) + 2 + 
+                               strlen(try[t]));
+
+        strcpy (fname, mchp_config_data_dir);
+        if (fname [strlen (fname) - 1] != '/'
+            && fname [strlen (fname) - 1] != '\\')
+          strcat (fname, "/");
+        strcat (fname, try[t]);
+
+        if (mchp_load_configuration_definition (fname) == 0) { 
+          /* found a good one */
+          break;
         }
+      }
+      if (try[t] == 0) {
+        if (!shown_no_config_warning) {
+          shown_no_config_warning = 1;
+          warning (0, "Configuration word information not available for "
+                       "this processor. #pragma config is ignored.");
+        }
+        CLEAR_REST_OF_INPUT_LINE();
+        return;
+      }
     }
 
   /* The payload for the config pragma is a comma delimited list of

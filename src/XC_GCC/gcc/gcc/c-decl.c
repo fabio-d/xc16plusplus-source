@@ -4491,7 +4491,16 @@ build_compound_literal (location_t loc, tree type, tree init, bool non_const)
   DECL_CONTEXT (decl) = current_function_decl;
   TREE_USED (decl) = 1;
   TREE_TYPE (decl) = type;
+#ifdef _BUILD_C30_
+  { tree the_type;
+    the_type = type;
+    while (TREE_CODE(the_type) == ARRAY_TYPE)
+      the_type = TREE_TYPE(the_type);
+    TREE_READONLY (decl) = TYPE_READONLY (the_type);
+  }
+#else
   TREE_READONLY (decl) = TYPE_READONLY (type);
+#endif
   store_init_value (loc, decl, init, NULL_TREE);
 
   if (TREE_CODE (type) == ARRAY_TYPE && !COMPLETE_TYPE_P (type))

@@ -352,7 +352,15 @@ add_elt_to_tree (tree expr, tree type, tree elt, double_int scale,
   enum tree_code code;
   tree type1 = type;
   if (POINTER_TYPE_P (type))
+#ifdef TARGET_POINTER_SIZETYPE
+    {
+       /* sizetype is not good enough for pointers in ADDRESS_SPACES 
+          on dsPIC; some pointers are larger than 'sizetype' (CAW) */
+       type1 = TARGET_POINTER_SIZETYPE(type);
+    }
+#else
     type1 = sizetype;
+#endif
 
   scale = double_int_ext_for_comb (scale, comb);
   elt = fold_convert (type1, elt);

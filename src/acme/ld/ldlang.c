@@ -236,6 +236,14 @@ static int closest_target_match
 static char * get_first_input_target
   PARAMS ((void));
 
+#ifdef PIC30
+static void get_aivt_address
+  PARAMS ((void));
+static bfd_boolean aivt_enabled = FALSE;
+       bfd_vma aivt_address = 0;
+       bfd_vma aivt_len = 0;
+#endif
+
 /* Exported variables.  */
 lang_output_section_statement_type *abs_output_section;
 lang_statement_list_type lang_output_section_statement;
@@ -1004,6 +1012,12 @@ init_os (s)
 
   if (strcmp (s->name, DISCARD_SECTION_NAME) == 0)
     einfo (_("%P%F: Illegal use of `%s' section\n"), DISCARD_SECTION_NAME);
+
+  /* Do not creat bfd section for this output sttatement */
+  if (pic30_has_floating_aivt) {
+    if ((strcmp(s->name,".aivt") == 0) && !aivt_enabled)
+      return;
+  }
 
   new = ((section_userdata_type *)
 	 stat_alloc (sizeof (section_userdata_type)));
@@ -2377,8 +2391,11 @@ map_input_to_output_sections (s, target, output_section_statement)
 	case lang_padding_statement_enum:
 	case lang_input_statement_enum:
 	  if (output_section_statement != NULL
-	      && output_section_statement->bfd_section == NULL)
+	      && output_section_statement->bfd_section == NULL) {
 	    init_os (output_section_statement);
+            if (output_section_statement->bfd_section == NULL)
+              s->data_statement.output_section = NULL;
+          }
 	  break;
 	case lang_assignment_statement_enum:
 	  if (output_section_statement != NULL
@@ -3346,13 +3363,14 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
      bfd_vma dot;
      bfd_boolean *relax;
      bfd_boolean check_regions;
-{
+{ 
   unsigned opb = bfd_arch_mach_octets_per_byte (ldfile_output_architecture,
 						ldfile_output_machine);
 
   /* Size up the sections from their constituent parts.  */
   for (; s != (lang_statement_union_type *) NULL; s = s->header.next)
-    {
+    { int in_aivt_section=0;
+
       switch (s->header.type)
 	{
 	case lang_output_section_statement_enum:
@@ -3361,6 +3379,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 	    lang_output_section_statement_type *os;
 
 	    os = &s->output_section_statement;
+
 	    if (os->bfd_section == NULL)
 	      /* This section was never actually created.  */
 	      break;
@@ -3424,8 +3443,13 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		      einfo (_("%P: warning: no memory region specified for section `%s'\n"),
 			     bfd_get_section_name (output_bfd,
 						   os->bfd_section));
-
-		    dot = os->region->current;
+                    /* use aivt_address to allocate floating aivt */
+                    if ((strcmp(os->name,".aivt") == 0) && aivt_enabled) {
+                      dot = aivt_address; 
+                      bfd_set_user_set_vma(0, os->bfd_section, TRUE);
+                      in_aivt_section = 1;
+                    } else 
+		      dot = os->region->current;
 
 		    if (os->section_alignment == -1)
 		      {
@@ -3653,7 +3677,14 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		    || (bfd_get_section_flags (output_bfd, os->bfd_section)
 			& (SEC_ALLOC | SEC_LOAD))))
 	      {
-		os->region->current = dot;
+		if (in_aivt_section == 0) {
+                  os->region->current = dot;
+                } else {
+                  /* (CAW) if are filling in the aivt section, we don't want
+                       update the dot (which will be backward) for the
+                       current region */
+                  in_aivt_section = 0;
+                }
 
 #if 0
 			/* DEBUG */
@@ -3662,12 +3693,10 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 						(os->region ? os->region->name : "none"), dot);
 #endif
 
+#ifndef PIC30
 		if (check_regions)
 		  /* Make sure the new address is within the region.  */
 		  os_region_check (os, os->region, os->addr_tree,
-#if PIC30
-				   os->bfd_section->lma);
-#else
 				   os->bfd_section->vma);
 #endif
 
@@ -3712,7 +3741,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		abort ();
 	      case QUAD:
 	      case SQUAD:
-		size = QUAD_SIZE;
+	        size = QUAD_SIZE;
 		break;
 	      case LONG:
 		size = LONG_SIZE;
@@ -4969,6 +4998,11 @@ lang_process ()
      files.  */
   ldctor_build_sets ();
 
+#ifdef PIC30  
+  if (pic30_has_floating_aivt)
+   get_aivt_address();
+#endif
+
   /* Remove unreferenced sections if asked to.  */
  
     lang_gc_sections ();
@@ -6094,4 +6128,63 @@ lang_add_unique (name)
   ent->name = xstrdup (name);
   ent->next = unique_section_list;
   unique_section_list = ent;
+}
+
+static void 
+get_aivt_address ()
+{
+    bfd_size_type len;
+    int i, count = 0;
+    unsigned int aivtdis_bit = 0;
+    unsigned char *contents;
+
+    LANG_FOR_EACH_INPUT_STATEMENT (f) 
+    {
+      asection *sec; 
+      for (sec = f->the_bfd->sections; sec != NULL; sec = sec->next)
+      {
+        if (PIC30_IS_ABSOLUTE_ATTR(sec))
+        {
+          len = bfd_section_size (f->the_bfd, sec);
+          if ((aivtdis_bit_ptr >= sec->vma) &&
+              (aivtdis_bit_ptr < sec->vma + len))
+          {
+            contents = xmalloc (len);
+            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
+              einfo (_("%X%P: unable to read %s section contents\n"), sec);
+            else
+            {
+              for (i = 0; i < 3; i++)  {
+                unsigned int val = contents[i+(aivtdis_bit_ptr - sec->vma)];
+                aivtdis_bit |= val << (i * 8);
+              }
+              if ((aivtdis_bit & aivtdis_mask) == 0)
+                aivt_enabled = TRUE;
+            }
+            free(contents);
+          }
+          if ((aivtloc_ptr >= sec->vma) && 
+              (aivtloc_ptr < sec->vma + len))
+          {
+            contents = xmalloc (len);
+            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
+              einfo (_("%X%P: unable to read %s section contents\n"), sec);
+            else
+            {
+              for (i = 0; i < 3; i++) {
+                unsigned int val = contents[i+(aivtloc_ptr - sec->vma)];
+                aivt_address |= val << (i * 8);
+              }
+              aivt_address = ~(aivt_address);
+              aivt_address &= aivtloc_mask;
+              aivt_address -= 1;
+              aivt_address *= 1024;
+              /* CAW - this should be recorded in the resource information? */
+              aivt_len = 0x200;
+            }
+            free(contents);
+          } 
+        }
+      }
+    }
 }

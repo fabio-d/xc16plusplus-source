@@ -1837,6 +1837,17 @@ simplify_binary_operation_1 (enum rtx_code code, enum machine_mode mode,
 	      HOST_WIDE_INT h;
 	      bool speed = optimize_function_for_speed_p (cfun);
 
+#ifdef _BUILD_C30_
+              /* (CAW) we cannot simplify:
+                     (plus (mem/v x) (mem/v x))
+
+                 into (mul (mem/v x) (2)) or the like because that 
+                 would remove a side-effeect
+
+                 it is highly likely that this needs to be changed elsehwere
+               */
+              if (side_effects_p(lhs)) return 0;
+#endif
 	      add_double (coeff0l, coeff0h, coeff1l, coeff1h, &l, &h);
 	      coeff = immed_double_const (l, h, mode);
 
@@ -2020,6 +2031,17 @@ simplify_binary_operation_1 (enum rtx_code code, enum machine_mode mode,
 	      HOST_WIDE_INT h;
 	      bool speed = optimize_function_for_speed_p (cfun);
 
+#ifdef _BUILD_C30_
+              /* (CAW) we cannot simplify:
+                     (plus (mem/v x) (mem/v x))
+
+                 into (mul (mem/v x) (2)) or the like because that 
+                 would remove a side-effeect
+
+                 it is highly likely that this needs to be changed elsehwere
+               */
+              if (side_effects_p(lhs)) return 0;
+#endif
 	      add_double (coeff0l, coeff0h, negcoeff1l, negcoeff1h, &l, &h);
 	      coeff = immed_double_const (l, h, mode);
 
@@ -2052,13 +2074,23 @@ simplify_binary_operation_1 (enum rtx_code code, enum machine_mode mode,
       /* (x - (x & y)) -> (x & ~y) */
       if (GET_CODE (op1) == AND)
 	{
+#ifdef _BUILD_C30_
+          /* we cannot remove memory reference (x above) if it is volatile */
+	  if (rtx_equal_p (op0, XEXP (op1, 0)) && !side_effects_p(op0))
+#else
 	  if (rtx_equal_p (op0, XEXP (op1, 0)))
+#endif
 	    {
 	      tem = simplify_gen_unary (NOT, mode, XEXP (op1, 1),
 					GET_MODE (XEXP (op1, 1)));
 	      return simplify_gen_binary (AND, mode, op0, tem);
 	    }
+#ifdef _BUILD_C30_
+          /* we cannot remove memory reference (x above) if it is volatile */
+	  if (rtx_equal_p (op0, XEXP (op1, 1)) && !side_effects_p(op0))
+#else
 	  if (rtx_equal_p (op0, XEXP (op1, 1)))
+#endif
 	    {
 	      tem = simplify_gen_unary (NOT, mode, XEXP (op1, 0),
 					GET_MODE (XEXP (op1, 0)));

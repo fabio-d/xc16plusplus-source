@@ -88,6 +88,8 @@ unsigned char pic30_match_page_reg PARAMS
    ((const struct pic30_operand_value * check));
 unsigned char pic30_match_byte_8bit_lit PARAMS
    ((const struct pic30_operand_value * check));
+unsigned char pic30_match_unsigned_3bit_lit PARAMS
+   ((const struct pic30_operand_value * check));
 
 unsigned long pic30_insert_34bit_lit PARAMS ((unsigned long insn,
    unsigned long flags,
@@ -459,6 +461,8 @@ const struct relocation_info pic30_relocation_info[] =
    },
 #define PIC30_RELOC_INFO_PCREL_BRANCH_SLIT6                         (25)
    { BFD_RELOC_PIC30_PCREL_BRANCH_SLIT6, TRUE, 1, NULL },
+#define PIC30_RELOC_INFO_UNSIGNED_3                                (26)
+   { BFD_RELOC_PIC30_UNSIGNED_3, FALSE, 1, pic30_match_unsigned_3bit_lit },
 
 };
 
@@ -1008,6 +1012,19 @@ const struct pic30_operand pic30_operands[] =
 #define BRANCH_LABEL_SLIT6                    (PIC30_BASE_OPERAND + 58)
    { 6, 4 , OPND_VALUE, FALSE, PIC30_RELOC_INFO_PCREL_BRANCH_SLIT6,
      0, 0, 0, pic30_extract_offset },
+
+#define LITERAL_3BIT                   (PIC30_BASE_OPERAND + 59)
+   {
+        3,                             /* # of bits in operand */
+        0,                              /* # of bits to shift for alignment */
+        OPND_VALUE,                     /* operand type */
+        TRUE,                           /* immediate operand ? */
+        PIC30_RELOC_INFO_UNSIGNED_15,   /* default relocation type */
+        pic30_match_unsigned_3bit_lit, /* is_match() */
+        "Operand must be between 0 and 4, inclusive.",
+        0,                              /* insert() */
+        0                               /* extract() */
+   },
  
 };
 const int pic30_num_operands =
@@ -1198,6 +1215,7 @@ const struct pic30_opcode pic30_opcodes[] =
    { "bclr.b",    BCLRF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
    { "bclr.b",    BCLR_B,     2, { P_SRC_REG,
                                    BYTE_BIT_SELECT_NIBBLE }, F_NONE },
+   { "bootswp" ,  BOOTSWP,    0, { 0 /* OPERANDS */ }, F_DUALPARTITION },
 
    /***************************************************************************
     * BRA
@@ -1536,6 +1554,11 @@ const struct pic30_opcode pic30_opcodes[] =
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpsne",     CPWSNE_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
                                                F_CANNOT_FOLLOW_REPEAT },
+   /***************************************************************************
+    * CTXTSWP
+    ***************************************************************************/
+   { "ctxtswp", CTXTSWPL, 1, {LITERAL_3BIT}, F_ECORE},
+   { "ctxtswp", CTXTSWPW, 1, {REG}, F_ECORE},
 
    /***************************************************************************
     * DAW
@@ -4074,8 +4097,24 @@ pic30_match_unsigned_15bit_lit (check)
 {
    return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
            (PIC30_IS_15_BIT_UNSIGNED_LITERAL (check->value)));
-} /* unsigned char pic30_match_unsigned_14bit_lit(...) */
+} /* unsigned char pic30_match_unsigned_15bit_lit(...) */
 
+/******************************************************************************/
+unsigned char
+pic30_match_unsigned_3bit_lit (check)
+   const struct pic30_operand_value * check;
+
+/******************************************************************************
+ *
+ *   This function ensures that the given operand value is an unsigned 3-bit
+ *   literal.
+ *
+ ******************************************************************************/
+
+{
+   return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
+           (PIC30_IS_3_BIT_UNSIGNED_LITERAL (check->value)));
+} /* unsigned char pic30_match_unsigned_3bit_lit(...) */
 /******************************************************************************/
 unsigned char
 pic30_match_frame_size (check)
