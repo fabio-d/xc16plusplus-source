@@ -867,9 +867,36 @@ calc_wider_mode (void)
 	  qsort (sortbuf, i, sizeof (struct mode_data *), cmp_modes);
 
 	  sortbuf[i] = 0;
-	  for (j = 0; j < i; j++)
-	    sortbuf[j]->next = sortbuf[j]->wider = sortbuf[j + 1];
+	  for (j = 0; j < i; j++) {
+#ifdef _BUILD_C30_
+            /* okay, we have sorted the modes ... but ... we might have
+               some modes which have the same size.
 
+               arguably maywe we shouldn't */
+            sortbuf[j]->next = sortbuf[j+1];
+            switch (c) {
+              default: sortbuf[j]->wider = sortbuf[j+1];
+                       break;
+              case MODE_FRACT:
+              case MODE_UFRACT:
+              case MODE_ACCUM:
+              case MODE_UACCUM: { 
+                int k;
+
+                sortbuf[j]->wider = void_mode;
+                for (k = j + 1; k < i; k++) {
+                  if (sortbuf[j]->fbit*2 <= sortbuf[k]->fbit) {
+                     sortbuf[j]->wider = sortbuf[k];
+                     break;
+                  }
+                }
+                break;
+              }
+            }
+#else
+	    sortbuf[j]->next = sortbuf[j]->wider = sortbuf[j + 1];
+#endif
+          }
 
 	  modes[c] = sortbuf[0];
 	}

@@ -26,6 +26,18 @@
 
 struct cpp_reader;
 
+extern const enum reg_class *pic30_ira_cover_classes(void);
+
+extern tree pic30_get_save_variable_list(void);
+extern int pic30_extra_constraint_p(rtx, char, const char *);
+extern tree pic30_get_save_variable_decl(tree vl, int *pnwords, int *pnoffset);
+
+
+extern int pic30_regno_nregs(int regno, enum machine_mode mode);
+extern int pic30_class_max_nregs(int regclass, enum machine_mode mode);
+
+extern bool pic30_scalar_mode_supported_p(enum machine_mode);
+extern bool pic30_fixed_point_supported_p(void);
 extern void pic30_apply_pragmas(tree decl);
 extern int pic30_device_has_gie(void);
 
@@ -40,6 +52,10 @@ extern tree pic30_identSecure[2];
 extern tree pic30_identBoot[2];
 extern tree pic30_identExternal[2];
 extern tree pic30_identSpace[2];
+extern tree packed_char_type_node;
+extern tree packed_signed_char_type_node;
+extern tree packed_unsigned_char_type_node;
+
 
 extern unsigned int mchp_pragma_align;
 extern tree mchp_pragma_section;
@@ -80,7 +96,7 @@ extern enum machine_mode pic30_addr_space_address_mode(addr_space_t);
 extern bool pic30_addr_space_valid_pointer_mode(enum machine_mode,addr_space_t);
 extern bool pic30_addr_space_legitimate_address_p(enum machine_mode, rtx,
                                                   bool, addr_space_t);
-extern rtx pic30_addr_space_legitimize_address(rtx, rtx, enum machine_mode, 
+extern rtx pic30_addr_space_legitimize_address(rtx, rtx, enum machine_mode,
                                                addr_space_t);
 extern bool pic30_addr_space_subset_p(addr_space_t, addr_space_t);
 extern rtx pic30_addr_space_convert(rtx, tree, tree);
@@ -88,6 +104,7 @@ extern rtx pic30_addr_space_convert(rtx, tree, tree);
 
 extern char *pic30_section_base(rtx x, int operand, rtx *);
 extern int pic30_eds_target(void);
+extern int pic30_dsp_target(void);
 extern int pic30_ecore_target(void);
 extern int pic30_address_of_external(rtx op0, rtx op1);
 extern void pic30_function_pre(FILE *f, tree decl, char *fnname);
@@ -96,11 +113,11 @@ extern int pic30_validate_symbolic_address_operand(enum machine_mode, rtx);
 extern int pic30_data_space_operand_p(enum machine_mode mode,rtx op,int strict);
 extern void pic30_emit_fillupper(tree decl, int set);
 extern int pic30_managed_psv;
-extern tree pic30_gimplify_va_arg_expr(tree valist, tree type, 
+extern tree pic30_gimplify_va_arg_expr(tree valist, tree type,
                                        gimple_seq pre_p, gimple_seq post_p);
 extern int pic30_noreturn_function(tree decl);
 extern char *pic30_boot_secure_access(rtx call, int *slot, int *set_psv);
-extern rtx pic30_convert_mode(enum machine_mode newmode, 
+extern rtx pic30_convert_mode(enum machine_mode newmode,
                               enum machine_mode oldmode, rtx x, int unsignedp);
 extern int pic30_parse_target_rid(tree qual, int *x);
 extern int pic30_non_postinc_operand(rtx op, enum machine_mode mode);
@@ -137,7 +154,7 @@ extern int pic30_accumulator_operand(rtx op, enum machine_mode mode);
 extern int pic30_immediate_1bit_operand(rtx op, enum machine_mode mode);
 extern int pic30_invalid_address_operand(rtx op, enum machine_mode mode);
 extern const char *pic30_set_constant_section(const char *name,
-                                              SECTION_FLAGS_INT flags, 
+                                              SECTION_FLAGS_INT flags,
                                               tree decl);
 extern const char *pic30_get_constant_section(void);
 extern int pic30_asm_function_p(int);
@@ -244,6 +261,7 @@ extern int  pic30_O_operand(rtx, enum machine_mode);
 extern int  pic30_P_operand(rtx, enum machine_mode);
 extern int  pic30_q_constraint(rtx);
 extern int  pic30_Q_constraint(rtx);
+extern int  pic30_Q_constraint_displacement(rtx, int *);
 extern int  pic30_Q_operand(rtx, enum machine_mode);
 extern int  pic30_R_constraint(rtx);
 extern int  pic30_R_operand(rtx, enum machine_mode);

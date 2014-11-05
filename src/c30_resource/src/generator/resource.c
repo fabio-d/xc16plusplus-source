@@ -71,10 +71,14 @@ struct resource_introduction_block *read_device_rib(const char *name,
   char *device_buf = 0;
   if (device != NULL) { 
     device_buf = (char *)xcalloc(strlen(name)+strlen("device_files/")+
-                                 strlen(device)+strlen(".info"),1);
+                                 strlen(device)+strlen(".info")+1,1);
     match = (char *)xcalloc(80,1);
     strcpy(device_buf, name);
+#ifdef TARGET_IS_PIC32MX
+    match = strstr(device_buf,"xc32_device.info");
+#else
     match = strstr(device_buf,"c30_device.info");
+#endif
     strcpy(match, "device_files/");
     { 
       char * temp, * place;
@@ -336,6 +340,7 @@ int move_to_record(int n) {
     fseek(input_file, 0L, SEEK_SET);
     return move_to_record(n);
   }
+
   if (current_field == rib->field_count) {
     current_field = 0;
     current_record++;
@@ -358,6 +363,7 @@ int move_to_record(int n) {
     current_field = 0;
     return 1;
   }
+
   return 0;
 }
 

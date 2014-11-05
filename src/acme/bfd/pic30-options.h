@@ -59,6 +59,8 @@ extern unsigned int pic30_secure_flash_size;
 extern unsigned int pic30_secure_ram_size;
 extern bfd_boolean pic30_select_objects;
 extern bfd_boolean pic30_local_stack;
+extern bfd_boolean pic30_psv_override;
+extern bfd_boolean pic30_eds_stack;
 
 /* --fill option specific definitions */
 extern bfd_boolean pic30_has_fill_option;
@@ -147,7 +149,9 @@ enum pic30_options {
   SECURE_OPTION,
   GENERAL_OPTION,
   FILL_OPTION,
-  LOCAL_STACK_OPTION
+  LOCAL_STACK_OPTION,
+  NO_LOCAL_STACK_OPTION,
+  PSV_OVERRIDE_OPTION
 };
 
 static struct option longopts[] = 
@@ -184,5 +188,7 @@ static struct option longopts[] =
   { "stackguard", required_argument, NULL, STACKGUARD_OPTION },
   { "fill", required_argument, NULL, FILL_OPTION },
   { "local-stack", no_argument, NULL, LOCAL_STACK_OPTION},
+  { "no-local-stack", no_argument, NULL, NO_LOCAL_STACK_OPTION},
+  { "psv-override", no_argument, NULL, PSV_OVERRIDE_OPTION },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

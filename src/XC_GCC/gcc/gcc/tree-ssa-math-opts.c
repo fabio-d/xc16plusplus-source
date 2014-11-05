@@ -1267,6 +1267,12 @@ struct gimple_opt_pass pass_optimize_bswap =
      - RHS makes some value twice as wide.  Store that value in *NEW_RHS_OUT
        if so, and store its type in *TYPE_OUT.
 
+#ifdef _BUILD_C30_
+     - RHS makes some value at least twice as wide.  Store that value in 
+         *NEW_RHS_OUT
+       if so, and store its type in *TYPE_OUT.
+#endif
+
      - RHS is an integer constant.  Store that value in *NEW_RHS_OUT if so,
        but leave *TYPE_OUT untouched.  */
 
@@ -1293,7 +1299,11 @@ is_widening_mult_rhs_p (tree rhs, tree *type_out, tree *new_rhs_out)
       rhs1 = gimple_assign_rhs1 (stmt);
       type1 = TREE_TYPE (rhs1);
       if (TREE_CODE (type1) != TREE_CODE (type)
+#ifdef _BUILD_C30_
+	  || TYPE_PRECISION (type1) * 2 > TYPE_PRECISION (type))
+#else
 	  || TYPE_PRECISION (type1) * 2 != TYPE_PRECISION (type))
+#endif
 	return false;
 
       *new_rhs_out = rhs1;
@@ -1364,7 +1374,8 @@ convert_mult_to_widen (gimple stmt)
 
   lhs = gimple_assign_lhs (stmt);
   type = TREE_TYPE (lhs);
-  if (TREE_CODE (type) != INTEGER_TYPE)
+  if (TREE_CODE (type) != INTEGER_TYPE
+      && TREE_CODE (type) != FIXED_POINT_TYPE)
     return false;
 
   if (!is_widening_mult_p (stmt, &type1, &rhs1, &type2, &rhs2))
@@ -1384,8 +1395,84 @@ convert_mult_to_widen (gimple stmt)
   gimple_assign_set_rhs2 (stmt, fold_convert (type2, rhs2));
   gimple_assign_set_rhs_code (stmt, WIDEN_MULT_EXPR);
   update_stmt (stmt);
+
+  if (dump_file) {
+    fprintf(dump_file,"converted to:\n");
+    print_gimple_stmt(dump_file, stmt, 5, TDF_VOPS|TDF_MEMSYMS);
+  }
+
   return true;
 }
+
+#ifdef _BUILD_C30_
+static gimple 
+convert_sumof2_wide_products_to_mac(gimple stmt, gimple accum, 
+                                    enum tree_code code) {
+  if (dump_file) {
+     fprintf(dump_file,"convert_sumof2_wide_products_to_mac:\n");
+     print_gimple_stmt(dump_file, stmt, 5, TDF_VOPS|TDF_MEMSYMS);
+  }
+  if (is_gimple_assign(stmt)) {
+    if ((gimple_assign_rhs_code(stmt) == WIDEN_MULT_PLUS_EXPR) ||
+        (gimple_assign_rhs_code(stmt) == WIDEN_MULT_MINUS_EXPR)) {
+      tree tree1 = gimple_assign_rhs3(stmt);
+      gimple stmt1;
+
+      if (TREE_CODE (tree1) == SSA_NAME)
+      {
+        stmt1 = SSA_NAME_DEF_STMT (tree1);
+        if (convert_sumof2_wide_products_to_mac(stmt1, accum, code) != NULL)
+          return stmt;
+      }
+      return NULL;
+    }
+    if (gimple_assign_rhs_code(stmt) == WIDEN_MULT_EXPR) {
+      tree mult_rhs1;
+      tree mult_rhs2;
+      tree type1, type2;
+      tree type;
+      tree add;
+      gimple_stmt_iterator gsi;
+      optab this_optab;
+
+      mult_rhs1 = gimple_assign_rhs1 (stmt);
+      mult_rhs2 = gimple_assign_rhs2 (stmt);
+      type1 = TREE_TYPE (mult_rhs1);
+      type2 = TREE_TYPE (mult_rhs2);
+
+      if (TYPE_UNSIGNED (type1) != TYPE_UNSIGNED (type2))
+        return NULL;
+
+      this_optab = optab_for_tree_code (code, type1, optab_default);
+      type = TREE_TYPE(gimple_assign_lhs(stmt));
+      if (optab_handler (this_optab, TYPE_MODE (type))->insn_code
+          == CODE_FOR_nothing)
+        return NULL;
+
+      if (dump_file) {
+        fprintf(dump_file,"found something we can convert!\n");
+      }
+
+      if (is_gimple_assign(accum)) {
+        add = gimple_assign_lhs(accum);
+      } else if (gimple_code(accum) == GIMPLE_PHI) {
+        add = gimple_phi_result(accum);
+      } else {
+        gcc_unreachable();
+      }
+        
+      gsi = gsi_for_stmt(stmt);
+      gimple_assign_set_rhs_with_ops_1(&gsi, code,
+                                       fold_convert(type1,mult_rhs1),
+                                       fold_convert(type2,mult_rhs2),
+                                       add);
+      update_stmt(gsi_stmt(gsi));
+      return gsi_stmt(gsi);
+    }
+  }
+  return NULL;
+}
+#endif
 
 /* Process a single gimple statement STMT, which is found at the
    iterator GSI and has a either a PLUS_EXPR or a MINUS_EXPR as its
@@ -1399,7 +1486,11 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
 {
   gimple rhs1_stmt = NULL, rhs2_stmt = NULL;
   tree type, type1, type2;
-  tree lhs, rhs1, rhs2, mult_rhs1, mult_rhs2, add_rhs;
+  tree lhs, rhs1, rhs2, mult_rhs1, mult_rhs2, add_rhs = NULL;
+#ifdef _BUILD_C30_
+  tree mult1_rhs1, mult1_rhs2, add1_rhs = NULL;
+  /* if rhsn is a phi, look a little deeper */
+#endif
   enum tree_code rhs1_code = ERROR_MARK, rhs2_code = ERROR_MARK;
   optab this_optab;
   enum tree_code wmult_code;
@@ -1436,6 +1527,24 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
   else
     return false;
 
+#if defined(_BUILD_C30_) && 1
+  if (code == PLUS_EXPR && rhs1_code == MULT_EXPR && rhs2_code == MULT_EXPR)
+    {  
+      if (dump_file) {
+         fprintf(dump_file,"potential sum of widened products\n");
+         print_gimple_stmt(dump_file, stmt, 5, TDF_VOPS|TDF_MEMSYMS);
+      }
+      if (!is_widening_mult_p (rhs1_stmt, &type1, &mult_rhs1,
+			       &type2, &mult_rhs2))
+	return false;
+      add_rhs = rhs2;
+      if (!is_widening_mult_p (rhs2_stmt, &type1, &mult1_rhs1,
+			       &type2, &mult1_rhs2))
+	return false;
+      add1_rhs = rhs1;
+    } else
+#endif
+
   if (code == PLUS_EXPR && rhs1_code == MULT_EXPR)
     {
       if (!is_widening_mult_p (rhs1_stmt, &type1, &mult_rhs1,
@@ -1450,7 +1559,92 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
 	return false;
       add_rhs = rhs1;
     }
-  else if (code == PLUS_EXPR && rhs1_code == WIDEN_MULT_EXPR)
+#ifndef _BUILD_C30_
+  else 
+#else
+  /* we can check for the following:
+
+     a*b->m1
+     c*d->m2
+     m1+m2->s1
+     s1+s2->s3
+
+     s1 could be re-written, giving
+
+     a*b->t0
+     c*d+t0->s1
+     s1+s2->s3
+
+     which then means we could re-write s3 as:
+
+     a*b+s3->t0
+     c*d+t0->s1
+     s1->s3
+
+  */
+  else {
+    gimple phi_stmt = NULL;
+    gimple other_stmt = NULL;
+   
+    if (((rhs1_code == WIDEN_MULT_PLUS_EXPR) ||
+         (rhs1_code == WIDEN_MULT_MINUS_EXPR)) &&
+        (code == PLUS_EXPR) &&
+        (gimple_code(rhs2_stmt) == GIMPLE_PHI)) {
+      phi_stmt = rhs2_stmt;
+      other_stmt = rhs1_stmt;
+    } else if (((rhs2_code == WIDEN_MULT_PLUS_EXPR) ||
+               (rhs2_code == WIDEN_MULT_MINUS_EXPR)) &&
+               (gimple_code(rhs1_stmt) == GIMPLE_PHI)) {
+      phi_stmt = rhs1_stmt;
+      other_stmt = rhs2_stmt;
+    }
+    if (phi_stmt) {
+      /* look for the definition in this block */
+      int phi_block;
+      int this_block;
+      int i;
+      gimple real_phi;
+      enum tree_code phi_code;
+  
+      this_block = gsi_bb(*gsi)->index;
+      for (i = 0; i < gimple_phi_num_args(phi_stmt); i++) {
+        phi_block = gimple_phi_arg_edge(phi_stmt,i)->src->index;
+        if (phi_block == this_block) break;
+      }
+      if (phi_block == this_block) {
+        real_phi = SSA_NAME_DEF_STMT (PHI_ARG_DEF(phi_stmt, i));
+      }
+      if (is_gimple_assign (real_phi)) {
+        phi_code = gimple_assign_rhs_code (real_phi);
+      }
+      if ((phi_code) && (dump_file)) {
+         fprintf(dump_file,"opnd was phi, block definition is:\n");
+         print_gimple_stmt(dump_file, real_phi, 5, TDF_VOPS|TDF_MEMSYMS);
+      }
+      if (stmt == real_phi) {
+        /* we are defining a the value for the feed back PHI, see if
+           we can convert a w* to a mac */
+        gimple new_sum = convert_sumof2_wide_products_to_mac(other_stmt, 
+                                                             phi_stmt, 
+                                                             wmult_code);
+        if (new_sum) {
+         gimple_assign_set_rhs_with_ops_1(gsi, SSA_NAME, 
+                                           gimple_assign_lhs(new_sum),
+                                           NULL, NULL);
+          update_stmt(gsi_stmt(*gsi));
+          return true;
+        }
+      }
+    }
+  }
+
+  if (add_rhs != NULL)
+      ;
+  else
+#endif 
+
+     
+  if (code == PLUS_EXPR && rhs1_code == WIDEN_MULT_EXPR)
     {
       mult_rhs1 = gimple_assign_rhs1 (rhs1_stmt);
       mult_rhs2 = gimple_assign_rhs2 (rhs1_stmt);
@@ -1482,11 +1676,43 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
 
   /* ??? May need some type verification here?  */
 
+#if defined(_BUILD_C30_) && 1
+  if (add1_rhs) {
+    enum insn_code handler;
+    optab this_optab;
+    tree new_lhs;
+
+    if (TYPE_UNSIGNED (type1) && TYPE_UNSIGNED (type2))
+      handler = optab_handler (umul_widen_optab, TYPE_MODE (type))->insn_code;
+    else if (!TYPE_UNSIGNED (type1) && !TYPE_UNSIGNED (type2))
+      handler = optab_handler (smul_widen_optab, TYPE_MODE (type))->insn_code;
+    else
+      handler = optab_handler (usmul_widen_optab, TYPE_MODE (type))->insn_code;
+
+  if (handler == CODE_FOR_nothing)
+    return false;
+
+    new_lhs = create_tmp_var(TREE_TYPE(lhs), "widen_tmp");
+    new_lhs = make_ssa_name(new_lhs, NULL);
+    gimple gs = gimple_build_assign_with_ops(WIDEN_MULT_EXPR, new_lhs,
+				    fold_convert (type1, mult_rhs1),
+				    fold_convert (type2, mult_rhs2));
+    gsi_insert_before( gsi, gs, GSI_SAME_STMT);
+    add_rhs = new_lhs;
+    if ((rhs2_code) && (dump_file)) {
+       fprintf(dump_file,"reduced one operand to widening multiply:\n");
+       print_gimple_stmt(dump_file, gs, 5, TDF_VOPS|TDF_MEMSYMS);
+    }
+  }
+#endif
+
   gimple_assign_set_rhs_with_ops_1 (gsi, wmult_code,
 				    fold_convert (type1, mult_rhs1),
 				    fold_convert (type2, mult_rhs2),
 				    add_rhs);
   update_stmt (gsi_stmt (*gsi));
+
+
   return true;
 }
 

@@ -2807,8 +2807,7 @@ pic30_get_g_or_h_mode_value (type, error_msg)
 
       default :
          *error_msg = (char *) malloc (BUFSIZ);
-         strcpy (*error_msg, "Internal error:  "
-                             "pic30_get_g_or_h_mode_value called with an "
+         strcpy (*error_msg, "pic30_get_g_or_h_mode_value called with an "
                              "invalid operand type");
          break;
    } /* switch */
@@ -3090,8 +3089,7 @@ pic30_get_p_or_q_mode_value (type, error_msg)
 
       default :
          *error_msg = (char *) malloc (BUFSIZ);
-         strcpy (*error_msg, "Internal error:  "
-                             "pic30_get_p_or_q_mode_value called with an "
+         strcpy (*error_msg, "pic30_get_p_or_q_mode_value called with an "
                              "invalid operand type");
          break;
    } /* switch */
@@ -4259,8 +4257,7 @@ pic30_insert_dsp_writeback (insn, flags, opnd, operand_value, error_msg)
 
       default:
          *error_msg = (char *) malloc (BUFSIZ);
-         strcpy (*error_msg, "Internal error:  "
-                             "pic30_insert_dsp_writeback called with an "
+         strcpy (*error_msg, "pic30_insert_dsp_writeback called with an "
                              "invalid operand type");
          break;
    } /* switch (check->type) */
@@ -4457,8 +4454,7 @@ pic30_insert_dsp_x_prefetch_operation (insn, flags, opnd, operand_value,
 
             default:
                *error_msg = (char *) malloc (BUFSIZ);
-               strcpy (*error_msg, "Internal error:  "
-                                   "pic30_insert_dsp_x_prefetch_operation "
+               strcpy (*error_msg, "pic30_insert_dsp_x_prefetch_operation "
                                    "called with an invalid offset");
                break;
          } /* switch (operand_value->optional_value) */
@@ -4533,8 +4529,7 @@ pic30_insert_dsp_x_prefetch_operation (insn, flags, opnd, operand_value,
 
       default:
          *error_msg = (char *) malloc (BUFSIZ);
-         strcpy (*error_msg, "Internal error:  "
-                             "pic30_insert_dsp_x_prefetch_operation "
+         strcpy (*error_msg, "pic30_insert_dsp_x_prefetch_operation "
                              "called with an invalid operand type");
          break;
    } /* switch (operand_value->type) */
@@ -4880,8 +4875,7 @@ pic30_insert_dsp_y_prefetch_operation (insn, flags, opnd, operand_value,
 
             default:
                *error_msg = (char *) malloc (BUFSIZ);
-               strcpy (*error_msg, "Internal error:  "
-                                   "pic30_insert_dsp_y_prefetch_operation "
+               strcpy (*error_msg, "pic30_insert_dsp_y_prefetch_operation "
                                    "called with an invalid offset");
                break;
          } /* switch (operand_value->optional_value) */
@@ -4942,8 +4936,7 @@ pic30_insert_dsp_y_prefetch_operation (insn, flags, opnd, operand_value,
 
             default:
                *error_msg = (char *) malloc (BUFSIZ);
-               strcpy (*error_msg, "Internal error:  "
-                                   "pic30_insert_dsp_y_prefetch_operation "
+               strcpy (*error_msg, "pic30_insert_dsp_y_prefetch_operation "
                                    "called with an invalid offset");
                break;
          } /* switch (operand_value->optional_value) */

@@ -176,9 +176,9 @@ When generating -mabicalls code, allow executables to use PLTs and copy relocati
 ;Target Report RejectNegative InverseMask(SOFT_FLOAT_ABI, HARD_FLOAT_ABI) Undocumented
 ;Allow the use of hardware floating-point ABI and instructions
 
-mimport=
-Target Joined Var(mchp_import) 
-Enable support for importing code from another vendor
+mext=
+Target Joined Var(mchp_import)
+Enable support for importing external code from another vendor
 
 minterlink-mips16
 Target Report Var(TARGET_INTERLINK_MIPS16) Init(-1)
@@ -347,10 +347,6 @@ mno-mpdebug-lib
 Target RejectNegative Var(TARGET_NOLINK_MPDEBUG_LIBS)
 Do not link MPLAB REAL ICE and MPLAB ICD 3 debug-support library
 
-mno-override-inline
-Target RejectNegative Var(TARGET_NO_OVERRIDE_INLINE)
-Set compiler's override of 'inline' keyword and options for -O1 and -Os; by default the compiler will not inline at these levels
-
 mappio-debug
 Target Var(TARGET_APPIO_DEBUG)
 Enable APPIO debug-support library functions
@@ -368,7 +364,7 @@ Target Var Var(TARGET_LEGACY_LIBC)
 -legacy-libc	Use legacy lib/include directory
 
 mxc32cpp-lib
-Target Var Var(TARGET_XC32_LIBCPP) Undocumented 
+Target Var Var(TARGET_XC32_LIBCPP) Undocumented
 -mxc32cpp-lib	Use the XC32 Standard C++ Libraries
 
 mtext=
@@ -394,4 +390,8 @@ Target RejectNegative Var(TARGET_CCI)
 mprint-builtins
 Target RejectNegative Var(TARGET_PRINT_BUILTINS)
 -mprint-builtins	Print a list of enabled builtin functions
+
+mmips16-exceptions
+Target Var Var(TARGET_MIPS16_EXCEPTIONS) Undocumented
+-mmips16-exceptions	Allow unsupported mips16 exceptions
 

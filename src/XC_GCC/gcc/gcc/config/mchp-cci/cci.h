@@ -16,15 +16,15 @@ enum CCI_KIND {
                     *
                     * Great for setting flags or options...
                     */
-  CCI_define,      /* straight define:   
+  CCI_define,      /* straight define:
                     *
                     * #define KEYWORD=CCI_VAL
                     */
-  CCI_attribute,   /* attribute define:  
+  CCI_attribute,   /* attribute define:
                     *
                     * #define KEYWORD=__attribute__((CCI_VAL)))
                     */
-  CCI_attribute_n, /* attribute define:  
+  CCI_attribute_n, /* attribute define:
                     *
                     * #define KEYWORD(P1,P2,...Pn)= \
                     *   __attribute__((CCI_VAL(P1,P2,...Pn)))
@@ -33,11 +33,11 @@ enum CCI_KIND {
                     *   that will be used otherwise the compiler will generate
                     *   the parenthetical expression after CCI_VAL
                     */
-  CCI_attribute_v, /* attribute define:  
+  CCI_attribute_v, /* attribute define:
                     *
                     * #define KEYWORD(...)=__attribute__((CCI_VAL(__VA_ARGS__)))
                     */
-  CCI_attribute_nv, /* attribute define:  
+  CCI_attribute_nv, /* attribute define:
                     *
                     * #define KEYWORD(P1,P2,...Pn,...)= \
                     *   __attribute__((CCI_VAL(P1,P2,...Pn,__VA_ARGS__)))
@@ -47,7 +47,7 @@ enum CCI_KIND {
                     *   the parenthetical expression after CCI_VAL
                     */
   CCI_pragma       /* pragma define, maps a pragma to an already handled
-                    *   native pragma, the CCI_for_xxx should be a function 
+                    *   native pragma, the CCI_for_xxx should be a function
                     *   name
                     */
 };
@@ -55,7 +55,12 @@ enum CCI_KIND {
 extern void mchp_init_cci_builtins(void);
 extern void mchp_init_cci(void *pfile_v);
 extern void mchp_handle_config_pragma(struct cpp_reader *pfile);
-
+extern void mchp_handle_section_pragma (struct cpp_reader *pfile);
+extern void mchp_handle_printf_args_pragma (struct cpp_reader *pfile);
+extern void mchp_handle_scanf_args_pragma (struct cpp_reader *pfile);
+extern void mchp_handle_keep_pragma (struct cpp_reader *pfile);
+extern void mchp_handle_optimize_pragma (struct cpp_reader *pfile);
+extern void mchp_handle_align_pragma (struct cpp_reader *pfile);
 /*
  * #pragma config support
  */
@@ -126,14 +131,14 @@ extern struct mchp_config_specification *mchp_configuration_values;
 #define IMPORT_MCHP(V) ((mchp_import && strcasecmp(mchp_import,(V)) == 0))
 
 #define CCI_C30  ((TARGET_C30) && (TARGET_CCI || IMPORT_C30("cci")))
-#define CCI_C32  ((TARGET_C32) && (TARGET_CCI || IMPPORT_C32("cci")))
+#define CCI_C32  ((TARGET_C32) && (TARGET_CCI || IMPORT_C32("cci")))
 #define CCI_MCHP (TARGET_CCI || IMPORT_MCHP("cci"))
 
-/*  CCI,        CCI_KIND          CCI Keyword,    CCI for C3x,     n      */ 
+/*  CCI,        CCI_KIND          CCI Keyword,    CCI for C3x,     n      */
 /*  -------------------------------------------------------------------------*/
 CCI(CCI_C30,    CCI_attribute_v,  "__interrupt",  "interrupt",     0)
 CCI(CCI_C32,    CCI_attribute_nv, "__interrupt", \
-    "vector(P1), interrupt(__VA_ARGS__), nomips16",                1) 
+    "vector(P1), interrupt(__VA_ARGS__), nomips16",                1)
 
 CCI(CCI_MCHP,   CCI_attribute,    "__persistent", "persistent",    0)
 
@@ -145,7 +150,7 @@ CCI(CCI_MCHP,   CCI_attribute,    "__far",        "far",           0)
 CCI(CCI_MCHP,   CCI_attribute_n,  "__at",         "address",       1)
 
 CCI(CCI_C30,    CCI_attribute,    "__eeprom",     "space(eedata)", 0)
-CCI(CCI_C32,    CCI_attribute,    "__eeprom",     
+CCI(CCI_C32,    CCI_attribute,    "__eeprom",
     "unsupported(\"__eeprom is unsupported on this platform\")",   0)
 
 CCI(CCI_C30,    CCI_attribute,    "__xdata",      "space(xmemory)",0)
@@ -171,7 +176,7 @@ CCI(CCI_MCHP,   CCI_attribute_n,  "__section",    "section",       1)
 CCI(CCI_MCHP,   CCI_define,       "__CCI__",      "1",             0)
 
 /* CCI for IAR */
-/*  CCI,                CCI_KIND       CCI Keyword,   CCI for C3x,    n */ 
+/*  CCI,                CCI_KIND       CCI Keyword,   CCI for C3x,    n */
 /*  -------------------------------------------------------------------------*/
 CCI(IMPORT_MCHP("iar"), CCI_define,    "__section_begin", "__builtin_section_begin", 0)
 CCI(IMPORT_MCHP("iar"), CCI_define,    "__section_end",   "__builtin_section_end", 0)
@@ -203,7 +208,8 @@ CCI(IMPORT_MCHP("iar"), CCI_attribute, "__nested", \
 CCI(IMPORT_C30("iar"), CCI_attribute, "__ramfunc", \
       "unsupported(\"__ramfunc is unsupported on this platform\")",  0)
 
-CCI(IMPORT_C32("iar"),  CCI_attribute, "__ramfunc", "ramfunc",  0)
+CCI(IMPORT_C32("iar"),  CCI_attribute, "__ramfunc", \
+      "ramfunc,unique_section",  0)
 
 CCI(IMPORT_MCHP("iar"), CCI_attribute, "__swi", \
       "unsupported(\"__swi is unsupported on this platform\")",      0)

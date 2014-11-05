@@ -97,9 +97,25 @@ static const char * const optabs[] =
   "optab_handler (smulv_optab, $A)->insn_code = CODE_FOR_$(mulv$I$a3$)",
   "optab_handler (umul_highpart_optab, $A)->insn_code = CODE_FOR_$(umul$a3_highpart$)",
   "optab_handler (smul_highpart_optab, $A)->insn_code = CODE_FOR_$(smul$a3_highpart$)",
-  "optab_handler (smul_widen_optab, $B)->insn_code = CODE_FOR_$(mul$a$b3$)$N",
-  "optab_handler (umul_widen_optab, $B)->insn_code = CODE_FOR_$(umul$a$b3$)$N",
-  "optab_handler (usmul_widen_optab, $B)->insn_code = CODE_FOR_$(usmul$a$b3$)$N",
+  "optab_handler (smul_widen_optab, $B)->insn_code = CODE_FOR_$(mul$a$b3$N$)",
+  "optab_handler (umul_widen_optab, $B)->insn_code = CODE_FOR_$(umul$a$b3$N$)",
+  "optab_handler (usmul_widen_optab, $B)->insn_code = CODE_FOR_$(usmul$a$b3$N$)",
+#ifdef _BUILD_C30_
+  /* forcing the widened modes to be consecutive ($N) doesn't allow the
+     compiler to pick an accumulator mode to widen from a fractional mode -
+     at least not for the dsPIC */
+  "optab_handler (smul_widen_optab, $B)->insn_code = CODE_FOR_$(mul$a$b3$Q$)",
+  "optab_handler (umul_widen_optab, $B)->insn_code = CODE_FOR_$(umul$a$b3$Q$)",
+  "optab_handler (usmul_widen_optab, $B)->insn_code = CODE_FOR_$(usmul$a$b3$Q$)",
+  "optab_handler (smadd_widen_optab, $B)->insn_code = CODE_FOR_$(madd$a$b4$)",
+  "optab_handler (umadd_widen_optab, $B)->insn_code = CODE_FOR_$(umadd$a$b4$)",
+  "optab_handler (ssmadd_widen_optab, $B)->insn_code = CODE_FOR_$(ssmadd$a$b4$)",
+  "optab_handler (usmadd_widen_optab, $B)->insn_code = CODE_FOR_$(usmadd$a$b4$)",
+  "optab_handler (smsub_widen_optab, $B)->insn_code = CODE_FOR_$(msub$a$b4$)",
+  "optab_handler (umsub_widen_optab, $B)->insn_code = CODE_FOR_$(umsub$a$b4$)",
+  "optab_handler (ssmsub_widen_optab, $B)->insn_code = CODE_FOR_$(ssmsub$a$b4$)",
+  "optab_handler (usmsub_widen_optab, $B)->insn_code = CODE_FOR_$(usmsub$a$b4$)",
+#else
   "optab_handler (smadd_widen_optab, $B)->insn_code = CODE_FOR_$(madd$a$b4$)$N",
   "optab_handler (umadd_widen_optab, $B)->insn_code = CODE_FOR_$(umadd$a$b4$)$N",
   "optab_handler (ssmadd_widen_optab, $B)->insn_code = CODE_FOR_$(ssmadd$a$b4$)$N",
@@ -108,6 +124,7 @@ static const char * const optabs[] =
   "optab_handler (umsub_widen_optab, $B)->insn_code = CODE_FOR_$(umsub$a$b4$)$N",
   "optab_handler (ssmsub_widen_optab, $B)->insn_code = CODE_FOR_$(ssmsub$a$b4$)$N",
   "optab_handler (usmsub_widen_optab, $B)->insn_code = CODE_FOR_$(usmsub$a$b4$)$N",
+#endif
   "optab_handler (sdiv_optab, $A)->insn_code = CODE_FOR_$(div$a3$)",
   "optab_handler (ssdiv_optab, $A)->insn_code = CODE_FOR_$(ssdiv$Q$a3$)",
   "optab_handler (sdivv_optab, $A)->insn_code = CODE_FOR_$(div$V$I$a3$)",
@@ -404,6 +421,12 @@ gen_insn (rtx insn)
 	      }
 	}
 
+/*  Hmmm... force_consec is supposed to prevent consecutive modes,
+    but we added the bit below for _BUILD_C30_ even though this is here.
+   
+    It looks like if the pattern ends with $)$N the $N hasn't been procesed yet
+    the $N needs to be before $)
+*/
       if (matches && pp[0] == '$' && pp[1] == ')'
 	  && *np == 0
 	  && (! force_consec || (int) GET_MODE_WIDER_MODE(m1) == m2))
@@ -413,7 +436,7 @@ gen_insn (rtx insn)
   if (pindex == ARRAY_SIZE (optabs))
     return;
 
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) && 0
   /* We found a match... but wait! Don't output 'widen' modes for modes
      that are not widen-able.  We can check mode_wider[m1] == m2 */
   if (strstr(optabs[pindex],"widen") && (mode_wider[m1] != m2)) return;

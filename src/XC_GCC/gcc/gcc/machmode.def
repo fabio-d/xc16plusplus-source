@@ -201,6 +201,7 @@ FLOAT_MODE (DF, 8, ieee_double_format);
 CC_MODE (CC);
 
 /* Fixed-point modes.  */
+#ifndef _BUILD_C30_
 FRACT_MODE (QQ, 1, 7); /* s.7 */
 FRACT_MODE (HQ, 2, 15); /* s.15 */
 FRACT_MODE (SQ, 4, 31); /* s.31 */
@@ -222,6 +223,7 @@ UACCUM_MODE (UHA, 2, 8, 8); /* 8.8 */
 UACCUM_MODE (USA, 4, 16, 16); /* 16.16 */
 UACCUM_MODE (UDA, 8, 32, 32); /* 32.32 */
 UACCUM_MODE (UTA, 16, 64, 64); /* 64.64 */
+#endif
 
 /* Allow the target to specify additional modes of various kinds.  */
 #if HAVE_EXTRA_MODES

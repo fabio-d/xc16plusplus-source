@@ -50,7 +50,7 @@
 #include "basic-block.h"
 #include "version.h"
 /* splitting for lto/non-lto causes beacoup problems */
-#include "../../../../../c30_resource/src/c30/resource_info.h"
+#include "resource_info.h"
 #include "incpath.h"
 #include "tm_p.h"
 #include "cgraph.h"
@@ -111,6 +111,7 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     cpp_define(pfile,buffer);
     sprintf(buffer,"__XC16_VERSION__=%d", pic30_compiler_version);
     cpp_define(pfile,buffer);
+    cpp_define(pfile,"__XC__");
   }
 
 
@@ -157,7 +158,7 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
   if (pic30_device_mask) {
     if (pic30_device_mask & HAS_DSP) cpp_define(pfile,"__HAS_DSP__");
     if (pic30_device_mask & HAS_EEDATA) cpp_define(pfile,"__HAS_EEDATA__");
-    if (pic30_device_mask & HAS_DMA | HAS_DMAV2)
+    if (pic30_device_mask & (HAS_DMA | HAS_DMAV2))
       cpp_define(pfile,"__HAS_DMA__");
     if (pic30_device_mask & HAS_AUXFLASH) cpp_define(pfile,"__HAS_AUXFLASH__");
     if (pic30_device_mask & HAS_DMAV2) cpp_define(pfile,"__HAS_DMAV2__");
@@ -169,6 +170,11 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     if (pic30_device_mask & HAS_EDS) cpp_define(pfile,"__HAS_EDS__");
     if ((pic30_device_mask & HAS_5VOLTS) || TARGET_ARCH(PIC30F))
       cpp_define(pfile,"__HAS_5VOLTS__");
+  }
+
+  if (pic30_fp_round_p()) {
+    sprintf(buffer,"__XC16_ROUND__=%d", pic30_fp_round_p());
+    cpp_define(pfile,buffer);
   }
 
   mchp_init_cci(pfile_v);

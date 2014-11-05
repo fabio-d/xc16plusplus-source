@@ -1694,10 +1694,23 @@ expand_binop (enum machine_mode mode, optab binoptab, rtx op0, rtx op1,
 
 	    xop0 = widen_operand (xop0, wider_mode, mode, unsignedp, no_extend);
 
+#ifndef _BUILD_C30_
 	    /* The second operand of a shift must always be extended.  */
 	    xop1 = widen_operand (xop1, wider_mode, mode, unsignedp,
 				  no_extend && binoptab != ashl_optab);
-
+#else
+            /* The second operand of a shift operand should never be extended
+               (IMHO) as it is a bit-count, not a value in the destination 
+               or source mode.  Also, there are more shifts than just:
+               ashl_optab; especially with frational support */
+            if ((binoptab != ashl_optab) &&
+                (binoptab != ssashl_optab) &&
+                (binoptab != usashl_optab) &&
+                (binoptab != lshr_optab) &&
+                (binoptab != ashr_optab)) {
+	      xop1 = widen_operand (xop1, wider_mode, mode, unsignedp, 0);
+            }
+#endif
 	    temp = expand_binop (wider_mode, binoptab, xop0, xop1, NULL_RTX,
 				 unsignedp, OPTAB_DIRECT);
 	    if (temp)
@@ -5407,8 +5420,13 @@ expand_fixed_convert (rtx to, rtx from, int uintp, int satp)
   code = tab->handlers[to_mode][from_mode].insn_code;
   if (code != CODE_FOR_nothing)
     {
+#ifdef _BUILD_C30_
+      if (maybe_emit_unop_insn (code, to, from, this_code)) return;
+      /* otherwise we might have to emit a library call */
+#else
       emit_unop_insn (code, to, from, this_code);
       return;
+#endif
     }
 
   libfunc = convert_optab_libfunc (tab, to_mode, from_mode);
@@ -5550,11 +5568,20 @@ gen_libfunc (optab optable, const char *opname, int suffix, enum machine_mode mo
   unsigned opname_len = strlen (opname);
   const char *mname = GET_MODE_NAME (mode);
   unsigned mname_len = strlen (mname);
+#ifndef _BUILD_C30_
   char *libfunc_name = XALLOCAVEC (char, 2 + opname_len + mname_len + 1 + 1);
+#else
+  char *libfunc_name = XALLOCAVEC (char, 2 + opname_len + mname_len + 1 + sizeof(PIC30_QLIBFN_FLAG));
+#endif
   char *p;
   const char *q;
 
   p = libfunc_name;
+#ifdef _BUILD_C30_
+  if (ALL_FIXED_POINT_MODE_P(mode)) {
+    p += sprintf(p, PIC30_QLIBFN_FLAG);
+  }
+#endif
   *p++ = '_';
   *p++ = '_';
   for (q = opname; *q; )
@@ -5562,6 +5589,27 @@ gen_libfunc (optab optable, const char *opname, int suffix, enum machine_mode mo
   for (q = mname; *q; q++)
     *p++ = TOLOWER (*q);
   *p++ = suffix;
+
+#if defined( _BUILD_C30_) && 0
+  if (ALL_FIXED_POINT_MODE_P(mode)) {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+        break;
+      case pic30_convergent:
+        p += sprintf(p, "_convergent");
+        break;
+      case pic30_conventional:
+        p += sprintf(p, "_conventional");
+        break;
+      case pic30_fastest:
+        p += sprintf(p, "_fastest");
+        break;
+      default: 
+        gcc_unreachable();
+    }
+  }
+#endif
+
   *p = '\0';
 
   set_optab_libfunc (optable, mode,
@@ -5762,6 +5810,7 @@ gen_interclass_conv_libfunc (convert_optab tab,
   const char *q;
   char *libfunc_name, *suffix;
   char *nondec_name, *dec_name, *nondec_suffix, *dec_suffix;
+  int prefix_len = 0;
   char *p;
 
   /* If this is a decimal conversion, add the current BID vs. DPD prefix that
@@ -5770,18 +5819,30 @@ gen_interclass_conv_libfunc (convert_optab tab,
 
   mname_len = strlen (GET_MODE_NAME (tmode)) + strlen (GET_MODE_NAME (fmode));
 
-  nondec_name = XALLOCAVEC (char, 2 + opname_len + mname_len + 1 + 1);
-  nondec_name[0] = '_';
-  nondec_name[1] = '_';
-  memcpy (&nondec_name[2], opname, opname_len);
-  nondec_suffix = nondec_name + opname_len + 2;
+  nondec_name = XALLOCAVEC (char, prefix_len + opname_len + mname_len + 1 + 1);
+#ifdef _BUILD_C30_
+  if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
+    sprintf(nondec_name, PIC30_QLIBFN_FLAG);
+    prefix_len = strlen(PIC30_QLIBFN_FLAG);
+  }
+#endif 
+  nondec_name[prefix_len+0] = '_';
+  nondec_name[prefix_len+1] = '_';
+  memcpy (&nondec_name[prefix_len+2], opname, opname_len);
+  nondec_suffix = prefix_len+nondec_name + opname_len + 2;
 
-  dec_name = XALLOCAVEC (char, 2 + dec_len + opname_len + mname_len + 1 + 1);
-  dec_name[0] = '_';
-  dec_name[1] = '_';
-  memcpy (&dec_name[2], DECIMAL_PREFIX, dec_len);
-  memcpy (&dec_name[2+dec_len], opname, opname_len);
-  dec_suffix = dec_name + dec_len + opname_len + 2;
+  dec_name = XALLOCAVEC (char, prefix_len + dec_len + opname_len + mname_len + 1 + 1);
+#ifdef _BUILD_C30_
+  if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
+    sprintf(dec_name, PIC30_QLIBFN_FLAG);
+    prefix_len = strlen(PIC30_QLIBFN_FLAG);
+  }
+#endif 
+  dec_name[prefix_len+0] = '_';
+  dec_name[prefix_len+1] = '_';
+  memcpy (&dec_name[prefix_len+2], DECIMAL_PREFIX, dec_len);
+  memcpy (&dec_name[prefix_len+2+dec_len], opname, opname_len);
+  dec_suffix = prefix_len+dec_name + dec_len + opname_len + 2;
 
   fname = GET_MODE_NAME (fmode);
   tname = GET_MODE_NAME (tmode);
@@ -5887,6 +5948,7 @@ gen_intraclass_conv_libfunc (convert_optab tab, const char *opname,
   const char *q;
   char *nondec_name, *dec_name, *nondec_suffix, *dec_suffix;
   char *libfunc_name, *suffix;
+  int prefix_len = 0;
   char *p;
 
   /* If this is a decimal conversion, add the current BID vs. DPD prefix that
@@ -5895,18 +5957,30 @@ gen_intraclass_conv_libfunc (convert_optab tab, const char *opname,
 
   mname_len = strlen (GET_MODE_NAME (tmode)) + strlen (GET_MODE_NAME (fmode));
 
-  nondec_name = XALLOCAVEC (char, 2 + opname_len + mname_len + 1 + 1);
-  nondec_name[0] = '_';
-  nondec_name[1] = '_';
-  memcpy (&nondec_name[2], opname, opname_len);
-  nondec_suffix = nondec_name + opname_len + 2;
+  nondec_name = XALLOCAVEC (char, prefix_len + 2 + opname_len + mname_len + 1 + 1);
+#ifdef _BUILD_C30_
+  if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
+    sprintf(nondec_name, PIC30_QLIBFN_FLAG);
+    prefix_len = strlen(PIC30_QLIBFN_FLAG);
+  }
+#endif
+  nondec_name[prefix_len+0] = '_';
+  nondec_name[prefix_len+1] = '_';
+  memcpy (&nondec_name[prefix_len+2], opname, opname_len);
+  nondec_suffix = prefix_len + nondec_name + opname_len + 2;
 
-  dec_name = XALLOCAVEC (char, 2 + dec_len + opname_len + mname_len + 1 + 1);
-  dec_name[0] = '_';
-  dec_name[1] = '_';
-  memcpy (&dec_name[2], DECIMAL_PREFIX, dec_len);
-  memcpy (&dec_name[2 + dec_len], opname, opname_len);
-  dec_suffix = dec_name + dec_len + opname_len + 2;
+  dec_name = XALLOCAVEC (char, prefix_len + 2 + dec_len + opname_len + mname_len + 1 + 1);
+#ifdef _BUILD_C30_
+  if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
+    sprintf(dec_name, PIC30_QLIBFN_FLAG);
+    prefix_len = strlen(PIC30_QLIBFN_FLAG);
+  }
+#endif
+  dec_name[prefix_len+0] = '_';
+  dec_name[prefix_len+1] = '_';
+  memcpy (&dec_name[prefix_len+2], DECIMAL_PREFIX, dec_len);
+  memcpy (&dec_name[prefix_len+2 + dec_len], opname, opname_len);
+  dec_suffix = prefix_len+dec_name + dec_len + opname_len + 2;
 
   fname = GET_MODE_NAME (fmode);
   tname = GET_MODE_NAME (tmode);

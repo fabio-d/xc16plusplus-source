@@ -5808,6 +5808,12 @@ digest_init (location_t init_loc, tree type, tree init, tree origtype,
       bool char16_array = !!comptypes (typ1, char16_type_node);
       bool char32_array = !!comptypes (typ1, char32_type_node);
 
+#ifdef _BUILD_C30_
+      char_array |= (typ1 == packed_char_type_node
+                     || typ1 == packed_signed_char_type_node
+                     || typ1 == packed_unsigned_char_type_node);
+#endif
+
       if (char_array || wchar_array || char16_array || char32_array)
 	{
 	  struct c_expr expr;

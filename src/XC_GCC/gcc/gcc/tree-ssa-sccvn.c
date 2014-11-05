@@ -590,6 +590,9 @@ copy_reference_ops_from_ref (tree ref, VEC(vn_reference_op_s, heap) **result)
 	  temp.op1 = array_ref_low_bound (ref);
 	  temp.op2 = array_ref_element_size (ref);
 	  break;
+#ifdef _BUILD_C30_
+        case FIXED_CST:
+#endif
 	case STRING_CST:
 	case INTEGER_CST:
 	case COMPLEX_CST:

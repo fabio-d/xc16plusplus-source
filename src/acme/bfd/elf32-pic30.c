@@ -153,7 +153,8 @@ unsigned int pic30_secure_flash_size = 0;
 unsigned int pic30_secure_ram_size = 0;
 bfd_boolean pic30_select_objects = TRUE;
 bfd_boolean pic30_has_fill_option = 0;
-bfd_boolean pic30_local_stack = 0;
+bfd_boolean pic30_local_stack = TRUE;
+bfd_boolean pic30_psv_override = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -2359,6 +2360,26 @@ pic30_final_link (abfd, info)
           abort();
         }
   }
+#if 1
+  if (packed_sections) {
+    unsigned char *packed_data;
+
+    for (s = packed_sections; s != NULL; s = s->next) {
+      if (s->sec) {
+       packed_data = s->sec->contents;
+
+      if (!bfd_set_section_contents (abfd, s->sec->output_section,
+                                     packed_data, s->sec->output_offset*opb,
+                                     s->sec->_raw_size))
+        {
+          fprintf( stderr, "Link Error: can't write section %s contents\n",
+                   s->sec->name);
+          abort();
+        }
+     }
+   }
+  }
+#endif
   if (pic30_has_fill_option)
     {
      struct pic30_fill_option *o;
@@ -3228,10 +3249,6 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
          /* Relocation site is program memory, skip upper & phantom bytes */
          offset = pic30_elf32_extract_bytes (abfd, data, count, octets,
                                            TRUE, TRUE);
-       else if (PIC30_IS_PACKEDFLASH_ATTR(input_section->output_section))
-         /* Relocation site is packed flash, skip phantom bytes */
-         offset = pic30_elf32_extract_bytes (abfd, data, count, octets,
-                                           FALSE, TRUE);
       else
          /* Relocation site is data memory */
          offset = pic30_elf32_extract_bytes_data_mem(abfd, data, count, 
@@ -3261,10 +3278,6 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
          /* Relocation site is program memory, skip upper & phantom bytes */
          pic30_elf32_insert_bytes (abfd, data, count, octets, 
                                    relocation, TRUE, TRUE);
-      else if (PIC30_IS_PACKEDFLASH_ATTR(input_section->output_section))
-         /* Relocation site is packed flash, skip phantom bytes */
-         pic30_elf32_insert_bytes (abfd, data, count, octets,
-                                   relocation, FALSE, TRUE);
       else
          /* Relocation site is data memory */
          pic30_elf32_insert_bytes_data_mem(abfd,data,count,octets,
@@ -3612,7 +3625,7 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
 
       /* Convert input-section-relative symbol value to absolute.  */
       if (PIC30_IS_PACKEDFLASH_ATTR(symbol->section))
-        output_base = reloc_target_output_section->vma;
+        output_base = (reloc_target_output_section->lma *3) / 2;
       else
         output_base = reloc_target_output_section->lma;
 
@@ -3658,10 +3671,6 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
             target = pic30_elf32_extract_bytes (abfd, data, count, octets,
                                                TRUE, TRUE);
 	 }
-         else if (PIC30_IS_PACKEDFLASH_ATTR(input_section))
-            /* Relocation site is packed flash, skip phantom bytes */
-            target = pic30_elf32_extract_bytes (abfd, data, count, octets,
-                                               FALSE, TRUE);
          else
 	 {
            /* Relocation site is data memory */
@@ -3773,10 +3782,6 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
             pic30_elf32_insert_bytes (abfd, data, count, octets, relocation,
                                      TRUE, TRUE);
 	 }
-         else if (PIC30_IS_PACKEDFLASH_ATTR(input_section))
-           /* Relocation site is packed flash, skip phantom bytes */
-            pic30_elf32_insert_bytes (abfd, data, count, octets, relocation,
-                                     FALSE, TRUE);
          else
 	 {
            /* Relocation site is data memory */
@@ -4196,23 +4201,27 @@ pic30_elf32_perform_dmaoffset_dmapage (abfd, reloc_entry, symbol, data,
 	  (howto->type == R_PIC30_P_DMAOFFSET))
          
 	{
-          if (dma_base_defined == FALSE)  /* this should have been checked earlier */
-            {                             /*   when the section was allocated      */
-             fprintf( stderr, 
-                   "Link Error: __DMA_BASE is needed, but not defined (check linker script?)\n");
-             abort();
-            }
           if (pic30_is_dma_machine(global_PROCESSOR) == 2)
              {
               relocation = relocation;
-             }
-          else if (relocation < dma_base)  /* should never occur */
+          } else {
+            if (dma_base_defined == FALSE)  /* this should have been checked earlier */
+              {                             /*   when the section was allocated      */
+               fprintf( stderr, 
+                     "Link Error: __DMA_BASE is needed, but not defined (check linker script?)\n");
+               abort();
+              }
+             if (relocation < dma_base)  /* should never occur */
              {
-              fprintf( stderr, "Link Error: DMA allocation error\n");
-              abort();
-             }
-          else
-             relocation -= dma_base;
+                fprintf( stderr, "Link Error: DMA allocation error.\n" 
+                         "%s cannot be placed at address 0x%lx because it's off "
+                         "DMA space [0x%lx->0x%lx] for this device.\n",
+                         symbol->name, relocation, dma_base, dma_end);
+                exit(1);
+               }
+            else
+               relocation -= dma_base;
+          }
         }
       else if (howto->type == R_PIC30_UNSIGNED_10_DMAOFFSET)
 	relocation = relocation;

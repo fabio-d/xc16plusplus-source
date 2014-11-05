@@ -581,6 +581,12 @@ c_print_identifier (FILE *file, tree node, int indent)
     }
 }
 
+#ifdef _BUILD_C30_
+tree c_identifier_binding(tree node) {
+  return I_SYMBOL_DECL(node);
+}
+#endif
+
 /* Establish a binding between NAME, an IDENTIFIER_NODE, and DECL,
    which may be any of several kinds of DECL or TYPE or error_mark_node,
    in the scope SCOPE.  */
@@ -9023,6 +9029,11 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
 	      if (!targetm.fixed_point_supported_p ())
 		error_at (loc,
 			  "fixed-point types not supported for this target");
+#ifdef _BUILD_C30_
+              else if (specs->long_long_p)
+		error_at (loc,
+			  "long long fixed-point types not supported for this target");
+#endif
 	      pedwarn (loc, OPT_pedantic,
 		       "ISO C does not support fixed-point types");
 	      return specs;

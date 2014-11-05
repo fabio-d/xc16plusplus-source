@@ -32,6 +32,7 @@
 #define IS_CODEGUARD_ID 0x10000000
 #define IS_VECTOR_ID    0x20000000
 #define IS_DEVICE_ID    0x40000000
+#define IS_MEM_ID       0x80000000
 
 /*
 ** Flags that are specific to record types
@@ -68,6 +69,8 @@
 #define HIGH          1<<21
 #define ON            1<<22
 #define OFF           1<<23
+#define ENHANCED      1<<24
+#define CONFIG        1<<25
 
 #ifndef PATH_SEPARATOR_STR
 #define PATH_SEPARATOR_STR "|"
@@ -84,34 +87,74 @@
 #define MPLABC30_PIC30F_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC30F" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC33E_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC33E" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC33F_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC33F" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC33E_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC33E" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC24H_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "PIC24H" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC24E_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "PIC24E" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC24F_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "PIC24F" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 #define MPLABC30_PIC24E_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "PIC24E" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
                                  "inc"
 /*
  * compiler include paths for each device family

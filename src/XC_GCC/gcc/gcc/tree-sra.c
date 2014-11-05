@@ -1567,6 +1567,9 @@ sort_and_splice_var_accesses (tree var)
   VEC (access_p, heap) *access_vec;
   bool first = true;
   HOST_WIDE_INT low = -1, high = 0;
+#ifdef _BUILD_C30_
+  tree type;
+#endif
 
   access_vec = get_base_access_vector (var);
   if (!access_vec)
@@ -1595,9 +1598,26 @@ sort_and_splice_var_accesses (tree var)
 	  first = false;
 	  low = access->offset;
 	  high = access->offset + access->size;
+#ifdef _BUILD_C30_
+          type = access->type;
+#endif
 	}
       else if (access->offset > low && access->offset + access->size > high)
 	return NULL;
+#ifdef _BUILD_C30_
+      /* CAW - I don't think we can scalarize an access which is a different
+       * type... this seems to cause replacements to change type and could
+       * particular damaging.  Example:  replacing a non saturating fixed
+       * point operation with a saturating one. 
+       *
+       * It is not clear to me whether or not to not allow the replacement
+       * or to not allow the scalarization.  I have chosen to prevent
+       * scalarization as it seems less risky.
+       *
+       */
+      else if (access->type != type)
+        return NULL;
+#endif
       else
 	gcc_assert (access->offset >= low
 		    && access->offset + access->size <= high);
@@ -1608,6 +1628,11 @@ sort_and_splice_var_accesses (tree var)
 	  struct access *ac2 = VEC_index (access_p, access_vec, j);
 	  if (ac2->offset != access->offset || ac2->size != access->size)
 	    break;
+
+#ifdef _BUILD_C30_
+          if (ac2->type != type) return NULL;
+#endif
+
 	  if (ac2->write)
 	    grp_write = true;
 	  else

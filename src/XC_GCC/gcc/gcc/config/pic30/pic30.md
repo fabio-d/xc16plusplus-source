@@ -1,4 +1,4 @@
-;;- Machine description for GNU compiler
+;- Machine description for GNU compiler
 ;;- Microchip dsPIC30 version.
 ;; Copyright (C) 1994, 1995, 1996, 1997 Free Software Foundation, Inc.
 
@@ -171,6 +171,10 @@
   (and (match_test "pic30_mode1MinMax_operand(op,mode,-16,15)")
        (match_code "subreg,reg,mem,const_int")))
 
+(define_predicate "pic30_mode1_0k_operand"
+  (and (match_test "pic30_mode1MinMax_operand(op,mode,0,0)")
+       (match_code "subreg,reg,mem,const_int")))
+
 (define_predicate "pic30_mode1_APSV_operand"
   (and (match_test "pic30_mode1MinMax_APSV_operand(op,mode,-16,15)")
        (match_code "subreg,reg,mem,const_int")))
@@ -285,6 +289,7 @@
   enum rtx_code code;
 
   fMode2Operand = FALSE;
+  if (mode == VOIDmode) mode = GET_MODE(op);
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
@@ -314,6 +319,7 @@
   enum rtx_code code;
 
   fMode2Operand = FALSE;
+  if (mode == VOIDmode) mode = GET_MODE(op);
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
@@ -344,6 +350,7 @@
   enum rtx_code code;
 
   fMode2Operand = FALSE;
+  if (mode == VOIDmode) mode = GET_MODE(op);
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
@@ -374,6 +381,7 @@
 
   fMode2Operand = FALSE;
   code = GET_CODE(op);
+  if (mode == VOIDmode) mode = GET_MODE(op);
   switch (code) {
     case SUBREG:
       fMode2Operand = register_operand(op, mode);
@@ -429,6 +437,20 @@
 (define_predicate "pic30_accumulator_operand"
   (and (match_code "reg")
        (match_test "IS_ACCUM_REG(REGNO(op))")))
+
+(define_predicate "pic30_accumulator2_operand"
+  (and (match_code "reg")
+       (ior (match_test "IS_ACCUM_REG(REGNO(op))")
+            (match_test "REGNO(op) >= FIRST_PSEUDO_REGISTER"))))
+
+(define_predicate "pic30_accum_or_reg_operand"
+  (ior (match_operand 0 "pic30_accumulator2_operand")
+       (match_operand 0 "pic30_register_operand")))
+
+; this operand allows a mode1 op with no +/-k small literal
+(define_predicate "pic30_accum_or_mode1_operand"
+  (ior (match_operand 0 "pic30_accumulator2_operand")
+       (match_operand 0 "pic30_mode1_0k_operand")))
 
 ;;  { "pic30_awb_operand", { REG }}, 
 
@@ -729,6 +751,11 @@
        (match_operand 0 "pic30_near_operand")
        (match_operand 0 "pic30_data_operand")))
 
+(define_predicate "pic30_move_d_operand"
+  (ior (match_test      "pic30_mode1MinMax_operand(op,mode,0,0)")
+       (match_operand 0 "pic30_data_operand")
+       (match_operand 0 "pic30_modek_operand")))
+
 ;;  { "pic30_invalid_address_operand", { SYMBOL_REF, LABEL_REF, CONST }}, 
 
 (define_predicate "pic30_invalid_address_operand"
@@ -839,7 +866,7 @@
             (mode == VOIDmode)) {
           if (((GET_CODE (XEXP (op, 0)) == SYMBOL_REF ||
                     GET_CODE (XEXP (op, 0)) == LABEL_REF) &&
-                   (GET_MODE(XEXP(op,0)) == mode) &&
+                   ((mode == VOIDmode) || (GET_MODE(XEXP(op,0)) == mode)) &&
                    (pic30_builtin_tblpsv_arg_p(NULL,op))) &&
                   GET_CODE (XEXP (op, 1)) == CONST_INT) return TRUE;
         }
@@ -919,6 +946,20 @@
 (define_predicate "pic30_Q_operand"
   (match_test "pic30_Q_constraint(op)"))
 
+(define_predicate "pic30_any_QR_operand"
+  (match_test "1")
+  {
+    int disp;
+    if (pic30_Q_constraint_displacement(op,&disp)) return 1;
+    if (pic30_R_constraint(op)) return 1;
+    return disp != INT_MAX;
+  })
+
+(define_predicate "pic30_RQ_operand"
+  (ior (match_test "pic30_R_constraint(op)")
+       (match_test "pic30_Q_constraint(op)")))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Uses of UNSPEC in this file:
@@ -934,111 +975,121 @@
 
 (define_constants
  [
-  (UNSPECV_BLOCKAGE	0) ; block insn movement
-  (UNSPECV_PA		1) ; enable/disable PA
-  (UNSPECV_IV		2) ; interrupt vector
-  (UNSPECV_PP		3) ; pre-prologue
-  (UNSPECV_NOP		4) ; '__builtin_nop' instruction
+  (UNSPECV_BLOCKAGE	        0) ; block insn movement
+  (UNSPECV_PA		        1) ; enable/disable PA
+  (UNSPECV_IV		        2) ; interrupt vector
+  (UNSPECV_PP		        3) ; pre-prologue
+  (UNSPECV_NOP		        4) ; '__builtin_nop' instruction
   
   
   
   
-  (UNSPECV_DIVSD	9) ; '__builtin_divsd' instruction
-  (UNSPECV_DIVUD       10) ; '__builtin_divud' instruction
-  (UNSPECV_MULSS       11) ; '__builtin_mulss' instruction
-  (UNSPECV_MULSU       12) ; '__builtin_mulsu' instruction
-  (UNSPECV_MULUS       13) ; '__builtin_mulus' instruction
-  (UNSPECV_MULUU       14) ; '__builtin_muluu' instruction
-  (UNSPECV_READSFR     15) ; '__builtin_readsfr' instruction
-  (UNSPECV_DISI        16) ; disi instruction
-  (UNSPECV_WRITESFR    17) ; '__builtin_writesfr' instruction
-  (UNSPECV_WRITEDISICNT 18) ; 
-  (UNSPECV_SAC         19) ; __builtin_sac
-  (UNSPECV_SACR        20) ; __builtin_sacr
-  (UNSPECV_FBCL        21) ; __builtin_fbcl
-  (UNSPECV_LAC         22) ; __builtin_lac
-  (UNSPECV_SFTAC       23) ; __builtin_sftac
-  (UNSPECV_RRNC        24) ; rrnc
-  (UNSPECV_TBLADDRESS  25) ; __builtin_tbladdress
-  (UNSPECV_SETPSV      26) ; set psv
-  (UNSPECV_WRITEOSCCONH 27) ; __builtin_write_OSCCONH
-  (UNSPECV_WRITENVM    28) ; __builtin_write_NVM
-  (UNSPECV_MODSD       29) ; __builtin_modsd
-  (UNSPECV_MODUD       30) ; __builtin_modud
-  (UNSPECV_DIVMODSD    31) ; __builtin_divmodsd
-  (UNSPECV_DIVMODUD    32) ; __builtin_divmodud
-  (UNSPECV_DSPMULT     33) ; __builtin_mpy, etc
-  (UNSEPCV_GENLABEL    34) ; __builtin_unique_id
-  (UNSPECV_WRITEOSCCONL 35) ; __builtin_write_OSCCONL
-  (UNSPECV_TBLRDL      36) ; __builtin_tblrdl
-  (UNSPECV_TBLRDH      37) ; __builtin_tblrd7
-  (UNSPECV_TBLWTL      38) ; __builtin_tblwtl
-  (UNSPECV_TBLWTH      39) ; __builtin_tblwth
-  (UNSPEC_SAVE_CONSTPSV 40)
-  (UNSPECV_UNPACKEDS   41)
-  (UNSPECV_P24PROGPTR  42)
-  (UNSPECV_UNPACKMPSV  43)  
-  (UNSPECV_UNPACKMPROG 44)  
-  (UNSPECV_DIVF        45)
-  (UNSPECV_WRITERTCWEN 46)
-  (UNSPECV_PSVRDPSV    47) ; psv pointer access
-  (UNSPECV_PSVRDPROG   48) ; psv pointer access
-  (UNSPECV_PMPRD       49) ; PMP read
-  (UNSPECV_PMPWT       50) ; PMP write
-  (UNSPECV_EXTRD       51) ; EXT read
-  (UNSPECV_EXTWT       52) ; EXT write
-  (UNSPECV_WHILEPMMODE 53) ; while (!PMMODEbits.busy)
-  (UNSPECV_PMDIN1RD    54) ; read PMPDIN1
-  (UNSPECV_PMDIN1WT    55) ; write PMPDIN1
-  (UNSPECV_SETPMMODE   56) 
-  (UNSPECV_CLRPMMODE   57)
-  (UNSPECV_TBLRDLB     58) ; __builtin_tblrdlb
-  (UNSPECV_TBLRDHB     59) ; __builtin_tblrdhb
-  (UNSPECV_TBLWTLB     60) ; __builtin_tblwtlb
-  (UNSPECV_TBLWTHB     61) ; __builtin_tblwthb
-  (UNSPECV_USEPSV      62) ; any operation that uses the PSV
-  (UNSPECV_EDSRD       63) ;  EDS read
-  (UNSPECV_EDSWT       64) ;  EDS write
-  (UNSPECV_PEDSRD      65) ;  PEDS read  (paged)
-  (UNSPECV_PEDSWT      66) ;  PEDS write (paged)
-  (UNSPECV_SETNVPSV    67) ; set psv nonvolatile
-  (UNSPECV_SETDSW      68) ; set dsw 
-  (UNSPECV_SETNVDSW    69) ; set dsw nonvolatile
-  (UNSPECV_OFFSET      70)  
-  (UNSPECV_PAGE        71)  
-  (UNSPECV_NOEDSRD     72)
-  (UNSPECV_NOEDSWT     72)
-  (UNSPECV_WRITEPWMCON 73) ; __builtin_write_PWMCON
-  (UNSPECV_WRITECRTOTP 74) ; __builtin_write_CRYOTP
-  (UNSPEC_SECTION_BEGIN 75)
-  (UNSPEC_SECTION_END  76)
-  (UNSPEC_SECTION_SIZE 77)
-  (UNSPECV_SET_ISR_STATE 78)
-  (UNSPEC_GET_ISR_STATE 79)
-  (UNSPECV_ENABLE_ISR  80)
-  (UNSPECV_DISABLE_ISR 81)
-  (UNSPECV_ENABLE_ISR_GIE  82)
-  (UNSPECV_DISABLE_ISR_GIE 83)
-  (UNSPEC_EXTRACT_GIE  84)
-  (UNSPEC_INSERT_GIE   85)
-  (UNSPEC_EDSSTACKADDR 86)
-  (UNSPECV_TEMP        199)
+  (UNSPECV_DIVSD	        9) ; '__builtin_divsd' instruction
+  (UNSPECV_DIVUD               10) ; '__builtin_divud' instruction
+  (UNSPECV_MULSS               11) ; '__builtin_mulss' instruction
+  (UNSPECV_MULSU               12) ; '__builtin_mulsu' instruction
+  (UNSPECV_MULUS               13) ; '__builtin_mulus' instruction
+  (UNSPECV_MULUU               14) ; '__builtin_muluu' instruction
+  (UNSPECV_READSFR             15) ; '__builtin_readsfr' instruction
+  (UNSPECV_DISI                16) ; disi instruction
+  (UNSPECV_WRITESFR            17) ; '__builtin_writesfr' instruction
+  (UNSPECV_WRITEDISICNT        18) ; 
+  (UNSPECV_SAC                 19) ; __builtin_sac
+  (UNSPECV_SACR                20) ; __builtin_sacr
+  (UNSPECV_FBCL                21) ; __builtin_fbcl
+  (UNSPECV_LAC                 22) ; __builtin_lac
+  (UNSPECV_SFTAC               23) ; __builtin_sftac
+  (UNSPECV_RRNC                24) ; rrnc
+  (UNSPECV_TBLADDRESS          25) ; __builtin_tbladdress
+  (UNSPECV_SETPSV              26) ; set psv
+  (UNSPECV_WRITEOSCCONH        27) ; __builtin_write_OSCCONH
+  (UNSPECV_WRITENVM            28) ; __builtin_write_NVM
+  (UNSPECV_MODSD               29) ; __builtin_modsd
+  (UNSPECV_MODUD               30) ; __builtin_modud
+  (UNSPECV_DIVMODSD            31) ; __builtin_divmodsd
+  (UNSPECV_DIVMODUD            32) ; __builtin_divmodud
+  (UNSPECV_DSPMULT             33) ; __builtin_mpy, etc
+  (UNSEPCV_GENLABEL            34) ; __builtin_unique_id
+  (UNSPECV_WRITEOSCCONL        35) ; __builtin_write_OSCCONL
+  (UNSPECV_TBLRDL              36) ; __builtin_tblrdl
+  (UNSPECV_TBLRDH              37) ; __builtin_tblrd7
+  (UNSPECV_TBLWTL              38) ; __builtin_tblwtl
+  (UNSPECV_TBLWTH              39) ; __builtin_tblwth
+  (UNSPEC_SAVE_CONSTPSV        40)
+  (UNSPECV_UNPACKEDS           41)
+  (UNSPECV_P24PROGPTR          42)
+  (UNSPECV_UNPACKMPSV          43)  
+  (UNSPECV_UNPACKMPROG         44)  
+  (UNSPECV_DIVF                45)
+  (UNSPECV_WRITERTCWEN         46)
+  (UNSPECV_PSVRDPSV            47) ; psv pointer access
+  (UNSPECV_PSVRDPROG           48) ; psv pointer access
+  (UNSPECV_PMPRD               49) ; PMP read
+  (UNSPECV_PMPWT               50) ; PMP write
+  (UNSPECV_EXTRD               51) ; EXT read
+  (UNSPECV_EXTWT               52) ; EXT write
+  (UNSPECV_WHILEPMMODE         53) ; while (!PMMODEbits.busy)
+  (UNSPECV_PMDIN1RD            54) ; read PMPDIN1
+  (UNSPECV_PMDIN1WT            55) ; write PMPDIN1
+  (UNSPECV_SETPMMODE           56) 
+  (UNSPECV_CLRPMMODE           57)
+  (UNSPECV_TBLRDLB             58) ; __builtin_tblrdlb
+  (UNSPECV_TBLRDHB             59) ; __builtin_tblrdhb
+  (UNSPECV_TBLWTLB             60) ; __builtin_tblwtlb
+  (UNSPECV_TBLWTHB             61) ; __builtin_tblwthb
+  (UNSPECV_USEPSV              62) ; any operation that uses the PSV
+  (UNSPECV_EDSRD               63) ;  EDS read
+  (UNSPECV_EDSWT               64) ;  EDS write
+  (UNSPECV_PEDSRD              65) ;  PEDS read  (paged)
+  (UNSPECV_PEDSWT              66) ;  PEDS write (paged)
+  (UNSPECV_SETNVPSV            67) ; set psv nonvolatile
+  (UNSPECV_SETDSW              68) ; set dsw 
+  (UNSPECV_SETNVDSW            69) ; set dsw nonvolatile
+  (UNSPECV_OFFSET              70)  
+  (UNSPECV_PAGE                71)  
+  (UNSPECV_NOEDSRD             72)
+  (UNSPECV_NOEDSWT             72)
+  (UNSPECV_WRITEPWMCON         73) ; __builtin_write_PWMCON
+  (UNSPECV_WRITECRTOTP         74) ; __builtin_write_CRYOTP
+  (UNSPEC_SECTION_BEGIN        75)
+  (UNSPEC_SECTION_END          76)
+  (UNSPEC_SECTION_SIZE         77)
+  (UNSPECV_SET_ISR_STATE       78)
+  (UNSPEC_GET_ISR_STATE        79)
+  (UNSPECV_ENABLE_ISR          80)
+  (UNSPECV_DISABLE_ISR         81)
+  (UNSPECV_ENABLE_ISR_GIE      82)
+  (UNSPECV_DISABLE_ISR_GIE     83)
+  (UNSPEC_EXTRACT_GIE          84)
+  (UNSPEC_INSERT_GIE           85)
+  (UNSPEC_EDSSTACKADDR         86)
+  (UNSPECV_ENTER               87)
+  (UNSPECV_EXIT                88)
+  (UNSPEC_SATURATE             89)
+  (UNSPECV_SETSAT              90)
+  (UNSPEC_MPY                  91)
+  (UNSPEC_FIXSIGN              92)
+  (UNSPECV_SOFTWARE_BREAK      93)
+  (UNSPECV_TEMP                199)
  ]
 )
 
-;; Hard registers (SFRs)
+;; Hard registers (SFRs) && other constants
 
 (define_constants
  [
-  (FPREG	14) ; Frame-pointer hard register number
-  (SPREG	15) ; Stack-pointer hard register number
-  (RCOUNT	16) ; Repeat-count hard register number
-  (PSVPAG       19) ; PSVPAG or DSRPAG
-  (PMADDR       20) 
-  (PMMODE       21)
-  (PMDIN1       22)
-  (PMDIN2       23)
-  (DSWPAG       24)
+  (FPREG	   14) ; Frame-pointer hard register number
+  (SPREG	   15) ; Stack-pointer hard register number
+  (RCOUNT	   16) ; Repeat-count hard register number
+  (A_REGNO         17)
+  (B_REGNO         18)
+  (PSVPAG          19) ; PSVPAG or DSRPAG
+  (PMADDR          20) 
+  (PMMODE          21)
+  (PMDIN1          22)
+  (PMDIN2          23)
+  (DSWPAG          24)
+  (CORCON          36) ; Any part of CORCON
  ]
 )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1505,8 +1556,10 @@
        ] UNSPECV_LAC))
   ]
   ""
-  "*{
+  "*
+   {
      error(\"Argument 0 should not be an accumulator register\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -1585,7 +1638,7 @@
   "" 
   "* 
    {
-     const char *mac_options[] = {
+     static const char *mac_options[] = {
        \"mac %2*%3, %0, [%5]+=%7, %4, [%9]+=%11, %8\",  /* 0 */
        \"mac %2*%3, %0, [%9]+=%11, %8\",                /* 1 */
        \"mac %2*%3, %0, [%9], %8\",                     /* 2 */
@@ -2035,6 +2088,7 @@
    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_sftac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2060,6 +2114,7 @@
      /* lac %1, %0 */
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_lac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )  
@@ -2072,6 +2127,7 @@
      /* sac %1, %0 */
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_sac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2086,10 +2142,12 @@
        /* clr %0 */
        error(\"Automatic generation of DSP instructions not yet supported; \"
              \"use __builtin_clr() instead\");
+       return \"cannot generate instruction\";
      } else {
        /* lac ... */
-       error(\"Automatic generation of DSP instructions not yet supported; \"
+      error(\"Automatic generation of DSP instructions not yet supported; \"
              \"use __builtin_lac() instead\");
+       return \"cannot generate instruction\";
      }
    }
   "
@@ -2100,9 +2158,11 @@
         (plus:HI (match_operand:HI 1 "pic30_mode3_operand" "RS<>r")
                  (match_operand:HI 2 "pic30_mode3_operand" "RS<>r")))]
   ""
-  "*{
+  "*
+   {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_addab() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2129,6 +2189,7 @@
        return \"mac %3*%2, %0\";
      }
 #endif
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2148,6 +2209,7 @@
    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_mac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2166,6 +2228,7 @@
    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_mpy() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2185,6 +2248,7 @@
    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_msc() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2204,6 +2268,7 @@
    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_msc() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2219,6 +2284,7 @@
      /* sftac %0, #%1 */
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_sftac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2234,6 +2300,7 @@
 
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_sftac() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2249,6 +2316,7 @@
      /* add %1, %0 */
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_add() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2264,6 +2332,7 @@
      /* add %2, %0 */
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_add() instead\");
+     return \"cannot generate instruction\";
    }
   "
 )
@@ -2807,13 +2876,13 @@
 ;  This pattern should restore the src/ dest ptrs before finishing
 ;
 (define_insn "movmemhi"
-  [(set (match_operand:BLK 0 "memory_operand"  "=R,m,R,m,R,m,R")
-        (match_operand:BLK 1 "memory_operand"   "R,R,m,m,R,R,m"))
+  [(set (match_operand:BLK 0 "memory_operand"  "=R,m,R,R,m,R,m")
+        (match_operand:BLK 1 "memory_operand"   "R,R,m,R,R,m,m"))
    (use (match_operand:HI 2 "immediate_operand" "J,J,J,i,i,i,i"))
    (use (match_operand:HI 3 "const_int_operand" ""))
    (clobber (reg:HI RCOUNT))
    (clobber (match_scratch:HI 4  "=X,&r,&r,&r,&r,&r,&r"))
-   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,&r,&r"))
+   (clobber (match_scratch:HI 5  "=X,X,X,X,&r,&r,&r"))
   ]
   ""
   "*
@@ -2850,47 +2919,20 @@
 
                 Wn = XEXP(XEXP(operands[0],0),0);
                 X = XEXP(XEXP(operands[0],0),1);
-                if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r0 == W14/W15 */
-                  c += sprintf(c,\"mov w14,%%4\;\");
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X))
+                  c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%4\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%4,%%4\;\", REGNO(Wn));
                   }
-                  op0 = \"[w14++]\";
-                  restore_w14 = \"%4\";
-                } else {
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
-                    }
-                  }
-                  op0 = \"[%4++]\";
                 }
+                op0 = \"[%4++]\";
               } else {
                 gcc_assert(0);
               } 
@@ -2909,53 +2951,26 @@
 
                 Wn = XEXP(XEXP(operands[1],0),0);
                 X = XEXP(XEXP(operands[1],0),1);
-                if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r1 == W14/W15 */
-                  c += sprintf(c,\"mov w14,%%4\;\");
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X))
+                  c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%4\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%4,%%4\;\", REGNO(Wn));
                   }
-                  op1 = \"[w14++]\";
-                  restore_w14 = \"%4\";
-                } else {
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
-                    }
-                  }
-                  op1 = \"[%4++]\";
                 }
+                op1 = \"[%4++]\";
               } else {
                 gcc_assert(0);
               } 
               restore_with_sub_0 = \"%r0\";
               break;
-     case 3:  /* op0 and op1 are memory, take their addresses */
+     case 6:  /* op0 and op1 are memory, take their addresses */
               if (pic30_T_constraint(operands[0]) || 
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
@@ -2967,47 +2982,20 @@
   
                 Wn = XEXP(XEXP(operands[0],0),0);  
                 X = XEXP(XEXP(operands[0],0),1);
-                if (pic30_ecore_target() && 
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r0 == W14/W15 */
-                  c += sprintf(c,\"mov w14,%%4\;\");
-                  if (REG_P(X)) 
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0) 
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X)) 
+                  c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%4\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%4,%%4\;\", REGNO(Wn));
                   }
-                  op0 = \"[w14++]\";
-                  restore_w14 = \"%4\";
-                } else {
-                  if (REG_P(X)) 
-                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0) 
-                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
-                    }
-                  }
-                  op0 = \"[%4++]\";
                 }
+                op0 = \"[%4++]\";
               } else {
                 gcc_assert(0);
               }
@@ -3022,60 +3010,32 @@
 
                 Wn = XEXP(XEXP(operands[1],0),0);
                 X = XEXP(XEXP(operands[1],0),1);
-                if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r1 == W14/W15 */
-                  gcc_assert(restore_w14 == 0);
-                  c += sprintf(c,\"mov w14,%%5\;\");
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X))
+                  c += sprintf(c,\"add w%d,w%d,%%5\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%5\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%5\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%5\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%5,%%5\;\", REGNO(Wn));
                   }
-                  op1 = \"[w14++]\";
-                  restore_w14 = \"%5\";
-                } else {
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,%%5\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%5\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%5\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%5\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,%%5\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%5\;\",INTVAL(X));
-                    }
-                  }
-                  op1 = \"[%5++]\";
                 }
+                op1 = \"[%5++]\";
               } else {
                 gcc_assert(0);
               }
               break;
-     case 4:  /* op0 and op1 are registers */
+     case 3:  /* op0 and op1 are registers */
               /* literal > 10 bits, save repeat count in reg */
               restore_with_sub_0 = \"%r0\";
               restore_with_sub_1 = \"%r1\";
               c += sprintf(c,\"mov #%%2,%%4\;\");
               sub_value =\"%4\";
               break;
-     case 5:  /* op0 is memory, take its address */
+     case 4:  /* op0 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
               if (pic30_T_constraint(operands[0]) ||
                   pic30_U_constraint(operands[0],VOIDmode)) {
@@ -3088,47 +3048,20 @@
 
                 Wn = XEXP(XEXP(operands[0],0),0);
                 X = XEXP(XEXP(operands[0],0),1);
-                if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r0 == W14/W15 */
-                  c += sprintf(c,\"mov w14,%%4\;\");
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X))
+                  c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%4\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%4,%%4\;\", REGNO(Wn));
                   }
-                  op0 = \"[w14++]\";
-                  restore_w14 = \"%4\";
-                } else {
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
-                    }
-                  }
-                  op0 = \"[%4++]\";
                 }
+                op0 = \"[%4++]\";
               } else {
                 gcc_assert(0);
               }
@@ -3141,7 +3074,7 @@
               sub_value = \"%5\";
               restore_with_sub_1 = \"%r1\";
               break;
-     case 6:  /* op1 is memory, take its address */
+     case 5:  /* op1 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
               if (pic30_T_constraint(operands[1]) ||
                   pic30_U_constraint(operands[1],VOIDmode)) {
@@ -3154,47 +3087,20 @@
 
                 Wn = XEXP(XEXP(operands[1],0),0);
                 X = XEXP(XEXP(operands[1],0),1);
-                if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
-                  /* ecore cannot go through %%4 if r1 == W14/W15 */
-                  c += sprintf(c,\"mov w14,%%4\;\");
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      if (REGNO(Wn) != WR14_REGNO) {
-                        c += sprintf(c,\"mov W15,W14\;\");
-                      }
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
-                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
-                    }
+                if (REG_P(X))
+                  c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                else {
+                  if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                    c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                  } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                    c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                   REGNO(Wn),-1*INTVAL(X));
+                  } else {
+                    c += sprintf(c,\"mov #%d,%%4\;\",INTVAL(X));
+                    c += sprintf(c,\"add w%d,%%4,%%4\;\", REGNO(Wn));
                   }
-                  op1 = \"[w14++]\";
-                  restore_w14 = \"%4\";
-                } else {
-                  if (REG_P(X))
-                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
-                  else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
-                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
-                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
-                                     REGNO(Wn),-1*INTVAL(X));
-                    } else {
-                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
-                      if (INTVAL(X) < 0)
-                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
-                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
-                    }
-                  }
-                  op1 = \"[%4++]\";
                 }
+                op1 = \"[%4++]\";
               } else {
                 gcc_assert(0);
               }
@@ -3273,14 +3179,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define_insn "setmemhi"
   [
-   (set (match_operand:BLK 0 "memory_operand"  "=R,m,R,m,R,m,R,m")
-        (match_operand    2 "const_int_operand" "O,O,O,O,i,i,i,i"))
-   (use (match_operand:HI 1 "immediate_operand" "J,J,i,i,J,J,i,i"))
+   (set (match_operand:BLK 0 "memory_operand"  "=R,m,R,m,R,m,R,m,R,m,R,m")
+        (match_operand    2 "pic30_reg_or_imm_operand" "O,O,O,O,i,i,i,i,r,r,r,r"))
+   (use (match_operand:HI 1 "immediate_operand" "J,J,i,i,J,J,i,i,J,J,i,i"))
    (use (match_operand:HI 3 "const_int_operand" ""))
    (clobber (reg:HI RCOUNT))
-   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,X,&r,&r,&r"))
-   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,X,X,&r"))
-   (clobber (match_scratch:HI 6  "=X,X,X,X,&r,&r,&r,&r"))
+   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,X,&r,&r,&r,X,&r,&r,&r"))
+   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,X,X,&r,X,X,X,&r"))
+   (clobber (match_scratch:HI 6  "=X,X,X,X,&r,&r,&r,&r,X,X,X,X"))
   ]
   ""
   "*
@@ -3296,16 +3202,30 @@
      int repeat_count;
      char *set_instr = \"mov\";
 
-
-     if (INTVAL(operands[2]) == 0) {
-       set_instr = \"clr\";
+     if (const_int_operand(operands[2],VOIDmode)) {
+       if (INTVAL(operands[2]) == 0) {
+         set_instr = \"clr\";
+       } else {
+         /* the middle four are the same as the bottom four, just that we don't
+            need a clobber register for the value */
+         gcc_assert(which_alternative > 3);
+         which_alternative -= 4;
+         if (INTVAL(operands[3]) != 1) {
+           /* repeat bytes */
+           c += sprintf(c,\"mov #%d,%%6\;\", 
+                        (INTVAL(operands[2]) << 8) + INTVAL(operands[2]));
+         } else {
+           c += sprintf(c,\"mov #%d,%%6\;\", INTVAL(operands[2]));
+         }
+         op1=\"%6,\";
+       }
      } else {
+       /* register already */
        /* the top four are the same as the bottom four, just that we don't
           need a clobber register for the value */
-       gcc_assert(which_alternative > 3);
-       which_alternative -= 4;
-       c += sprintf(c,\"mov #%d,%%6\;\", INTVAL(operands[2]));
-       op1=\"%6,\";
+       gcc_assert(which_alternative > 7);
+       which_alternative -= 8;
+       op1 = \"%2,\";
      }
 
      repeat_count = INTVAL(operands[1]);
@@ -3328,16 +3248,18 @@
 
                 Wn = XEXP(XEXP(operands[0],0),0);
                 X = XEXP(XEXP(operands[0],0),1);
+#if 0
+    /* The else case copies Wn to %%4 anyway... */
                 if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                    ((REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO))) {
                   /* ecore cannot go through %%4 if r0 == W14/W15 */
                   c += sprintf(c,\"mov w14,%%4\;\");
                   if (REG_P(X))
                     c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
                   else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                    if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
                       c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                    } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
                       c += sprintf(c,\"sub w%d,#%d,W14\;\",
                                      REGNO(Wn),-1*INTVAL(X));
                     } else {
@@ -3352,12 +3274,15 @@
                   op0 = \"[w14++]\";
                   restore_w14 = \"%4\";
                 } else {
+#else 
+                {
+#endif
                   if (REG_P(X))
                     c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
                   else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                    if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
                       c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                    } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
                       c += sprintf(c,\"sub w%d,#%d,%%4\;\",
                                      REGNO(Wn),-1*INTVAL(X));
                     } else {
@@ -3392,16 +3317,18 @@
 
                 Wn = XEXP(XEXP(operands[0],0),0);
                 X = XEXP(XEXP(operands[0],0),1);
+#if 0
+    /* The else case copies Wn to %%4 anyway... */
                 if (pic30_ecore_target() &&
-                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                    ((REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO))) {
                   /* ecore cannot go through %%4 if r0 == W14/W15 */
                   c += sprintf(c,\"mov w14,%%4\;\");
                   if (REG_P(X))
                     c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
                   else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                    if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
                       c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                    } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
                       c += sprintf(c,\"sub w%d,#%d,W14\;\",
                                      REGNO(Wn),-1*INTVAL(X));
                     } else {
@@ -3416,12 +3343,15 @@
                   op0 = \"[w14++]\";
                   restore_w14 = \"%4\";
                 } else {
+#else
+                {
+#endif
                   if (REG_P(X))
                     c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
                   else {
-                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                    if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
                       c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
-                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                    } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
                       c += sprintf(c,\"sub w%d,#%d,%%4\;\",
                                      REGNO(Wn),-1*INTVAL(X));
                     } else {
@@ -3436,13 +3366,6 @@
               } else {
                 gcc_assert(0);
               }
-              if (pic30_T_constraint(operands[2]) ||
-                  pic30_U_constraint(operands[2],VOIDmode)) {
-                c += sprintf(c,\"mov #%%1,%%5\;\");
-              } else {
-                c += sprintf(c,\"mov %%1,%%5\;\");
-              }
-              sub_value = \"%5\";
               break;
      }
      
@@ -3515,7 +3438,7 @@
   [(set_attr "cc" "unchanged")]
 )
 
-(define_mode_iterator CMPMODES [QI HI SI DI])
+(define_mode_iterator CMPMODES [QI HI SI DI QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA])
 
 (define_expand "cbranch<mode>4"
  [(set (cc0)
@@ -4554,7 +4477,7 @@
   "*
 {
 	error(\"invalid address space for operand\");
-	return(\"nop\");
+        return \"cannot generate instruction\";
 }
 
 ")
@@ -4566,7 +4489,7 @@
   "*
 {
 	error(\"invalid address space for operand\");
-	return(\"nop\");
+        return \"cannot generate instruction\";
 }
 ")
 
@@ -4631,9 +4554,9 @@
 ; general case
 (define_insn "movqi_gen_DATA"
   [(set (match_operand:QI 0 "pic30_move_operand"
-		"=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d,?U,?U,?U, ?U, ? U,RS,<>RS,RS<>,Q,?T, ?T,   RS<>,<>RS,T, r")
+		"=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d,?U")
         (match_operand:QI 1 "pic30_move_operand"
-		 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U, d,RS,<>RS,RS<>,Q,?U,?U,? U,?  U,RS<>,<>RS,?T,  ?T, ?r,?T"))
+		 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U, d"))
   ]
   ""
   "*
@@ -4671,6 +4594,7 @@
    }
 
    switch (which_alternative) {
+     default: gcc_assert(0);
      case 0:  return \"mov.b %1,%0\";
      case 1:  return \"mov.b %1,%0\";
      case 2:  return \"mov.b %1,%0\";
@@ -4690,167 +4614,21 @@
                 return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
               else
                 return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
-     case 14: /* U, RS */
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-              }
-              break;
-     case 15: /* U, <>RS */ 
-     case 16: /* U, RS<> */ {
-              char *inc=\"inc\";
-              int pre=0;
-              int post=0;
-              if (GET_CODE(XEXP(operands[1],0)) == POST_INC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  post=1;
-                }
-              } else if (GET_CODE(XEXP(operands[1],0)) == POST_DEC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  post=1;
-                  inc=\"dec\";
-                }
-              }
-              if (GET_CODE(XEXP(operands[1],0)) == PRE_INC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  pre=1;
-                }
-              }
-              if (GET_CODE(XEXP(operands[1],0)) == PRE_DEC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  pre=1;
-                  inc=\"dec\";
-                }
-              }
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                if (post) {
-                  sprintf(buffer,\"push w0\;mov.b %%s1,w0\;mov.b WREG,%%0\"
-                                 \"\;pop w0\;%s %%r1,%%r1\", inc);
-                  return buffer;
-                } else if (pre) {
-                  sprintf(buffer,\"%s %%s1,%ss1\;push w0\;mov.b %%s1,w0\"
-                                 \"\;mov.b WREG,%%0\;pop w0\;%s %%r1,%%r1\", 
-                                 inc);
-                  return buffer;
-                } else {
-                  return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-                }
-
-              }
-              break;
-              }
-     case 17: /* U, Q */
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-              }
-              break;
-     case 18: /* R, U */
-     case 19: /* <>R, U */
-     case 20: /* R<>, U */
-              if (!save) {
-                return \"mov.b %1,WREG\;mov.b w0,%0\";
-              } else if (other_reg) {
-                sprintf(buffer,\"mov #(%%1),w%d\;mov.b [w%d],%%0\",
-                        REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                       \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],%%0\;pop w%d\",
-                        regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
-              }
-     case 21: /* Q, U */
-              if (!save) {
-                return \"mov.b %1,WREG\;mov.b w0,%0\";
-              } else if (other_reg) {
-                sprintf(buffer,
-                        \"mov #(%%1),w%d\;mov.b [w%d],w%d\;mov.b w%d,%%0\",
-                        REGNO(other_reg), REGNO(other_reg),
-                        REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                        \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],w%d\"
-                        \"\;mov.b w%d,%%0\;pop w%d\",
-                        regno, regno, regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
-              }
-
-     case 22:
-     case 23: /* T, <>R */
-              if (!save) {
-                return \"mov #(%0),w0\;mov.b %1,[w0]\";
-              } else if (other_reg) {
-                sprintf(buffer, \"mov #(%%0),w%d\;mov.b %%1,[w%d]\",
-                                REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                        \"push w%d\;mov #(%%0),w%d\;mov.b %%1,[w%d]\;pop w%d\",
-                        regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov #(%0),w0\;mov.b %1,[w0]\;pop w0\";
-              }
-     case 24:
-     case 25: 
-     case 26: /* T,r */
-              if (!save) {
-                return \"mov #(%0),w0\;mov.b %1,[w0]\";
-              } else if (other_reg) {
-                sprintf(buffer, \"mov #(%%0),w%d\;mov.b %%1,[w%d]\",
-                                REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                        \"push w%d\;mov #(%%0),w%d\;mov.b %%1,[w%d]\;pop w%d\",
-                        regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov #(%0),w0\;mov.b %1,[w0]\;pop w0\";
-              }
-     case 27: /* r, T */
-              return \"mov #(%1),%0\;mov.b [%0],%0\";
   }
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged")
    (set_attr "type"
-	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,def,etc,def,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc")
+	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,def,etc,def,etc")
   ]
 )
 
 (define_insn "movqi_gen_APSV"
   [(set (match_operand:QI 0 "pic30_mode3_APSV_operand"
-                "=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d,?U,?U,?U, ?U, ? U,RS,<>RS,RS<>,Q,?T, ?T,   RS<>,<>RS,T, r")
+                "=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d,?U")
         (match_operand:QI 1 "pic30_move_APSV_operand"
-                 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U, d,RS,<>RS,RS<>,Q,?U,?U,? U,?  U,RS<>,<>RS,?T,  ?T, ?r,?T"))
+                 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U, d"))
     (use (reg:HI PSVPAG))
   ]
   ""
@@ -4889,6 +4667,7 @@
    }
 
    switch (which_alternative) {
+     default: gcc_assert(0);
      case 0:  return \"mov.b %1,%0\";
      case 1:  return \"mov.b %1,%0\";
      case 2:  return \"mov.b %1,%0\";
@@ -4908,145 +4687,13 @@
                 return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
               else
                 return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
-     case 14: /* U, RS */
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-              }
-              break;
-     case 15: /* U, <>RS */
-     case 16: /* U, RS<> */ {
-              char *inc=\"inc\";
-              int pre=0;
-              int post=0;
-              if (GET_CODE(XEXP(operands[1],0)) == POST_INC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  post=1;
-                }
-              } else if (GET_CODE(XEXP(operands[1],0)) == POST_DEC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  post=1;
-                  inc=\"dec\";
-                }
-              }
-              if (GET_CODE(XEXP(operands[1],0)) == PRE_INC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  pre=1;
-                }
-              }
-              if (GET_CODE(XEXP(operands[1],0)) == PRE_DEC) {
-                if (REGNO(XEXP(XEXP(operands[1],0),0)) == 0) {
-                  pre=1;
-                  inc=\"dec\";
-                }
-              }
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                if (post) {
-                  sprintf(buffer,\"push w0\;mov.b %%s1,w0\;mov.b WREG,%%0\"
-                                 \"\;pop w0\;%s %%r1,%%r1\", inc);
-                  return buffer;
-                } else if (pre) {
-                  sprintf(buffer,\"%s %%s1,%ss1\;push w0\;mov.b %%s1,w0\"
-                                 \"\;mov.b WREG,%%0\;pop w0\;%s %%r1,%%r1\",
-                                 inc);
-                  return buffer;
-                } else {
-                  return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-                }
-
-              }
-              break;
-              }
-     case 17: /* U, Q */
-              if (!save) {
-                return \"mov.b %1,w0\;mov.b WREG,%0\";
-              } else {
-                return \"push w0\;mov.b %1,w0\;mov.b WREG,%0\;pop w0\";
-              }
-              break;
-     case 18: /* R, U */
-     case 19: /* <>R, U */
-     case 20: /* R<>, U */
-     case 21: /* Q, U */
-              if (!save) {
-                return \"mov.b %1,WREG\;mov.b w0,%0\";
-              } else if (other_reg) {
-                sprintf(buffer,\"mov #(%%1),w%d\;mov.b [w%d],%%0\",
-                        REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                if (which_alternative == 21) {
-                  sprintf(buffer,
-                          \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],w%d\"
-                          \"\;mov.b w%d,%%0\;pop w%d\",
-                          regno, regno, regno, regno, regno, regno);
-                  return buffer;
-                } else {
-                  sprintf(buffer,
-                         \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],%%0\;pop w%d\",
-                          regno, regno, regno, regno);
-                  return buffer;
-                }
-              } else {
-                return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
-              }
-     case 22:
-     case 23: /* T, <>R */
-              if (!save) {
-                return \"mov #(%0),w0\;mov.b %1,[w0]\";
-              } else if (other_reg) {
-                sprintf(buffer, \"mov #(%%0),w%d\;mov.b %%1,[w%d]\",
-                                REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                        \"push w%d\;mov #(%%0),w%d\;mov.b %%1,[w%d]\;pop w%d\",
-                        regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov #(%0),w0\;mov.b %1,[w0]\;pop w0\";
-              }
-     case 24:
-     case 25:
-     case 26: /* T,r */
-              if (!save) {
-                return \"mov #(%0),w0\;mov.b %1,[w0]\";
-              } else if (other_reg) {
-                sprintf(buffer, \"mov #(%%0),w%d\;mov.b %%1,[w%d]\",
-                                REGNO(other_reg), REGNO(other_reg));
-                return buffer;
-              } else if (not_reg) {
-                int regno;
-
-                gcc_assert(other_reg_with_save);
-                regno = REGNO(other_reg_with_save);
-                sprintf(buffer,
-                        \"push w%d\;mov #(%%0),w%d\;mov.b %%1,[w%d]\;pop w%d\",
-                        regno, regno, regno, regno);
-                return buffer;
-              } else {
-                return \"push w0\;mov #(%0),w0\;mov.b %1,[w0]\;pop w0\";
-              }
-     case 27: /* r, T */
-              return \"mov #(%1),%0\;mov.b [%0],%0\";
   }
 }
 "
   [(set_attr "cc"
-        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0")
+        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged")
    (set_attr "type"
-        "def,etc,defuse,use,def,etc,defuse,use,etc,defuse,def,etc,def,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc,etc")
+        "def,etc,defuse,use,def,etc,defuse,use,etc,defuse,def,etc,def,etc")
   ]
 )
 
@@ -5166,87 +4813,6 @@
   ]
 )
 
-; rare sfr->sfr case
-;;(define_insn "movqi_sfr_a"
-;;   [(set (match_operand:QI 0 "pic30_near_operand" "=U,U,   U, U,   U,U,U")
-;;         (match_operand:QI 1 "pic30_mode3_operand"  "U,RS,<>RS,RS<>,Q,a,r"))]
-;;   ""
-;;   "*
-;;{
-;;    rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
-;;    int save=1;
-;;
-;;    if (pic30_dead_or_set_p(insn, w0)) save=0;
-;;    switch (which_alternative) {
-;;      case 0:
-;;        if (save) {
-;;          return \"push w0\;mov.b %1,WREG\;mov.b WREG,%0\;pop w0\";
-;;        } else return \"mov.b %1,WREG\;mov.b WREG,%0\";
-;;        break;
-;;      case 1:
-;;      case 2:
-;;      case 3:
-;;      case 4:
-;;        if (save) {
-;;          return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
-;;        } else return \"mov.b %1,WREG\;mov.b w0,%0\";
-;;        break;
-;;      case 5:
-;;        return \"mov.b WREG,%0\";
-;;      case 6:
-;;        if (save) {
-;;          if (pic30_errata_mask & exch_errata)
-;;            return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
-;;          else
-;;            return \"exch %1,w0\;mov.b WREG,%0\;exch %1,w0\";
-;;        } else return \"mov %1,w0\;mov.b WREG,%0\";
-;;        break;
-;;   }
-;;}
-;;   "
-;;    
-;;   [(set_attr "cc" "change0,change0, change0,change0,change0,change0,change0")
-;;    (set_attr "type" "etc,etc,etc,etc,etc,etc,etc")]
-;;)
-;;
-;;(define_insn "movqi_sfr_b"
-;;   [(set (match_operand:QI 0 "pic30_move_operand" "=U,RS,<>RS,RS<>,Q,a,r")
-;;         (match_operand:QI 1 "pic30_UT_operand" " U,U,    U,  U,   U,U,UT"))]
-;;   ""
-;;   "*
-;;{
-;;    rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
-;;    int save=1;
-;;    
-;;    if (pic30_dead_or_set_p(insn, w0)) save = 0;
-;;    switch (which_alternative) {
-;;      case 0:
-;;        if (save) {
-;;          return \"push w0\;mov.b %1,WREG\;mov.b WREG,%0\;pop w0\";
-;;        } else return \"mov.b %1,WREG\;mov.b w0,%0\";
-;;        break;
-;;      case 1:
-;;      case 2:
-;;      case 3:
-;;      case 4:
-;;        if (save) {
-;;          return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
-;;        } else return \"mov.b %1,WREG\;mov.b w0,%0\";
-;;        break;
-;;      case 5:
-;;        return \"mov.b %1,WREG\";
-;;        break;
-;;      case 6:
-;;        return \"mov #(%1),%0\;mov.b [%0],%0\";
-;;        break;
-;;    }
-;;}
-;;   "
-;;   [(set_attr "cc" "change0,change0,change0,change0,change0,change0,change0")
-;;    (set_attr "type" "etc,etc,etc,etc,etc,etc,etc")]
-;;)
-;;
-
 ;; If one of the operands is immediate and the other is not a register,
 ;; then we should emit two insns, using a scratch register.  This will produce
 ;; better code in loops if the source operand is invariant, since
@@ -5274,30 +4840,6 @@
   /* FAIL;  why did i put this here? */
 }")
 
-;; (define_expand "reload_inqi"
-;;   [(set (match_operand:QI 0      "pic30_register_operand" "=d")
-;; 	(match_operand:QI 1     "pic30_near_operand" "U"))
-;;    (clobber (match_operand:QI 2 "pic30_register_operand" "=&a"))]
-;;   ""
-;;   "
-;; {
-;;   emit_move_insn (operands[2], operands[1]);
-;;   emit_move_insn (operands[0], operands[2]);
-;;   DONE;
-;; }")
-
-;; (define_expand "reload_outqi"
-;;   [(set (match_operand:QI 0    "pic30_near_operand" "=U")
-;; 	(match_operand:QI 1       "pic30_register_operand" "d"))
-;;    (clobber (match_operand:QI 2 "pic30_register_operand" "=&a"))]
-;;   ""
-;;   "
-;; {
-;;   emit_move_insn (operands[2], operands[1]);
-;;   emit_move_insn (operands[0], operands[2]);
-;;   DONE;
-;; }")
-
 ;; Invalid move
 
 (define_insn "*movhi_invalid_1"
@@ -5307,7 +4849,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instruction\";
 }
 
 ")
@@ -5319,7 +4861,8 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instruction\";
+
 }
 ")
 
@@ -5330,7 +4873,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instruction\";
 }
 ")
 
@@ -5341,7 +4884,7 @@
   "*
    {
      error(\"invalid address space for destination\");
-     return (\"this is not an instruction\");
+     return \"cannot generate instruction\";
    }
 ")
 
@@ -5352,7 +4895,8 @@
   "*
    {
      error(\"invalid address space for destination\");
-     return (\"this is not an instruction\");
+     return \"cannot generate instruction\";
+
    }
 ")
 
@@ -5363,7 +4907,7 @@
   "*
    {
      error(\"invalid address space for destination\");
-     return (\"this is not an instruction\");
+     return \"cannot generate instruction\";
    }
 ")
 
@@ -5670,8 +5214,10 @@
   "pic30_ecore_target()"
   "*
    {  
-      if (INTVAL(operands[1]))
+      if (INTVAL(operands[1])) {
         error(\"Page offset not accepted\");
+        return \"cannot generate instruction\";
+      }
       if (which_alternative == 1) {
         char *t = pic30_section_base(operands[0],1,0);
         static char result[80];
@@ -5695,7 +5241,8 @@
      char *e = result;
 
      char *o1 = (char*)INTVAL(operands[1]);
-     e += sprintf(result,\"mov #edspage(%s),%%0\", o1);
+     e += sprintf(result,\"mov #edspage(%s),%%0\", 
+                  pic30_strip_name_encoding_helper(o1));
      if (INTVAL(operands[2]))
        sprintf(e,\"\;add %%0,#%d,%%0\", INTVAL(operands[2]));
      return result;
@@ -6241,7 +5788,7 @@
   ""
   "*
    { static char result[256];
-     char *o1 = (char*)INTVAL(operands[1]);
+     char *o1 = pic30_strip_name_encoding_helper((char*)INTVAL(operands[1]));
      char *e = result;
      int excess = 0;
      
@@ -6257,7 +5804,7 @@
                  sprintf(result, \"mov #edspage(%s),%%3\;add %%3,#%d,%%0\",
                          o1, excess);
                else
-                 sprintf(result, \"mov #edspage(%s),%%3\;mov %%3,%%0\",o1);
+                 sprintf(result, \"mov #edspage(%s),%%3\;mov %%3,%%0\", o1);
                break;
        case 2: if (excess) 
                  sprintf(result, \"mov #edspage(%s),%%3\;add %%3,#%d,%%0\",
@@ -6386,7 +5933,7 @@
 )
 
 (define_insn "movP24PROG_gen"
-  [(set (match_operand:P24PROG 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,r")
+  [(set (match_operand:P24PROG 0 "pic30_move_operand" "=r,r,  R<>,Q,r,TU,&r")
         (match_operand:P24PROG 1 "pic30_move_operand"  "r,R<>,r,  r,TU,r, Q"))]
   ""
   "*
@@ -6453,7 +6000,7 @@
 )
 
 (define_insn "movP32EDS_gen"
-  [(set (match_operand:P32EDS 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,r")
+  [(set (match_operand:P32EDS 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,&r")
         (match_operand:P32EDS 1 "pic30_move_operand"  "r,R<>,r,  r,TU,r, Q"))]
   ""
   "*
@@ -6487,7 +6034,7 @@
 )
 
 (define_insn "movP32DF_gen"
-  [(set (match_operand:P32DF 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,r")
+  [(set (match_operand:P32DF 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,&r")
         (match_operand:P32DF 1 "pic30_move_operand"  "r,R<>,r,  r,TU,r, Q"))]
   ""
   "*
@@ -12358,7 +11905,7 @@
                           param3, HImode);
         emit_move_insn(operands[0], temp);
         DONE;
-      } else if (pst_8) {
+      } else if (pic30_read_externals(pst_8)) {
         rtx input = gen_reg_rtx(P32EXTmode);
 
         emit_move_insn(input, operands[1]);
@@ -13983,7 +13530,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 
 ")
@@ -13994,7 +13541,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 ")
 
@@ -14694,7 +14241,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 
 ")
@@ -14705,7 +14252,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 ")
 
@@ -15083,7 +14630,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 
 ")
@@ -15094,7 +14641,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 ")
 
@@ -15304,7 +14851,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 
 ")
@@ -15315,7 +14862,7 @@
   "*
 {
         error(\"invalid address space for operand\");
-        return(\"nop\");
+        return \"cannot generate instructions\";
 }
 ")
 
@@ -19474,12 +19021,12 @@
 ;; Half integer
 ;;;;;;;;;;;;;;;;;;
 
-;; (define_insn "abshi2"
-;;   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
-;;         (abs:HI (match_operand:HI 1 "pic30_register_operand" "r")))]
-;;   ""
-;;   "btsc %1,#15\;neg %1,%0"
-;;   [(set_attr "cc" "clobber")])
+(define_insn "abshi2"
+   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
+         (abs:HI (match_operand:HI 1 "pic30_register_operand" "0")))]
+   ""
+   "btsc %1,#15\;neg %1,%0"
+   [(set_attr "cc" "clobber")])
 
 ;;;;;;;;;;;;;;;;;;
 ;; Single float
@@ -21983,9 +21530,11 @@
 )
 
 (define_insn "ashlsi3_imm8"
-  [(set (match_operand:SI 0            "pic30_register_operand"  "=r")
+  [(set (match_operand:SI 0            "pic30_register_operand"  "=&r")
         (ashift:SI (match_operand:SI 1 "pic30_register_operand"   "r")
-                   (match_operand:HI 2 "pic30_imm8_operand" "i")))]
+                   (match_operand:HI 2 "pic30_imm8_operand" "i")))
+   (clobber (match_dup  1))
+  ]
   ""
   "*
 {
@@ -24740,11 +24289,31 @@
      int set_psv;
      rtx sfr;
      rtx psv_page;
+     struct saved_list *save_list = 0;
+     tree save_variable_list;
 
      if ((GET_CODE(operands[1]) == MEM) &&
          (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)) {
        if (!pic30_program_space_operand_p(XEXP(operands[1],0))) {
          error(\"Cannot call non-program symbol\");
+       }
+     }
+
+     save_variable_list = pic30_get_save_variable_list();
+     if (save_variable_list) {
+       tree v;
+
+       for (v = save_variable_list; v; v = TREE_CHAIN(v)) {
+         struct saved_list *save_item;
+         tree decl = pic30_get_save_variable_decl(v,NULL,NULL);
+
+         save_item = xmalloc(sizeof(struct saved_list));
+         gcc_assert(save_item);
+         save_item->saved_value = gen_reg_rtx(DECL_MODE(decl));
+	 save_item->decl = decl;
+         save_item->next = save_list;
+         save_list = save_item;
+         emit_move_insn(save_item->saved_value, DECL_RTL(save_item->decl));
        }
      }
  
@@ -24772,6 +24341,18 @@
        emit_insn(gen_set_const_psv(sfr));
 #endif
      }    
+     
+     if (save_variable_list) {
+       struct saved_list *l;
+
+       for (l = save_list; l; ) {
+         struct saved_list *ll = l->next;
+         emit_move_insn(DECL_RTL(l->decl),l->saved_value);
+         free(l);
+         l = ll;
+       }
+     }
+
      DONE;
 }
   "
@@ -24847,11 +24428,31 @@
      int set_psv;
      rtx sfr;
      rtx psv_page;
+     struct saved_list *save_list = 0;
+     tree save_variable_list;
 
      if ((GET_CODE(operands[0]) == MEM) &&
          (GET_CODE(XEXP(operands[0],0)) == SYMBOL_REF)) {
        if (!pic30_program_space_operand_p(XEXP(operands[0],0))) {
          error(\"Cannot call non-program symbol\");
+       }
+     }
+
+     save_variable_list = pic30_get_save_variable_list();
+     if (save_variable_list) {
+       tree v;
+
+       for (v = save_variable_list; v; v = TREE_CHAIN(v)) {
+         struct saved_list *save_item;
+         tree decl = pic30_get_save_variable_decl(v,NULL,NULL);
+
+         save_item = xmalloc(sizeof(struct saved_list));
+         gcc_assert(save_item);
+         save_item->saved_value = gen_reg_rtx(DECL_MODE(decl));
+         save_item->decl = decl;
+         save_item->next = save_list;
+         save_list = save_item;
+         emit_move_insn(save_item->saved_value, DECL_RTL(save_item->decl));
        }
      }
 
@@ -24875,6 +24476,18 @@
        emit_insn(gen_save_const_psv(psv_page, sfr));
        emit(gen_set_psv(psv_page));
      }    
+
+     if (save_variable_list) {
+       struct saved_list *l;
+
+       for (l = save_list; l; ) {
+         struct saved_list *ll = l->next;
+         emit_move_insn(DECL_RTL(l->decl),l->saved_value);
+         free(l);
+         l = ll;
+       }
+     }
+
      DONE;
 }
   "
@@ -24943,7 +24556,8 @@
   int set_psv;
   rtx sfr;
   rtx psv_page;
-
+  struct saved_list *save_list = 0;
+  tree save_variable_list;
   if (GET_CODE (operands[0]) == MEM && 
       !pic30_call_address_operand (XEXP (operands[0], 0), Pmode))
     operands[0] = gen_rtx_MEM (GET_MODE (operands[0]),
@@ -24953,6 +24567,24 @@
       (GET_CODE(XEXP(operands[0],0)) == SYMBOL_REF)) {
     if (!pic30_program_space_operand_p(XEXP(operands[0],0))) {
       error(\"Cannot call non-program symbol\");
+    }
+  }
+
+  save_variable_list = pic30_get_save_variable_list();
+  if (save_variable_list) {
+    tree v;
+
+    for (v = save_variable_list; v; v = TREE_CHAIN(v)) {
+      struct saved_list *save_item;
+      tree decl = pic30_get_save_variable_decl(v,NULL,NULL);
+
+      save_item = xmalloc(sizeof(struct saved_list));
+      gcc_assert(save_item);
+      save_item->saved_value = gen_reg_rtx(DECL_MODE(decl));
+      save_item->decl = decl;
+      save_item->next = save_list;
+      save_list = save_item;
+      emit_move_insn(save_item->saved_value, DECL_RTL(save_item->decl));
     }
   }
 
@@ -24976,6 +24608,18 @@
     emit_insn(gen_save_const_psv(psv_page, sfr));
     emit(gen_set_psv(psv_page));
   }   
+
+  if (save_variable_list) {
+     struct saved_list *l;
+
+     for (l = save_list; l; ) {
+       struct saved_list *ll = l->next;
+       emit_move_insn(DECL_RTL(l->decl),l->saved_value);
+       free(l);
+       l = ll;
+     }
+   }
+
   DONE;
 }")
 
@@ -25110,6 +24754,24 @@
   	pic30_expand_epilogue();
 	DONE;
   }"
+)
+
+(define_insn "profile_enter"
+  [(unspec_volatile [(const_int 0)] UNSPECV_ENTER)]
+  ""
+  "call __function_level_profiling_long"
+)
+
+(define_insn "profile_exit"
+  [(unspec_volatile [(const_int 0)] UNSPECV_EXIT)]
+  ""
+  "goto __function_level_profiling_long_zero"
+)
+
+(define_insn "profile_exit_call"
+  [(unspec_volatile [(const_int 1)] UNSPECV_EXIT)]
+  ""
+  "call __function_level_profiling_long_zero"
 )
 
 ;; UNSPEC_VOLATILE is considered to use and clobber all hard registers and
@@ -25525,6 +25187,13 @@
      }
      DONE;
    }")
+
+(define_insn "software_break"
+  [(unspec_volatile [(const_int 0)] UNSPECV_SOFTWARE_BREAK)]
+  ""
+  ".pword 0xda4000"
+)
+ 
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -26409,7 +26078,7 @@
    (set (match_dup 1)
         (match_dup 0))]
   "pic30_dead_or_set_p(NEXT_INSN(insn),operands[0])"
-  "\\; move deleted"
+  "; move deleted"
   [(set_attr "cc" "unchanged")])
 
 (define_peephole
@@ -26418,7 +26087,7 @@
    (set (match_dup 1)
         (match_dup 0))]
   "pic30_dead_or_set_p(NEXT_INSN(insn),operands[0])"
-  "\\; move deleted"
+  "; move deleted"
   [(set_attr "cc" "unchanged")])
 
 (define_peephole
@@ -26427,7 +26096,7 @@
    (set (match_dup 1)
         (match_dup 0))]
   "pic30_dead_or_set_p(NEXT_INSN(insn),operands[0])"
-  "\\; move deleted"
+  "; move deleted"
   [(set_attr "cc" "unchanged")])
 
 ;
@@ -26598,6 +26267,13509 @@
 ;; 		return(\"call __floathisf\");
 ;; }")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;End.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Fixed Point
+
+;; Use mode iterators alot here, because they are "new" and these are new
+;;   patterns (and because most of our Fract/Accum types are the same size
+
+; Two sizs of Fract: Q15, Q31
+(define_mode_iterator Q15  [QQ HQ])
+(define_mode_iterator Q31  [SQ DQ TQ])
+
+(define_mode_iterator UQ15 [UQQ UHQ])
+(define_mode_iterator UQ31 [USQ UDQ UTQ])
+
+(define_mode_iterator QUQ15 [QQ UQQ HQ UHQ])
+(define_mode_iterator QUQ31 [SQ USQ DQ UDQ TQ UTQ])
+
+; One size of Accum: ACC
+(define_mode_iterator ACC   [HA SA DA TA])
+(define_mode_iterator UACC  [UHA USA UDA UTA])
+(define_mode_iterator AUACC [HA UHA SA USA DA UDA TA UTA])
+
+;; *** helper patterns
+
+; for use in the prologue to set the right initial value
+(define_insn "setCORCON"
+  [(set (reg:HI CORCON)
+        (match_operand:HI 0 "pic30_register_operand" "r"))]
+  ""
+  "mov %0,_CORCON"
+)
+
+; for use in pic30_track_sfrs to adjust the corcon
+;   bit 0 cannot be adjusted
+;   bit n will be set or cleared based upon the value of bit 0
+;(define_insn "setSAT"
+;  [(set (reg:HI CORCON)
+;        (unspec_volatile:HI [
+;           (match_operand:HI 0 "immediate_operand" "i")
+;        ] UNSPECV_SETSAT))
+;  ]
+;  ""
+;  "*
+;  {
+;    if (INTVAL(operands[0]) == CORCON_SET_SATA + 1) {
+;      return \"bset _CORCON,#7\";
+;    } else if (INTVAL(operands[0]) == CORCON_SET_SATB + 1) {
+;      return \"bset _CORCON,#6\";
+;    } else if (INTVAL(operands[0]) == CORCON_SET_SATA) {
+;      return \"bclr _CORCON,#7\";
+;    } else if (INTVAL(operands[0]) == CORCON_SET_SATB) {
+;      return \"bclr _CORCON,#6\";
+;    } else return \"; no CORCON modification needed\";
+;  }
+;  "
+;)
+
+(define_insn "abs<mode>2"
+  [(set (match_operand:Q15   0 "pic30_register_operand" "=r")
+        (abs:Q15 
+          (match_operand:Q15 1 "pic30_register_operand"  "0")))]
+  ""
+  "btsc %1,#15\;neg %1,%0"
+[(set_attr "cc" "clobber")])
+
+(define_insn "bsetCORCON"
+  [(set (reg:HI CORCON)
+        (ior:HI (reg:HI CORCON)
+                (match_operand 0 "const_int_operand"      "i,i,i")))]
+  "(pic30_one_bit_set_p(INTVAL(operands[0])&0xffff))"
+  "bset _CORCON,#%b0"
+)
+
+(define_insn "bclrCORCON"
+  [(set (reg:HI CORCON)
+        (and:HI (reg:HI CORCON)
+                (match_operand 0 "const_int_operand"      "i,i,i")))]
+  "(pic30_one_bit_set_p(((~INTVAL(operands[0]))&0xffff)))"
+  "bclr.b _CORCON,#%B0"
+)
+
+;; *** load/store
+
+(define_insn "mov<mode>_rimm"
+   [(set (match_operand:QUQ15 0 "pic30_register_operand" "=r")
+         (match_operand:QUQ15 1 "immediate_operand" "i"))]
+   ""
+   "mov #%1,%0"
+)
+
+(define_insn "mov<mode>_gen"
+   [
+    (set 
+      (match_operand:QUQ15 0 "pic30_move_operand" "=rR<>, Q,r, TU,r, !TUrR<>,w,Q,w,TU,w,r,w,   R<>")
+      (match_operand:QUQ15 1 "pic30_move_operand" " rR<>, r,Q, r,TU, TUrR<>, w,w,Q,w,TU,w,rR<>,w"))
+   ]
+   ""
+   "@
+    mov %1,%0
+    mov %1,%0
+    mov %1,%0
+    mov %1,%0
+    mov %1,%0
+    push %1\;pop %0
+    clr %0\;add %0
+    mov %m1H,%0
+    lac %1,%0
+    push %m1H\;pop %0
+    clr %0\;push %1\;pop %m0H
+    mov %m1H,%0
+    lac %1,%0
+    push %m1H\;pop %0"
+)
+
+(define_expand "mov<mode>"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand" "")
+        (match_operand:QUQ15 1 "pic30_move_operand" ""))]
+  ""
+  "
+{ int result;
+
+  result = pic30_emit_move_sequence(operands, <MODE>mode);
+
+  if (result > 0) DONE;
+  if (immediate_operand(operands[1],VOIDmode)) {
+    rtx reg = operands[0];
+
+    if (!pic30_register_operand(operands[0],<MODE>mode)) {
+      reg = gen_reg_rtx(<MODE>mode);
+      emit(
+        gen_mov<mode>_rimm(reg,operands[1])
+      );
+      emit_move_insn(operands[0], reg);
+      DONE;
+    }
+  }
+}")
+
+;;
+;; larger moves cannot use the 'k'
+
+(define_insn "mov<mode>_rimm"
+  [
+    (set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+         (match_operand:QUQ31 1 "immediate_operand" "i"))
+   ]
+   ""
+   "mov #%1,%0\;mov #%y1,%d0"
+)
+
+(define_insn "mov<mode>_gen"
+  [
+    (set 
+      (match_operand:QUQ31 0 "pic30_move_operand" "=rR<>, r,   Q, r, TU,r, TU,R, w,TU,w,r,w,R,w")
+      (match_operand:QUQ31 1 "pic30_move_operand" " r,    R<>, r, Q, r,TU, R,TU, w,w,TU,w,r,w,R"))
+  ]
+  ""
+  "@
+   mov.d %1,%0
+   mov.d %1,%0
+   mov.w %1,%0\;mov.w %d1,%Q0
+   mov.w %1,%0\;mov.w %Q1,%d0
+   push.d %1\;pop %0+2\;pop %0
+   push %1\;push %1+2\;pop.d %0
+   push %I1\;push %D1\;pop %0+2\;pop %0
+   push %1\;push %1+2\;pop %P0\;pop %p0
+   clr %0\;add %0
+   push %m1L\;push %m1H\;pop %0+2\;pop %0
+   push %1\;push %1+2\;pop %m0H\;pop %m0L
+   mov %m1L,%0\;mov %m1H,%d0
+   mov %1,%m0L\;mov %d1,%m0H
+   push %m1H\;push %m1L\;pop %I0\;pop %D0
+   push %I1\;push %D1\;pop %m0H\;pop %m0L"
+)
+
+(define_expand "mov<mode>"
+  [(set (match_operand:QUQ31 0 "pic30_move_d_operand" "")
+        (match_operand:QUQ31 1 "pic30_move_d_operand" ""))]
+  ""
+  "
+{ int result = pic30_emit_move_sequence(operands, <MODE>mode);
+
+  if (result > 0) DONE;
+  
+  if (immediate_operand(operands[1],VOIDmode)) {
+    rtx reg = operands[0];
+
+    if (!pic30_register_operand(operands[0],<MODE>mode)) {
+      reg = gen_reg_rtx(<MODE>mode);
+      emit(
+        gen_mov<mode>_rimm(reg,operands[1])
+      );
+      emit_move_insn(operands[0], reg);
+      DONE;
+    }
+  }
+
+  /* we may need a clobber here */
+  if (pic30_move_d_operand(operands[1],<MODE>mode)) {
+    emit(
+      gen_mov<mode>_gen(operands[0], operands[1])
+    );
+    DONE;
+  }
+ 
+}")
+
+;; *** add/sub
+;  16-bit
+(define_insn "add<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=r")
+        (plus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  ""
+  "add %1,%2,%0"
+)
+
+(define_insn "sub<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=r")
+        (minus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  ""
+  "sub %1,%2,%0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+;  signed saturating
+(define_insn "ssadd<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (ss_plus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "add %1,%2,%0\;bra nov,.L1_%=\;mov #0x7FFF,%0\;btsc %2,#15\;com %0,%0\n.L1_%=:\;"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "sssub<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (ss_minus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "sub %1,%2,%0\;bra nov,.L1_%=\;mov #0x7FFF,%0\;btss %2,#15\;com %0,%0\n.L1_%=:\;"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+;  unsigned saturating - our unsigned mode really is the same width as signed
+(define_insn "usadd<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (us_plus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  ""
+  "add %1,%2,%0\;btsc _SR,#2\;mov #0x7FFF,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ussub<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (us_minus:QUQ15
+           (match_operand:QUQ15 1 "pic30_register_operand" "r")
+           (match_operand:QUQ15 2 "pic30_register_operand" "r")))]
+  ""
+  "sub %1,%2,%0\;btsc _SR,#3\;clr %0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+;  32-bit
+(define_insn "add<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (plus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  ""
+  "add %1,%2,%0\;addc %d1,%d2,%d0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "sub<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (minus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  ""
+  "sub %1,%2,%0\;subb %d1,%d2,%d0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+;  signed saturating
+(define_insn "ssadd<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=&r")
+        (ss_plus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"add %1,%2,%0\;\"
+          \"addc %d1,%d2,%d0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"setm %0\;\"
+          \"mov #0x7FFF,%d0\;\"
+          \"btst.c %d2,#15\;\"
+          \"bra nc,.L1_%=\;\"
+          \"com %d0,%d0\;\"
+          \"com %0,%0\n\"
+          \".L1_%=:\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "sssub<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=&r")
+        (ss_minus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"sub %1,%2,%0\;\"
+          \"subb %d1,%d2,%d0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"setm %0\;\"
+          \"mov #0x7FFF,%d0\;\"
+          \"btst.c %d2,#15\;\"
+          \"bra c,.L1_%=\;\"
+          \"com %d0,%d0\;\"
+          \"com %0,%0\n\"
+          \".L1_%=:\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+;  unsigned saturating - our unsigned mode really is the same width as signed
+(define_insn "usadd<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=&r")
+        (us_plus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"add %1,%2,%0\;\"
+          \"addc %d1,%d2,%d0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"setm %0\;\"
+          \"mov #0x7FFF,%d0\n\"
+          \".L1_%=:\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ussub<mode>3"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=&r")
+        (us_minus:QUQ31
+           (match_operand:QUQ31 1 "pic30_register_operand" "r")
+           (match_operand:QUQ31 2 "pic30_register_operand" "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"sub %1,%2,%0\;\"
+          \"subb %d1,%d2,%d0\;\"
+          \"btsc _SR,#3\;\"
+          \"mul.uu %0,#0,%0\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+;; *** multiply
+;  16-bit
+
+/*
+ * do not know if this will be successful
+ */
+(define_insn "mul<mode>3_helper_trunc_dsp_A"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ A_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_truncation) || 
+    (pic30_fp_round_p() == pic30_fastest))"
+  "mpy %1,%2,A\;sac A,#0,%0"
+)
+
+(define_insn "mul<mode>3_helper_trunc_dsp_B"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ B_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_truncation) || 
+    (pic30_fp_round_p() == pic30_fastest))"
+  "mpy %1,%2,B\;sac B,#0,%0"
+)
+
+(define_insn "mul<mode>3_helper_rnd_dsp_A"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ A_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_convergent) ||
+    (pic30_fp_round_p() == pic30_conventional))"
+  "mpy %1,%2,A\;sac.r A,#0,%0"
+)
+
+(define_insn "mul<mode>3_helper_rnd_dsp_B"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ B_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_convergent) ||
+    (pic30_fp_round_p() == pic30_conventional))"
+  "mpy %1,%2,B\;sac.r B,#0,%0"
+)
+/* If it is, we should remove the middle alternative here */
+
+(define_insn "mul<mode>3_helper"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=rR<>,r,QST")
+        (mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" " r,z,r")
+          (match_operand:QUQ15 2 "pic30_register_operand" " r,z,r")))
+   (clobber (match_scratch:SQ  3                         "=&r,&w,&r"))
+  ]
+  ""
+  "*
+   { 
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;sl %3,%3\;rlc %d3,%0\",
+         \"mpy %1,%2,%3\;sac %3,#0,%0\",
+         \"mul.ss %1,%2,%3\;sl %3,%3\;rlc %d3,%d3\;mov %d3,%0\"
+       };
+
+       return patterns[which_alternative];
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;\"
+             \"sl %3,%3\;\"
+             \"rlc %d3,%d3\;\"
+             \"sl %3,[w15]\;\"
+             \"addc %d3,#0,%0\",
+
+         \"mpy %1,%2,%3\;\"
+             \"sac.r %3,#0,%0\",
+
+         \"mul.ss %1,%2,%3\;\"
+             \"sl %3,%3\;\"
+             \"rlc %d3,%d3\;\"
+             \"sl %3,[w15]\;\"
+             \"addc %d3,#0,%d3\;\"
+             \"mov %d3,%0\"
+       };
+
+       return patterns[which_alternative];
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       /* convergent rounding, doing it without branches appears to be
+        * simpler. And quicker, especially on EP parts;
+        *
+        * For rounding, we do the add and if the remainer is 0 we mask of the
+        * low bit.  Ie:
+        *  res rem
+        *  xx1 100 will round to xx1+1
+        *  xx0 100 will round to xx0+1 (xx1) then mask back to (xx0) 
+        *
+        * Listen very carefully, I shall say this only wance
+        */
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;\"     /* multipy */
+           \"sl %3,%3\;\"          /* shift 32-bit result left to reposition */
+           \"rlc %d3,%d3\;\"       /*   binary point */
+           \"sl %3,%3\;\"          /* round shift remainder up, like convgnt */
+           \"bra nc,.L1_%=\;\"     /* if no carry, finish */
+           \"btsc _SR,#1\;\"       /* if round word == 0 */
+           \"btst.c %d3,#0\;\"     /* mov low result bit to C */
+                                   /*  1 + 1 = 0 (even) */
+           \"addc %d3,#0,%d3\n\"
+           \".L1_%=:\;\"
+           \"mov %d3,%0\",
+
+         \"mpy %1,%2,%0\;\"        /* ensure CORCONbits.US == 0? */
+           \"sac.r %3,#0,%0\",
+
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%d3\;\"
+           \"sl %3,%3\;\"          /* round */
+           \"bra nc,.L1_%=\;\"     /* if no carry, finish */
+           \"btsc _SR,#1\;\"       /* if round word == 0 */
+           \"btst.c %d3,#0\;\"     /* mov low result bit to C */
+           \"addc %d3,#0,%d3\;\"
+           \".L1_%=:\;\"
+           \"mov %d3,%0\" 
+       };
+
+       return patterns[which_alternative];
+     } else return \"Cannot generate pattern\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "mul<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand" "=rRQST<>")
+        (mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" "=r")
+          (match_operand:QUQ15 2 "pic30_register_operand" "=r")))]
+  ""
+  "
+  {  rtx rr,ra,rb;
+
+     /* for no fp inline big patterns; lets fail and call the routine */
+     if (!pic30_fp_inline_p() && (pic30_fp_round_p() != pic30_truncation) &&
+         (pic30_fp_round_p() != pic30_fastest))
+       FAIL;
+ 
+     /* set round mode and saturation mode 
+      *   the optimizer should discard the things we don't use - ie
+      *   an accumulator is not used or the saturation is already correct
+      */
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode)) 
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode)) 
+       rb = force_reg(<MODE>mode, rb);
+     emit(
+       gen_mul<mode>3_helper(operands[0],ra,rb)
+     );
+     DONE;
+  }"
+)
+
+/*
+ * do not know if this will be successful
+ */
+(define_insn "ssmul<mode>3_helper_trunc_dsp_A"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (ss_mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ A_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_truncation) ||
+    (pic30_fp_round_p() == pic30_fastest))"
+  "mpy %1,%2,A\;sac A,#0,%0"
+)
+
+(define_insn "ssmul<mode>3_helper_trunc_dsp_B"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (ss_mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ B_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_truncation) ||
+    (pic30_fp_round_p() == pic30_fastest))"
+  "mpy %1,%2,B\;sac B,#0,%0"
+)
+
+(define_insn "ssmul<mode>3_helper_rnd_dsp_A"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (ss_mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ A_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_convergent) ||
+    (pic30_fp_round_p() == pic30_conventional))"
+  "mpy %1,%2,A\;sac.r A,#0,%0"
+)
+
+(define_insn "ssmul<mode>3_helper_rnd_dsp_B"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand"       "=r")
+        (ss_mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " z")
+          (match_operand:QUQ15 2 "pic30_register_operand" " z")))
+   (clobber (reg:SQ B_REGNO))
+   (use (reg:HI CORCON))
+  ]
+  "((pic30_fp_round_p() == pic30_convergent) ||
+    (pic30_fp_round_p() == pic30_conventional))"
+  "mpy %1,%2,B\;sac.r B,#0,%0"
+)
+/* If it is, we should remove the middle alternative here */
+
+(define_insn "ssmul<mode>3_helper"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand" "=&r,r,RQST<>")
+        (ss_mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" " r,z,r")
+          (match_operand:QUQ15 2 "pic30_register_operand" " r,z,r")))
+   (clobber (match_scratch:SQ  3                         "=&r,w,&r"))
+  ]
+  ""
+  "*
+   { 
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%0\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L1_%=\;\"
+           \"btsc %0,#15\;\"
+           \"com %0,%0\n\"
+           \".L1_%=:\",
+
+         \"mpy %1,%2,%3\;sac %3,#0,%0\",  /* ensure CORCONbits.US == 0? */
+
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%d3\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L1_%=\;\"
+           \"btsc %d3,#15\;\"
+           \"com %d3,%d3\n\"
+           \".L1_%=:\;\"
+           \"mov %d3,%0\"
+       };
+
+       return patterns[which_alternative];
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%d3\;\"
+           \"sl %3,[w15]\;\"
+           \"addc %d3,#0,%0\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L1_%=\;\"
+           \"btsc %0,#15\;\"
+           \"com %0,%0\n\"
+           \".L1_%=:\",
+
+         \"mpy %1,%2,%0\;sac.r %3,#0,%0\",  /* ensure CORCONbits.US == 0? */
+
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%d3\;\"
+           \"sl %3,[w15]\;\"
+           \"addc %d3,#0,%d3\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L1_%=\;\"
+           \"btsc %d3,#15\;\"
+           \"com %d3,%d3\n\"
+           \".L1_%=:\;\"
+           \"mov %d3,%0\"
+       };
+
+       return patterns[which_alternative];
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       static const char *patterns[] = {
+         \"mul.ss %1,%2,%3\;\"                    /* multiply */
+           \"sl %3,%3\;\"                         /* fix binary point */
+           \"rlc %d3,%0\;\"
+           \"sl %3,%3\;\"                         /* move round into carry */
+           \"bra nc,.L1_%=\;\"                    /* if no carry, finish */
+           \"btsc _SR,#1\;\"                      /* if round word == 0 */
+           \"btst.c %0,#0\;\"                     /* mov low result bit to C */
+                                                  /*  1 + 1 = 0 (even) */
+           \"addc %0,#0,%0\n\"                    /* add carry */
+           \".L1_%=:\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L2_%=\;\"
+           \"btsc %0,#15\;\"
+           \"com %0,%0\n\"
+           \".L2_%=:\",
+
+         \"mpy %1,%2,%0\;sac.r %3,#0,%0\",  /* ensure CORCONbits.US == 0? */
+
+         \"mul.ss %1,%2,%3\;\"
+           \"sl %3,%3\;\"
+           \"rlc %d3,%d3\;\"
+           \"sl %3,%3\;\"                         /* round */
+           \"bra nc,.L1_%=\;\"                    /* if no carry, finish */
+           \"btsc _SR,#1\;\"                      /* if round word == 0 */
+           \"btst.c %d3,#0\;\"                    /* mov low result bit to C */
+                                                  /*  1 + 1 = 0 (even) */
+           \"addc %d3,#0,%d3\n\"
+           \".L1_%=:\;\"
+           \"xor %1,%2,%3\;\"
+           \"bra n,.L2_%=\;\"
+           \"btsc %d3,#15\;\"
+           \"com %d3,%d3\n\"
+           \".L2_%=:\;\"
+           \"mov %d3,%0\"
+       };
+
+       return patterns[which_alternative];
+     } else return \"Cannot generate pattern\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "ssmul<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand" "=rRQST<>")
+        (ss_mult:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand" "=r")
+          (match_operand:QUQ15 2 "pic30_register_operand" "=r")))]
+  ""
+  "
+  {  rtx rr,ra,rb;
+
+     /* for no fp inline big patterns; lets fail and call the routine */
+     if (!pic30_fp_inline_p() && (pic30_fp_round_p() != pic30_truncation) &&
+         (pic30_fp_round_p() != pic30_fastest))
+       FAIL;
+
+     /* set round mode and saturation mode
+      *   the optimizer should discard the things we don't use - ie
+      *   an accumulator is not used or the saturation is already correct
+      */
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode)) 
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode)) 
+       rb = force_reg(<MODE>mode, rb);
+     emit(
+       gen_ssmul<mode>3_helper(operands[0],ra,rb)
+     );
+     DONE;
+  }"
+)
+
+(define_expand "usmul<mode>3"
+  [(set (match_operand:QUQ15 0 "pic30_move_operand" "=rRQST<>")
+        (us_mult:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" "=r")
+          (match_operand:QUQ15 2 "pic30_register_operand" "=r")))]
+  ""
+  "
+  {  rtx rr,ra,rb;
+
+     /* for no fp inline big patterns; lets fail and call the routine */
+     if (!pic30_fp_inline_p() && (pic30_fp_round_p() != pic30_truncation) &&
+         (pic30_fp_round_p() != pic30_fastest))
+       FAIL;
+
+     /* set round mode and saturation mode
+      *   the optimizer should discard the things we don't use - ie
+      *   an accumulator is not used or the saturation is already correct
+      */
+
+     /* unsigned multiply on this device cannot over-flow
+        so we don't need to do saturation - translate it to the unsaturating
+        signed multiply */
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode))
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode))
+       rb = force_reg(<MODE>mode, rb);
+     emit(
+       gen_mul<mode>3_helper(operands[0],ra,rb)
+     );
+     DONE;
+  }"
+)
+
+;; *** multiply
+;  32-bit
+; handled by helper routines in libfx
+
+;; *** divide
+;  16-bit
+
+(define_insn "udiv<mode>3_helper"
+  [(set (match_operand:UQ15 0 "pic30_register_operand"    "=a,?b,??&e")
+        (udiv:UQ15 
+          (match_operand:UQ15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:UQ15 2 "pic30_ereg_operand"       "e, e,  e")))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+     rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
+     rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"mov [--w15],w1\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"mov [--w15],w0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* all follow sim. flow */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */   
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"            /* compare 2*remainder */
+                           \"addc %0,#0,%0\";        /* inc if carry */
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"sl w1,w1\;\"
+                             \"cp w1,%2\;\"
+                             \"addc %0,#0,%0\;\"
+                             \"mov [--w15],w1\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\;\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\;\"
+                           \"mov [--w15],w0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"addc %0,#0,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\;\" 
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       switch (which_alternative) {
+         case 0:  /*
+                  ** wm/wn -> w0
+                  */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* convergent follows this
+                                                        form */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"            /* cp divisor w/ 2*rem */
+                           \"btsc _SR,#1\;\"         /* if zero ... */
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"addc.w w0,#0,%0\";      /* add carry */
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"sl w1,w1\;\"
+                             \"cp w1,%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"btst.c w0,#0\;\"
+                             \"addc.w w0,#0,%0\;\" 
+                             \"mov [--w15],w1\";
+                  }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"sl %2,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,[--w15]\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\;\" 
+                           \"mov [--w15],w0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\;\" 
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     }
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+; check for == and return 0x8000 in all cases (if sign is positive then 
+;   its an valid invalid answer)
+
+(define_insn "div<mode>3_helper"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"  "=a,?b,??&e")
+        (div:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:QUQ15 2 "pic30_ereg_operand"       "e, e,  e")))
+   (match_operand:HI           3 "pic30_register_operand"   "e, e,  e")
+   (clobber (match_scratch:HI  4                          "=&e,&e, &e"))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+     rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
+     rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,%0\n\"
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w1,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"          /* if negative, neg */
+                           \"addc %4,#0,%0\;\"
+                           \"mov [--w15],w1\n\"
+                           \".LE%=:\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\n\"
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\;\"
+                           \"mov [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\n\"
+                           \".LE%=\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\;\"
+                           \"mov.d [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* all follow . flow */
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"        /* divide */   
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\" 
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\n\"       /* add in round */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w1,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"mov [--w15],w1\n\"
+                           \".LE%=:\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\n\"       /* add in round */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"mov [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\n\"       /* add in round */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"mov.d [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       switch (which_alternative) {
+         case 0:  /*
+                  ** wm/wn -> w0
+                  */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* convergent follows this
+                                                        form */
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"        /* divide */
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\n\"     /* add carry */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w1,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"     /* add carry */
+                           \"mov [--w15],w1\n\"
+                           \".LE%=:\";
+                  }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"sl w1,w1\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\n\"     /* add carry */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"     /* add carry */
+                           \"mov [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\n\"     /* add carry */
+                           \".LE%=:\";
+                  } else {
+                    return \"sub %1,%2,[w15]\;\"
+                           \"mov #0x8000,%0\;\"
+                           \"bra z,.LE%=\;\"
+                           \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"sl w1,w1\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"     /* add carry */
+                           \"mov.d [--w15],w0\n\"
+                           \".LE%=:\";
+                  }
+       }
+     }
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usatdiv<mode>3_helper"
+  [(set (match_operand:UQ15 0 "pic30_register_operand"    "=a,?b,??&e")
+        (us_div:UQ15 
+          (match_operand:UQ15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:UQ15 2 "pic30_ereg_operand"       "e, e,  e")))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+     rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
+     rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"mov [--w15],w1\;\"
+                             \"btsc _SR,#2\;\"
+                             \"mov #0x7FFF,%0\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"mov [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } 
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"mov w0,%0\;\"
+                           \"mov.d [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* all follow sim. flow */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */   
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"            /* compare 2*remainder */
+                           \"addc %0,#0,%0\n\"           /* inc if carry */
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"bra ov,.OV%=\;\"
+                             \"sl w1,w1\;\"
+                             \"cp w1,%2\;\"
+                             \"addc %0,#0,%0\n\"
+                             \".OV%=:\;\"
+                             \"mov [--w15],w1\;\"
+                             \"btsc _SR,#2\;\"
+                             \"mov #0x7FFF,%0\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\n\"
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\n\"
+                           \".OV%=:\;\"
+                           \"mov [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\n\"
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"mov w0,%0\;\"
+                           \"cp w1,%2\;\"
+                           \"addc %0,#0,%0\n\" 
+                           \".OV%=:\;\"
+                           \"mov.d [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       switch (which_alternative) {
+         case 0:  /*
+                  ** wm/wn -> w0
+                  */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* convergent follows this
+                                                        form */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"            /* cp divisor w/ 2*rem */
+                           \"btsc _SR,#1\;\"         /* if zero ... */
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"addc.w w0,#0,%0\n\"     /* add carry */
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"bra ov,.OV%=\;\"
+                             \"sl w1,w1\;\"
+                             \"cp w1,%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"btst.c w0,#0\;\"
+                             \"addc.w w0,#0,%0\n\" 
+                             \".OV%=:\;\"
+                             \"mov [--w15],w1\;\"
+                             \"btsc _SR,#2\;\"
+                             \"mov #0x7FFF,%0\";
+                  }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\n\"
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\n\" 
+                           \".OV%=:\;\"
+                           \"mov [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\n\"
+                           \".OV%=:\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,w1\;\"
+                           \"cp w1,%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"
+                           \"addc.w w0,#0,%0\n\" 
+                           \".OV%=:\;\"
+                           \"mov.d [--w15],w0\;\"
+                           \"btsc _SR,#2\;\"
+                           \"mov #0x7FFF,%0\";
+                  }
+       }
+     }
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssatdiv<mode>3_helper"
+  [(set (match_operand:Q15    0 "pic30_register_operand"  "=a,?b,??&e")
+        (ss_div:Q15 
+          (match_operand:Q15  1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:Q15  2 "pic30_ereg_operand"       "e, e,  e")))
+   (match_operand:HI          3 "pic30_register_operand"   "e, e,  e")
+   (clobber (match_scratch:HI 4                          "=&e,&e, &e"))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+     rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
+     rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra nov,.NOV%=\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"setm w1\n\"                /* force C == 0 */
+                           \".NOV%=:\;\"
+                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"bra nov,.NOV%=\;\"
+                             \"mov #0x7FFF,%0\;\"
+                             \"setm w1\n\"              /* force C == 0 */
+                             \".NOV%=:\;\"
+                             \"ff1r w1,%4\;\"           /* C = w1 == 0 */
+                             \"com w0,%4\;\"            /* complement in case
+                                                            of negate */
+                             \"btsc %3,#15\;\"          /* if negative, neg */
+                             \"addc %4,#0,w0\;\"
+                             \"mov [--w15],w1\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra nov,.NOV%=\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"setm w1\n\"                /* force C == 0 */
+                           \".NOV%=:\;\"
+                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov  w0,%0\";
+
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra nov,.NOV%=\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"setm w1\n\"                /* force C == 0 */
+                           \".NOV%=:\;\"
+                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\;\"
+                           \"mov [--w15],w0\";
+                  } 
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra nov,.NOV%=\;\"
+                           \"mov #0x7FFF,%0\"
+                           \"setm w1\n\"                /* force C == 0 */
+                           \".NOV%=:\;\"
+                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra nov,.NOV%=\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"setm w1\n\"                /* force C == 0 */
+                           \".NOV%=:\;\"
+                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
+                           \"com w0,%4\;\"              /* complement in case
+                                                            of negate */
+                           \"btsc %3,#15\;\"            /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"mov w0,%0\;\"
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       switch (which_alternative) {
+         case 0:  /*
+                ** wm/wn -> w0
+                */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* all follow sim. flow */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */   
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"bra ov,.OV%=\;\"
+                             \"sl w1,%4\;\"
+                             \"sub %4,%2,%4\;\"      /* compare 2*remainder */
+                             \"btss _SR,#0\;\"       /* carry set, use new val*/
+                             \"mov %4,w1\;\"
+                             \"rlc w0,w0\;\"         /* put R in low bit */
+                             \"ff1r w1,%4\;\"        /* C = w1 == 0 */ 
+                             \"com w0,%4\;\"         /* complement in case
+                                                        of negate */
+                             \"btsc %3,#15\;\"       /* if negative, neg */ 
+                             \"addc %4,#0,w0\;\"
+                             \"rlc %3,[w15]\;\"        /* get sign in carry */
+                             \"rrc w0,w0\;\"           /* div by 2 again */
+                             \"addc w0,#0,%0\;\"       /* add in round */
+                             \"bra nov,.NOV%=\n\"
+                             \".OV%=:\;\"
+                             \"mov #0x7FFF,%0\;\"
+                             \"btsc %3,#15\;\"
+                             \"com %0,%0\n\"
+                             \".NOV%=:\;\"
+                             \"mov [--w15],w1\";
+                }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\;\"
+                           \"mov [--w15],w0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc w0,#0,%0\;\"       /* add in round */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\;\"
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     } else if (pic30_fp_round_p() == pic30_convergent) {
+       switch (which_alternative) {
+         case 0:  /*
+                  ** wm/wn -> w0
+                  */
+                  if (pic30_dead_or_set_p(insn, w1)) {
+                                                     /* convergent follows this
+                                                        form */
+                    return 
+                           \"repeat #18-1\;\"        /* divide */
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"     /* add carry */
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                      return \"mov w1,[w15++]\;\"
+                             \"repeat #18-1\;\"
+                             \"divf %1,%2\;\"
+                             \"bra ov,.OV%=\;\"
+                             \"sl w1,%4\;\"
+                             \"sub %4,%2,%4\;\"      /* compare 2*remainder */
+                             \"btss _SR,#0\;\"       /* carry set, use new val*/
+                             \"mov %4,w1\;\"
+                             \"btsc _SR,#1\;\"
+                             \"btst.c w0,#0\;\"      /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                             \"rlc w0,w0\;\"         /* put R in low bit */
+                             \"ff1r w1,%4\;\"        /* C = w1 == 0 */ 
+                             \"com w0,%4\;\"         /* complement in case
+                                                        of negate */
+                             \"btsc %3,#15\;\"       /* if negative, neg */ 
+                             \"addc %4,#0,w0\;\"
+                             \"rlc %3,[w15]\;\"      /* get sign in carry */
+                             \"rrc w0,w0\;\"         /* div by 2 again */
+                             \"addc.w w0,#0,%0\;\" 
+                             \"bra nov,.NOV%=\n\"
+                             \".OV%=:\;\"
+                             \"mov #0x7FFF,%0\;\"
+                             \"btsc %3,#15\;\"
+                             \"com %0,%0\n\"
+                             \".NOV%=:\;\"
+                             \"mov [--w15],w1\";
+                  }
+         case 1:  /*
+                  ** wm/wn -> w1
+                  */
+                  if (pic30_dead_or_set_p(insn, w0)) {
+                    return 
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                    return \"mov w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\" 
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\;\"
+                           \"mov [--w15],w0\";
+                  }
+         default: /*
+                  ** wm/wn -> we
+                  */
+                  if (pic30_dead_or_set_p(insn, w0) &&
+                      pic30_dead_or_set_p(insn, w1)) {
+                    return \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"bra ov,.OV%=\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\"
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\";
+                  } else {
+                    return \"mov.d w0,[w15++]\;\"
+                           \"repeat #18-1\;\"
+                           \"divf %1,%2\;\"
+                           \"sl w1,%4\;\"
+                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
+                           \"btss _SR,#0\;\"         /* carry set, use new val*/
+                           \"mov %4,w1\;\"
+                           \"btsc _SR,#1\;\"
+                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                     /*   ie if low bit == 0 */
+                                                     /*      don't add */
+                           \"rlc w0,w0\;\"           /* put R in low bit */
+                           \"bra ov,.OV%=\;\"
+                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
+                           \"com w0,%4\;\"           /* complement in case
+                                                        of negate */
+                           \"btsc %3,#15\;\"         /* if negative, neg */ 
+                           \"addc %4,#0,w0\;\"
+                           \"rlc %3,[w15]\;\"        /* get sign in carry */
+                           \"rrc w0,w0\;\"           /* div by 2 again */
+                           \"addc.w w0,#0,%0\;\" 
+                           \"bra nov,.NOV%=\n\"
+                           \".OV%=:\;\"
+                           \"mov #0x7FFF,%0\;\"
+                           \"btsc %3,#15\;\"
+                           \"com %0,%0\n\"
+                           \".NOV%=:\;\"
+                           \"mov.d [--w15],w0\";
+                  }
+       }
+     }
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_expand "udiv<mode>3"
+  [(set (match_operand:UQ15 0 "pic30_register_operand"    "=a,?b,??e")
+        (udiv:UQ15
+          (match_operand:UQ15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:UQ15 2 "pic30_ereg_operand"       "e, e,  e")))]
+  ""
+  "
+  {  rtx ra,rb;
+
+     /* divf is not valid on 24F targets */
+     if (!pic30_dsp_target()) FAIL;
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode))
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode))
+       rb = force_reg(<MODE>mode, rb);
+     emit(
+       gen_udiv<mode>3_helper(operands[0],ra,rb)
+     );
+     DONE;
+  }"
+)
+
+(define_expand "div<mode>3"
+  [(set (match_operand:Q15 0 "pic30_register_operand"    "=a,?b,??e")
+        (div:Q15
+          (match_operand:Q15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:Q15 2 "pic30_ereg_operand"       "e, e,  e")))]
+  ""
+  "
+  {  rtx ra,rb;
+     rtx ura,urb;
+     rtx sign, hi1,hi2;
+
+     /* divf is not valid on 24F targets */
+     if (!pic30_dsp_target()) FAIL;
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode))
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode))
+       rb = force_reg(<MODE>mode, rb);
+     sign = gen_reg_rtx(HImode);
+     hi1 = gen_rtx_SUBREG(HImode, ra, 0);
+     hi2 = gen_rtx_SUBREG(HImode, rb, 0);
+     emit(
+       gen_xorhi3(sign,hi1,hi2)
+     );
+     ura = gen_reg_rtx(<MODE>mode);
+     urb = gen_reg_rtx(<MODE>mode);
+     emit(
+       gen_abs<mode>2(ura,ra)
+     );
+     emit(
+       gen_abs<mode>2(urb,rb)
+     );
+     emit(
+       gen_div<mode>3_helper(operands[0],ura,urb,sign)
+     );
+     DONE;
+  }"
+)
+
+(define_insn "sssaturate<mode>"
+  [(set (match_operand:QUQ15    0 "pic30_register_operand" "=&r")
+        (unspec:QUQ15 [
+           (match_operand:QUQ15 1 "pic30_register_operand" "0")
+           (match_operand:HI    2 "pic30_register_operand" "r")
+         ] UNSPEC_SATURATE)
+   ) 
+   (clobber (match_scratch:HI 3                        "=&r"))
+  ]
+  ""
+  "*
+   return \"xor %1,%2,%3\;\"    /* test result sign with expected */
+          \"btss %3,#15\;\"
+          \"bra .SAT%=\;\"        /* if they are the same we are done */
+          \"mov #0x8000,%0\;\"  /* otherwise saturate to the expected sign */
+          \".SAT%=:\";
+  "
+)
+
+(define_expand "usdiv<mode>3"
+  [(set (match_operand:UQ15 0 "pic30_register_operand"    "=a,?b,??e")
+        (us_div:UQ15
+          (match_operand:UQ15 1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:UQ15 2 "pic30_ereg_operand"       "e, e,  e")))]
+  ""
+  "
+  {  rtx ra,rb;
+
+     /* divf is not valid on 24F targets */
+     if (!pic30_dsp_target()) FAIL;
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode))
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode))
+       rb = force_reg(<MODE>mode, rb);
+     emit(
+       gen_usatdiv<mode>3_helper(operands[0],ra,rb)
+     );
+     DONE;
+  }"
+)
+
+(define_expand "ssdiv<mode>3"
+  [(set (match_operand:Q15    0 "pic30_register_operand"  "=a,?b,??e")
+        (ss_div:Q15
+          (match_operand:Q15  1 "pic30_register_operand"   "r, r,  r")
+          (match_operand:Q15  2 "pic30_ereg_operand"       "e, e,  e")))
+   (clobber (match_scratch:HI 3                           "=r, r,  r"))
+  ]
+  ""
+  "
+  {  rtx ra,rb;
+     rtx ura,urb;
+     rtx sign,hi1,hi2;
+
+     /* divf is not valid on 24F targets */
+     if (!pic30_dsp_target()) FAIL;
+     ra = operands[1];
+     rb = operands[2];
+     if (!pic30_register_operand(ra,<MODE>mode))
+       ra = force_reg(<MODE>mode, ra);
+     if (!pic30_register_operand(rb,<MODE>mode))
+       rb = force_reg(<MODE>mode, rb);
+     hi1 = gen_rtx_SUBREG(HImode, ra, 0);
+     hi2 = gen_rtx_SUBREG(HImode, rb, 0);
+     sign = gen_reg_rtx(HImode);
+     emit(
+       gen_xorhi3(sign,hi1, hi2)
+     );
+     ura = gen_reg_rtx(<MODE>mode);
+     urb = gen_reg_rtx(<MODE>mode);
+     emit(
+       gen_abs<mode>2(ura,ra)
+     );
+     emit(
+       gen_abs<mode>2(urb,rb)
+     );
+     emit(
+       gen_ssatdiv<mode>3_helper(operands[0],ura,urb,sign)
+     );
+     DONE;
+  }"
+)
+
+;; *** multiply
+;  32-bit
+; handled by helper routines in libfx
+
+;; *** conversions
+; 16-bit
+
+;  [sat]fract[uns]mn2
+;
+;    These patterns handle modes m,n where m,n are any combination of
+;      fixed-point, floating-point, [un]signed integer
+;  
+;    One of the modes is fixed.
+;
+
+; integer (IMODE) modes
+;  from Q15
+
+(define_insn "fract<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>qi2_convergent"
+  [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
+        (fract_convert:QI
+          (match_operand:QUQ15   1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:QUQ15 2                           "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand" "=r")
+        (fract_convert:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%d0\;asr %1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\;asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\" /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%q0\;asr %1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+        ((pic30_fp_round_p() == pic30_convergent) ||
+         (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from Q31
+
+(define_insn "fract<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%d0\;asr %d1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%q0\;asr %d1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_convergent)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from ACC
+
+(define_insn "fract<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"   "=&r,r")
+        (fract_convert:QI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc.b %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>qi2_convergent"
+  [(set (match_operand:QI     0 "pic30_register_operand" "=&r")
+        (fract_convert:QI
+          (match_operand:ACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"    "=r")
+        (fract_convert:QI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"   "=&r,r")
+        (fract_convert:HI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"se %0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"se %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"se %0,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"se %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>hi2_convergent"
+  [(set (match_operand:HI     0 "pic30_register_operand" "=&r")
+        (fract_convert:HI
+          (match_operand:ACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;se %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"    "=r")
+        (fract_convert:HI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>qi2_helper"
+  [(set (match_operand:QI     0 "pic30_register_operand"   "=&r,r")
+        (fract_convert:QI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc.b %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>qi2_convergent"
+  [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
+        (fract_convert:QI
+          (match_operand:UACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>qi2"
+  [(set (match_operand:QI     0 "pic30_register_operand"    "=r")
+        (fract_convert:QI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fract<mode>hi2_helper"
+  [(set (match_operand:HI     0 "pic30_register_operand"   "=&r,r")
+        (fract_convert:HI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"ze %0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"ze %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"ze %0,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"ze %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fract<mode>hi2_convergent"
+  [(set (match_operand:HI      0 "pic30_register_operand" "=&r")
+        (fract_convert:HI
+          (match_operand:UACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI  2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;ze %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fract<mode>hi2"
+  [(set (match_operand:HI     0 "pic30_register_operand"    "=r")
+        (fract_convert:HI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; To SI and DI done by function only
+
+; to Q15
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q15
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x8000,%0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q15
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0  %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q15
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q15
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ15
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"  /* assume ~1 */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ15
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"  /* assume ~1 */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ15
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"    /* assume ~1 */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ15
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to Q31
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q31
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q31
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q31
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:Q31
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ31
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"mul.uu %0,#0,%0\";   /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ31
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"mul.uu %0,#0,%0\";   /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ31
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"mul.uu %0,#0,%0\";    /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UQ31
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"mul.uu %0,#0,%0\";    /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to ACC
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:ACC
+          (match_operand:QI 1 "pic30_register_operand"    "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:ACC
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:ACC
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:ACC
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractqi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UACC
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fracthi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UACC
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractsi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UACC
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractdi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (fract_convert:UACC
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; unsigned integer (IMODE) modes
+;  from Q15
+
+(define_insn "fractuns<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       return \"asr %1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>qi2_convergent"
+  [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ15   1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:QUQ15 2                           "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand" "=r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%d0\;asr %1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\;asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\" /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%q0\;asr %1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+        ((pic30_fp_round_p() == pic30_convergent) ||
+         (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from Q31
+
+(define_insn "fractuns<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%d0\;asr %d1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%q0\;asr %d1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (unsigned_fract_convert:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_convergent)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractuns<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractuns<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from ACC
+
+(define_insn "fractuns<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"   "=&r,r")
+        (unsigned_fract_convert:QI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H\;\"
+                \"inc %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc.b %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>qi2_convergent"
+  [(set (match_operand:QI     0 "pic30_register_operand" "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:ACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"    "=r")
+        (unsigned_fract_convert:QI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"   "=&r,r")
+        (unsigned_fract_convert:HI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"se %0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H\;\"
+                \"inc %0,%0\;\"
+                \"se %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"se %0,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"se %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>hi2_convergent"
+  [(set (match_operand:HI     0 "pic30_register_operand" "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:ACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;se %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"    "=r")
+        (unsigned_fract_convert:HI
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>qi2_helper"
+  [(set (match_operand:QI     0 "pic30_register_operand"   "=&r,r")
+        (unsigned_fract_convert:QI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H\;\"
+                \"inc %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc.b %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>qi2_convergent"
+  [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
+        (unsigned_fract_convert:QI
+          (match_operand:UACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI 2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>qi2"
+  [(set (match_operand:QI     0 "pic30_register_operand"    "=r")
+        (unsigned_fract_convert:QI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractuns<mode>hi2_helper"
+  [(set (match_operand:HI     0 "pic30_register_operand"   "=&r,r")
+        (unsigned_fract_convert:HI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "r,w")))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits; remember with 9.31 the lowest order 
+       //  integer bit is in the 15th bit of 2nd word
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"ze %0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H\;\"
+                \"inc %0,%0\;\"
+                \"ze %0,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       if (which_alternative == 0)
+         return \"sl %d1,[w15]\;\"
+                \"rlc %t1,%0\;\"
+                \"ze %1,%0\;\"
+                \"btst.c %d1,#14\;\"
+                \"addc %0,#0,%0\";
+       else 
+         return \"mov %m1U,%0\;\"
+                \"sl %0,%0\;\"
+                \"btsc %m1H,#15\;\"
+                \"inc %0,%0\;\"
+                \"ze %0,%0\;\"
+                \"btsc %m1H,#14\;\"
+                \"inc %0,%0\;\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractuns<mode>hi2_convergent"
+  [(set (match_operand:HI      0 "pic30_register_operand" "=&r")
+        (unsigned_fract_convert:HI
+          (match_operand:UACC  1 "pic30_register_operand"   "r")))
+   (clobber (match_scratch:HI  2                           "=r"))
+  ]
+  ""
+  "sl %d1,%2\;rlc %t1,%0\;ze %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "fractuns<mode>hi2"
+  [(set (match_operand:HI     0 "pic30_register_operand"    "=r")
+        (unsigned_fract_convert:HI
+          (match_operand:UACC 1 "pic30_accum_or_reg_operand" "rw")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      if (!pic30_accum_or_reg_operand(r1,<MODE>mode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      if (!pic30_register_operand(r1,VOIDmode)) {
+        r1 = force_reg(<MODE>mode, r1);
+      }
+      emit(
+        gen_fract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; To SI and DI done by function only
+
+; to Q15
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q15
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x8000,%0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q15
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0  %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q15
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:Q15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q15
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ15
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"  /* assume ~1 */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ15
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"  /* assume ~1 */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ15
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"    /* assume ~1 */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:UQ15  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ15
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%0\;\"    /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %0\";             /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to Q31
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q31
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q31
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q31
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:Q31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:Q31
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ31
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"mul.uu %0,#0,%0\";   /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ31
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"mul.uu %0,#0,%0\";   /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ31
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"mul.uu %0,#0,%0\";    /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:UQ31  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UQ31
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"setm %0\;\"
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"mul.uu %0,#0,%0\";    /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to ACC
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:ACC
+          (match_operand:QI 1 "pic30_register_operand"    "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:ACC
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:ACC
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:ACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:ACC
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsqi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UACC
+          (match_operand:QI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunshi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UACC
+          (match_operand:HI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunssi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UACC
+          (match_operand:SI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "fractunsdi<mode>2"
+  [(set (match_operand:UACC  0 "pic30_register_operand"  "=&r")
+        (unsigned_fract_convert:UACC
+          (match_operand:DI  1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+   {  
+      return 
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov %1,%t0\;\"       /* copy low integer portion to upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+
+;; conversions back and forth to floating point or double will be done by
+;;  out of line functions only
+
+; conversions to and from fractional types
+;; awkward - we can only move through one iterator, these are all 
+;;   coppies of each other with a different source mode
+
+(define_insn "fractsq<mode>2_helper"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:SQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fractsq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:SQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_expand "fractsq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:SQ  1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractsq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractsq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractusq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:USQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fractusq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:USQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_expand "fractusq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:USQ 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractusq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractusq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fracttq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:TQ  1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fracttq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:TQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_expand "fracttq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:TQ 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fracttq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fracttq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractutq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:UTQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fractutq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:UTQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_expand "fractutq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:UTQ 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fracttq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fracttq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractdq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:DQ  1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fractdq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:DQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+)
+
+(define_expand "fractdq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:DQ  1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractdq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractdq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractudq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:UDQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"
+             \"addc %d1,#0,%0\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "fractudq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (fract_convert:QUQ15
+          (match_operand:UDQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_expand "fractudq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (fract_convert:QUQ15
+          (match_operand:UDQ 1 "pic30_register_operand"   "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_fractudq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_fractudq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "fractqq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (fract_convert:QUQ31
+          (match_operand:QQ  1 "pic30_register_operand"  "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "fractuqq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (fract_convert:QUQ31
+          (match_operand:UQQ 1 "pic30_register_operand"  "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "fracthq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (fract_convert:QUQ31
+          (match_operand:HQ 1 "pic30_register_operand"   "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "fractuhq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (fract_convert:QUQ31
+          (match_operand:UHQ 1 "pic30_register_operand"  "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+; conversions between signed/unsigned 'self'
+
+(define_insn "fractqquqq2"
+  [(set (match_operand:UQQ  0 "general_operand" "=g")
+       (unsigned_fract_convert:UQQ
+         (match_operand:QQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractuqqqq2"
+  [(set (match_operand:QQ    0 "general_operand" "=g")
+       (fract_convert:QQ
+         (match_operand:UQQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fracthquhq2"
+  [(set (match_operand:UHQ  0 "general_operand" "=g")
+       (unsigned_fract_convert:UHQ
+         (match_operand:HQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractuhqhq2"
+  [(set (match_operand:HQ    0 "general_operand" "=g")
+       (fract_convert:HQ
+         (match_operand:UHQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractsqusq2"
+  [(set (match_operand:USQ  0 "general_operand" "=g")
+       (unsigned_fract_convert:USQ
+         (match_operand:SQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractusqsq2"
+  [(set (match_operand:SQ    0 "general_operand" "=g")
+       (fract_convert:SQ
+         (match_operand:USQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractdqudq2"
+  [(set (match_operand:UDQ  0 "general_operand" "=g")
+       (unsigned_fract_convert:UDQ
+         (match_operand:DQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractudqdq2"
+  [(set (match_operand:DQ    0 "general_operand" "=g")
+       (fract_convert:DQ
+         (match_operand:UDQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fracttqutq2"
+  [(set (match_operand:UTQ  0 "general_operand" "=g")
+       (unsigned_fract_convert:UTQ
+         (match_operand:TQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractutqtq2"
+  [(set (match_operand:TQ    0 "general_operand" "=g")
+       (fract_convert:TQ
+         (match_operand:UTQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fracthauha2"
+  [(set (match_operand:UHA  0 "general_operand" "=g")
+       (unsigned_fract_convert:UHA
+         (match_operand:HA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractuhaha2"
+  [(set (match_operand:HA    0 "general_operand" "=g")
+       (fract_convert:HA
+         (match_operand:UHA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractsausa2"
+  [(set (match_operand:USA  0 "general_operand" "=g")
+       (unsigned_fract_convert:USA
+         (match_operand:SA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractusasa2"
+  [(set (match_operand:SA    0 "general_operand" "=g")
+       (fract_convert:SA
+         (match_operand:USA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractdauda2"
+  [(set (match_operand:UDA  0 "general_operand" "=g")
+       (unsigned_fract_convert:UDA
+         (match_operand:DA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractudada2"
+  [(set (match_operand:DA    0 "general_operand" "=g")
+       (fract_convert:DA
+         (match_operand:UDA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fracttauta2"
+  [(set (match_operand:UTA  0 "general_operand" "=g")
+       (unsigned_fract_convert:UTA
+         (match_operand:TA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "fractutata2"
+  [(set (match_operand:TA    0 "general_operand" "=g")
+       (fract_convert:TA
+         (match_operand:UTA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+; saturating conversions
+;   not all conversions saturate (but we seem to need them all)
+;   many of these are copies of the "non-saturating" versions
+
+(define_insn "satfract<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%d0\;asr %1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\" /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%q0\;asr %1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+        ((pic30_fp_round_p() == pic30_convergent) ||
+         (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from Q31
+
+(define_insn "satfract<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%d0\;asr %d1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfract<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%q0\;asr %d1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfract<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfract<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_convergent)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; to Q15
+
+(define_insn "satfractqi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov  #0x8000,%0\;\" /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfracthi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return \"cp0  %1\;\"         /* compare input with 0 */
+             \"mov  #0x8000,%0\;\" /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractsi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"subr %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subbr %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov  #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"        /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"     /*   load .99... */
+             \"btsc _SR,#1\;\"        /* if zero */
+             \"clr %0\";              /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractdi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"subr %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subbr %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subbr %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subbr %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov  #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"        /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"     /*   load .99... */
+             \"btsc _SR,#1\;\"        /* if zero */
+             \"clr %0\";              /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to Q31
+
+(define_insn "satfractqi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ31
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfracthi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ31
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractsi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ31
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractdi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ31
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to ACC
+
+; cannot saturate
+(define_insn "satfractqi<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_register_operand"  "=&r")
+        (sat_fract:AUACC
+          (match_operand:QI  1 "pic30_register_operand"    "r")))]
+  ""
+  "*
+   {
+      return
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunsqi<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:AUACC
+          (match_operand:QI  1 "pic30_register_operand"    "r")))]
+  ""
+  "*
+  {
+      return
+             \"mul.uu %0,#0,%0\;\"  /* clear low bits */
+             \"mov.b %1,%t0\;\"     /* copy integer portion into upper byte */
+             \"asr.b %t0,%t0\;\"    /* shift it into position */
+             \"rrc %d0,%d0\";
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; the rest are function only
+
+; unsigned
+
+(define_insn "satfractuns<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%d0\;asr %1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\" /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %1,#15,%q0\;asr %1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ15 2                         "=r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 15);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"    /*   always rounds to even 0 */
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ15 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+        ((pic30_fp_round_p() == pic30_convergent) ||
+         (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; from Q31
+
+(define_insn "satfractuns<mode>qi2_helper"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr.b %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>qi2_convergent"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr.b %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>qi2"
+  [(set (match_operand:QI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,QImode)) {
+      r0 = gen_reg_rtx(QImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>qi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>qi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>hi2_helper"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%0\"; 
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;btss %0,#0\;clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>hi2_convergent"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"  
+              \"btsc _SR,#1\;\"
+              \"clr %0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>hi2"
+  [(set (match_operand:HI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:HI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,HImode)) {
+      r0 = gen_reg_rtx(HImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>hi2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>hi2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>si2_helper"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%d0\;asr %d1,#15,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>si2_convergent"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>si2"
+  [(set (match_operand:SI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:SI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && (pic30_fp_round_p() == pic30_convergent))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(SImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>si2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>si2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractuns<mode>di2_helper"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       // chop the low order bits, signed results are either 0 or -1
+       return \"asr %d1,#15,%q0\;asr %d1,#15,%t0\;mul.su %t0,#1,%0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       // [-1,-.5] round to -1, (-.5,.5) round to 0, otherwise 1?
+       return \"asr %d1,#14,%0\;\"
+              \"btss %0,#0\;\"
+              \"clr %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractuns<mode>di2_convergent"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=&r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:QUQ31 2                         "=&r"))
+  ]
+  ""
+  "*
+  {
+     gcc_assert(GET_MODE_FBIT(<MODE>mode) == 31);
+     if (pic30_fp_round_p() == pic30_convergent) {
+       return \"asr %d1,#14,%0\;\"  /* as conventional */
+              \"btss %0,#0\;\"
+              \"clr  %0\;\"
+              \"asr %0,#15,%d0\;\"
+              \"sl %d1,#2,%2\;\"    /* x.yz13 where z13 == 0 */
+              \"btsc _SR,#1\;\"     /*   always rounds to even 0 */
+              \"cp0 %1\;\"
+              \"btsc _SR,#1\;\"
+              \"mul.uu %0,#0,%0\;\"
+              \"mul.su %d0,#1,%t0\";
+     } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+     }
+
+  }"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractuns<mode>di2"
+  [(set (match_operand:DI    0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:DI
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_convergent)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,DImode)) {
+      r0 = gen_reg_rtx(DImode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfract<mode>di2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfract<mode>di2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+; to Q15
+
+(define_insn "satfractunsqi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ15
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"cp0.b %1\;\"        /* compare input with 0 */
+             \"mov  #0x8000,%0\;\" /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunshi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ15
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return \"cp0  %1\;\"         /* compare input with 0 */
+             \"mov  #0x8000,%0\;\" /* assume -1 */
+             \"btsc _SR,#0\;\"     /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"     /* if zero */
+             \"clr %0\";           /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunssi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ15
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"subr %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subbr %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov  #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"        /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"     /*   load .99... */
+             \"btsc _SR,#1\;\"        /* if zero */
+             \"clr %0\";              /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunsdi<mode>2"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ15
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return \"subr %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subbr %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subbr %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subbr %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov  #0x8000,%0\;\"    /* assume -1 */
+             \"btsc _SR,#0\;\"        /* positive => 0 or .99 */
+             \"mov #0x7FFF,%0\;\"     /*   load .99... */
+             \"btsc _SR,#1\;\"        /* if zero */
+             \"clr %0\";              /*   load zero */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; to Q31
+
+(define_insn "satfractunsqi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ31
+          (match_operand:QI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunshi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ31
+          (match_operand:HI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {
+      return 
+             \"cp0.b %1\;\"         /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"  /* assume -1 */
+             \"btsc _SR,#0\;\"      /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"  /*   load .99... */
+             \"btsc _SR,#1\;\"      /* if zero */
+             \"clr %d0\;\"          /*   load zero */
+             \"sl  %d0,%0\;\"       /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";     /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunssi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ31
+          (match_operand:SI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractunsdi<mode>2"
+  [(set (match_operand:QUQ31  0 "pic30_register_operand"  "=r")
+        (unsigned_sat_fract:QUQ31
+          (match_operand:DI 1 "pic30_register_operand"  "r")))]
+  "pic30_fp_inline_p()"
+  "*
+   {  
+      return 
+             \"sub %1,#0,[w15]\;\"   /* compare input with 0 */
+             \"subb %d1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %t1,#0,[w15]\;\" /* compare input with 0 */
+             \"subb %q1,#0,[w15]\;\" /* compare input with 0 */
+             \"mov #0x8000,%d0\;\"   /* assume -1 */
+             \"btsc _SR,#0\;\"       /* positive => 0 or .99 */
+             \"mov #0x7FFF,%d0\;\"   /*   load .99... */
+             \"btsc _SR,#1\;\"       /* if zero */
+             \"clr %d0\;\"           /*   load zero */
+             \"sl  %d0,%0\;\"        /* form low word by propagating non sign */
+             \"asr %0,#15,%0\";      /*   bits into low word */
+   }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+
+;; conversions back and forth to floating point or double will be done by
+;;  out of line functions only
+
+;; conversions to and from fractional types
+;;   some of these can actually cause saturation
+
+(define_insn "satfractsq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:SQ  1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractsq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:SQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\"
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\;\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "satfractsq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:SQ  1 "pic30_register_operand"  "r")))]
+  ""
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfractsq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfractsq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractusq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:USQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"      
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractusq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:USQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\" 
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\n\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else { 
+       error(\"Invalid fixed-point rounding mode specified\");
+    }  
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+) 
+
+(define_expand "satfractusq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:USQ 1 "pic30_register_operand"  "r")))]
+  ""      
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    } 
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    } 
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfractusq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfractusq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractdq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:DQ  1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"      
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractdq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:DQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\" 
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\n\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else { 
+       error(\"Invalid fixed-point rounding mode specified\");
+    }  
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+) 
+
+(define_expand "satfractdq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:DQ  1 "pic30_register_operand"  "r")))]
+  ""      
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    } 
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    } 
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfractdq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfractdq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+(define_insn "satfractudq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:UDQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"      
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractudq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:UDQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\" 
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\n\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else { 
+       error(\"Invalid fixed-point rounding mode specified\");
+    }  
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+) 
+
+(define_expand "satfractudq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:UDQ 1 "pic30_register_operand"  "r")))]
+  ""      
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    } 
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    } 
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfractudq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfractudq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfracttq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:TQ  1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"      
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfracttq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:TQ   1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\" 
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\n\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else { 
+       error(\"Invalid fixed-point rounding mode specified\");
+    }  
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+) 
+
+(define_expand "satfracttq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:TQ  1 "pic30_register_operand"  "r")))]
+  ""      
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    } 
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    } 
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfracttq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfracttq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractutq<mode>2_helper"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:UTQ 1 "pic30_register_operand" "r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \"mov %d1,%0\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \"sl %1,[w15]\;\"       /* shift overflow bit to carry */
+             \"addc %d1,#0,%0\;\"    /* add */
+             \"bra nov,.L1_%=\;\"    /* no overflow? finished */
+             \"mov #0x7FFF,%0\;\"    /* return ~1 */
+             \"btsc %d1,#15\;\"      
+             \"com %0,%0\n\"         /* or -1 */
+             \".L1_%=:\";
+    } else {
+       error(\"Invalid fixed-point rounding mode specified\");
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "satfractutq<mode>2_convergent"
+  [(set (match_operand:QUQ15  0 "pic30_register_operand" "=&r")
+        (sat_fract:QUQ15
+          (match_operand:UTQ  1 "pic30_register_operand" "r")))
+   (clobber (match_scratch:HI 2                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent) {
+      return \"setm %2\;\"
+             \"sl %1,[w15]\;\"          /* get top bit into carry */
+             \"btsc _SR,#1\;\"          /* if the result is 0 */
+             \"mov #0xFFFE,%2\;\"       /*   mask off low bit */
+             \"addc %d1,#0,%0\;\"       /* add in 'overflow' */
+             \"bra nov,.L1_%=\;\"       /* nov ? continue */
+             \"mov #0x7FFF,%0\;\"       /* return ~1 */
+             \"btsc %d1,#15\;\" 
+             \"com %0,%0\;\"            /* or -1 */
+             \"setm %2\n\"              /* prevent mask */
+             \".L1_%=:\;\"
+             \"and %0,%2,%0\";          /* maybe mask off low bit */
+    } else { 
+       error(\"Invalid fixed-point rounding mode specified\");
+    }  
+  } 
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+) 
+
+(define_expand "satfractutq<mode>2"
+  [(set (match_operand:QUQ15 0 "pic30_register_operand"  "=r")
+        (sat_fract:QUQ15
+          (match_operand:UTQ 1 "pic30_register_operand"  "r")))]
+  ""      
+  "
+  { rtx r0,r1;
+
+    if (!pic30_fp_inline_p() && 
+         ((pic30_fp_round_p() == pic30_convergent) ||
+          (pic30_fp_round_p() == pic30_conventional)))
+      FAIL;
+    r0 = operands[0];
+    r1 = operands[1];
+    if (!pic30_register_operand(r0,SImode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    } 
+    if (!pic30_register_operand(r1,VOIDmode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    } 
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_satfractutq<mode>2_convergent(r0,r1)
+      );
+    } else {
+      emit(
+        gen_satfractutq<mode>2_helper(r0,r1)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }
+  "
+)
+
+(define_insn "satfractqq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (sat_fract:QUQ31
+          (match_operand:QQ  1 "pic30_register_operand" "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "satfractuqq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (sat_fract:QUQ31
+          (match_operand:UQQ 1 "pic30_register_operand" "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "satfracthq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (sat_fract:QUQ31
+          (match_operand:HQ  1 "pic30_register_operand" "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+(define_insn "satfractuhq<mode>2"
+  [(set (match_operand:QUQ31 0 "pic30_register_operand" "=r")
+        (sat_fract:QUQ31
+          (match_operand:UHQ 1 "pic30_register_operand" "r")))]
+  ""
+  "mov %1,%d0\;clr %0"
+  [
+    (set_attr "cc" "unchanged")
+  ]
+)
+
+;; conversions between different fractional modes of the same size
+;;   these are nops but must exist
+
+(define_insn "satfract<mode>sq2"
+  [(set (match_operand:SQ      0 "pic30_register_operand" "=r,r")
+        (sat_fract:SQ
+          (match_operand:QUQ31 1 "pic30_register_operand" "r,0")))]
+  ""
+  "@
+   mov.d %1,%0
+   ; nop"
+  [
+    (set_attr "cc" "unchanged,unchanged")
+  ]
+)
+
+(define_insn "satfract<mode>dq2"
+  [(set (match_operand:DQ      0 "pic30_register_operand" "=r,r")
+        (sat_fract:DQ
+          (match_operand:QUQ31 1 "pic30_register_operand" "r,0")))]
+  ""
+  "@
+   mov.d %1,%0
+   ; nop"
+  [
+    (set_attr "cc" "unchanged,unchanged")
+  ]
+)
+
+(define_insn "satfract<mode>tq2"
+  [(set (match_operand:TQ      0 "pic30_register_operand" "=r,r")
+        (sat_fract:TQ
+          (match_operand:QUQ31 1 "pic30_register_operand" "r,0")))]
+  ""
+  "@
+   mov.d %1,%0
+   ; nop"
+  [
+    (set_attr "cc" "unchanged,unchanged")
+  ]
+)
+
+(define_insn "satfract<mode>qq2"
+  [(set (match_operand:QQ      0 "pic30_register_operand" "=r,r")
+        (sat_fract:QQ
+          (match_operand:QUQ15 1 "pic30_register_operand" "r,0")))]
+  ""
+  "@
+   mov %1,%0
+   ; nop"
+  [
+    (set_attr "cc" "unchanged,unchanged")
+  ]
+)
+
+(define_insn "satfract<mode>hq2"
+  [(set (match_operand:HQ      0 "pic30_register_operand" "=r,r")
+        (sat_fract:HQ
+          (match_operand:QUQ15 1 "pic30_register_operand" "r,0")))]
+  ""
+  "@
+   mov %1,%0
+   ; nop"
+  [
+    (set_attr "cc" "unchanged,unchanged")
+  ]
+)
+
+; missing conversions between signed/unsigned 'self'
+
+(define_insn "satfractqquqq2"
+  [(set (match_operand:UQQ  0 "general_operand" "=g")
+       (unsigned_sat_fract:UQQ
+         (match_operand:QQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfracthquhq2"
+  [(set (match_operand:UHQ  0 "general_operand" "=g")
+       (unsigned_sat_fract:UHQ
+         (match_operand:HQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractsqusq2"
+  [(set (match_operand:USQ  0 "general_operand" "=g")
+       (unsigned_sat_fract:USQ
+         (match_operand:SQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractdqudq2"
+  [(set (match_operand:UDQ  0 "general_operand" "=g")
+       (unsigned_sat_fract:UDQ
+         (match_operand:DQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfracttqutq2"
+  [(set (match_operand:UTQ  0 "general_operand" "=g")
+       (unsigned_sat_fract:UTQ
+         (match_operand:TQ 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfracthauha2"
+  [(set (match_operand:UHA  0 "general_operand" "=g")
+       (unsigned_sat_fract:UHA
+         (match_operand:HA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractuhaha2"
+  [(set (match_operand:HA    0 "general_operand" "=g")
+       (sat_fract:HA
+         (match_operand:UHA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractsausa2"
+  [(set (match_operand:USA  0 "general_operand" "=g")
+       (unsigned_sat_fract:USA
+         (match_operand:SA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractusasa2"
+  [(set (match_operand:SA    0 "general_operand" "=g")
+       (sat_fract:SA
+         (match_operand:USA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractdauda2"
+  [(set (match_operand:UDA  0 "general_operand" "=g")
+       (unsigned_sat_fract:UDA
+         (match_operand:DA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractudada2"
+  [(set (match_operand:DA    0 "general_operand" "=g")
+       (sat_fract:DA
+         (match_operand:UDA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfracttauta2"
+  [(set (match_operand:UTA  0 "general_operand" "=g")
+       (unsigned_sat_fract:UTA
+         (match_operand:TA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+(define_insn "satfractutata2"
+  [(set (match_operand:TA    0 "general_operand" "=g")
+       (sat_fract:TA
+         (match_operand:UTA 1 "general_operand" "0")))]
+  ""
+  "; nop"
+)
+
+;; negate
+
+(define_insn "neg<mode>2"
+  [(set (match_operand:QUQ15   0 "pic30_mode2_operand" "=rR<>")
+        (neg:QUQ15
+          (match_operand:QUQ15 1 "pic30_mode2_operand" " rR<>")))]
+  ""
+  "neg %1,%0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "ssneg<mode>2"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand" "=&r")
+        (ss_neg:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand" " r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"neg %1,%0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"mov #0x7FFF,%0\;\"
+          \"btss %1,#15\;\"
+          \"com %0,%0\n\"
+          \".L1_%=:\;\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usneg<mode>2"
+  [(set (match_operand:Q15   0 "pic30_register_operand" "=&r")
+        (us_neg:Q15
+          (match_operand:Q15 1 "pic30_register_operand" " r")))]
+  ""
+  "neg %1,%0;\;btsc _SR,#2\;mov #0x7FFF,%0\;btsc _SR,#3\;clr %0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; cannot negate with unigned saturation a positive value
+(define_insn "usneg<mode>2"
+  [(set (match_operand:UQ15   0 "pic30_register_operand" "=&r")
+        (us_neg:UQ15
+          (match_operand:UQ15 1 "pic30_register_operand" " r")))]
+  ""
+  "clr %0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+
+(define_insn "neg<mode>2"
+  [(set (match_operand:QUQ31   0 "pic30_mode2_operand" "=r<>,R")
+        (neg:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand" " r,r")))]
+  ""
+  "@
+   subr %1,#0,%0\;subbr %d1,#0,%d0
+   subr %1,#0,%I0\;subbr %d1,#0,%D0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "ssneg<mode>2"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (ss_neg:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand" " r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"subr %1,#0,%0\;\"
+          \"subbr %d1,#0,%d0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"setm %0\;\"
+          \"mov #0x7FFF,%d0\;\"
+          \"btst.c %d1,#15\;\"
+          \"bra c,.L1_%=\;\"
+          \"com %d0,%d0\;\"
+          \"com %0,%0\n\"
+          \".L1_%=:\;\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usneg<mode>2"
+  [(set (match_operand:Q31   0 "pic30_register_operand" "=r")
+        (us_neg:Q31
+          (match_operand:Q31 1 "pic30_register_operand" " r")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"subr %1,#0,%0\;\"
+          \"subbr %d1,#0,%d0\;\"
+          \"bra nov,.L1_%=\;\"
+          \"setm %0\;\"
+          \"mov #0x7FFF,%d0\n\"
+          \".L1_%=:\;\"
+          \"btsc _SR,#3\;\"
+          \"mul.uu %0,#0,%0\";
+  "
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+; cannot negate with unigned saturation a positive value
+(define_insn "usneg<mode>2"
+  [(set (match_operand:UQ31   0 "pic30_register_operand" "=&r")
+        (us_neg:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand" " r")))]
+  ""
+  "mul.uu %0,#0,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+;; shift
+
+(define_insn "ashl<mode>3"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"       "=r")
+        (ashift:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand"       "r")
+          (match_operand:HI    2 "pic30_register_operand"       "r")))
+  ]
+  ""
+  "sl %1,%2,%0"
+  [ 
+   (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "ssashl<mode>3"
+  [(set (match_operand:Q15   0 "pic30_register_operand"     "=&r")
+        (ss_ashift:Q15
+          (match_operand:Q15 1 "pic30_register_operand"       "r")
+          (match_operand:HI  2 "pic30_register_operand"       "r")))
+   (clobber (match_scratch:HI 3                              "=&r"))
+  ]
+  ""
+  "*
+   return \"mov #0x8000,%3\;\"        /* create mask for bits */
+          \"asr %3,%2,%3\;\"          /*   that drop off */
+          \"sl  %1,%2,%0\;\"          /* shift */
+          \"and %3,%1,%3\;\"          /* mask input and mask */
+          \"bra z,.L1_%=\;\"          /* non-zero means bits drop off */
+          \"mov #0x7FFF,%0\;\"        /* Saturate to ~.99 */
+          \"btsc %1,#15\;\"
+          \"com %0,%0\n\"             /* or -1 */
+          \".L1_%=:\";
+  "
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ssashl<mode>3"
+  [(set (match_operand:UQ15   0 "pic30_register_operand"     "=&r")
+        (ss_ashift:UQ15
+          (match_operand:UQ15 1 "pic30_register_operand"       "r")
+          (match_operand:HI   2 "pic30_register_operand"       "r")))
+   (clobber (match_scratch:HI 3                              "=&r"))
+  ]
+  ""
+  "*
+   return \"mov #0x8000,%3\;\"        /* create mask for bits */
+          \"asr %3,%2,%3\;\"          /*   that drop off */
+          \"sl  %1,%2,%0\;\"          /* shift */
+          \"and %3,%1,%3\;\"          /* mask input and mask */
+          \"btss _SR,#1\;\"           /* non-zero means bits drop off */
+          \"mov #0x7FFF,%0\;\";
+  "
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"     "=&r")
+        (us_ashift:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand"       "r")
+          (match_operand:HI    2 "pic30_register_operand"       "r")))
+   (clobber (match_scratch:HI 3                               "=&r"))
+  ]
+  ""
+  "*
+   return \"mov #0x8000,%3\;\"        /* create mask for bits */
+          \"asr %3,%2,%3\;\"          /*   that drop off */
+          \"sl  %1,%2,%0\;\"          /* shift */
+          \"and %3,%1,%3\;\"          /* mask input and mask */
+          \"btss _SR,#1\;\"           /* non-zero means bits drop off */
+          \"mov #0x7FFF,%0\";
+  "
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+; 32-bit shift left
+
+(define_insn "ashl<mode>3_imm1"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_I_operand"         "I")))]
+  ""
+  "add %1,%1,%0\;addc %d1,%d1,%d0"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm1"
+  [(set (match_operand:Q31   0 "pic30_register_operand" "=&r")
+        (ss_ashift:Q31 
+          (match_operand:Q31 1 "pic30_register_operand"   "r")
+          (match_operand:HI  2 "pic30_I_operand"          "I")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"add %1,%1,%0\;\"          /* shift */
+          \"addc %d1,%d1,%d0\;\"
+          \"bra nov,.L1_%=\;\"        /* but if the sign changes ... */
+          \"mov #0x7FFF,%d0\;\"       /* Saturate to ~.99 */
+          \"btsc %d1,#15\;\"
+          \"com %d0,%d0\;\"           /* or -1 */
+          \"sl  %d0,%0\;\"            /* form low word by propagating nonsign */
+          \"asr %0,#15,%0\n\"         /*   bits into low word */
+          \".L1_%=:\;\";
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm1"
+  [(set (match_operand:UQ31   0 "pic30_register_operand" "=&r")
+        (ss_ashift:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI   2 "pic30_I_operand"          "I")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"add %1,%1,%0\;\"          /* shift */
+          \"addc %d1,%d1,%d0\;\"
+          \"bra nov,.L1_%=\;\"        /* but if the sign changes ... */
+          \"mov #0x7FFF,%d0\;\"       /* Saturate to ~.99 */
+          \"setm %0\";                /*   bits into low word */
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm1"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (us_ashift:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI    2 "pic30_I_operand"          "I")))]
+  "pic30_fp_inline_p()"
+  "*
+   return \"add %1,%1,%0\;\"          /* shift */
+          \"addc %d1,%d1,%d0\;\"
+          \"bra nov,.L1_%=\;\"        /* but if the sign changes ... */
+          \"mov #0x7FFF,%d0\;\"       /* Saturate to ~.99 */
+          \"setm %0\;\"               /*   bits into low word */
+          \".L1_%=:\";
+          
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashl<mode>3_imm8"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI    2 "pic30_imm8_operand"       "i")))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+  {
+    int idDst = REGNO(operands[0]);
+    int idSrc = REGNO(operands[1]);
+    if (idDst == idSrc) {
+      return \"sl %d1,#%2,%d0\;\"
+             \"swap %1\;\"
+             \"mov.b %0,%d0\;\"
+             \"clr.b %0\";
+    } else {
+      return \"sl %d1,#%2,%0\;\"
+             \"lsr %1,#%k2,%d0\;\"
+             \"ior %0,%d0,%d0\;\"
+             \"sl %1,#%2,%0\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm8"
+  [(set (match_operand:Q31   0 "pic30_register_operand" "=&r")
+        (ss_ashift:Q31
+          (match_operand:Q31 1 "pic30_register_operand"   "r")
+          (match_operand:HI  2 "pic30_imm8_operand"       "i")))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+  {
+    int idDst = REGNO(operands[0]);
+    int idSrc = REGNO(operands[1]);
+    if (idDst == idSrc) {
+      return 
+             \"asr %d1,#(16-9),%0\;\"    /* test the bits that drop off */
+             \"asr %d1,#15,%d0\;\"       /* or move into sign */
+             \"xor %d0,%0,%0\;\"         /* match the original sign */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* assume ~.99 if ... */
+             \"btsc %d1,#15\;\"
+             \"com %d0,%d0\;\"
+             \"sl  %d0,%0\;\"
+             \"asr %0,#15,%0\;\"
+             \"bra .L2_%=\n\"
+	     \".L1_%=:\;\"               /* safe to shift ... */
+	     \"sl %d1,#%2,%d0\;\"
+             \"swap %1\;\"
+             \"mov.b %0,%d0\;\"
+             \"clr.b %0\n\"
+             \".L2_%=:\;\";
+    } else {
+      return 
+             \"asr %d1,#(16-9),%0\;\"    /* test the bits that drop off */
+             \"asr %d1,#15,%d0\;\"       /* or move into sign */
+             \"xor %d0,%0,%0\;\"         /* match the original sign */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* assume ~.99 if ... */
+             \"btsc %d1,#15\;\"
+             \"com %d0,%d0\;\"
+             \"sl  %d0,%0\;\"
+             \"asr %0,#15,%0\;\"
+             \"bra .L2_%=\n\"
+             \".L1_%=:\;\"               /* safe to shift ... */
+             \"sl %d1,#%2,%0\;\"
+             \"lsr %1,#%k2,%d0\;\"
+             \"ior %0,%d0,%d0\;\"
+             \"sl %1,#%2,%0\n\"
+             \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm8"
+  [(set (match_operand:UQ31   0 "pic30_register_operand" "=&r")
+        (ss_ashift:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI   2 "pic30_imm8_operand"       "i")))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+  {
+    int idDst = REGNO(operands[0]);
+    int idSrc = REGNO(operands[1]);
+    if (idDst == idSrc) {
+      return
+             \"mov #0xFF10, %0\;\"       /* test the bits that drop off */
+             \"and %d1,%0,%0\;\"         /* or move into sign for zero */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* return ~.99  */
+             \"setm %0\;\"
+             \"bra .L2_%=\n\"
+             \".L1_%=:\;\"               /* safe to shift ... */
+             \"sl %d1,#%2,%d0\;\"        
+             \"swap %1\;\"
+             \"mov.b %0,%d0\;\"
+             \"clr.b %0\n\"
+             \".L2_%=:\;\";
+    } else { 
+      return 
+             \"mov #0xFF10, %0\;\"       /* test the bits that drop off */
+             \"and %d1,%0,%0\;\"         /* or move into sign for zero */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* return ~.99 ... */
+             \"setm %d0\;\"
+             \"bra .L2_%=\n\"
+             \".L1_%=:\;\"               /* safe to shift ... */
+             \"sl %d1,#%2,%0\;\"
+             \"lsr %1,#%k2,%d0\;\"
+             \"ior %0,%d0,%d0\;\"
+             \"sl %1,#%2,%0\n\"
+             \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm8"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (us_ashift:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI    2 "pic30_imm8_operand"       "i")))
+   (clobber (match_dup 1))
+  ]       
+  ""
+  "*
+  {
+    int idDst = REGNO(operands[0]);
+    int idSrc = REGNO(operands[1]);
+    if (idDst == idSrc) {
+      return
+             \"mov #0xFF10, %0\;\"       /* test the bits that drop off */
+             \"and %d1,%0,%0\;\"         /* or move into sign for zero */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* return ~.99  */
+             \"setm %0\;\"
+             \"bra .L2_%=\n\"
+             \".L1_%=:\;\"               /* safe to shift ... */
+             \"sl %d1,#%2,%d0\;\"
+             \"swap %1\;\"
+             \"mov.b %0,%d0\;\"
+             \"clr.b %0\n\"
+             \".L2_%=:\;\";
+    } else {
+      return  
+             \"mov #0xFF10, %0\;\"       /* test the bits that drop off */
+             \"and %d1,%0,%0\;\"         /* or move into sign for zero */
+             \"bra z,.L1_%=\;\"          /* normal shift if zero */
+             \"mov #0x7FFF,%d0\;\"       /* return ~.99 ... */
+             \"setm %d0\;\"
+             \"bra .L2_%=\n\"
+             \".L1_%=:\;\"               /* safe to shift ... */
+             \"sl %d1,#%2,%0\;\"
+             \"lsr %1,#%k2,%d0\;\"
+             \"ior %0,%d0,%d0\;\"
+             \"sl %1,#%2,%0\n\"
+             \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashl<mode>3_imm16plus"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand"  "=r")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"   "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand"  "i")))]
+  ""
+  "sl %1,#%K2,%d0\;mov #0,%0"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm16plus"
+  [(set (match_operand:Q31   0 "pic30_register_operand"  "=&r")
+        (ss_ashift:Q31
+          (match_operand:Q31 1 "pic30_register_operand"    "r")
+          (match_operand:HI  2 "pic30_imm16plus_operand"   "i")))]
+  ""
+  "*
+   return 
+          \"asr %d1,#15,%d0\;\"       /* for signed we care about 1s */
+          \"asr %1,#(16-%K2),%0\;\"   /* for unsigned we care about 0s */
+          \"xor %0,%d0,[w15]\;\"      /* shifting bits out? */
+          \"btsc _SR,#1\;\"           /*  yes? don't compare the high word */
+          \"cp %d0,%d1\;\"
+          \"bra z,.L1_%=\;\"          /* if not losing bits, shift as normal */
+          \"mov #0x7FFF,%d0\;\"       /* assume ~.9999 */
+          \"btsc %d1,#15\;\"          /* if negatvie */
+          \"com %d0,%d0\;\"           /* make -1 */
+          \"sl %d0,%0\;\"             /* propagate non sign bits */
+          \"asr %0,#15,%0\;\"
+          \"bra .L2_%=\n\"
+          \".L1_%=:\;\"               /* shift as normal */
+          \"sl %1,#%K2,%d0\;\" 
+          \"mov #0,%0\n\"
+          \".L2_%=:\;\";
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm16plus"
+  [(set (match_operand:UQ31   0 "pic30_register_operand"  "=&r")
+        (ss_ashift:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand"    "r")
+          (match_operand:HI   2 "pic30_imm16plus_operand"   "i")))]
+  ""
+  "*
+   return
+          \"asr %1,#(16-%K2),%0\;\"   /* for unsigned we care about 0s */
+          \"btsc _SR,#1\;\"           /*  yes? don't compare the high word */
+          \"cp0 %d1\;\"
+          \"bra z,.L1_%=\;\"          /* if not losing bits, shift as normal */
+          \"mov #0x7FFF,%d0\;\"       /* make ~.9999 */
+          \"setm %d0\;\"
+          \"bra .L2_%=\n\"
+          \".L1_%=:\;\"               /* shift as normal */
+          \"sl %1,#%K2,%d0\;\" 
+          \"mov #0,%0\n\"
+          \".L2_%=:\;\";
+  " 
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm16plus"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand"  "=&r")
+        (us_ashift:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand"    "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand"   "i")))]
+  ""
+  "*
+   return
+          \"asr %1,#(16-%K2),%0\;\"   /* for unsigned we care about 0s */
+          \"btsc _SR,#1\;\"           /*  yes? don't compare the high word */
+          \"cp0 %d1\;\"
+          \"bra z,.L1_%=\;\"          /* if not losing bits, shift as normal */
+          \"mov #0x7FFF,%d0\;\"       /* make ~.9999 */
+          \"setm %d0\;\"
+          \"bra .L2_%=\n\"
+          \".L1_%=:\;\"               /* shift as normal */
+          \"sl %1,#%K2,%d0\;\"
+          \"mov #0,%0\n\"
+          \".L2_%=:\;\";
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashl<mode>3_imm2to15"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r,&r")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r, r")
+          (match_operand:HI    2 "pic30_imm2to15_operand"  "i, i")))
+   (clobber (match_scratch:HI 3                          "=&r, X"))]
+  ""
+  "*
+  { int idDst, idSrc;
+
+    switch (which_alternative) {
+      case 0:
+        /*
+        ** Take care that the source and dest don't overlap
+        */
+        idDst = REGNO(operands[0]);
+        idSrc = REGNO(operands[1]);
+        if (idDst >= idSrc) {
+          return \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\;\"
+                 \"sl %1,#%2,%0\";
+        } else {
+          return \"sl %1,#%2,%0\;\"
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\";
+        }
+      default:
+        /*
+        ** The dest and source don't overlap
+        ** so use dest lsw as a temporary
+        */
+        return \"sl %d1,#%2,%0\;\"
+               \"lsr %1,#%k2,%d0\;\"
+               \"ior %0,%d0,%d0\;\"
+               \"sl %1,#%2,%0\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm2to15"
+  [(set (match_operand:Q31    0 "pic30_register_operand" "=r,&r")
+        (ss_ashift:Q31 
+          (match_operand:Q31  1 "pic30_register_operand"  "r, r")
+          (match_operand:HI   2 "pic30_imm2to15_operand"  "i, i")))
+   (clobber (match_scratch:HI 3                         "=&r, X"))]
+  ""
+  "*
+  { int idDst, idSrc;
+
+    switch (which_alternative) {
+      case 0:
+        /* 
+        ** Take care that the source and dest don't overlap
+        */
+        idDst = REGNO(operands[0]);
+        idSrc = REGNO(operands[1]);
+        if (idDst >= idSrc) {
+          return 
+                 \"asr %d1,#15,%d0\;\"       /* for signed we care about 1s */
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"xor %0,%d0,%d0\;\"        /* shifting bits out? */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* assume ~.9999 */
+                 \"btsc %d1,#15\;\"          /* if negatvie */
+                 \"com %d0,%d0\;\"           /* make -1 */
+                 \"sl %d0,%0\;\"             /* propagate non sign bits */
+                 \"asr %0,#15,%0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\;\"
+                 \"sl %1,#%2,%0\n\"
+                 \".L2_%=:\;\";
+        } else {
+          return
+                 \"asr %d1,#15,%d0\;\"       /* for signed we care about 1s */
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"xor %0,%d0,%d0\;\"        /* shifting bits out? */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* assume ~.9999 */
+                 \"btsc %d1,#15\;\"          /* if negatvie */
+                 \"com %d0,%d0\;\"           /* make -1 */
+                 \"sl %d0,%0\;\"             /* propagate non sign bits */
+                 \"asr %0,#15,%0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %1,#%2,%0\;\"
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\n\"
+                 \".L2_%=:\;\";
+        }
+      default:
+        /*
+        ** The dest and source don't overlap
+        ** so use dest lsw as a temporary
+        */
+        return
+               \"asr %d1,#15,%d0\;\"         /* for signed we care about 1s */
+               \"asr %d1,#(15-%2),%0\;\"     /* for unsigned we care about 0s */
+               \"xor %0,%d0,%d0\;\"          /* shifting bits out? */
+               \"bra z,.L1_%=\;\"            /* if not, shift as normal */
+               \"mov #0x7FFF,%d0\;\"         /* assume ~.9999 */
+               \"btsc %d1,#15\;\"            /* if negatvie */
+               \"com %d0,%d0\;\"             /* make -1 */
+               \"sl %d0,%0\;\"               /* propagate non sign bits */
+               \"asr %0,#15,%0\;\"
+               \"bra .L2_%=\n\"
+               \".L1_%=:\;\"                 /* shift as normal */
+               \"sl %d1,#%2,%0\;\"
+               \"lsr %1,#%k2,%d0\;\"
+               \"ior %0,%d0,%d0\;\"
+               \"sl %1,#%2,%0\n\"
+               \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm2to15"
+  [(set (match_operand:UQ31   0 "pic30_register_operand" "=r,&r")
+        (ss_ashift:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand"  "r, r")
+          (match_operand:HI   2 "pic30_imm2to15_operand"  "i, i")))
+   (clobber (match_scratch:HI 3                         "=&r, X"))]
+  ""
+  "*
+  { int idDst, idSrc;
+
+    switch (which_alternative) {
+      case 0:
+        /*
+        ** Take care that the source and dest don't overlap
+        */
+        idDst = REGNO(operands[0]);
+        idSrc = REGNO(operands[1]);
+        if (idDst >= idSrc) {
+          return
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* return ~.9999 */
+                 \"setm %0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\;\"
+                 \"sl %1,#%2,%0\n\"
+                 \".L2_%=:\;\";
+        } else {
+          return
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* return ~.9999 */
+                 \"setm %0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %1,#%2,%0\;\"
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\n\"
+                 \".L2_%=:\;\";
+        }
+      default:
+        /*
+        ** The dest and source don't overlap
+        ** so use dest lsw as a temporary
+        */
+        return 
+               \"asr %d1,#(15-%2),%0\;\"     /* for unsigned we care about 0s */
+               \"bra z,.L1_%=\;\"            /* if not, shift as normal */
+               \"mov #0x7FFF,%d0\;\"         /* return ~.9999 */
+               \"setm %0\;\"
+               \"bra .L2_%=\n\"
+               \".L1_%=:\;\"                 /* shift as normal */
+               \"sl %d1,#%2,%0\;\"
+               \"lsr %1,#%k2,%d0\;\"
+               \"ior %0,%d0,%d0\;\"
+               \"sl %1,#%2,%0\n\"
+               \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm2to15"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r,&r")
+        (us_ashift:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r, r")
+          (match_operand:HI    2 "pic30_imm2to15_operand"  "i, i")))
+   (clobber (match_scratch:HI  3                         "=&r, X"))]
+  ""
+  "*
+  { int idDst, idSrc;
+
+    switch (which_alternative) {
+      case 0:
+        /*
+        ** Take care that the source and dest don't overlap
+        */
+        idDst = REGNO(operands[0]);
+        idSrc = REGNO(operands[1]);
+        if (idDst >= idSrc) {
+          return
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* return ~.9999 */
+                 \"setm %0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\;\"
+                 \"sl %1,#%2,%0\n\"
+                 \".L2_%=:\;\";
+        } else {
+          return
+                 \"asr %d1,#(15-%2),%0\;\"   /* for unsigned we care about 0s */
+                 \"bra z,.L1_%=\;\"          /* if not, shift as normal */
+                 \"mov #0x7FFF,%d0\;\"       /* return ~.9999 */
+                 \"setm %0\;\"
+                 \"bra .L2_%=\n\"
+                 \".L1_%=:\;\"               /* shift as normal */
+                 \"sl %1,#%2,%0\;\"
+                 \"sl %d1,#%2,%3\;\"
+                 \"lsr %1,#%k2,%d0\;\"
+                 \"ior %3,%d0,%d0\n\"
+                 \".L2_%=:\;\";
+        }
+      default:
+        /*
+        ** The dest and source don't overlap
+        ** so use dest lsw as a temporary
+        */
+        return
+               \"asr %d1,#(15-%2),%0\;\"     /* for unsigned we care about 0s */
+               \"bra z,.L1_%=\;\"            /* if not, shift as normal */
+               \"mov #0x7FFF,%d0\;\"         /* return ~.9999 */
+               \"setm %0\;\"
+               \"bra .L2_%=\n\"
+               \".L1_%=:\;\"                 /* shift as normal */
+               \"sl %d1,#%2,%0\;\"
+               \"lsr %1,#%k2,%d0\;\"
+               \"ior %0,%d0,%d0\;\"
+               \"sl %1,#%2,%0\n\"
+               \".L2_%=:\;\";
+    }
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashl<mode>3_reg"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand" " 0")
+          (match_operand:HI    2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI  3                          "=2"))
+  ]
+  ""
+  "*
+  {
+    return
+           \".set ___BP___,0\n\"
+           \".LB%=:\;\"
+           \"dec %2,%2\;\"
+           \"bra n,.LE%=\;\"
+           \"add %1,%1,%0\;\"
+           \"addc %d1,%d1,%d0\;\"
+           \"bra .LB%=\n\"
+           \".LE%=:\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_reg"
+  [(set (match_operand:Q31    0 "pic30_register_operand" "=&r")
+        (ss_ashift:Q31
+          (match_operand:Q31  1 "pic30_register_operand" " r")
+          (match_operand:HI   2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI 3                          "=2"))
+  ]
+  ""
+  "*
+  {
+    return
+           \".set ___BP___,0\n\"
+           \"mov.d %1,%0\;\"
+           \".LB%=:\;\"
+           \"dec %2,%2\;\"
+           \"bra n,.LE%=\;\"
+           \"add %0,%0,%0\;\"
+           \"addc %d0,%d0,%d0\;\"
+           \"bra nov,.LB%=\;\"        /* if we drop a bit into the sign */
+           \"mov #0x7FFF,%d0\;\"      /* assume ~.9999 */
+           \"btsc %d1,#15\;\"
+           \"com %d0,%d0\;\"
+           \"sl %d0,%0\;\"
+           \"asr %0,#15,%0\n\"
+           \".LE%=:\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ssashl<mode>3_reg"
+  [(set (match_operand:UQ31   0 "pic30_register_operand" "=r")
+        (ss_ashift:UQ31
+          (match_operand:UQ31 1 "pic30_register_operand" " 0")
+          (match_operand:HI   2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI 3                          "=2"))
+  ]
+  ""
+  "*
+  {
+    return
+           \".set ___BP___,0\n\"
+           \".LB%=:\;\"
+           \"dec %2,%2\;\"
+           \"bra n,.LE%=\;\"
+           \"add %1,%1,%0\;\"
+           \"addc %d1,%d1,%d0\;\"
+           \"bra nov,.LB%=\;\"        /* if we drop a bit into the sign */
+           \"mov #0x7FFF,%d0\;\"      /* return ~.9999 */
+           \"setm %0\;\"
+           \".LE%=:\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "usashl<mode>3_reg"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (us_ashift:QUQ31
+          (match_operand:QUQ31 1 "pic30_register_operand" " 0")
+          (match_operand:HI    2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI  3                          "=2"))
+  ]
+  ""
+  "*
+  {
+    return
+           \".set ___BP___,0\n\"
+           \".LB%=:\;\"
+           \"dec %2,%2\;\"
+           \"bra n,.LE%=\;\"
+           \"add %1,%1,%0\;\"
+           \"addc %d1,%d1,%d0\;\"
+           \"bra nov,.LB%=\;\"        /* if we drop a bit into the sign */
+           \"mov #0x7FFF,%d0\;\"      /* return ~.9999 */
+           \"setm %0\;\"
+           \".LE%=:\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_expand "ashl<mode>3"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "")
+        (ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand" "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  {
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_mov<mode>(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_ashl<mode>3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 8:
+          emit_insn(
+            gen_ashl<mode>3_imm8(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 7:
+        case 9 ... 15:
+          emit_insn(
+            gen_ashl<mode>3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_ashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          emit_insn(
+            gen_ashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        default:
+          emit_insn(
+            gen_mov<mode>(operands[0], const0_rtx)
+          ); 
+          break;
+      }
+    } else {
+      emit_insn(
+        gen_ashl<mode>3_reg(operands[0],operands[1],operands[2])
+      );
+    }
+    DONE;
+}")
+
+(define_expand "ssashl<mode>3"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "")
+        (ss_ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand" "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  {
+    if (!pic30_fp_inline_p()) FAIL;
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_mov<mode>(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_ssashl<mode>3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 8:
+          emit_insn(
+            gen_ssashl<mode>3_imm8(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 7:
+        case 9 ... 15:
+          emit_insn(
+            gen_ssashl<mode>3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_ssashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          emit_insn(
+            gen_ssashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        default:
+          emit_insn(
+            gen_mov<mode>(operands[0], const0_rtx)
+          ); 
+          break;
+      }
+    } else {
+      emit_insn(
+        gen_ssashl<mode>3_reg(operands[0],operands[1],operands[2])
+      );
+    }
+    DONE;
+}")
+
+(define_expand "usashl<mode>3"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "")
+        (us_ashift:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand" "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  {
+    if (!pic30_fp_inline_p()) FAIL;
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_mov<mode>(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_usashl<mode>3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 8:
+          emit_insn(
+            gen_usashl<mode>3_imm8(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 7:
+        case 9 ... 15:
+          emit_insn(
+            gen_usashl<mode>3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_usashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          emit_insn(
+            gen_usashl<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        default:
+          emit_insn(
+            gen_mov<mode>(operands[0], const0_rtx)
+          ); 
+          break;
+      }
+    } else {
+      emit_insn(
+        gen_usashl<mode>3_reg(operands[0],operands[1],operands[2])
+      );
+    }
+    DONE;
+}")
+
+(define_insn "ashr<mode>3_helper"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"  "=&r,&r,&r")
+        (ashiftrt:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand"   "r,r,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "K,i,r")))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      switch (which_alternative) {
+        case 0: 
+          return \"asr %1,#%2,%0\";
+        case 1:
+          if (INTVAL(operands[2]) < 0)
+            return \"sl %1,#%J2%%16,%0\";
+          else
+            return \"asr %1,#%2%%16,%0\";
+        default: 
+            return \"asr %1,%2,%0\";
+      }
+    } else if (pic30_fp_round_p() == pic30_conventional) 
+    switch (which_alternative) {
+      case 0:  
+        if (INTVAL(operands[2]) == 1) {
+          return 
+                 \"asr %1,%0\;\"
+                 \"addc %0,#0,%0\";
+        } else {
+          return \"asr %1,#%L2,%0\;\"      /* shift one less than we need */
+                 \"asr %0,%0\;\"           /*   so that we can shift once */
+                 \"addc %0,#0,%0\";        /*   to capture and add carry */
+        }
+      case 1:
+        if (INTVAL(operands[2]) < 0)
+          return \"cannot generate instruction\"; 
+        else
+          return \"asr %1,#(%2%%16)-1,%0\;\" /* shift one less than we need */
+                 \"asr %0,%0\;\"             /*   so that we can shift once */
+                 \"addc %0,#0,%0\";          /*   to capture and add carry */
+      default: 
+	  return \"cp0 %2\;\"
+                 \"mov %1,%0\;\"
+                 \"bra z,.LE%=\;\"
+                 \"dec %2,%0\;\"             /* shift one less than we need */
+                 \"asr %1,%0,%0\;\"
+                 \"asr %0,%0\;\"             /*   so that we can shift once */
+                 \"addc %0,#0,%0\n\"         /*   to capture and add carry */
+                 \".LE%=:\";
+    }
+    else 
+      error(\"Invalid fixed-point rounding mode specified\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "math")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashr<mode>3_convergent"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"  "=r,r,r")
+        (ashiftrt:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand"   "r,r,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "K,i,r")))
+   (clobber (match_scratch:HI  3                          "=&r,r,r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent)
+    switch (which_alternative) {
+      case 0:  
+        if (INTVAL(operands[2]) == 1) {
+          return 
+                 \"asr %1,%0\;\"
+                 \"btsc %0,#0\;\"          /* do not add carry if low bit == 0*/
+                 \"addc %0,#0,%0\";
+        } else {
+          return 
+                 \"sl %1,%K2,%3\;\"        /* shift up bits that drop off */
+                 \"asr %1,#%2,%0\;\"       /* shift down the bits we need */
+                 \"sl %3,%3\;\"            /* shift top overfaow into carry */
+                 \"bra nc,.L1_%=\;\"       /* if no carry, finish */
+                 \"addc %0,#0,%0\;\"       /* add overflow from carry */
+                 \"cp0 %3\;\"              /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"      /* create mask off low bit */
+                 \"btsc _SR,#1\;\"         /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"        /*   mask off low bit */
+                 \".L1_%=:\";
+        }
+      case 1:
+        if (INTVAL(operands[2]) < 0)
+          return \"cannot generate instruction\"; 
+        else
+          return \"sl %1,#16-(%2%%16),%3\;\" /* shift up bits that drop off */
+                 \"asr %1,#(%2%%16),%0\;\"   /* shift down bits we need */
+                 \"sl %3,%3\;\"              /* shift top overflow into carry */
+                 \"bra nc,.L1_%=\;\"         /* if no carry, finish */
+                 \"addc %0,#0,%0\;\"         /* add carry */
+                 \"cp0 %3\;\"                /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"        /* create mask clear low bit */
+                 \"btsc _SR,#1\;\"           /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"          /*   mask off low bit */
+                 \".L1_%=:\";
+      default: 
+          return \"subr %2,#16,%3\;\"
+                 \"sl %1,%3,%3\;\"           /* shift up bits that drop off */
+                 \"asr %1,%2,%0\;\"          /* shift down bits we need */
+                 \"sl %3,%3\;\"              /* shift top overflow into carry */
+                 \"bra nc,.L1_%=\;\"         /* if no carry, finish */
+                 \"addc %0,#0,%0\;\"         /* add carry */
+                 \"cp0 %3\;\"                /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"        /* create mask clear low bit */
+                 \"btsc _SR,#1\;\"           /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"          /*   mask off low bit */
+                 \".L1_%=:\";
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+
+  }"
+  [
+   (set_attr "cc" "math")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_expand "ashr<mode>3"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"   "")
+        (ashiftrt:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand"   "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  { rtx r0,r1,r2;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    r2 = operands[2];
+    if (!pic30_register_operand(r0,<MODE>mode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,<MODE>mode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (!pic30_reg_or_imm_operand(r2,<MODE>mode)) {
+      r2 = force_reg(HImode, r2);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_ashr<mode>3_convergent(r0,r1,r2)
+      );
+    } else {
+      emit(
+        gen_ashr<mode>3_helper(r0,r1,r2)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }"
+)
+
+(define_expand "ashr<mode>3"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand"   "")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"   "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  {
+    if ((pic30_fp_round_p() == pic30_conventional) ||
+        (pic30_fp_round_p() == pic30_convergent)) 
+      FAIL;
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_mov<mode>(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_ashr<mode>3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 15:
+          emit_insn(
+            gen_ashr<mode>3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_ashr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          if (pic30_fp_round_p() == pic30_convergent) {
+            emit_insn(
+              gen_ashr<mode>3_imm16plus_convergent(operands[0], operands[1], 
+                                                   operands[2])
+            );
+          } else {
+            emit_insn(
+              gen_ashr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+            );
+          }
+          break;
+        default:
+          emit_insn(
+            gen_mov<mode>(operands[0], const0_rtx)
+          );
+          break;
+      }
+    } else {
+#if 0
+      if (pic30_fp_round_p() == pic30_convergent) {
+        emit_insn(
+          gen_ashr<mode>3_reg_convergent(operands[0],operands[1],operands[2])
+        );
+      } else
+#endif
+      {
+        emit_insn(
+          gen_ashr<mode>3_reg(operands[0],operands[1],operands[2])
+        );
+      }
+    }
+    DONE;
+  }"
+)
+
+(define_insn "ashr<mode>3_imm1"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_I_operand"         "I")))]
+  ""
+  "*
+   if ((pic30_fp_round_p() == pic30_truncation) ||
+       (pic30_fp_round_p() == pic30_fastest)) {
+     return \"asr %d1,%d0\;rrc %1,%0\";
+   } else if (pic30_fp_round_p() == pic30_conventional) {
+     return 
+            \"asr %d1,%d0\;\"       /* shift right ... */
+            \"rrc %1,%0\;\"
+            \"addc %0,#0,%0\;\"     /* add in drop overflow bit */
+            \"addc %d0,#0,%d0\;\";
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     return 
+            \"asr %d1,%d0\;\"       /* shift right ... */
+            \"rrc %1,%0\;\"
+            \"btsc %0,#0\;\"        /* if bit 0 is 0 */
+            \"bclr _SR,#0\;\"       /*   clear overflow bit */
+            \"addc %0,#0,%0\;\"     /* add in drop overflow bit */
+            \"addc %d0,#0,%d0\;\";
+   }
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashr<mode>3_imm2to15"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm2to15_operand"  "i")))
+   (clobber (match_scratch:HI  3                         "=&r"))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      /*
+      ** Take care that the source and dest don't overlap
+      */
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        return \"sl %d1,#%k2,%3\;\"
+               \"lsr %1,#%2,%0\;\"
+               \"ior %3,%0,%0\;\"
+               \"asr %d1,#%2,%d0\";
+      } else {
+        return \"asr %d1,#%2,%d0\;\"
+               \"sl %d1,#%k2,%3\;\"
+               \"lsr %1,#%2,%0\;\"
+               \"ior %3,%0,%0\";
+      }
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        /* reorder a bit to preserve C for overflow */
+        return \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"asr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"lsr %1,#%L2,%0\;\"    /* shift down low bits of low word,
+                                          1 less (clearing upper bits) */
+               \"lsr %0,%0\;\"         /* final shift, capturing overflow in C*/
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      } else {
+        return \"asr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"lsr %1,#%L2,%0\;\"    /* shift down low bits of low word,
+                                          1 less (clearing upper bits) */
+               \"lsr %0,%0\;\"         /* final shift, capturing overflow in C*/
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      }
+    } else if (pic30_fp_round_p() == pic30_convergent) {
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        /* reorder a bit to preserve C for overflow */
+        return \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"asr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl  %1,#%K2,%0\;\"    /* shift up low bits (that drop) */
+               \"sl  %0,%0\;\"         /* shift topmost into carry */
+               \"btsc _SR,#1\;\"       /* if zero clear carry */
+               \"bclr _SR,#0\;\"
+               \"lsr %1,#%2,%0\;\"     /* shift down low bits of low word */
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* maybe add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      } else {
+        return \"asr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"sl  %0,%0\;\"         /* shift topmost into carry */
+               \"btsc _SR,#1\;\"       /* if zero clear carry */
+               \"bclr _SR,#0\;\"
+               \"lsr %1,#%2,%0\;\"     /* shift down low bits of low word */
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      }
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashr<mode>3_imm16plus"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand" "i")))]
+  ""
+  "*
+   {
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       return \"asr %d1,#%K2,%0\;asr %0,#15,%d0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       if (INTVAL(operands[2]) == 16) {
+         return 
+                \"mov %d1,%0\;\"         /* copy high word to low result */
+                \"asr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"btst.c %1,#15\;\"      /* copy overflow bit to carry */
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       } else {
+         return 
+                \"asr %d1,#%K2,%0\;\"    /* copy high word to low result */
+                \"asr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"btst.c %d1,#(%K2)-1\;\"/* copy overflow bit to carry */
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       }
+     } else
+       error(\"Invalid fixed-point round mode specified\n\");
+     return \"cannot generate instruction\";
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashr<mode>3_imm16plus_convergent"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand" "i")))
+   (clobber (match_scratch:HI  3                          "=r"))
+  ]
+  ""
+  "*
+   {
+     if (pic30_fp_round_p() == pic30_convergent) {
+       if (INTVAL(operands[2]) == 16) {
+         return 
+                \"mov %d1,%0\;\"         /* copy high word to low result */
+                \"asr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"sl %1,%3\;\"           /* shift up dropped off bits */
+                \"btsc _SR,#1\;\"        /* if zero clear carry */
+                \"bclr _SR,#0\;\"
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       } else {
+         return 
+                \"asr %d1,#%K2,%0\;\"    /* copy high word to low result */
+                \"asr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"sl %d1,#%K2,%3\;\"     /* shift up dropped off bits */
+                \"btsc _SR,#1\;\"        /* if zero clear carry */
+                \"bclr _SR,#0\;\"
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       }
+     } else
+       error(\"Invalid fixed-point round mode specified\n\");
+     return \"cannot generate instruction\";
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashr<mode>3_reg"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (ashiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "0")
+          (match_operand:HI    2 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:HI  3                          "=2"))
+   (clobber (match_scratch:HI  4                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \".set ___BP___,0\n\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra n,.LE%=\;\"
+             \"asr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"bra .LB%=\n\"
+             \".LE%=:\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \".set ___BP___,0\n\"
+             \"cp0 %2\;\"
+             \"bra z,.LE%=\;\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra z,.LF%=\;\"
+             \"asr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"bra .LB%=\n\"
+             \".LF%=:\;\"
+             \"asr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"addc %0,#0,%0\;\"    
+             \"addc %d0,#0,%d0\n\"
+             \".LE%=:\;\";
+    } else if (pic30_fp_round_p() == pic30_convergent) {
+      /* I would have liked to have this as a separate pattern; but
+         it conflicts with ashr<mode>3_reg even though this would have had
+         one more clobber - now they have the same */
+      return 
+             \"clr %4\;\"              /* clear overflow holder */
+             \".set ___BP___,0\n\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra n,.LE%=\;\"
+             \"asr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"rrc %4,%4\;\"           /* store overflow bits */
+             \"bra .LB%=\n\"
+             \".LE%=:\;\"
+             \"sl %4,%4\";             /* check overflow */
+             \"btsc _SR,#1\;\"         /* if zero clear carry */
+             \"bclr _SR,#0\;\"
+             \"addc %0,#0,%0\;\"
+             \"addc %d0,#0,%d0\";
+      
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+; logical shift right
+
+(define_insn "lshr<mode>3_helper"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"  "=r,r,&r")
+        (lshiftrt:QUQ15 
+          (match_operand:QUQ15 1 "pic30_register_operand"   "r,r, r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "K,i, r")))
+  ]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      switch (which_alternative) {
+        case 0: 
+          return \"lsr %1,#%2,%0\";
+        case 1:
+          if (INTVAL(operands[2]) < 0)
+            return \"sl %1,#%J2%%16,%0\";
+          else
+            return \"lsr %1,#%2%%16,%0\";
+        default: 
+            return \"lsr %1,%2,%0\";
+      }
+    } else if (pic30_fp_round_p() == pic30_conventional) 
+    switch (which_alternative) {
+      case 0:  
+        if (INTVAL(operands[2]) == 1) {
+          return 
+                 \"lsr %1,%0\;\"
+                 \"addc %0,#0,%0\";
+        } else {
+          return \"lsr %1,#%L2,%0\;\"      /* shift one less than we need */
+                 \"lsr %1,%0\;\"           /*   so that we can shift once */
+                 \"addc %0,#0,%0\";        /*   to capture and add carry */
+        }
+      case 1:
+        if (INTVAL(operands[2]) < 0)
+          return \"cannot generate instruction\"; 
+        else
+          return \"lsr %1,#(%2%%16)-1,%0\;\" /* shift one less than we need */
+                 \"lsr %1,%0\;\"             /*   so that we can shift once */
+                 \"addc %0,#0,%0\";          /*   to capture and add carry */
+      default: 
+	  return \"cp0 %2\;\"
+                 \"mov %1,%0\;\"
+                 \"bra z,.LE%=\;\"
+                 \"dec %2,%0\;\"             /* shift one less than we need */
+                 \"lsr %1,%0,%0\;\"
+                 \"lsr %0,%0\;\"             /*   so that we can shift once */
+                 \"addc %0,#0,%0\n\"         /*   to capture and add carry */
+                 \".LE%=:\";
+    }
+    else 
+      error(\"Invalid fixed-point rounding mode specified\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "math")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "lshr<mode>3_convergent"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"  "=r,r,r")
+        (lshiftrt:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand"   "r,r,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "K,i,r")))
+   (clobber (match_scratch:HI  3                          "=&r,&r,&r"))
+  ]
+  ""
+  "*
+  {
+    if (pic30_fp_round_p() == pic30_convergent)
+    switch (which_alternative) {
+      case 0:  
+        if (INTVAL(operands[2]) == 1) {
+          return 
+                 \"lsr %1,%0\;\"
+                 \"btsc %0,#0\;\"          /* do not add carry if low bit == 0*/
+                 \"addc %0,#0,%0\";
+        } else {
+          return 
+                 \"sl %1,%K2,%3\;\"        /* shift up bits that drop off */
+                 \"lsr %1,#%2,%0\;\"       /* shift down the bits we need */
+                 \"sl %3,%3\;\"            /* shift top overflow into carry */
+                 \"addc %0,#0,%0\;\"       /* add overflow from carry */
+                 \"cp0 %3\;\"              /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"      /* create mask off low bit */
+                 \"btsc _SR,#1\;\"         /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"        /*   mask off low bit */
+                 \".L1_%=:\";
+
+        }
+      case 1:
+        if (INTVAL(operands[2]) < 0)
+          return \"cannot generate instruction\"; 
+        else
+          return \"sl %1,#16-(%2%%16),%3\;\" /* shift up bits that drop off */
+                 \"lsr %1,#(%2%%16),%0\;\"   /* shift down bits we need */
+                 \"sl %3,%3\;\"              /* shift top overflow into carry */
+                 \"bra nc,.L1_%=\;\"         /* if no carry, finish */
+                 \"addc %0,#0,%0\;\"         /* add carry */
+                 \"cp0 %3\;\"                /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"        /* create mask clear low bit */
+                 \"btsc _SR,#1\;\"           /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"          /*   mask off low bit */
+                 \".L1_%=:\";
+
+      default: 
+          return \"subr %2,#16,%3\;\"
+                 \"sl %1,%3,%3\;\"           /* shift up bits that drop off */
+                 \"lsr %1,%2,%0\;\"          /* shift down bits we need */
+                 \"sl %3,%3\;\"              /* shift top overflow into carry */
+                 \"bra nc,.L1_%=\;\"         /* if no carry, finish */
+                 \"addc %0,#0,%0\;\"         /* add carry */
+                 \"cp0 %3\;\"                /* test rest of the overflow */
+                 \"mov #0xFFFE,%3\;\"        /* create mask clear low bit */
+                 \"btsc _SR,#1\;\"           /* if the rest of overflow is 0 */
+                 \"and %0,%3,%0\n\"          /*   mask off low bit */
+                 \".L1_%=:\";
+
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+
+  }"
+  [
+   (set_attr "cc" "math")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_expand "lshr<mode>3"
+  [(set (match_operand:QUQ15   0 "pic30_register_operand"   "")
+        (lshiftrt:QUQ15
+          (match_operand:QUQ15 1 "pic30_register_operand"   "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  { rtx r0,r1,r2;
+
+    r0 = operands[0];
+    r1 = operands[1];
+    r2 = operands[2];
+    if (!pic30_register_operand(r0,<MODE>mode)) {
+      r0 = gen_reg_rtx(<MODE>mode);
+    }
+    if (!pic30_register_operand(r1,<MODE>mode)) {
+      r1 = force_reg(<MODE>mode, r1);
+    }
+    if (!pic30_reg_or_imm_operand(r2,<MODE>mode)) {
+      r2 = force_reg(HImode, r2);
+    }
+    if (pic30_fp_round_p() == pic30_convergent) {
+      emit(
+        gen_lshr<mode>3_convergent(r0,r1,r2)
+      );
+    } else {
+      emit(
+        gen_lshr<mode>3_helper(r0,r1,r2)
+      );
+    }
+    if (r0 != operands[0]) {
+      emit_move_insn(operands[0],r0);
+    }
+    DONE;
+  }"
+)
+
+(define_expand "lshr<mode>3"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand"   "")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"   "")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand" "")))]
+  ""
+  "
+  {
+    if ((pic30_fp_round_p() == pic30_conventional) ||
+        (pic30_fp_round_p() == pic30_convergent)) 
+      FAIL;
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_mov<mode>(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_lshr<mode>3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 15:
+          emit_insn(
+            gen_lshr<mode>3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_lshr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          if (pic30_fp_round_p() == pic30_convergent) {
+            emit_insn(
+              gen_lshr<mode>3_imm16plus_convergent(operands[0], operands[1], 
+                                                   operands[2])
+            );
+          } else {
+            emit_insn(
+              gen_lshr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+            );
+          }
+          break;
+        default:
+          emit_insn(
+            gen_mov<mode>(operands[0], const0_rtx)
+          );
+          break;
+      }
+    } else {
+#if 0
+      if (pic30_fp_round_p() == pic30_convergent) {
+        emit_insn(
+          gen_lshr<mode>3_reg_convergent(operands[0],operands[1],operands[2])
+        );
+      } else
+#endif
+      {
+        emit_insn(
+          gen_lshr<mode>3_reg(operands[0],operands[1],operands[2])
+        );
+      }
+    }
+    DONE;
+  }"
+)
+
+(define_insn "lshr<mode>3_imm1"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_I_operand"         "I")))]
+  ""
+  "*
+   if ((pic30_fp_round_p() == pic30_truncation) ||
+       (pic30_fp_round_p() == pic30_fastest)) {
+     return \"asr %d1,%d0\;rrc %1,%0\";
+   } else if (pic30_fp_round_p() == pic30_conventional) {
+     return 
+            \"lsr %d1,%d0\;\"       /* shift right ... */
+            \"rrc %1,%0\;\"
+            \"addc %0,#0,%0\;\"     /* add in drop overflow bit */
+            \"addc %d0,#0,%d0\;\";
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     return 
+            \"lsr %d1,%d0\;\"       /* shift right ... */
+            \"rrc %1,%0\;\"
+            \"btsc %0,#0\;\"        /* if bit 0 is 0 */
+            \"bclr _SR,#0\;\"       /*   clear overflow bit */
+            \"addc %0,#0,%0\;\"     /* add in drop overflow bit */
+            \"addc %d0,#0,%d0\;\";
+   }
+  "
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm2to15"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm2to15_operand"  "i")))
+   (clobber (match_scratch:HI  3                         "=&r"))]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      /*
+      ** Take care that the source and dest don't overlap
+      */
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        return \"sl %d1,#%k2,%3\;\"
+               \"lsr %1,#%2,%0\;\"
+               \"ior %3,%0,%0\;\"
+               \"lsr %d1,#%2,%d0\";
+      } else {
+        return \"lsr %d1,#%2,%d0\;\"
+               \"sl %d1,#%k2,%3\;\"
+               \"lsr %1,#%2,%0\;\"
+               \"ior %3,%0,%0\";
+      }
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        /* reorder a bit to preserve C for overflow */
+        return \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"lsr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"lsr %1,#%L2,%0\;\"    /* shift down low bits of low word,
+                                          1 less (clearing upper bits) */
+               \"lsr %0,%0\;\"         /* final shift, capturing overflow in C*/
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      } else {
+        return \"lsr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"lsr %1,#%L2,%0\;\"    /* shift down low bits of low word,
+                                          1 less (clearing upper bits) */
+               \"lsr %0,%0\;\"         /* final shift, capturing overflow in C*/
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      }
+    } else if (pic30_fp_round_p() == pic30_convergent) {
+      if (REGNO(operands[0]) <= REGNO(operands[1])) {
+        /* reorder a bit to preserve C for overflow */
+        return \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"lsr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl  %1,#%K2,%0\;\"    /* shift up low bits (that drop) */
+               \"sl  %0,%0\;\"         /* shift topmost into carry */
+               \"btsc _SR,#1\;\"       /* if zero clear carry */
+               \"bclr _SR,#0\;\"
+               \"lsr %1,#%2,%0\;\"     /* shift down low bits of low word */
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* maybe add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      } else {
+        return \"lsr %d1,#%2,%d0\;\"   /* shift down high bits of high word
+                                          making the high part of result */
+               \"sl %d1,#%k2,%3\;\"    /* shift up low bits of high word to t */
+               \"sl  %0,%0\;\"         /* shift topmost into carry */
+               \"btsc _SR,#1\;\"       /* if zero clear carry */
+               \"bclr _SR,#0\;\"
+               \"lsr %1,#%2,%0\;\"     /* shift down low bits of low word */
+               \"ior %3,%0,%0\;\"      /* or in high bits of low word from t */
+               \"addc %0,#0,%0\;\"     /* add in overflow */
+               \"addc %d0,#0,%d0\;\";
+      }
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm16plus"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand" "i")))]
+  ""
+  "*
+   {
+     if ((pic30_fp_round_p() == pic30_truncation) ||
+         (pic30_fp_round_p() == pic30_fastest)) {
+       return \"asr %d1,#%K2,%0\;asr %0,#15,%d0\";
+     } else if (pic30_fp_round_p() == pic30_conventional) {
+       if (INTVAL(operands[2]) == 16) {
+         return 
+                \"mov %d1,%0\;\"         /* copy high word to low result */
+                \"lsr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"btst.c %1,#15\;\"      /* copy overflow bit to carry */
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       } else {
+         return 
+                \"asr %d1,#%K2,%0\;\"    /* copy high word to low result */
+                \"lsr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"btst.c %d1,#(%K2)-1\;\"/* copy overflow bit to carry */
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       }
+     } else
+       error(\"Invalid fixed-point round mode specified\n\");
+     return \"cannot generate instruction\";
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm16plus_convergent"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=&r")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "r")
+          (match_operand:HI    2 "pic30_imm16plus_operand" "i")))
+   (clobber (match_scratch:HI  3                          "=r"))
+  ]
+  ""
+  "*
+   {
+     if (pic30_fp_round_p() == pic30_convergent) {
+       if (INTVAL(operands[2]) == 16) {
+         return 
+                \"mov %d1,%0\;\"         /* copy high word to low result */
+                \"lsr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"sl %1,%3\;\"           /* shift up dropped off bits */
+                \"btsc _SR,#1\;\"        /* if zero clear carry */
+                \"bclr _SR,#0\;\"
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       } else {
+         return 
+                \"asr %d1,#%K2,%0\;\"    /* copy high word to low result */
+                \"lsr %0,#15,%d0\;\"     /* shift down sign to high result */
+                \"sl %d1,#%K2,%3\;\"     /* shift up dropped off bits */
+                \"btsc _SR,#1\;\"        /* if zero clear carry */
+                \"bclr _SR,#0\;\"
+                \"addc %0,#0,%0\;\"      /* add in overflow bit */
+                \"addc %d0,#0,%d0\";
+       }
+     } else
+       error(\"Invalid fixed-point round mode specified\n\");
+     return \"cannot generate instruction\";
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "lshr<mode>3_reg"
+  [(set (match_operand:QUQ31   0 "pic30_register_operand" "=r")
+        (lshiftrt:QUQ31 
+          (match_operand:QUQ31 1 "pic30_register_operand"  "0")
+          (match_operand:HI    2 "pic30_register_operand"  "r")))
+   (clobber (match_scratch:HI  3                          "=2"))
+   (clobber (match_scratch:HI  4                          "=&r"))
+  ]
+  ""
+  "*
+  {
+    if ((pic30_fp_round_p() == pic30_truncation) ||
+        (pic30_fp_round_p() == pic30_fastest)) {
+      return \".set ___BP___,0\n\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra n,.LE%=\;\"
+             \"lsr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"bra .LB%=\n\"
+             \".LE%=:\";
+    } else if (pic30_fp_round_p() == pic30_conventional) {
+      return \".set ___BP___,0\n\"
+             \"cp0 %2\;\"
+             \"bra z,.LE%=\;\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra z,.LF%=\;\"
+             \"lsr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"bra .LB%=\n\"
+             \".LF%=:\;\"
+             \"asr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"addc %0,#0,%0\;\"    
+             \"addc %d0,#0,%d0\n\"
+             \".LE%=:\;\";
+    } else if (pic30_fp_round_p() == pic30_convergent) {
+      /* I would have liked to have this as a separate pattern; but
+         it conflicts with lshr<mode>3_reg even though this would have had
+         one more clobber - now they have the same */
+      return 
+             \"clr %4\;\"              /* clear overflow holder */
+             \".set ___BP___,0\n\"
+             \".LB%=:\;\"
+             \"dec %2,%2\;\"
+             \"bra n,.LE%=\;\"
+             \"lsr %d1,%d0\;\"
+             \"rrc %1,%0\;\"
+             \"rrc %4,%4\;\"           /* store overflow bits */
+             \"bra .LB%=\n\"
+             \".LE%=:\;\"
+             \"sl %4,%4\";             /* check overflow */
+             \"btsc _SR,#1\;\"         /* if zero clear carry */
+             \"bclr _SR,#0\;\"
+             \"addc %0,#0,%0\;\"
+             \"addc %d0,#0,%d0\";
+      
+    } else
+      error(\"Invalid fixed-point round mode specified\n\");
+    return \"cannot generate instruction\";
+  }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+; compare
+
+(define_insn "cmp<mode>_imm"
+  [(set (cc0)
+        (compare
+          (match_operand:QUQ15 0 "pic30_register_operand" "r")  
+          (match_operand:QUQ15 1 "pic30_M_operand"        "M"))) 
+   (clobber (match_dup 0))]
+  ""
+  "add #%J1,%0"
+  [(set_attr "cc" "set")])
+   
+(define_insn "cmp<mode>_sfr0"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ15 0 "pic30_reg_or_near_operand" "U,r")
+          (match_operand:QUQ15 1 "pic30_register_operand"    "a,r")))]
+  ""
+  "@
+   cp %0
+   sub %0,%1,[w15]"
+  [(set_attr "cc" "set")])
+  
+(define_insn "cmp<mode>"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ15 0 "pic30_mode2_operand"   "r,r,  R<>,r,r")
+          (match_operand:QUQ15 1 "pic30_mode1PN_operand" "r,R<>,r,  P,N")))]
+  ""
+  "@
+   sub %0,%1,[w15]
+   sub %0,%1,[w15]
+   subr %1,%0,[w15]
+   sub %0,#%1,[w15]
+   add %0,#%J1,[w15]"
+  [ 
+   (set_attr "cc" "set")
+   (set_attr "type" "etc,use,use,etc,etc")
+  ]
+) 
+
+(define_insn "cmp<mode>_helper"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ31 0 "pic30_mode2mres_operand" "r,r,R,r,>")
+          (match_operand:QUQ31 1 "pic30_mode2mres_operand" "r,R,r,>,r")))]
+  ""
+  "*
+{
+  static char *patterns[] = {
+     \"sub %0,%1,[w15]\;subb %d0,%d1,[w15]\",
+     \"sub %0,%I1,[w15]\;subb %d0,%D1,[w15]\",
+     \"subr %1,%I0,[w15]\;subbr %d1,%D0,[w15]\",
+     \"sub %0,%1,[w15]\;subb %d0,%1,[w15]\",
+     \"subr %1,%0,[w15]\;subbr %d1,%0,[w15]\",
+  0 };
+
+  return patterns[which_alternative];
+}"
+  [(set_attr "cc" "set")])
+
+(define_insn "cmp<mode>_zero"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ31 0 "pic30_register_operand" "r")
+          (match_operand:QUQ31 1 "pic30_O_operand"        "fO")))]
+  ""
+  "sub %0,#0,[w15]\;subb %d0,#0,[w15]"
+  [(set_attr "cc" "set")])
+
+(define_insn "cmp<mode>_immNP"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ31 0 "pic30_register_operand"  "r,r,r")
+          (match_operand:QUQ31 1 "immediate_operand"       "P,N,i")))]
+  "(((-31 <= INTVAL(operands[1])) && (INTVAL(operands[1]) <= 31)) ||
+    ((0xFFE1 <= INTVAL(operands[1])) && (INTVAL(operands[1]) <= 0xFFFF))) &&
+   (INTVAL(operands[1]) != 0)"
+  "@
+   sub %0,#%1,[w15]\;subb %d0,#0,[w15]
+   add %0,#%J1,[w15]\;addc %d0,#0,[w15]
+   add %0,#%j1,[w15]\;subb %d0,#0,[w15]"
+  [(set_attr "cc" "set")])
+
+(define_insn "cmp<mode>_imm"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ31 0 "pic30_register_operand"  "r")
+          (match_operand:QUQ31 1 "immediate_operand"       "i")))
+   (clobber (match_scratch:HI  2                         "=&r"))]
+  "((1<INTVAL(operands[1])) && (INTVAL(operands[1])<65536))"
+  "mov #%1,%2\;sub %0,%2,[w15]\;subb %d0,#0,[w15]"
+  [(set_attr "cc" "set")])
+
+(define_expand "cmp<mode>"
+  [(set (cc0)
+        (compare 
+          (match_operand:QUQ31 0 "pic30_mode2mres_operand" "")
+          (match_operand:QUQ31 1 "pic30_mode2mres_operand" "")))]
+  ""
+  "
+{
+  if (pic30_mode2mres_operand(operands[1], <MODE>mode)) {
+    emit(
+      gen_cmp<mode>_helper(operands[0],operands[1])
+    );
+  } else if (immediate_operand(operands[1],VOIDmode)) {
+    rtx reg_0 = force_reg(<MODE>mode,operands[0]);
+    if (INTVAL(operands[1]) == 0) {
+      emit(
+        gen_cmp<mode>_zero(reg_0, operands[1])
+      );
+    } else {
+      rtx reg = force_reg(<MODE>mode,operands[1]);
+      emit( 
+        gen_cmp<mode>_helper(reg_0, reg)
+      );
+    }
+  }
+  DONE;
+}")
+
+; Fixed Point Accum
+
+;; *** load/store
+
+(define_insn "mov<mode>_rimm"
+   [(set (match_operand:AUACC  0 "pic30_accum_or_reg_operand" "=w,?????w,???r")
+         (match_operand:AUACC  1 "immediate_operand"           "fO,    i,   i"))
+    (clobber (match_scratch:HI 2                              "=X,     &r,  X"))
+   ]
+   ""
+   "*
+    {
+      int zero = 0;
+
+      zero = (CONST_FIXED_VALUE_LOW(operands[1]) == 0) &&
+             (CONST_FIXED_VALUE_HIGH(operands[1]) == 0);
+      if (REGNO(operands[0]) == A_REGNO) {
+        if (zero) {
+          return \"clr A\";
+        } else {
+          return 
+               \"mov #%z1,%2\;\"
+               \"mov %2,ACCAL\;\"
+               \"mov #%y1,%2\;\"
+               \"mov %2,ACCAH\;\"
+               \"mov #%x1,%2\;\"
+               \"mov %2,ACCAU\";
+        }
+      } else if (REGNO(operands[0]) == B_REGNO) {
+        if (zero) {
+          return \"clr B\";
+        } else {
+          return 
+               \"mov #%z1,%2\;\"
+               \"mov %2,ACCBL\;\"
+               \"mov #%y1,%2\;\"
+               \"mov %2,ACCBH\;\"
+               \"mov #%x1,%2\;\"
+               \"mov %2,ACCBU\";
+        }
+      } else {
+        if (zero) {
+          return 
+               \"mul.uu %0,#0,%0\;\"
+               \"mov.b #%x1,%t0\";
+        } else {
+          return 
+               \"mov #%z1,%0\;\"
+               \"mov #%y1,%d0\;\"
+               \"mov #%x1,%t0\";
+        }
+      }
+    }"
+)
+
+; NB: like movsi_gen this does not cover all possible versions of move_operand
+;     ugh
+
+(define_insn "mov<mode>_gen"
+   [(set
+      (match_operand:AUACC 0 
+                   "pic30_move_operand" "=wr,????wr,????wr,????R, >, >, wr,<")
+      (match_operand:AUACC 1 
+                   "pic30_move_operand"  "wr,     R,     >,    wr,wr, >,  <, wr"))
+   ]
+   ""
+   "*
+    switch (which_alternative) {
+      default: gcc_assert(0);
+
+      case 0:  /* wr,wr */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode) &&
+                   pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 /* saturation mode doesn't matter... we won't overflow */
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"clr A\;\"
+                          \"add A\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"clr B\;\"
+                          \"add B\";
+                 } else gcc_assert(0);
+               } else if (pic30_accumulator_operand(operands[0],
+                                                    <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %1,ACCAL\;\"
+                          \"mov %d1,ACCAH\;\"
+                          \"mov %t1,ACCAU\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %1,ACCBL\;\"
+                          \"mov %d1,ACCBH\;\"
+                          \"mov %t1,ACCBU\";
+                 } else gcc_assert(0);
+               } else if (pic30_accumulator_operand(operands[1],
+                                                    <MODE>mode)) {
+                 if (REGNO(operands[1]) == A_REGNO) {
+                   return \"mov ACCAL,%0\;\"
+                          \"mov ACCAH,%d0\;\"
+                          \"mov ACCAU,%t0\";
+                 } else if (REGNO(operands[1]) == B_REGNO) {
+                   return \"mov ACCBL,%0\;\"
+                          \"mov ACCBH,%d0\;\"
+                          \"mov ACCBU,%t0\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an &
+                    early clobber confuses reload */
+                 /* op0 and op1 regnos will only be even ... */
+                 if (REGNO(operands[0]) == REGNO(operands[1])) {
+                   return \"; nop\";
+                 } else if (REGNO(operands[0]) == REGNO(operands[1])+2) {
+                   return \"mov.b %t1,%t0\;\"
+                          \"mov.d %1,%0\";
+                 } /* else the other overlap doesn't matter */ 
+                 return \"mov.d %1,%0\;\"
+                        \"mov.b %t1,%t0\";
+               }
+               break;
+      case 1:  /* wr,R */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"mov %D1,[W15++]\;\"
+                          \"dec2 %r1,%r1\;\"
+                          \"pop ACCAU\;\"
+                          \"pop ACCAH\;\"
+                          \"pop ACCAL\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"mov %D1,[W15++]\;\"
+                          \"dec2 %r1,%r1\;\"
+                          \"pop ACCBU\;\"
+                          \"pop ACCBH\;\"
+                          \"pop ACCBL\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an
+                    & earlyclobber confuses reload */
+                 int index;
+                 index = REGNO(XEXP(operands[1],0));
+                 if (index == REGNO(operands[0])) {
+                   /* write to the index register last */
+                   return \"mov %Q1,%d0\;\"
+                          \"mov.b %R1,%t0\;\"
+                          \"mov %1,%0\";
+                 } else if (index == REGNO(operands[0])+1) {
+                   /* write to the index+1 register last */
+                   return \"mov.b %R1,%t0\;\"
+                          \"mov %1,%0\;\"
+                          \"mov %Q1,%d0\";
+                 } else {
+                   /* maybe write to the index+2 register last */
+                   return \"mov %1,%0\;\"
+                          \"mov %Q1,%d0\;\"
+                          \"mov.b %R1,%t0\";
+                 }
+               }
+               break;
+      case 2:  /* wr,> */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"pop ACCAU\;\"
+                          \"pop ACCAH\;\"
+                          \"pop ACCAL\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"pop ACCBU\;\"
+                          \"pop ACCBH\;\"
+                          \"pop ACCBL\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an
+                    & earlyclobber confuses reload */
+                 int index;
+                 index = REGNO(XEXP(operands[1],0));
+                 if (index == REGNO(operands[0])) {
+                   /* write to the index register last */
+                   return \"mov %Q1,%d0\;\"
+                          \"mov.b %R1,%t0\;\"
+                          \"mov %1,%0\;\"
+                          \"add %1,#6,%1\";
+                 } else if (index == REGNO(operands[0])+1) {
+                   /* write to the index+1 register last */
+                   return \"mov.b %R1,%t0\;\"
+                          \"mov %1,%0\;\"
+                          \"mov %Q1,%d0\;\"
+                          \"add %1,#6,%1\";
+                 } else {
+                   /* maybe write to the index+2 register last */
+                   return \"mov %I1,%0\;\"
+                          \"mov %I1,%d0\;\"
+                          \"mov.b %1,%t0\";
+                 }
+               }
+               break;
+      case 3:  /* R,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 return \"push %m1U\;\"
+                        \"push %m1H\;\"
+                        \"push %m1L\;\"
+                        \"mov [--w15],%I0\;\"
+                        \"mov [--W15],%I0\;\"
+                        \"mov [--W15],%D0\;\"
+                        \"dec2 %r0,%r0\";
+               } else {
+                 return \"mov %1,%I0\;\"
+                        \"mov %d1,%I0\;\"
+                        \"mov.b %t1,%0\;\"
+                        \"sub %r0,#4,%r0\";
+               }
+               break;
+      case 4:  /* >,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 return \"push %m1U\;\"
+                        \"push %m1H\;\"
+                        \"push %m1L\;\"
+                        \"mov [--w15],%0\;\"
+                        \"mov [--W15],%0\;\"
+                        \"mov [--W15],%0\";
+               } else {
+                 return \"mov %1,%0\;\"
+                        \"mov %d1,%0\;\"
+                        \"mov %t1,%0\";
+               }
+               break;
+      case 5:  /* >,> */
+               return \"mov %1,%0\;\"
+                      \"mov %1,%0\;\" 
+                      \"mov %1,%0\;\";
+               break;
+      case 6:  /* wr,< */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 return \"mov %1,[w15++]\;\"
+                        \"mov %1,[W15++]\;\"
+                        \"mov %1,[W15++]\;\"
+                        \"pop %m0L\;\"
+                        \"pop %m0H\;\"
+                        \"pop %m0U\";
+               } else {
+                 return \"mov %1,%t0\;\"
+                        \"mov %1,%d0\;\"
+                        \"mov %1,%0\";
+               }
+               break;
+      case 7:  /* <,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 return \"push %m1L\;\"
+                        \"push %m1H\;\"
+                        \"push %m1U\;\"
+                        \"mov [--w15],%0\;\"
+                        \"mov [--W15],%0\;\"
+                        \"mov [--W15],%0\";
+               } else {
+                 return \"mov %t1,%0\;\"
+                        \"mov %d1,%0\;\"
+                        \"mov %1,%0\";
+               }
+               break;
+    }"
+)
+
+(define_expand "mov<mode>"
+  [(set (match_operand:AUACC 0 "pic30_move2_operand" "")
+        (match_operand:AUACC 1 "pic30_move2_operand" ""))]
+  ""
+  "
+{ int result;
+
+  result = pic30_emit_move_sequence(operands, <MODE>mode);
+
+  if (result > 0) DONE;
+  if (immediate_operand(operands[1],VOIDmode)) {
+    rtx reg = operands[0];
+
+    if (!pic30_accum_or_reg_operand(operands[0],<MODE>mode)) {
+      reg = gen_reg_rtx(<MODE>mode);
+    }
+
+    emit(
+      gen_mov<mode>_rimm(reg,operands[1])
+    );
+    if (reg != operands[0])
+      emit_move_insn(operands[0], reg);
+    DONE;
+  }
+  emit(
+    gen_mov<mode>_gen(operands[0], operands[1])
+  );
+  DONE;
+}")
+
+;; *** add/sub
+;(define_insn "add<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (plus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "add %0"
+;)
+
+(define_insn "add<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_reg_operand" "=&r,w")
+        (plus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"  "%r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_reg_operand"  " r,w")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   add %1,%2,%0\;addc %d1,%d2,%d0\;addc.b %t1,%t2,%t0
+   add %0"
+)
+
+;(define_insn "ssadd<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (ss_plus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "add %0"
+;)
+
+(define_insn "ssadd<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_reg_operand" "=&r,w")
+        (ss_plus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"  "%r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_reg_operand"  " r,0")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   add %1,%2,%0\;addc %d1,%d2,%d0\;addc.b %t1,%t2,%t0\;bra nov,.L1_%=\;setm %0\;setm %d0\;mov.b #0x7F,%t0\;btst.c %t2,#7\;bra nc,.L1_%=\;com.b %t0,%t0\;com %d0,%d0\;com %0,%0\;.L1_%=:
+   add %0"
+)
+
+;(define_insn "usadd<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (us_plus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "add %0"
+;)
+
+(define_insn "usadd<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_reg_operand" "=&r,w")
+        (us_plus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"  "%r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_reg_operand"   "r,w")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   add %1,%2,%0\;addc %d1,%d2,%d0\;addc.b %t1,%t2,%t0\;bra nov,.L1_%=\;setm %0\;setm %d0\;mov.b #0x7F,%t0\;.L1_%=:
+   add %0"
+)
+
+;(define_insn "sub<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (minus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "sub %0"
+;)
+
+(define_insn "sub<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_mode1_operand" "=&r,>,r,>,r,R,R,w")
+        (minus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    " r,r,r,r,r,r,r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_mode1_operand"  " r,r,>,>,R,r,R,w")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   sub %1,%2,%0\;subb %d1,%d2,%d0\;subb.b %t1,%t2,%t0
+   sub %1,%2,%I0\;subb %d1,%d2,%I0\;subb %t1,%t2,%I0
+   sub %1,%I2,%0\;subb %d1,%I2,%d0\;subb.b %t1,%I2,%t0
+   sub %1,%I2,%I0\;subb %d1,%I2,%I0\;subb %t1,%I2,%I0
+   sub %1,%I2,%0\;subb %d1,%I2,%d0\;subb %t1,%D2,%t0\;dec2 %r2,%r2
+   sub %1,%2,%I0\;subb %d1,%d2,%I0\;subb %t1,%t2,%D0\;dec2 %r0,%r0
+   sub %1,%I2,%I0\;subb %d1,%I2,%I0\;subb %t1,%D2,%D0\;dec2 %r0,%r0\;dec2 %r2,%r2
+   sub %0"
+)
+
+;(define_insn "sssub<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (ss_minus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "sub %0"
+;)
+
+(define_insn "sssub<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_reg_operand" "=&r,w")
+        (ss_minus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"  " r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_reg_operand"  " r,w")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   sub %1,%2,%0\;subb %d1,%d2,%d0\;subb.b %t1,%t2,%t0\;bra nov,.L1_%=\;setm %0\;setm %d0\;mov.b #0x7F,%t0\;btst.c %t2,#7\;bra c,.L1_%=\;com.b %t0,%t0\;com %d0,%d0\;com %0,%0\;.L1_%=:
+   sub %0"
+)
+
+;(define_insn "ussub<mode>3_dsp"
+;  [(set (match_operand:AUACC    0 "pic30_accumulator2_operand" "=w")
+;        (us_minus:AUACC
+;           (match_dup 0)
+;           (match_operand:AUACC 1 "pic30_accumulator2_operand" " w")))
+;   (use (reg:HI CORCON))
+;  ]
+;  "(REGNO(operands[0]) != REGNO(operands[1]))"
+;  "sub %0"
+;)
+
+(define_insn "ussub<mode>3"
+  [(set (match_operand:AUACC    0 "pic30_accum_or_reg_operand" "=&r,w")
+        (us_minus:AUACC
+           (match_operand:AUACC 1 "pic30_accum_or_reg_operand"  " r,0")
+           (match_operand:AUACC 2 "pic30_accum_or_reg_operand"  " r,w")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   sub %1,%2,%0\;subb %d1,%d2,%d0\;subb.b %t1,%t2,%t0\;bra nn,.L1_%=\;mul.uu %0,#0,%0\;clr.b %t0\;.L1_%=:
+   sub %0"
+)
+
+;; multiply of accumulators, ie 8.31*8.31 will be handled by a function
+
+; widening multiply/ multiply accumulate
+
+(define_insn "muluqq<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accumulator2_operand" "=w")
+        (mult:AUACC
+          (fract_convert:AUACC
+            (match_operand:UQQ 1 "pic30_mac_input_operand"     "z"))
+          (fract_convert:AUACC
+            (match_operand:UQQ 2 "pic30_mac_input_operand"     "z"))))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "mpy %1,%2,%0"
+)
+
+(define_insn "mulqq<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accumulator2_operand" "=w")
+        (mult:AUACC
+          (fract_convert:AUACC
+            (match_operand:QQ  1 "pic30_mac_input_operand"     "z"))
+          (fract_convert:AUACC
+            (match_operand:QQ  2 "pic30_mac_input_operand"     "z"))))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "mpy %1*%2,%0"
+)
+
+(define_insn "umadduqq<mode>4"
+  [(set (match_operand:AUACC       0 "pic30_accumulator2_operand" "=w")
+        (plus:AUACC 
+           (match_operand:AUACC    3 "pic30_accumulator2_operand" " 0")
+           (mult:AUACC 
+              (fract_convert:AUACC
+                (match_operand:UQQ 1 "pic30_mac_input_operand"     "z"))
+              (fract_convert:AUACC
+                (match_operand:UQQ 2 "pic30_mac_input_operand"     "z")))))
+
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "mac %1*%2,%0"
+)
+
+(define_insn "maddqq<mode>4"
+  [(set (match_operand:AUACC      0 "pic30_accumulator2_operand" "=w")
+        (plus:AUACC 
+           (match_operand:AUACC   3 "pic30_accumulator2_operand" " 0")
+           (mult:AUACC 
+              (fract_convert:AUACC
+                (match_operand:QQ 1 "pic30_mac_input_operand"     "z"))
+              (fract_convert:AUACC
+                (match_operand:QQ 2 "pic30_mac_input_operand"     "z")))))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "mac %1*%2,%0"
+)
+
+(define_insn "umsubuqq<mode>4"
+  [(set (match_operand:AUACC       0 "pic30_accumulator2_operand" "=w")
+        (minus:AUACC 
+           (match_operand:AUACC    3 "pic30_accumulator2_operand" " 0")
+           (mult:AUACC 
+              (fract_convert:AUACC
+                (match_operand:UQQ 1 "pic30_mac_input_operand"     "z"))
+              (fract_convert:AUACC
+                (match_operand:UQQ 2 "pic30_mac_input_operand"     "z")))))
+
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "msc %1*%2,%0"
+)
+
+(define_insn "msubqq<mode>4"
+  [(set (match_operand:AUACC      0 "pic30_accumulator2_operand" "=w")
+        (minus:AUACC 
+           (match_operand:AUACC   3 "pic30_accumulator2_operand" " 0")
+           (mult:AUACC 
+              (fract_convert:AUACC
+                (match_operand:QQ 1 "pic30_mac_input_operand"     "z"))
+              (fract_convert:AUACC
+                (match_operand:QQ 2 "pic30_mac_input_operand"     "z")))))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "msc %1*%2,%0"
+)
+
+;; negate
+
+(define_insn "neg<mode>2"
+  [(set (match_operand:ACC   0 "pic30_accum_or_reg_operand" "=w,&r")
+        (neg:ACC
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" " 0,r")))
+   (use (reg:HI CORCON))]
+  ""
+  "@
+   neg %0
+   subr %1,#0,%0\;subbr %d1,#0,%d0\;subbr.b %t1,#0,%t0"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+(define_insn "ssneg<mode>2"
+  [(set (match_operand:ACC   0 "pic30_accum_or_reg_operand" "=w,&r")
+        (ss_neg:ACC
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" " 0,r")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   neg %0
+   subr %1,#0,%0\;subbr %d1,#0,%d0\;subbr.b %t1,#0,%t0\;bra nov,.L1_%=\;setm %0\;setm %d0\;mov.b #0x7F,%t0\;btst.c %t1,#7\;bra c,.L1_%=\;com %0,%0\;com %d0,%d0\;com.b %t0,%t0\n.L1_%=:"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+(define_insn "usneg<mode>2"
+  [(set (match_operand:ACC   0 "pic30_accum_or_reg_operand" "=w,&r")
+        (us_neg:ACC
+          (match_operand:ACC 1 "pic30_accum_or_reg_operand" " 0,r")))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   neg %0
+   subr %1,#0,%0\;subbr %d1,#0,%d0\;subbr.b %t1,#0,%t0\;bra nov,.L1_%=\;setm %0\;setm %d0\;mov.b #0x7F,%t0\n.L1_%=:"
+  [
+    (set_attr "cc" "math")
+  ]
+)
+
+;; shift
+
+; sftac can only shift +-16 for some unfathomable reason
+; this might be better handled in a library fn
+
+(define_insn "ashl<mode>3_imm15"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) < 16))"
+  "@
+   sftac %0,#%J2
+   sl %t1,#%2,%t0\;lsr %d1,#%k2,%3\;ior.b %3,%t0,%t0\;sl %d1,#%2,%d0\;lsr %1,#%k2,%3\;ior %3,%d0,%d0\;sl %1,#%2,%0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ashl<mode>3_imm16to31"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 15) && (INTVAL(operands[2]) < 31))"
+  "@
+   sftac %0,#-16\;sftac %0,#-(%2-16)
+   sl %d1,#(%2-16),%t0\;lsr %0,#(32-%2),%3\;ior.b %3,%t0,%t0\;sl %0,#(%2-16),%d0\;clr %0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ashl<mode>3_imm32to39"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 31) && (INTVAL(operands[2]) < 40))"
+  "@
+   sftac %0,#-16\;sftac %0,#-16\;sftac %0,-#(%2-32)
+   sl %1,#(%2-32),%t0\;mul.uu %0,#0,%0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ashl<mode>3_gen"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,&r")
+        (ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,0")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+   (clobber (match_scratch:HI  3                                "=2,2"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;add %1,%1,%0\;addc %d1,%d1,%d0\;addc.b %t1,%t1,%t0\;bra .LB%=\n.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "ashl<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,r")
+        (ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "w,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand"      "ri,ri")))
+  ]
+  ""
+  "
+  {
+    if (immediate_operand(operands[2],VOIDmode)) {
+      HOST_WIDE_INT shiftval = INTVAL(operands[2]); 
+      if (shiftval < 16) {
+        emit(
+          gen_ashl<mode>3_imm15(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 32) {
+        emit(
+          gen_ashl<mode>3_imm16to31(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 39) {
+        emit(
+          gen_ashl<mode>3_imm32to39(operands[0], operands[1], operands[2])
+        );
+      } else {
+        emit(
+          gen_mov<mode>(operands[0], GEN_INT(0))
+        );
+      }
+      DONE;
+    } else {
+      emit(
+        gen_ashl<mode>3_gen(operands[0], operands[1], operands[2])
+      );
+      DONE;
+    }
+  }
+  "
+)
+
+; ss arithmetic shift left
+
+(define_insn "ssashl<mode>3_imm15"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) < 16))"
+  "@
+   sftac %0,#%J2
+   sl %t1,#%2,%t0\;lsr %d1,#%k2,%3\;ior.b %3,%t0,%t0\;sl %d1,#%2,%d0\;lsr %1,#%k2,%3\;ior %3,%d0,%d0\;sl %1,#%2,%0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;btsc %t1,#7\;bset %t0,#7\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm16to31"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 15) && (INTVAL(operands[2]) < 31))"
+  "@
+   sftac %0,#-16\;sftac %0,#-(%2-16)
+   sl %d1,#(%2-16),%t0\;lsr %0,#(32-%2),%3\;ior.b %3,%t0,%t0\;sl %0,#(%2-16),%d0\;clr %0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;btsc %t1,#7\;bset %t0,#7\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm32to39"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 31) && (INTVAL(operands[2]) < 40))"
+  "@
+   sftac %0,#-16\;sftac %0,#-16\;sftac %0,-#(%2-32)
+   sl %1,#(%2-32),%t0\;mul.uu %0,#0,%0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;btsc %t1,#7\;bset %t0,#7\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "ssashl<mode>3_imm40"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "(INTVAL(operands[2]) == 40)"
+  "@
+   sftac %0,#-16\;sftac %0,#-16\;sftac %0,-#(%2-32)
+   mov.b #0x7f,%t0\;setm %d0\;setm %0\;btsc %t1,#7\;bset %t0,#7"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+
+(define_insn "ssashl<mode>3_gen"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,&r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+   (clobber (match_scratch:HI  3                                "=2,2"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
+   mov.d %1,%0\;mov.b %t1,%t0\;.LB%=:\;dec %2,%2\;bra n,.LE%=\;add %0,%0,%0\;addc %d0,%d0,%d0\;addc.b %t0,%t0,%t0\;bra nov,.LB%=\;mov.b #0x7F,%t0\;btsc %t1,#7\;com.b %t0,%t0\;sl %t0,#9,%d0\;asr %d0,#15,%d0\;asr %d0,#15,%0\n.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "ssashl<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,r")
+        (ss_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "w,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand"      "ri,ri")))
+  ]
+  ""
+  "
+  {
+    if (immediate_operand(operands[2],VOIDmode)) {
+      HOST_WIDE_INT shiftval = INTVAL(operands[2]); 
+      if (shiftval < 16) {
+        emit(
+          gen_ssashl<mode>3_imm15(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 32) {
+        emit(
+          gen_ssashl<mode>3_imm16to31(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 39) {
+        emit(
+          gen_ssashl<mode>3_imm32to39(operands[0], operands[1], operands[2])
+        );
+      } else {
+        emit(
+          gen_ssashl<mode>3_imm40(operands[0], operands[1], GEN_INT(40))
+        );
+      }
+      DONE;
+    } else {
+      emit(
+        gen_ssashl<mode>3_gen(operands[0], operands[1], operands[2])
+      );
+      DONE;
+    }
+  }
+  "
+)
+
+; us arithmetic shift left
+
+(define_insn "usashl<mode>3_imm"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) <= 16))"
+  "@
+   sftac %0,#%J2
+   sl %t1,#%2,%t0\;lsr %d1,#%k2,%3\;ior.b %3,%t0,%t0\;sl %d1,#%2,%d0\;lsr %1,#%k2,%3\;ior %3,%d0,%d0\;sl %1,#%2,%0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;.LE%=:"
+
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm15"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) < 16))"
+  "@
+   sftac %0,#%J2
+   sl %t1,#%2,%t0\;lsr %d1,#%k2,%3\;ior.b %3,%t0,%t0\;sl %d1,#%2,%d0\;lsr %1,#%k2,%3\;ior %3,%d0,%d0\;sl %1,#%2,%0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm16to31"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 15) && (INTVAL(operands[2]) < 31))"
+  "@
+   sftac %0,#-16\;sftac %0,#-(%2-16)
+   sl %d1,#(%2-16),%t0\;lsr %0,#(32-%2),%3\;ior.b %3,%t0,%t0\;sl %0,#(%2-16),%d0\;clr %0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm32to39"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 31) && (INTVAL(operands[2]) < 40))"
+  "@
+   sftac %0,#-16\;sftac %0,#-16\;sftac %0,-#(%2-32)
+   sl %1,#(%2-32),%t0\;mul.uu %0,#0,%0\;xor %t0,%t1,%3\;btss %3,#7\;bra .LE%=\;mov.b #0x7f,%t0\;setm %d0\;setm %0\;.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3_imm40"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "(INTVAL(operands[2]) == 40)"
+  "@
+   sftac %0,#-16\;sftac %0,#-16\;sftac %0,-#(%2-32)
+   mov.b #0x7f,%t0\;setm %d0\;setm %0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "usashl<mode>3_gen"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,&r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+   (clobber (match_scratch:HI  3                                "=2,2"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
+   mov.d %1,%0\;mov.b %t1,%t0\;.LB%=:\;dec %2,%2\;bra n,.LE%=\;add %0,%0,%0\;addc %d0,%d0,%d0\;addc.b %t0,%t0,%t0\;bra nov,.LB%=\;mov.b #0x7F,%t0\;setm %d0\;setm %0\n.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "usashl<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,r")
+        (us_ashift:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "w,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand"      "ri,ri")))
+  ]
+  ""
+  "
+  {
+    if (immediate_operand(operands[2],VOIDmode)) {
+      HOST_WIDE_INT shiftval = INTVAL(operands[2]); 
+      if (shiftval < 16) {
+        emit(
+          gen_usashl<mode>3_imm15(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 32) {
+        emit(
+          gen_usashl<mode>3_imm16to31(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 39) {
+        emit(
+          gen_usashl<mode>3_imm32to39(operands[0], operands[1], operands[2])
+        );
+      } else {
+        emit(
+          gen_usashl<mode>3_imm40(operands[0], operands[1], GEN_INT(40))
+        );
+      }
+      DONE;
+    } else {
+      emit(
+        gen_usashl<mode>3_gen(operands[0], operands[1], operands[2])
+      );
+      DONE;
+    }
+  }
+  "
+)
+
+; logical shift right 
+
+(define_insn "lshr<mode>3_imm"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) <= 16))"
+  "@
+   sftac %0,#%2
+   lsr %1,#%2,%0\;sl %d1,#%k2,%3\;ior %3,%0,%0\;lsr %d1,#%2,%d0\;sl %t1,#%k2,%3\;ior %3,%d0,%d0\;mov %t1,%t0\;and #0xFF,%t0\;lsr %t0,#%2,%t0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm15"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 0) && (INTVAL(operands[2]) <= 15))"
+  "@
+   sftac %0,#%2
+   lsr %1,#%2,%0\;sl %d1,#%k2,%3\;ior %3,%0,%0\;lsr %d1,#%2,%d0\;sl %t1,#%k2,%3\;ior %3,%d0,%d0\;mov %t1,%t0\;and #0xFF,%t0\;lsr %t0,#%2,%t0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm16to31"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 15) && (INTVAL(operands[2]) <= 31))"
+  "@
+   sftac %0,#16\;sftac %0,#(%2-16)
+   lsr %d1,#(%2-16),%0\;sl %t1,#(32-%2),%3\;ior %3,%0,%0\;lsr %t1,#(%2-16),%d0\;\;and #0x7F,%d0\;clr.b %t0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "lshr<mode>3_imm32to39"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"  "=w,&r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,r")
+          (match_operand:HI    2 "immediate_operand"             "i,i")))
+   (clobber (match_scratch:HI  3                               "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  "((INTVAL(operands[2]) > 31) && (INTVAL(operands[2]) <= 39))"
+  "@
+   sftac %0,#16\;sftac %0,#16\;sftac %0,#(%2-32)
+   lsr %t1,#(%2-32),%0\;and #0x7f,%0\;clr %d0\;clr.b %t0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "lshr<mode>3_gen"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,&r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,0")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+   (clobber (match_scratch:HI  3                                "=2,2"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;sftac %1,#1\;bra .LB%=\n.LE%=:
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;lsr.b %t1,%t0\;rrc %d1,%d0\;rrc %1,%0\;bra .LB%=\n.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "lshr<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,r")
+        (lshiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "w,r")
+          (match_operand:HI    2 "pic30_reg_or_imm_operand"      "ri,ri")))
+  ]
+  ""
+  "
+  {
+    if (pic30_fp_round_p() == pic30_conventional) FAIL;
+    if (pic30_fp_round_p() == pic30_convergent) FAIL;
+    /* truncation or fastest */
+    if (immediate_operand(operands[2],VOIDmode)) {
+      HOST_WIDE_INT shiftval = INTVAL(operands[2]); 
+      if (shiftval < 16) {
+        emit(
+          gen_lshr<mode>3_imm15(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 32) {
+        emit(
+          gen_lshr<mode>3_imm16to31(operands[0], operands[1], operands[2])
+        );
+      } else if (shiftval < 39) {
+        emit(
+          gen_lshr<mode>3_imm32to39(operands[0], operands[1], operands[2])
+        );
+      } else {
+        emit(
+          gen_mov<mode>(operands[0], GEN_INT(0))
+        );
+      }
+      DONE;
+    } else {
+      emit(
+        gen_lshr<mode>3_gen(operands[0], operands[1], operands[2])
+      );
+      DONE;
+    }
+  }
+  "
+)
+
+; arithemetic shift right
+
+(define_insn "ashr<mode>3_gen"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,&r")
+        (ashiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "0,0")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+   (clobber (match_scratch:HI  3                                "=2,2"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "@
+   dec %2,%2\;repeat %2\;sftac %1,#1
+   .LB%=:\;dec %2,%2\;bra n,.LE%=\;asr.b %t1,%t0\;rrc %d1,%d0\;rrc %1,%0\;bra .LB%=\n.LE%=:"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+(define_expand "ashr<mode>3"
+  [(set (match_operand:AUACC   0 "pic30_accum_or_reg_operand"   "=w,r")
+        (ashiftrt:AUACC
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand"    "w,r")
+          (match_operand:HI    2 "pic30_register_operand"        "r,r")))
+  ]
+  ""
+  "
+  {
+    if (pic30_fp_round_p() == pic30_conventional) {
+      FAIL;
+    } else if (pic30_fp_round_p() == pic30_convergent) {
+      FAIL;
+    } else {
+      emit(
+        gen_ashr<mode>3_gen(operands[0], operands[1], operands[2])
+      );
+      DONE;
+    } 
+    FAIL;
+  }
+  "
+)
+
+;; compare
+
+(define_insn "cmp<mode>_helper"
+  [(set (cc0)
+        (compare 
+          (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "w,r")
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+   (clobber (match_scratch:HI  2                             "=&a,X"))
+  ]
+  "" 
+  "@
+   mov %m1L,w0\;cp %m0L\;mov %m1H,w0\;cpb %m0H\;mov %m1U,w0\;cpb.b %m0U
+   cp %0,%1\;cpb %d0,%d1\;cpb.b %t0,%t1"
+  [
+    (set_attr "cc" "set,set")
+  ]
+)
+
+(define_expand "cmp<mode>"
+  [(set (cc0)
+        (compare 
+          (match_operand:AUACC 0 "" "w,r")
+          (match_operand:AUACC 1 "" "w,r")))
+   (clobber (match_scratch:HI  2  "=&a,X"))
+  ]
+  "" 
+  "
+  {
+    rtx op0, op1;
+    op0 = operands[0];
+    op1 = operands[1];
+
+    if (!pic30_accum_or_reg_operand(op0, <MODE>mode)) {
+      op0 = force_reg(<MODE>mode,op0);
+    }
+    if (!pic30_accum_or_reg_operand(op1, <MODE>mode)) {
+      op1 = force_reg(<MODE>mode,op1);
+    }
+    emit(
+      gen_cmp<mode>_helper(op0,op1)
+    );
+    DONE;
+  }"
+)
+
+;; Accum / fract conversions
+;  to Q15
+
+(define_insn "fract<mode>qq2_trunc"
+  [(set (match_operand:QQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:QQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0"
+)
+  
+(define_insn "fract<mode>uqq2_trunc"
+  [(set (match_operand:UQQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:UQQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0"
+)
+  
+(define_insn "fract<mode>hq2_trunc"
+  [(set (match_operand:HQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:HQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0"
+)
+  
+(define_insn "fract<mode>uhq2_trunc"
+  [(set (match_operand:UHQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:UHQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0"
+)
+
+(define_insn "fract<mode>qq2_conv"
+  [(set (match_operand:QQ      0 "pic30_register_operand"    "=r, &r")
+        (fract_convert:QQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w, r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;btsc %1,#15\;inc %0,%0\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;sl %1,%2\;bra nz,.LINC%=\;btsc %0,#0\n.LINC%=:addc %0,#0,%0\";
+     }
+   }
+   error(\"Cannot generate instruction\");
+   return \"cannot generate instruction\";
+  "
+)
+
+(define_insn "fract<mode>uqq2_conv"
+  [(set (match_operand:UQQ     0 "pic30_register_operand"     "=r,&r")
+        (fract_convert:UQQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w, r")))
+   (clobber (match_scratch:HI  2                              "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;btsc %1,#15\;inc %0,%0\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;sl %1,%2\;bra nz,.LINC%=\;btsc %0,#0\n.LINC%=:addc %0,#0,%0\";
+     }
+   }
+   error(\"Cannot generate instruction\");
+   return \"cannot generate instruction\";
+  "
+)
+
+(define_insn "fract<mode>hq2_conv"
+  [(set (match_operand:HQ      0 "pic30_register_operand"     "=r,&r")
+        (fract_convert:HQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w, r")))
+   (clobber (match_scratch:HI  2                              "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;btsc %1,#15\;inc %0,%0\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;sl %1,%2\;bra nz,.LINC%=\;btsc %0,#0\n.LINC%=:addc %0,#0,%0\";
+     }
+   }
+   error(\"Cannot generate instruction\");
+   return \"cannot generate instruction\";
+  "
+)
+
+(define_insn "fract<mode>uhq2_conv"
+  [(set (match_operand:UHQ     0 "pic30_register_operand"    "=r,&r")
+        (fract_convert:UHQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w, r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0;btsc %1,#15\;inc %0,%0\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;sl %1,%2\;bra nz,.LINC%=\;btsc %0,#0\n.LINC%=:addc %0,#0,%0\";
+     }
+   }
+   error(\"Cannot generate instruction\");
+   return \"cannot generate instruction\";
+  "
+)
+
+(define_expand "fract<mode>qq2"
+  [(set (match_operand:QQ    0 "pic30_register_operand"    "=r,r")
+      (fract_convert:QQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_fract<mode>qq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_fract<mode>qq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "fract<mode>uqq2"
+  [(set (match_operand:UQQ   0 "pic30_register_operand"    "=r,r")
+      (fract_convert:UQQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_fract<mode>uqq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_fract<mode>uqq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "fract<mode>hq2"
+  [(set (match_operand:HQ    0 "pic30_register_operand"    "=r,r")
+      (fract_convert:QQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_fract<mode>hq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_fract<mode>hq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "fract<mode>uhq2"
+  [(set (match_operand:UHQ   0 "pic30_register_operand"    "=r,r")
+      (fract_convert:UHQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_fract<mode>uhq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_fract<mode>uhq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+; to Q31
+
+(define_insn "fract<mode>sq2"
+  [(set (match_operand:SQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:SQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+ 
+(define_insn "fract<mode>usq2"
+  [(set (match_operand:USQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:USQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+
+(define_insn "fract<mode>dq2"
+  [(set (match_operand:DQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:DQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+ 
+(define_insn "fract<mode>udq2"
+  [(set (match_operand:UDQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:UDQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+
+(define_insn "fract<mode>tq2"
+  [(set (match_operand:TQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:TQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+ 
+(define_insn "fract<mode>utq2"
+  [(set (match_operand:UTQ      0 "pic30_register_operand"     "=r,r")
+        (fract_convert:UTQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))]
+  ""
+  "@
+   mov %m1L,%0\;mov %m1H,%d0
+   mov.d %1,%0"
+)
+
+;  saturating to Q15
+
+(define_insn "satfract<mode>qq2_trunc"
+  [(set (match_operand:QQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:QQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+  ]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0\;se %t1,%2\;rlc %d1,[w15]\;rlc %2,%2\;bra z,.LOK%=\;inc %2,%2\;bra z,.LOK%=\;mov #0x7FFF,%0\;btsc %t1,#7\;com %0,%0\;.LOK%=:\n"
+)
+  
+(define_insn "satfract<mode>uqq2_trunc"
+  [(set (match_operand:UQQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:UQQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+  ]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0\;se %t1,%2\;rlc %d1,[w15]\;rlc %2,%2\;bra z,.LOK%=\;inc %2,%2\;bra z,.LOK%=\;mov #0x7FFF,%0\;btsc %t1,#7\;clr %0\;.LOK%=:\n"
+)
+  
+(define_insn "satfract<mode>hq2_trunc"
+  [(set (match_operand:HQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:HQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+  ]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0\;se %t1,%2\;rlc %d1,[w15]\;rlc %2,%2\;bra z,.LOK%=\;inc %2,%2\;bra z,.LOK%=\;mov #0x7FFF,%0\;btsc %t1,#7\;com %0,%0\;.LOK%=:\n"
+)
+  
+(define_insn "satfract<mode>uhq2_trunc"
+  [(set (match_operand:UHQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:UHQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+  ]
+  ""
+  "@
+   sac %1,%0
+   mov %d1,%0\;se %t1,%2\;rlc %d1,[w15]\;rlc %2,%2\;bra z,.LOK%=\;inc %2,%2\;bra z,.LOK%=\;mov #0x7FFF,%0\;btsc %t1,#7\;clr %0\;.LOK%=:\n"
+)
+
+(define_insn "satfract<mode>qq2_conv"
+  [(set (match_operand:QQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:QQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+                      /* Like truncating, but ... */
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"com %0,%0\n\"
+                      \".LOK%=:\n\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"bra nz,.LINC%=\;\"
+                      \"btsc %0,#0\n\"
+                      \".LINC%=:\"
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"com %0,%0\n\"
+                      \".LOK%=:\n\";
+     }
+   }
+   "
+)
+ 
+(define_insn "satfract<mode>uqq2_conv"
+  [(set (match_operand:UQQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:UQQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+                      /* Like truncating, but ... */
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"clr %0\n\"
+                      \".LOK%=:\n\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"bra nz,.LINC%=\;\"
+                      \"btsc %0,#0\n\"
+                      \".LINC%=:\"
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"clr %0\n\"
+                      \".LOK%=:\n\";
+     }
+   }
+   "
+)
+ 
+(define_insn "satfract<mode>hq2_conv"
+  [(set (match_operand:HQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:HQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+                      /* Like truncating, but ... */
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"com %0,%0\n\"
+                      \".LOK%=:\n\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"bra nz,.LINC%=\;\"
+                      \"btsc %0,#0\n\"
+                      \".LINC%=:\"
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"com %0,%0\n\"
+                      \".LOK%=:\n\";
+     }
+   }
+  "
+)
+ 
+(define_insn "satfract<mode>uhq2_conv"
+  [(set (match_operand:UHQ      0 "pic30_register_operand"     "=r,&r")
+        (sat_fract:UHQ
+          (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w,r")))
+   (clobber (match_scratch:HI  2                             "=X,&r"))
+   (use (reg:HI CORCON))
+  ]
+  ""
+  "*
+   if (pic30_fp_round_p() == pic30_conventional) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+                      /* Like truncating, but ... */
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"clr %0\n\"
+                      \".LOK%=:\n\";
+     }
+   } else if (pic30_fp_round_p() == pic30_convergent) {
+     switch (which_alternative) {
+       case 0: return \"sac.r %1,%0\";
+       case 1: return \"mov %d1,%0\;\"            /* copy result */
+                      \"sl %1,[w15]\;\"           /* check for round */
+                      \"bra nz,.LINC%=\;\"
+                      \"btsc %0,#0\n\"
+                      \".LINC%=:\"
+                      \"addc %0,#0,%0\;\"
+                      \"bra ov,.LOV%=\;\"         /* if 0x7FFF -> 0x8000, OV */
+                      \"se %t1,%2\;\"             /* otherwise check for */
+                      \"rlc %d1,[w15]\;\"         /*   out of bounds input */
+                      \"rlc %2,%2\;\"
+                      \"bra z,.LOK%=\;\"
+                      \"inc %2,%2\;\"
+                      \"bra z,.LOK%=\n\"
+                      \".LOV%=:\"
+                      \"mov #0x7FFF,%0\;\"
+                      \"btsc %t1,#7\;\"
+                      \"clr %0\n\"
+                      \".LOK%=:\n\";
+     }
+   }
+  "
+)
+
+
+(define_expand "satfract<mode>qq2"
+  [(set (match_operand:QQ    0 "pic30_register_operand"    "=r,r")
+      (sat_fract:QQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_satfract<mode>qq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_satfract<mode>qq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "satfract<mode>uqq2"
+  [(set (match_operand:UQQ   0 "pic30_register_operand"    "=r,r")
+      (sat_fract:UQQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_satfract<mode>uqq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_satfract<mode>uqq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "satfract<mode>hq2"
+  [(set (match_operand:HQ    0 "pic30_register_operand"    "=r,r")
+      (sat_fract:QQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_satfract<mode>hq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_satfract<mode>hq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+(define_expand "satfract<mode>uhq2"
+  [(set (match_operand:UHQ   0 "pic30_register_operand"    "=r,r")
+      (sat_fract:UHQ
+        (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "w,r")))
+  ]
+  ""
+  "
+  {
+    switch (pic30_fp_round_p()) {
+      case pic30_truncation:
+      case pic30_fastest:
+        emit(
+          gen_satfract<mode>uhq2_trunc(operands[0],operands[1])
+        );
+        DONE;
+        break;
+      case pic30_convergent:
+      case pic30_conventional:
+        emit(
+          gen_satfract<mode>uhq2_conv(operands[0],operands[1])
+        );
+        DONE;
+        break;
+    }
+    FAIL;
+  }
+  "
+)   
+
+
+; to Q31 - done by routine, these patterns are too long (and complex)
+
+;  from Q15
+
+; might be overkill
+;
+;(define_insn "fractqq<mode>2"
+;  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r,&w,r")
+;        (fract_convert:AUACC
+;          (match_operand:QQ  1 "pic30_accum_or_reg_operand" " r,r, w,w")))]
+;  ""
+;  "*
+;   {
+;      switch (which_alternative) {
+;        default: gcc_assert(0);
+;                 return \"cannot generate instruction\";
+;        case 0:  return \"lac %1,%0\";
+;        case 1:  return \"mov %1,%d0\;clr %0\;clr.b %t0\";
+;        case 2:  return \"clr %0\;add %0\";
+;        case 3:  if (REGNO(operands[1]) == A_REGNO) {
+;                   return \"clr %0\;\"
+;                          \"mov _ACCAH,%d0\;\"
+;                          \"clr.b %t0\";
+;                 } else if (REGNO(operands[1]) == B_REGNO) {
+;                   return \"clr %0\;\"
+;                          \"mov _ACCBH,%d0\;\"
+;                          \"clr.b %t0\";
+;                 }
+;                 break;
+;      }
+;   }"
+;)
+
+(define_insn "fractqq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:QQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+  
+(define_insn "fractuqq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:UQQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+  
+(define_insn "fracthq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:HQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+  
+(define_insn "fractuhq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:UHQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+
+; from Q31
+
+(define_insn "fractsq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:SQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "fractusq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:USQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+(define_insn "fractdq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:DQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "fractudq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:UDQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+(define_insn "fracttq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:TQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "fractutq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (fract_convert:AUACC
+          (match_operand:UTQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+;  saturating from Q15
+;   these never saturate because AUACC is always bigger than a Qn
+
+(define_insn "satfractqq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:QQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+
+)
+  
+(define_insn "satfractuqq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:UQQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+  
+(define_insn "satfracthq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:HQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+  
+(define_insn "satfractuhq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:UHQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %1,%0
+   mov %1,%d0\;clr %0\;asr %d0,#15,%t0"
+)
+
+; from Q31
+
+(define_insn "satfractsq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:SQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "satfractusq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:USQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+(define_insn "satfractdq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:DQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "satfractudq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:UDQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+(define_insn "satfracttq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:TQ  1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+ 
+(define_insn "satfractutq<mode>2"
+  [(set (match_operand:AUACC 0 "pic30_accum_or_reg_operand" "=w,r")
+        (sat_fract:AUACC
+          (match_operand:UTQ 1 "pic30_register_operand"     " r,r")))]
+  ""
+  "@
+   lac %d1,%0\;mov %1,%m0L
+   mov.d %1,%0\;asr %d0,#15,%t0"
+)
+
+; Accum <-> float conversions appear as functions only
+
+
+;;  Secondary reload functions
+
+(define_insn "Qreload_in<mode>"
+  [(set
+     (match_operand:QUQ31 0 "pic30_accum_or_reg_operand"  "=w,  r")
+     (match_operand:QUQ31 1 "pic30_RQ_operand"           "  RQ, RQ"))
+   (clobber (match_operand:HI 2 "pic30_register_operand" "=&r,  X"))
+  ]
+  ""
+  "*
+   if (which_alternative == 0) 
+     return \"mov %1,%2\;mov %2,%m0L\;mov %Q1,%2\;mov %2,%m0H\;clr %m0U\";
+   else {
+     rtx Wn = 0;
+   
+     if (GET_CODE(operands[1]) == MEM) {
+       if (GET_CODE(XEXP(operands[1],0)) == REG) {
+         Wn = XEXP(operands[1],0);
+       } else if (GET_CODE(XEXP(operands[1],0)) == PLUS) {
+         Wn = XEXP(XEXP(operands[1],0),0);
+       }
+     }
+     if (Wn) {
+       int regno;
+
+       regno = REGNO(Wn);
+       if (regno == REGNO(operands[0]))
+         return \"mov %Q1,%d0\;mov %1,%0\";
+       else 
+         return \"mov %1,%0\;mov %Q1,%d0\";
+     }
+   }
+   gcc_assert(0);
+  "
+)
+
+(define_insn "Qreload_out<mode>"
+  [(set
+     (match_operand:QUQ31 0 "pic30_RQ_operand"            "=RQ, RQ")
+     (match_operand:QUQ31 1 "pic30_accum_or_reg_operand"  "  w,  r"))
+   (clobber (match_operand:HI 2 "pic30_register_operand"  "=&r,  X"))
+  ]
+  ""
+  "@
+   mov %m1L,%2\;mov %2,%0\;mov %m1H,%2\;mov %2,%Q0
+   mov %1,%0\;mov %d1,%Q0"
+)
+
+(define_insn "Qreload_in<mode>"
+  [(set
+     (match_operand:AUACC 0 "pic30_accum_or_reg_operand"  "=w,  r")
+     (match_operand:AUACC 1 "pic30_RQ_operand"           "  RQ, RQ"))
+   (clobber (match_operand:HI 2 "pic30_register_operand"  "=&r, X"))
+  ]
+  ""
+  "*
+   if (which_alternative == 0)
+     return \"mov %1,%2\;mov %2,%m0L\;mov %Q1,%2\;mov %2,%m0H\;mov %R1,%2\;mov %2,%m0U\";
+   else {
+     rtx Wn = 0;
+   
+     if (GET_CODE(operands[1]) == MEM) {
+       if (GET_CODE(XEXP(operands[1],0)) == REG) {
+         Wn = XEXP(operands[1],0);
+       } else if (GET_CODE(XEXP(operands[1],0)) == PLUS) {
+         Wn = XEXP(XEXP(operands[1],0),0);
+       } 
+     }
+     if (Wn) {
+       int regno;
+
+       regno = REGNO(Wn);
+       if (regno == REGNO(operands[0]))
+         return \"mov %Q1,%d0\;mov.b %R1,%t0\;mov %1,%0\";
+       else if (regno == REGNO(operands[0])+1)
+         return \"mov %1,%0\;mov.b %R1,%t0\;mov %Q1,%d0\";
+       else
+         return \"mov %1,%0\;mov %Q1,%d0\;mov.b %R1,%t0\";
+     }
+   }
+   gcc_assert(0);
+  "
+)
+
+(define_insn "Qreload_out<mode>"
+  [(set
+     (match_operand:AUACC 0 "pic30_RQ_operand"           "=RQ, RQ")
+     (match_operand:AUACC 1 "pic30_accum_or_reg_operand" "  w,  r"))
+   (clobber (match_operand:HI 2 "pic30_register_operand" "=&r,  X"))
+  ]
+  ""
+  "@
+   mov %m1L,%2\;mov %2,%0\;mov %m1H,%2\;mov %2,%Q0\;mov %m1U,%2\;mov %2,%R0
+   mov %1,%0\;mov %d1,%Q0\;mov.b %t1,%R0"
+)
+
+(define_insn "TUreload_in<mode>"
+  [(set
+     (match_operand:AUACC 0 "pic30_accum_or_reg_operand"  "=w, &r")
+     (match_operand:AUACC 1 "pic30_data_operand"          " TU,TU"))
+   (clobber (match_operand:HI 2 "pic30_register_operand"  "=&r, X"))
+  ]
+  ""
+  "@
+   mov %1,%2\;mov %2,%m0L\;mov %1+2,%2\;mov %2,%m0H\;mov %1+4,%2\;mov %2,%m0U
+   mov %1,%0\;mov %1+2,%d0\;mov %1+4,%t0"
+)
+
+(define_insn "TUreload_out<mode>"
+  [(set
+     (match_operand:AUACC 0 "pic30_data_operand"         "=TU,TU")
+     (match_operand:AUACC 1 "pic30_accum_or_reg_operand" " w, r"))
+   (clobber (match_operand:HI 2 "pic30_register_operand" "=&r,X"))
+  ]
+  ""
+  "@
+   mov %m1L,%2\;mov %2,%0\;mov %m1H,%2\;mov %2,%0+2\;mov %m1U,%2\;mov %2,%0+4
+   mov %1,%0\;mov %d1,%0+2\;mov %t1,%0+4"
+)
+
+(define_mode_iterator QRELOADS [QI HI SI DI SF DF QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA])
+
+; reloads because the displacement is too large
+
+(define_insn "Qreloaddisp_out<mode>"
+  [(set
+      (match_operand:QRELOADS  0 "pic30_any_QR_operand"    "=m")
+      (match_operand:QRELOADS  1 "pic30_register_operand" " r"))
+   (clobber (match_operand:HI 2 "pic30_register_operand"  "=&r"))
+  ]
+  ""
+  "*
+  { 
+    if (GET_MODE_SIZE(<MODE>mode) == 1) {
+      return \"mov %r0,%2\;mov.b %1,[%2]\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+      return \"mov %r0,%2\;mov %1,[%2]\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+      return \"mov %r0,%2\;mov %1,[%2++]\;mov %d1,[%2]\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+      return \"mov %r0,%2\;mov %1,[%2++]\;mov %d1,[%2++]\;mov %t1,[%2]\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+      return \"mov %r0,%2\;mov %1,[%2++]\;mov %d1,[%2++]\;mov %t1,[%2++]\;mov %q1,[%2]\";
+    } else gcc_assert(0);
+  }
+  "
+)
+
+(define_insn "Qreloaddisp_in<mode>"
+  [(set
+     (match_operand:QRELOADS  0 "pic30_register_operand" "=r")
+     (match_operand:QRELOADS  1 "pic30_any_QR_operand"   " m"))
+   (clobber (match_operand:HI 2 "pic30_register_operand" "=&r"))
+  ]
+  ""
+  "*
+  {
+    if (GET_MODE_SIZE(<MODE>mode) == 1) {
+      return \"mov %r1,%2\;mov.b [%2],%0\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+      return \"mov %r1,%2\;mov [%2],%0\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+      return \"mov %r1,%2\;mov [%2++],%0\;mov [%2],%d0\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+      return \"mov %r1,%2\;mov [%2++],%0\;mov [%2++],%d0\;mov [%2],%t0\";
+    } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+      return \"mov %r1,%2\;mov [%2++],%0\;mov [%2++],%d0\;mov [%2++],%t0\;mov [%2],%q0\";
+    } else gcc_assert(0);
+  }
+  "
+)
+

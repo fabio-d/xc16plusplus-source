@@ -21,11 +21,14 @@
 #endif
 #define TARGET_MCHP 1
 
+/* Temporarily move this stuff to cci-backend.c for XC32 */
+#ifndef _BUILD_C32_
+
 static void cci_define(void *pfile_v, const char *keyword, const char *target) {
   struct cpp_reader *pfile = (struct cpp_reader *)pfile_v;
   char *buffer;
 
-  if (target) 
+  if (target)
     {
       buffer = xmalloc(strlen(keyword) + strlen(target) + 6);
       sprintf(buffer,"%s=%s", keyword, target);
@@ -151,7 +154,7 @@ void mchp_init_cci_builtins(void) {
   if (TARGET && CCI_KIND == CCI_pragma) \
     c_register_pragma(0, CCI_KEYWORD, TGT_FN);
 #include CCI_H
- 
+
 /*
  * Special case mapping
  *
@@ -171,26 +174,37 @@ void mchp_init_cci_builtins(void) {
 
    fn_type = build_function_type_list(void_type_node, void_type_node,NULL_TREE);
    add_builtin_function("__disable_fiq", fn_type, 0, BUILT_IN_MD, NULL, attrib);
-   /*                                             ^ this should be okay 
-    *  because we are going to generate an error for it... 
+   /*                                             ^ this should be okay
+    *  because we are going to generate an error for it...
     */
 
    add_builtin_function("__disable_irq", fn_type, 0, BUILT_IN_MD, NULL, attrib);
-   /*                                             ^ this should be okay 
-    *  because we are going to generate an error for it... 
+   /*                                             ^ this should be okay
+    *  because we are going to generate an error for it...
     */
 
    add_builtin_function("__enable_fiq", fn_type, 0, BUILT_IN_MD, NULL, attrib);
-   /*                                            ^ this should be okay 
-    *  because we are going to generate an error for it... 
+   /*                                            ^ this should be okay
+    *  because we are going to generate an error for it...
     */
 
    add_builtin_function("__enable_irq", fn_type, 0, BUILT_IN_MD, NULL, attrib);
-   /*                                            ^ this should be okay 
-    *  because we are going to generate an error for it... 
+   /*                                            ^ this should be okay
+    *  because we are going to generate an error for it...
     */
  }
 }
+#else /* XC32 only for now */
+
+void mchp_init_cci_pragmas(void) {
+
+#define CCI(TARGET, CCI_KIND, CCI_KEYWORD, TGT_FN, N) \
+  if (TARGET && CCI_KIND == CCI_pragma) \
+    c_register_pragma(0, CCI_KEYWORD, TGT_FN);
+#include CCI_H
+}
+
+#endif
 
 /*
  * #pragma config stuff
@@ -253,7 +267,7 @@ verify_configuration_header_record(FILE *fptr)
       warning (0, "Malformed configuration word definition file.");
       return 1;
     }
-  
+
   /* verify that the version number is one we can deal with */
   if (strncmp (header_record + sizeof (MCHP_CONFIGURATION_HEADER_MARKER) - 1,
                MCHP_CONFIGURATION_HEADER_VERSION,
@@ -447,7 +461,7 @@ mchp_load_configuration_definition(const char *fname)
 }
 
 static void
-mchp_handle_configuration_setting (const char *name, 
+mchp_handle_configuration_setting (const char *name,
                                    const unsigned char *value_name)
 {
   struct mchp_config_specification *spec;
@@ -488,8 +502,12 @@ mchp_handle_configuration_setting (const char *name,
                     }
                 }
               /* If we got here, we didn't match the value name */
-              error ("unknown value for configuration setting '%s': '%s'",
-                     name, value_name);
+              if (value_name) {
+                error ("unknown value for configuration setting '%s': '%s'",
+                       name, value_name);
+              } else {
+                error ("unknown value for configuration setting '%s'", name);
+              }
               return;
             }
         }
@@ -560,7 +578,7 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
     {
       const cpp_token *raw_token;
       const char *setting_name;
-      unsigned char *value_name;
+      unsigned char *value_name = 0;
 
       /* the current token should be the setting name */
       if (tok != CPP_NAME)

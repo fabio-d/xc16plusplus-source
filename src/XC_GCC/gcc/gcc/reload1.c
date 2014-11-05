@@ -5675,6 +5675,16 @@ reloads_conflict (int r1, int r2)
   int r1_opnum = rld[r1].opnum;
   int r2_opnum = rld[r2].opnum;
 
+#ifdef _BUILD_C30_
+  /* see other comments about this in this file */
+  if (rld[r1].secondary_in_reload > 0) {
+    r1_type = RELOAD_OTHER;
+  } 
+  if (rld[r2].secondary_in_reload > 0) {
+    r2_type = RELOAD_OTHER;
+  } 
+#endif
+
   /* RELOAD_OTHER conflicts with everything.  */
   if (r2_type == RELOAD_OTHER)
     return 1;
@@ -6112,9 +6122,21 @@ set_reload_reg (int i, int r)
 
 	    /* Mark as in use for this insn the reload regs we use
 	       for this.  */
+#ifdef _BUILD_C30_
+            /* when trying to reload an input address that uses a scratch
+               register (via a reload instruction), we should mark the
+               secondary_in_reload reload as RELOAD_OTHER so that a 
+               scratch regsiter that is allocated doesn't overlap -
+               reload_reg_free_p() also has a matching change */
+	    mark_reload_reg_in_use (spill_regs[i], rld[r].opnum,
+				    rld[r].secondary_in_reload > 0 ? 
+                                      RELOAD_OTHER :
+                                      rld[r].when_needed, 
+                                    rld[r].mode);
+#else
 	    mark_reload_reg_in_use (spill_regs[i], rld[r].opnum,
 				    rld[r].when_needed, rld[r].mode);
-
+#endif
 	    rld[r].reg_rtx = reg;
 	    reload_spill_index[r] = spill_regs[i];
 	    return 1;
@@ -6178,20 +6200,28 @@ allocate_reload_reg (struct insn_chain *chain ATTRIBUTE_UNUSED, int r,
 	{
 	  int rclass = (int) rld[r].rclass;
 	  int regnum;
+          enum reload_type when_needed;
 
 	  i++;
 	  if (i >= n_spills)
 	    i -= n_spills;
 	  regnum = spill_regs[i];
+          when_needed = rld[r].when_needed;
 
-	  if ((reload_reg_free_p (regnum, rld[r].opnum,
-				  rld[r].when_needed)
+#ifdef _BUILD_C30_
+          if (rld[r].secondary_in_reload > 0) {
+            when_needed = RELOAD_OTHER;
+            // rld[r].when_needed = RELOAD_OTHER;
+          }
+#endif
+
+	  if ((reload_reg_free_p (regnum, rld[r].opnum, when_needed)
 	       || (rld[r].in
 		   /* We check reload_reg_used to make sure we
 		      don't clobber the return register.  */
 		   && ! TEST_HARD_REG_BIT (reload_reg_used, regnum)
 		   && free_for_value_p (regnum, rld[r].mode, rld[r].opnum,
-					rld[r].when_needed, rld[r].in,
+					when_needed, rld[r].in,
 					rld[r].out, r, 1)))
 	      && TEST_HARD_REG_BIT (reg_class_contents[rclass], regnum)
 	      && HARD_REGNO_MODE_OK (regnum, rld[r].mode)
@@ -6226,7 +6256,7 @@ allocate_reload_reg (struct insn_chain *chain ATTRIBUTE_UNUSED, int r,
 		  if (!(TEST_HARD_REG_BIT (reg_class_contents[rclass], regno)
 			&& spill_reg_order[regno] >= 0
 			&& reload_reg_free_p (regno, rld[r].opnum,
-					      rld[r].when_needed)))
+					      when_needed)))
 		    break;
 		  nr--;
 		}
@@ -7902,11 +7932,11 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
             int changes;
    
             /* before instructions don't care if the instruction modifies stack
-               - but the code that removes pseudos in post-incs has been commented
-                 out because it didn't notice any changes for the output insn
-                 and generating two reloads to compensate won't work, fix it up
-                 here by re-checking elimination effects (which is what
-                 make_memloc did) */
+               - but the code that removes pseudos in post-incs has been 
+                 commented out because it didn't notice any changes for the 
+                 output insn and generating two reloads to compensate won't 
+                 work, fix it up here by re-checking elimination effects 
+                 (which is what make_memloc did) */
             changes = update_pseudos_in(&new_pat, 0, 0);
             if (changes) PATTERN(p) = new_pat;
           }
@@ -8077,7 +8107,10 @@ emit_output_reload_insns (struct insn_chain *chain, struct reload *rl,
 	rtx pat = PATTERN (p);
 
 #ifdef _BUILD_C30_
-        if (insn_modifies_stack_by) {
+        // if (insn_modifies_stack_by) 
+        /* we should update pseudos_in anyway... just in case the pseudo is
+           on the stack and we have accumulated some stack adjustments */
+        {
           int changes;
           rtx new_pat;
   

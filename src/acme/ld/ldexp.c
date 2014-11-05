@@ -393,6 +393,7 @@ fold_binary (tree, current_section, allocation_done, dot, dotp)
 			     allocation_done, dot, dotp);
       if (other.valid_p)
 	{
+#if 1
 	  /* If the values are from different sections, or this is an
 	     absolute expression, make both the source arguments
 	     absolute.  However, adding or subtracting an absolute
@@ -400,8 +401,7 @@ fold_binary (tree, current_section, allocation_done, dot, dotp)
 	     exception.  */
 	  if (current_section != abs_output_section
 	      && (other.section == abs_output_section
-		  || (result.section == abs_output_section
-		      && tree->type.node_code == '+'))
+		  || (result.section == abs_output_section))
 	      && (tree->type.node_code == '+'
 		  || tree->type.node_code == '-'))
 	    {
@@ -415,8 +415,9 @@ fold_binary (tree, current_section, allocation_done, dot, dotp)
 		  return other;
 		}
 	    }
-	  else if (result.section != other.section
-		   || current_section == abs_output_section)
+#endif
+	  if (result.section != other.section
+             || current_section == abs_output_section)
 	    {
 	      make_abs (&result);
 	      make_abs (&other);
@@ -821,14 +822,7 @@ exp_fold_tree (tree, current_section, allocation_done, dot, dotp)
 		{
 		  /* FIXME: Should we worry if the symbol is already
 		     defined?  */
-                  /*  DSTRB TKT#239089 If the symbol is an absolute symbol,
-                   *  then we should not make it relative to another section
-                   *  where it is used in an expression. FS 
-                   *  Refer to manual 9.8.6 */ 
-                  if (h->u.def.section != bfd_abs_section_ptr)
-                  {
-                    h->u.def.section = result.section->bfd_section;
-                  }
+                  h->u.def.section = result.section->bfd_section;
                   h->type = bfd_link_hash_defined;
 		  h->u.def.value = result.value;
 		  if (tree->type.node_class == etree_provide)

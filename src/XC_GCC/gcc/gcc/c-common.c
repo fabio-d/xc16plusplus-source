@@ -3810,7 +3810,7 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
   /* Convert the integer argument to a type the same size as sizetype
      so the multiply won't overflow spuriously.  */
 
-#if defined(_BUILD_C30_) 
+#if defined(_BUILD_C30_)
   /* C30 has different sized pointers but size_t is usually unsigned int
      to keep the code efficient for the normal case -
 
@@ -3822,7 +3822,7 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
       result_sizetype = c_common_type_for_size(TYPE_PRECISION(result_type),
                                                TYPE_UNSIGNED(TREE_TYPE(intop)));
       intop = convert(result_sizetype,intop);
-  } else 
+  } else
 #endif
   if (TYPE_PRECISION (TREE_TYPE (intop)) != TYPE_PRECISION (sizetype)
       || TYPE_UNSIGNED (TREE_TYPE (intop)) != TYPE_UNSIGNED (sizetype))
@@ -4797,59 +4797,75 @@ c_common_nodes_and_builtins (void)
       record_builtin_type (RID_MAX, "short _Fract", short_fract_type_node);
       record_builtin_type (RID_FRACT, NULL, fract_type_node);
       record_builtin_type (RID_MAX, "long _Fract", long_fract_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "long long _Fract",
 			   long_long_fract_type_node);
+#endif
       record_builtin_type (RID_MAX, "unsigned short _Fract",
 			   unsigned_short_fract_type_node);
       record_builtin_type (RID_MAX, "unsigned _Fract",
 			   unsigned_fract_type_node);
       record_builtin_type (RID_MAX, "unsigned long _Fract",
 			   unsigned_long_fract_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "unsigned long long _Fract",
 			   unsigned_long_long_fract_type_node);
+#endif
       record_builtin_type (RID_MAX, "_Sat short _Fract",
 			   sat_short_fract_type_node);
       record_builtin_type (RID_MAX, "_Sat _Fract", sat_fract_type_node);
       record_builtin_type (RID_MAX, "_Sat long _Fract",
 			   sat_long_fract_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "_Sat long long _Fract",
 			   sat_long_long_fract_type_node);
+#endif
       record_builtin_type (RID_MAX, "_Sat unsigned short _Fract",
 			   sat_unsigned_short_fract_type_node);
       record_builtin_type (RID_MAX, "_Sat unsigned _Fract",
 			   sat_unsigned_fract_type_node);
       record_builtin_type (RID_MAX, "_Sat unsigned long _Fract",
 			   sat_unsigned_long_fract_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "_Sat unsigned long long _Fract",
 			   sat_unsigned_long_long_fract_type_node);
+#endif
       record_builtin_type (RID_MAX, "short _Accum", short_accum_type_node);
       record_builtin_type (RID_ACCUM, NULL, accum_type_node);
       record_builtin_type (RID_MAX, "long _Accum", long_accum_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "long long _Accum",
 			   long_long_accum_type_node);
+#endif
       record_builtin_type (RID_MAX, "unsigned short _Accum",
 			   unsigned_short_accum_type_node);
       record_builtin_type (RID_MAX, "unsigned _Accum",
 			   unsigned_accum_type_node);
       record_builtin_type (RID_MAX, "unsigned long _Accum",
 			   unsigned_long_accum_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "unsigned long long _Accum",
 			   unsigned_long_long_accum_type_node);
+#endif
       record_builtin_type (RID_MAX, "_Sat short _Accum",
 			   sat_short_accum_type_node);
       record_builtin_type (RID_MAX, "_Sat _Accum", sat_accum_type_node);
       record_builtin_type (RID_MAX, "_Sat long _Accum",
 			   sat_long_accum_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "_Sat long long _Accum",
 			  sat_long_long_accum_type_node);
+#endif
       record_builtin_type (RID_MAX, "_Sat unsigned short _Accum",
 			   sat_unsigned_short_accum_type_node);
       record_builtin_type (RID_MAX, "_Sat unsigned _Accum",
 			   sat_unsigned_accum_type_node);
       record_builtin_type (RID_MAX, "_Sat unsigned long _Accum",
 			   sat_unsigned_long_accum_type_node);
+#ifndef _BUILD_C30_
       record_builtin_type (RID_MAX, "_Sat unsigned long long _Accum",
 			   sat_unsigned_long_long_accum_type_node);
+#endif
 
     }
 
@@ -7905,11 +7921,6 @@ static tree
 handle_optimize_attribute (tree * ARG_UNUSED (node), tree name, tree ARG_UNUSED (args),
 			   int ARG_UNUSED (flags), bool *no_add_attrs)
 {
-#if defined(TARGET_MCHP_PIC32MX)
-      warning (OPT_Wattributes, "%qE attribute ignored", name);
-      *no_add_attrs = true;
-      return NULL_TREE;
-#else
   /* Ensure we have a function type.  */
   if (TREE_CODE (*node) != FUNCTION_DECL)
     {
@@ -7920,7 +7931,7 @@ handle_optimize_attribute (tree * ARG_UNUSED (node), tree name, tree ARG_UNUSED 
     {
       struct cl_optimization cur_opts;
       tree old_opts = DECL_FUNCTION_SPECIFIC_OPTIMIZATION (*node);
-      
+
       /* Save current options.  */
       cl_optimization_save (&cur_opts);
 
@@ -7939,7 +7950,6 @@ handle_optimize_attribute (tree * ARG_UNUSED (node), tree name, tree ARG_UNUSED 
     }
 
   return NULL_TREE;
-#endif
 }
 
 /* Check for valid arguments being passed to a function.

@@ -430,9 +430,10 @@ dump_gimple_assign (pretty_printer *buffer, gimple gs, int spc, int flags)
       if (!(flags & TDF_RHS_ONLY))
 	{
 #ifdef _BUILD_C30_
-          { const char str[16];
+          { const char str[40];
 
-            sprintf(str,"@ %p ", gimple_assign_lhs(gs));
+            sprintf(str,"@ %p = %p\n", gimple_assign_lhs(gs), 
+                                       gimple_assign_rhs1(gs));
             pp_string(buffer,str);
           }
 #endif
@@ -676,6 +677,13 @@ static void
 dump_gimple_goto (pretty_printer *buffer, gimple gs, int spc, int flags)
 {
   tree label = gimple_goto_dest (gs);
+#ifdef _BUILD_C30_
+          { const char str[16];
+
+            sprintf(str,"@ %p ", gs);
+            pp_string(buffer,str);
+          }
+#endif
   if (flags & TDF_RAW)
     dump_gimple_fmt (buffer, spc, flags, "%G <%T>", gs, label);
   else
@@ -1853,6 +1861,11 @@ pp_cfg_jump (pretty_printer *buffer, basic_block bb)
 
   stmt = first_stmt (bb);
 
+#ifdef _BUILD_C30_
+  pp_string (buffer, "@ ");
+  pp_pointer(buffer,bb);
+  pp_string (buffer, " ");
+#endif
   pp_string (buffer, "goto <bb ");
   pp_decimal_int (buffer, bb->index);
   pp_character (buffer, '>');

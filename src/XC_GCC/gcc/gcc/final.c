@@ -3345,8 +3345,24 @@ output_asm_insn (const char *templ, rtx *operands)
 	   referred to more than once in a given insn.  */
 	else if (*p == '=')
 	  {
+            int val = insn_counter;
+#if defined(_BUILD_C30_) && 0
+            static saved_counters[10] = { -1, -1, -1, -1, -1,
+                                          -1, -1, -1, -1, -1 };
+  
+            if (ISDIGIT(p[1])) {
+              int idx;
+
+              p++;
+              idx = *p - '0';
+              if (saved_counters[idx] != -1) {
+                val = saved_counters[idx];
+                saved_counters[idx] = -1;
+              } else saved_counters[idx] = val;
+            }
+#endif
 	    p++;
-	    fprintf (asm_out_file, "%d", insn_counter);
+	    fprintf (asm_out_file, "%d", val);
 	  }
 	/* % followed by a letter and some digits
 	   outputs an operand in a special way depending on the letter.

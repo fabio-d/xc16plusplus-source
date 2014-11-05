@@ -20,7 +20,7 @@
 
 ; calum.wilkie@microchip.com
 ;
-; The beauty of this file is now options processing is spread among 
+; The beauty of this file is now options processing is spread among
 ; even *MORE* files.  Not all of which are C.  Pure genius.
 ;
 
@@ -151,6 +151,10 @@ mno-isr-warn
 Target RejectNegative Mask(NO_ISRW) MaskExists
 Disable warning for inappropriate use of ISR function names
 
+mno-eds-warn
+Target RejectNegative Var(TARGET_NO_EDS_WARN)
+Disable warning: Taking the address of ... may require an extended pointer for this device
+
 mshort-double
 Target Mask(TARGET_SHORT_DOUBLE) MaskExists
 Target version of -fshort-double since this flag is not availble to LTO tool
@@ -197,9 +201,12 @@ use legacy lib/include directory
 mprint-builtins
 Target RejectNegative Var(TARGET_PRINT_BUILTINS)
 -mprint-builtins        Print a list of enabled builtin functions
- 
+
 mep
 Target Var(TARGET_FORCE_EP) VarExists Undocumented
+
+mlnk
+Target RejectNegative Var(pic30_peep_lnk) Undocumented
 
 ;
 ; **************************** CAUTION
@@ -209,7 +216,7 @@ Target Var(TARGET_FORCE_EP) VarExists Undocumented
 ;
 mcpu=
 Target RejectNegative Joined Var(pic30_target_cpu) VarExists
-Select target CPU 
+Select target CPU
 
 merrata=
 Target RejectNegative Joined Var(pic30_errata) VarExists
@@ -251,3 +258,5 @@ mext=
 Target Joined Var(mchp_import)
 Enable support for importing external code from another vendor
 
+menable-fixed
+Target RejectNegative JoinedOrMissing Var(pic30_fp_support) VarExists

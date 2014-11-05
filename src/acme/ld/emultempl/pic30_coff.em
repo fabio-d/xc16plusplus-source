@@ -3421,7 +3421,8 @@ bfd_pic30_process_bfd_after_open (abfd, info)
       }
 
       /* look for a reference to PSVPAG or DSRPAG not in CRT */
-      if (strncmp(abfd->filename, "crt", 3) != 0) {
+      if ((strncmp(abfd->filename, "crt", 3) != 0) &&  
+          (strncmp(abfd->filename, "data_init", 9) != 0)) {
         if ((strcmp(sym_name,"_PSVPAG") == 0) ||
             (strcmp(sym_name,".const") == 0) ||
             (strcmp(sym_name,"_DSWPAG") == 0) || 
@@ -3678,11 +3679,11 @@ bfd_pic30_process_bfd_after_open (abfd, info)
             handle_relocs++;
 
           }
-
         /* process dmaoffset relocs */
-        if ((q->howto->type == R_PIC30_WORD_DMAOFFSET) ||
+        if (((q->howto->type == R_PIC30_WORD_DMAOFFSET) ||
             (q->howto->type == R_PIC30_P_DMAOFFSET) ||
-            (q->howto->type == R_PIC30_DMAOFFSET))
+            (q->howto->type == R_PIC30_DMAOFFSET)) &&
+            (pic30_is_dma_machine(global_PROCESSOR) == 1))
           {
             /* Symbol definitions are not all visible yet,
                so we'll make a note and check this later. */
@@ -4120,6 +4121,13 @@ bfd_pic30_finish()
       const_psvpage = (sec->lma >> 15) | FLASH_mask;
       const_length  = sec->_raw_size / opb;
     }
+  else if (pic30_is_eds_machine(global_PROCESSOR)) {
+    /* Force DSRPAG to 1 if we are on an EDS machine and there is no const
+       page; this will allow the compiler to set the DSRPAG to the correct
+       value on auto_psv functions */
+    const_psvpage = 1;
+    const_length = 2;
+  }
 
   /* define some constants for CodeGuard */
   sec = bfd_get_section_by_name(output_bfd, ".boot_const");
@@ -5597,7 +5605,6 @@ gld${EMULATION_NAME}_after_open()
           }
           sec->flags |= SEC_IN_MEMORY;
           sec->contents = packed_data;
-          bfd_set_section_size(f->the_bfd, sec, sec->_raw_size);
           free(buf);
           pic30_append_section_to_list(packed_sections, f, sec);
       }
