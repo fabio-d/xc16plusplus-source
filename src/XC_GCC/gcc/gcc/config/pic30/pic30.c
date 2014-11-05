@@ -687,6 +687,11 @@ pic30_errata_map errata_map[] = {
                         "\t\t_AddressError.\n",
     0, 0
   },
+  { "ecc",         ecc_errata,
+                        "\tECC can create a false positive in the face of\n"
+                        "\t\tcertain RAW hazards.\n",
+    0, 0
+  },
   { 0, 0, 0, 0, 0 }
 };
 
@@ -1225,7 +1230,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
             } else if (flags & MEM_DATAFLASH) {
               pic30_mem_info.dataflash[0] = v0;
               pic30_mem_info.dataflash[1] = v1;
-            }  
+            }
           }
           free(match);
         } else {
@@ -2551,7 +2556,7 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
     } else if (pszSectionName) {
       CHECK_SIZE(result, currentlen, maxlen, 
                  strlen(prepend) + strlen(pszSectionName) + 1 + 1);
-      currentlen += sprintf(result, "%s%s", prepend, pszSectionName);
+        currentlen += sprintf(result, "%s%s", prepend, pszSectionName);
     } else if (psv) {
       CHECK_SIZE(result, currentlen, maxlen,
                  sizeof(SECTION_NAME_SECURE_CONST + 1));
@@ -2977,30 +2982,30 @@ get_license (void)
       else
          {
       	  int pid;
-          char *err_msg, *err_arg;
+      char *err_msg, *err_arg;
 
-          args[0] = exec;
+      args[0] = exec;
 
-          pid = pexecute(exec, args, "foobar", 0, &err_msg, &err_arg,
+      pid = pexecute(exec, args, "foobar", 0, &err_msg, &err_arg,
                    PEXECUTE_FIRST | PEXECUTE_LAST);
-          if (pid == -1) fatal_error (err_msg, exec);
-          pid = pwait(pid, &status, 0);
-          if (pid < 0)
+      if (pid == -1) fatal_error (err_msg, exec);
+      pid = pwait(pid, &status, 0);
+      if (pid < 0)
+        {
+          /* Set free edition if the license manager isn't available. */
+          /* The free edition disables optimization options without an eval period. */
+          mchp_license_valid=MCHP_XCLM_FREE_LICENSE;
+          warning (0, "Could not retrieve compiler license (%s)", failure);
+        }
+      else if (WIFEXITED(status))
+        {
+          mchp_license_valid = WEXITSTATUS(status);
+          if (mchp_license_valid > MCHP_XCLM_VALID_PRO_LICENSE)
             {
-             /* Set free edition if the license manager isn't available. */
-             /* The free edition disables optimization options without an eval period. */
-             mchp_license_valid=MCHP_XCLM_FREE_LICENSE;
-             warning (0, "Could not retrieve compiler license (%s)", failure);
+              mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
             }
-           else if (WIFEXITED(status))
-            {
-             mchp_license_valid = WEXITSTATUS(status);
-             if (mchp_license_valid > MCHP_XCLM_VALID_PRO_LICENSE)
-               {
-                mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
-               }
-             }
-         }
+        }
+    }
     }
 #if MCHP_DEBUG
   fprintf (stderr, "valid license: %d\n", mchp_license_valid);
@@ -3037,8 +3042,10 @@ void pic30_override_options_after_change(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    NULLIFY(flag_schedule_insns) = 0;
-    NULLIFY(flag_schedule_insns_after_reload) = 0;
+    if ((pic30_errata_mask & ecc_errata) == 0) {
+      NULLIFY(flag_schedule_insns) = 0;
+      NULLIFY(flag_schedule_insns_after_reload) = 0;
+    }
   #endif
     NULLIFY(flag_regmove) = 0;
     NULLIFY(flag_strict_aliasing) = 0;
@@ -3067,6 +3074,13 @@ void pic30_override_options_after_change(void) {
     NULLIFY(optimize_size) = 0;
   }
 
+#ifdef INSN_SCHEDULING
+  if (pic30_errata_mask & ecc_errata) {
+    flag_schedule_insns = 1;
+    flag_schedule_insns_after_reload = 1;
+  }
+#endif
+
   #undef NULLIFY
 }
 
@@ -3092,9 +3106,13 @@ void pic30_override_options(void) {
   }
 #endif
 
-  /* disable scheduling */
-  flag_schedule_insns = 0;
-  flag_schedule_insns_after_reload = 0;
+#ifdef INSN_SCHEDULING
+  if (pic30_errata_mask & ecc_errata) {
+    flag_schedule_insns = 1;
+    flag_schedule_insns_after_reload = 1;
+  }
+#endif
+
 #if 1
   /* disable register renaming - it conflicts with our RTL generation of
                                  prologue and epilogue code */
@@ -3379,8 +3397,10 @@ void pic30_override_options(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    NULLIFY(flag_schedule_insns) = 0;
-    NULLIFY(flag_schedule_insns_after_reload) = 0;
+    if ((pic30_errata_mask & ecc_errata) == 0) {
+      NULLIFY(flag_schedule_insns) = 0;
+      NULLIFY(flag_schedule_insns_after_reload) = 0;
+    }
   #endif
     NULLIFY(flag_regmove) = 0;
     NULLIFY(flag_strict_aliasing) = 0;
@@ -4776,7 +4796,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       r0 = gen_reg_rtx(HImode);
       emit_insn(gen_write_rtcwen(r0,r0));
       break;
- 
+
     case PIC30_BUILTIN_WRITEDATAFLASH:
       if (!(pic30_device_mask & HAS_DATAFLASH)) {
         error("__builtin_write_DATAFLASH not supported on this device.");
@@ -7731,6 +7751,20 @@ static double pic30_get_double(rtx x) {
 ** This is done by searching ahead for either the next use
 ** (i.e., reg is live), a death note, or a set of <reg>.
 */
+static int pic30_dead_or_set_reg_match(rtx x, rtx reg) {
+  if ((REGNO(x) < FIRST_PSEUDO_REGISTER) &&
+      (REGNO(reg) < FIRST_PSEUDO_REGISTER)) {
+    unsigned int regno = REGNO(reg);
+
+    if ((REGNO(x) < regno) &&
+          (REGNO(x) + HARD_REGNO_NREGS(0,GET_MODE(x)) > regno))
+      return 1;
+  } else if ((GET_CODE(x) == REG) && (REGNO(x) == REGNO(reg))) {
+    return 1;
+  }
+  return 0;
+}
+   
 int pic30_dead_or_set_p(rtx first, rtx reg) {
   rtx insn;
 
@@ -7776,15 +7810,12 @@ int pic30_dead_or_set_p(rtx first, rtx reg) {
       if (GET_CODE(pattern) == CLOBBER) {
         rtx clobber = XEXP(pattern, 0);
 
-        if ((REGNO(clobber) < FIRST_PSEUDO_REGISTER) &&
-            (REGNO(reg) < FIRST_PSEUDO_REGISTER)) {
-            unsigned int regno = REGNO(reg);
-
-          if ((REGNO(clobber) < regno) &&
-              (REGNO(clobber) +
-               HARD_REGNO_NREGS(0,GET_MODE(clobber)) > regno))
-             return 1;
-        } else if ((GET_CODE(clobber) == REG) && (REGNO(clobber) == REGNO(reg)))
+        if (REG_P(clobber) && (pic30_dead_or_set_reg_match(clobber, reg)))
+           return 1;
+      } else if (GET_CODE(pattern) == SET) {
+        rtx dest = SET_DEST(pattern);
+        /* set before referenced - dead */
+        if (REG_P(dest) && (pic30_dead_or_set_reg_match(dest, reg)))
           return 1;
       }
       if (reg_referenced_p(reg, PATTERN(insn)))
@@ -7861,6 +7892,8 @@ int pic30_reg_used_p(rtx first, rtx reg) {
       {
          return 1;
       }
+      /* even if lifetime information is wrong, if its dead then it must
+           have been set somewhere ... */
       if (dead_or_set_p(insn, reg))
       {
          return 1;
@@ -10099,10 +10132,12 @@ int pic30_Q_constraint_displacement(rtx op, int *disp) {
     if (disp) *disp = nDisplacement;
     bQ = (nDisplacement >= (PIC30_DISP_MIN*nScale)) &&
          (nDisplacement <= (PIC30_DISP_MAX*nScale));
+#if 0
     if ((nDisplacement != INT_MAX) && ((nDisplacement & (nScale-1)) != 0)) {
       warning(0,"I just made a bad offset %d %d!\n",nDisplacement,nScale);
       debug_rtx(op);
     }
+#endif
     return(bQ);
 }
 
@@ -10995,7 +11030,7 @@ int pic30_function_uses_w0(int discover) {
   enum rtx_code code;
   static int result = 0;
  
-  /* 
+/*
      to allow us to implicitly use w0 (ie movqi_gen_DATA), this
      function will scan insns and tell us if that is possible.
 
@@ -11616,9 +11651,9 @@ void pic30_expand_prologue(void) {
          must_save |= pic30_mustsave(regno, fLeaf, fInterrupt);
       }
       if (must_save) {
-        insn = emit_insn(gen_pushshadow());
-        insn = emit_insn(gen_blockage());
-      }
+      insn = emit_insn(gen_pushshadow());
+      insn = emit_insn(gen_blockage());
+    }
     }
     /*
     ** For interrupt functions, save the repeat count (if used)
@@ -12276,10 +12311,10 @@ void pic30_expand_epilogue(void) {
          must_save |= pic30_mustsave(regno, fLeaf, fInterrupt);
       }
       if (must_save) {
-        insn = emit_insn(gen_popshadow());
-        insn = emit_insn(gen_blockage());
-      }
+      insn = emit_insn(gen_popshadow());
+      insn = emit_insn(gen_blockage());
     }
+  }
   }
   if ((fInterrupt) && (pic30_errata_mask & retfie_errata_disi)) {
     emit_insn(gen_disi(GEN_INT(1)));
@@ -12548,7 +12583,7 @@ int pic30_neardata_space_operand_offset(rtx op, HOST_WIDE_INT *offset) {
   } while (fNear < 0);
 
   if (offset) *offset = off;
-  if (sym && (off < 0)) {
+  if (sym && (TREE_CODE(sym) == VAR_DECL) && (off < 0)) {
     if (TREE_NO_WARNING(sym) == 0)
       warning(0,"Negative offset for '%D'", sym);
     TREE_NO_WARNING(sym) = 1;
@@ -12669,7 +12704,7 @@ int pic30_data_space_operand_p(enum machine_mode mode,rtx op,int strict) {
         rtx lhs,rhs;
         lhs = XEXP(op,0);
         rhs = XEXP(op,1);
-        
+
         if (!inner && (GET_CODE(rhs) == CONST_INT)) {
           inner=1;
           op = lhs;
@@ -12694,11 +12729,11 @@ int pic30_data_space_operand_p(enum machine_mode mode,rtx op,int strict) {
     }
   } while (result < 0);
  
-  if (sym && (offset < 0)) {
+  if (sym && (TREE_CODE(sym) == VAR_DECL) && (offset < 0)) {
     if (TREE_NO_WARNING(sym) == 0)
       warning(0,"Negative offset for '%D'", sym);
     TREE_NO_WARNING(sym) = 1;
-  }
+}
 
   return result;
 }
@@ -14021,7 +14056,7 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
       } else if (IDENT_AUXPSV(TREE_VALUE(args)) &&
                  (!(pic30_device_mask & HAS_AUXFLASH))) {
         error("space(auxpsv) not supported on this target");
-      } 
+      }
       else if (IDENT_DATAFLASH(TREE_VALUE(args)) &&
                (!(pic30_device_mask & HAS_DATAFLASH))) {
         error("space(dataflash) not supported on this target");
@@ -14677,7 +14712,7 @@ void pic30_encode_section_info(tree decl, rtx rtl,
     sprintf(newstr, "%s%s", prefix, str);
     XSTR(XEXP(rtl, 0), 0) = newstr;
   }
-}
+      }
 
 /*
 ** A C statement or statements to switch to the appropriate
@@ -14705,6 +14740,14 @@ section *pic30_select_section (tree decl, int reloc,
     }
   }
   if (!flags) {
+    if (TREE_CODE(decl) == STRING_CST) {
+      const char *name_ = 0;
+      SECTION_FLAGS_INT flags_ = 0;
+      tree decl_ = 0;
+ 
+      if (pic30_set_constant_section_helper(&name_, &flags_, &decl_))
+        return get_section(name_, flags_, decl_);
+    }
     if (TREE_CODE (decl) == VAR_DECL) {
       int bNear = (PIC30_SFR_NAME_P(ident) != 0);
       const char *name_ = 0;
@@ -14902,7 +14945,7 @@ const char *pic30_set_constant_section_helper(const char **name,
   static SECTION_FLAGS_INT saved_flags;
   static tree saved_decl;
 
-  if (*flags & SECTION_PSV) {
+  if (*flags && *name && *decl) {
     if (saved_name) free(saved_name);
 
     saved_name = xstrdup(*name);
@@ -17086,7 +17129,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
         if ((TARGET_CONST_IN_CODE) && (TREE_CODE(decl) == STRING_CST)) {
           to_mode = TYPE_MODE(to_type);
           break;
-        } else if (DECL_RTL(decl)) {
+        } else if ((TREE_CODE(decl) == VAR_DECL) && DECL_RTL(decl)) {
           rtx strip_mem = XEXP(DECL_RTL(decl),0);
 
           /* Was this marked with the correct qualifier for the mode? */
@@ -17191,7 +17234,7 @@ pic30_unique_section (tree decl, int reloc)
     {
       const char *sname = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
           prefix = ACONCAT ((sname, NULL));
-    }
+}
   else if (DECL_RTL(decl)) {
     /* prefer to get the prefix from our default sections name -
        dsPIC has lots of different section types */
@@ -18622,6 +18665,101 @@ unsigned int pic30_track_sfrs(void) {
   return 0;
 }
 
+unsigned int pic30_RAW_count(void) {
+  rtx x;
+  rtx insn;
+  rtx p;
+  int last_reg_def = -1;  /* none */
+  int this_reg_use = -1;
+  int we_stall = 0;
+
+  for (insn = get_insns(); insn; insn = NEXT_INSN(insn)) {
+    if (INSN_P(insn)) {
+      enum attr_type insn_attr;
+
+      p = PATTERN(insn);
+      if (GET_CODE(p) != SET) continue;
+
+      insn_attr = get_attr_type(insn);
+      switch (insn_attr) {
+        default: 
+          last_reg_def = -1;
+          break;
+
+        case TYPE_USE:
+          /* FALLSTHROUGH */
+        case TYPE_DEFUSE:
+          if (last_reg_def >= 0) {
+            x = SET_SRC(p);
+            if (GET_CODE(x) == MEM) {
+              x = XEXP(x,0);
+              switch (GET_CODE(x)) {
+                default:  break;
+
+                case SUBREG:
+                  if (GET_CODE(SUBREG_REG(x)) == REG) {
+                    this_reg_use = REGNO(SUBREG_REG(x));
+                  }
+                  break;
+
+                case REG:
+                  this_reg_use = REGNO(x);
+                  break;
+
+                case POST_INC:
+                case POST_DEC:
+                case PRE_INC:
+                case PRE_DEC:
+                case PLUS:
+                  x = XEXP(x,0);
+                  if (GET_CODE(x) == REG) this_reg_use = REGNO(x);
+                  break;
+              }
+            }
+          }
+          if ((this_reg_use > 0) && ((last_reg_def == -2) || 
+                                     (this_reg_use == last_reg_def))) {
+            we_stall = 1;
+          }
+          if (insn_attr = TYPE_USE) break;
+          /* FALLSTHROUGH */
+
+        case TYPE_DEF:
+          last_reg_def = -1;
+          x = SET_DEST(p);
+          if (GET_CODE(x) == REG) {
+            last_reg_def = REGNO(x);
+          } else if (GET_CODE(x) == SUBREG) {
+            if (GET_CODE(SUBREG_REG(x)) == REG) {
+              last_reg_def = REGNO(SUBREG_REG(x));
+            }
+          }
+          break;
+
+        case TYPE_ETC:
+          last_reg_def = -1;
+          break;
+      }
+    }
+    if (LABEL_P(insn)) {
+      last_reg_def = -2;  /* we don't know */
+    } 
+    if (we_stall) {
+#ifdef MCHP_DEBUG
+       fprintf(stderr,"This instruction looks like it causes a stall:\n");
+       debug_rtx(insn);
+#endif
+       if (pic30_errata_mask & ecc_errata) {
+          // insert a nop before this instruction
+          rtx new_insn = gen_bifnop();
+          emit_insn_before(new_insn, insn);
+       }
+    }
+    we_stall = 0;
+  }
+  return 0;
+}
+
 unsigned int pic30_merge_accumulators(void) {
   rtx insn;
   rtx prev_insn = 0;
@@ -19161,7 +19299,7 @@ int pic30_trace_all_addresses(void) {
 
 bool pic30_check_section_flags(SECTION_FLAGS_INT flag1,
                                SECTION_FLAGS_INT flag2) {
-#define IGNORE (SECTION_ADDRESS|SECTION_REVERSE|SECTION_ALIGN)
+#define IGNORE (SECTION_DECLARED|SECTION_ADDRESS|SECTION_REVERSE|SECTION_ALIGN)
 
   return (flag1 & (~IGNORE)) != (flag2 & (~IGNORE));
 }
@@ -19444,5 +19582,25 @@ struct rtl_opt_pass pass_track_sfrs =
   TODO_verify_flow,                     /* todo_flags_finish */
  }
 };
+
+struct rtl_opt_pass pass_RAW_count =
+{
+ {
+  RTL_PASS,
+  "pic30_RAW_count",                    /* name */
+  NULL,                                 /* gate */
+  pic30_RAW_count,                      /* execute */
+  NULL,                                 /* sub */
+  NULL,                                 /* next */
+  0,                                    /* static_pass_number */
+  0,                                    /* tv_id */
+  0,                                    /* properties_required */
+  0,                                    /* properties_provided */
+  0,                                    /* properties_destroyed */
+  TODO_ggc_collect,                     /* todo_flags_start */
+  TODO_verify_flow,                     /* todo_flags_finish */
+ }
+};
+
 
 /*END********************************************************************/

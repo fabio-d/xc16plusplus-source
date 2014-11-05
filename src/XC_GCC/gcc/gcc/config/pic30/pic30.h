@@ -194,19 +194,19 @@ enum pic30_builtins
 #undef   LIB_SPEC
 #define  ALT_LIB_SPECS
 #if (PIC30_DWARF2)
-#define   LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lm-elf -lc-elf -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lfastm-elf -lc-elf -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group -lfx-elf -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group -lfx-elf -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group -lfx-elf -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group -lfx-elf -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
+#define   LIB_SPEC   "-start-group -lpic30-elf -lm-elf -lc-elf -end-group"
+#define   ALT_FM_LIB_SPEC   "-start-group -lpic30-elf -lfastm-elf -lc-elf -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
+#define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
+#define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
 #else
-#define   LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lm-coff -lc-coff -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lfastm-coff -lc-coff -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group -lfx-coff -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group -lfx-coff -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group -lfx-coff -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group -lfx-coff -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
+#define   LIB_SPEC   "-start-group  -lpic30-coff -lm-coff -lc-coff -end-group"
+#define   ALT_FM_LIB_SPEC   "-start-group  -lpic30-coff -lfastm-coff -lc-coff -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group  -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
+#define   ALT_LC_LIB_SPEC   "-start-group  -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
+#define   ALT_FMLC_LIB_SPEC "-start-group  -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group  -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
 #endif
 
 /*
@@ -387,7 +387,8 @@ enum errata_mask {
   retfie_errata_disi = 2,
   psv_errata = 4,
   exch_errata = 8,
-  psv_address_errata = 16
+  psv_address_errata = 16,
+  ecc_errata = 32
 };
 extern int pic30_errata_mask;
 

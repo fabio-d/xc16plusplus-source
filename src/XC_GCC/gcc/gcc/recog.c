@@ -3147,6 +3147,11 @@ peephole2_optimize (void)
   bool do_rebuild_jump_labels = false;
 
   df_set_flags (DF_LR_RUN_DCE);
+#if defined(_BUILD_C30_) && 0
+  /* if we wish to use DF analysis we could rebuild notes here ...
+       right now we wish to not use DF analysis in peep */
+  df_note_add_problem();
+#endif
   df_analyze ();
 
   /* Initialize the regsets we're going to use.  */
