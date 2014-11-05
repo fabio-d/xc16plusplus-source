@@ -5473,7 +5473,7 @@ rewrite_use_nonlinear_expr (struct ivopts_data *data,
 	      || operand_equal_p (op, step, 0)))
 	return;
 
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_)
       /* Hmmm.. we seem to be casting the the candidate to the 'step' instead
          of converting the step to the candidate.  We loose information if
          the 'step' has lower precision than the candidate */

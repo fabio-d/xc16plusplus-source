@@ -30,12 +30,12 @@ static void cci_define(void *pfile_v, const char *keyword, const char *target) {
 
   if (target)
     {
-      buffer = xmalloc(strlen(keyword) + strlen(target) + 6);
+      buffer = (char *)xmalloc(strlen(keyword) + strlen(target) + 6);
       sprintf(buffer,"%s=%s", keyword, target);
     }
   else
     {
-      buffer = xmalloc(strlen(keyword) + strlen("=") + 6);
+      buffer = (char *)xmalloc(strlen(keyword) + strlen("=") + 6);
       sprintf(buffer,"%s=", keyword);
     }
   cpp_define(pfile, buffer);
@@ -66,7 +66,7 @@ static void cci_attribute(void *pfile_v,const char *keyword, const char *target,
     }
   }
   if (varargs) size += strlen("=()(),...__VA_ARGS__");
-  buffer = xmalloc(size);
+  buffer = (char *)xmalloc(size);
   c = buffer;
   c += sprintf(c,"%s",keyword);
   if (n || varargs) {

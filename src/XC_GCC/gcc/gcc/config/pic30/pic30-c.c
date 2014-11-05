@@ -76,7 +76,6 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
   char buffer[80];
   extern const char *pic30_it_option;
   extern const char *pic30_it_option_arg;
-  extern int flag_lang_asm;
   struct cpp_reader *pfile = (struct cpp_reader *)pfile_v;
 
   sprintf(buffer,"__OPTIMIZATION_LEVEL__=%d", optimize);
@@ -94,7 +93,7 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
       int i=1;
       char *s,*c;
 
-      c = pic30_it_option_arg;
+      c = (char *)pic30_it_option_arg;
       do {
         s = c;
         for (; *c && *c != ','; c++);
@@ -164,7 +163,7 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     if (pic30_device_mask & HAS_DMAV2) cpp_define(pfile,"__HAS_DMAV2__");
     if (pic30_device_mask & HAS_CODEGUARD)
       cpp_define(pfile,"__HAS_CODEGUARD__");
-    if (pic30_device_mask & HAS_PMP | HAS_PMPV2)
+    if (pic30_device_mask & (HAS_PMP | HAS_PMPV2))
       cpp_define(pfile,"__HAS_PMP__");
     if (pic30_device_mask & HAS_PMPV2) cpp_define(pfile,"__HAS_PMPV2__");
     if (pic30_device_mask & HAS_EDS) cpp_define(pfile,"__HAS_EDS__");
@@ -470,7 +469,8 @@ void pic30_handle_interrupt_pragma(struct cpp_reader *pfile ATTRIBUTE_UNUSED) {
     lTreeInterrupt = chainon(lTreeInterrupt, treeFcn);
 }
 
-void pic30_handle_large_arrays_pragma(struct cpp_reader *pfile) {
+void pic30_handle_large_arrays_pragma(struct cpp_reader *pfile 
+                                        __attribute__((unused))) {
 }
 
 /*
@@ -482,7 +482,8 @@ void pic30_handle_large_arrays_pragma(struct cpp_reader *pfile) {
  *
  */
 
-void mchp_handle_align_pragma(struct cpp_reader *pfile) {
+void mchp_handle_align_pragma(struct cpp_reader *pfile
+                                __attribute__((unused))) {
   int c;
   tree x;
   
@@ -510,7 +511,8 @@ void mchp_handle_align_pragma(struct cpp_reader *pfile) {
   }
 }
 
-void mchp_handle_section_pragma(struct cpp_reader *pfile) {
+void mchp_handle_section_pragma(struct cpp_reader *pfile 
+                                  __attribute__((unused))) {
   int c;
   tree x;
   char *name;
@@ -531,23 +533,27 @@ void mchp_handle_section_pragma(struct cpp_reader *pfile) {
   mchp_pragma_section = build_string(strlen(name), name);
   c = pragma_lex(&x);
   if (c == CPP_NUMBER) {
-    // section alignment/
+    /* section alignment/ */
   }
 }
 
-void mchp_handle_printf_args_pragma(struct cpp_reader *pfile) {
+void mchp_handle_printf_args_pragma(struct cpp_reader *pfile 
+                                      __attribute__((unused))) {
   mchp_pragma_printf_args = 1;
 }
 
-void mchp_handle_scanf_args_pragma(struct cpp_reader *pfile) {
+void mchp_handle_scanf_args_pragma(struct cpp_reader *pfile
+                                     __attribute__((unused))) {
   mchp_pragma_scanf_args = 1;
 }
 
-void mchp_handle_keep_pragma(struct cpp_reader *pfile) {
+void mchp_handle_keep_pragma(struct cpp_reader *pfile
+                               __attribute__((unused))) {
   mchp_pragma_keep = 1;
 }
 
-void mchp_handle_required_pragma(struct cpp_reader *pfile) {
+void mchp_handle_required_pragma(struct cpp_reader *pfile
+                                   __attribute__((unused))) {
   int c;
   tree x;
 
@@ -592,7 +598,8 @@ void mchp_handle_required_pragma(struct cpp_reader *pfile) {
 }
   
 
-void mchp_handle_optimize_pragma(struct cpp_reader *pfile) {
+void mchp_handle_optimize_pragma(struct cpp_reader *pfile
+                                   __attribute__((unused))) {
   /* almost the same as the GCC optimize pragma, just more 'friendly' */
   int c;
   tree x;
@@ -600,7 +607,7 @@ void mchp_handle_optimize_pragma(struct cpp_reader *pfile) {
   tree optimization_previous_node = optimization_current_node;
 
   c = pragma_lex(&x);
-  if (c == CPP_EQ) c = pragma_lex(&x);  // options =
+  if (c == CPP_EQ) c = pragma_lex(&x);  /* options = */
 
   do {
     switch (c) {
@@ -659,7 +666,8 @@ void mchp_handle_optimize_pragma(struct cpp_reader *pfile) {
 }
 
 
-void mchp_handle_inline_pragma (struct cpp_reader *pfile) {
+void mchp_handle_inline_pragma (struct cpp_reader *pfile
+                                  __attribute__((unused))) {
   int c;
   tree x;
 

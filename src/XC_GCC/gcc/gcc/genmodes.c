@@ -881,7 +881,7 @@ calc_wider_mode (void)
               case MODE_UFRACT:
               case MODE_ACCUM:
               case MODE_UACCUM: { 
-                int k;
+                unsigned int k;
 
                 sortbuf[j]->wider = void_mode;
                 for (k = j + 1; k < i; k++) {

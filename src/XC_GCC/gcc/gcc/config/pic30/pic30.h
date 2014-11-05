@@ -1,8 +1,6 @@
 #ifndef _PIC30_H_
 #define _PIC30_H_
 
-/* Hello */
-
 /* Definitions of target machine for GNU compiler.
    Copyright (C) 1994, 95-98, 1999 Free Software Foundation, Inc.
    Contributed by Microchip.
@@ -128,7 +126,7 @@ enum pic30_builtins
    MCHP_BUILTIN_SET_ISR_STATE,
    MCHP_BUILTIN_DISABLE_ISR,
    MCHP_BUILTIN_ENABLE_ISR,
-   MCHP_BUILTIN_SOFTWARE_BREAK,
+   MCHP_BUILTIN_SOFTWARE_BREAK
 };
 
 #define       TARGET_USE_PA   1
@@ -2903,8 +2901,8 @@ enum pic30_fp_support_modes {
   pic30_fastest
 }; 
 
-extern enum pic30_fp_support_modes pic30_fp_round_p();
-extern bool pic30_fp_inline_p();
+extern enum pic30_fp_support_modes pic30_fp_round_p(void);
+extern bool pic30_fp_inline_p(void);
 
 #define CORCON_SET_SATA (1<<7)
 #define CORCON_SET_SATB (1<<6)

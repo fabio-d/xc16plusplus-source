@@ -5604,6 +5604,15 @@ grokdeclarator (const struct c_declarator *declarator,
   address_space = DECODE_QUAL_ADDR_SPACE (type_quals);
   if (!ADDR_SPACE_GENERIC_P (address_space))
     {
+#ifdef _BUILD_C30_
+      /* was going to make this a target macro, but decl_context and
+         storage_class are not exportable */
+      if ((address_space = pic30_space_eds) &&
+          (decl_context == NORMAL) &&
+          (storage_class != csc_register))
+         (void)(0);  /* okay */
+      else
+#endif
       if (decl_context == NORMAL)
 	{
 	  switch (storage_class)

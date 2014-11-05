@@ -3722,7 +3722,7 @@ process_command (int argc, const char **argv)
     LIB_SPEC,         // 0 default
     ALT_FM_LIB_SPEC,  // 1 pls_fast_math
     ALT_LC_LIB_SPEC,  // 2 pls_legacy_libc
-    ALT_FMLC_LIB_SPEC // 3 pls_fast_math | pls_legacy_libc
+    ALT_FMLC_LIB_SPEC, // 3 pls_fast_math | pls_legacy_libc
     ALT_RM_LIB_SPEC,  // 4 pls_relaxed_math
     ALT_RM_LIB_SPEC,  // 5 pls_relaxed_math, relaxed overrides fast
     ALT_RMLC_LIB_SPEC,// 6 pls_relaxed_math | pls_legacy_libc
@@ -6043,7 +6043,9 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 
                   /* Determine how many are non-NULL.  */
                   for (n_files = 0, i = 0; i < max; i++)
+                  {
                     n_files += outfiles[i] != NULL;
+                  }
 
                   argv = (char **) alloca (sizeof (char *) * (n_files + 1));
 
@@ -7781,14 +7783,32 @@ main (int argc, char **argv)
       }
 #elif defined(_BUILD_C30_) && defined(MCHP_VERSION)
           { int vid;
-            struct resource_introduction_block *rib;
+            struct resource_introduction_block *rib = 0;
             char *Microchip;
             char *new_version = xstrdup(version_string);
             char *version_part1;
             char *version_part2;
+            char *pic30_resource_file;
 
             SET_MCHP_VERSION(vid);
+            pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+                                  sizeof("/c30_device.info"));
             if (pic30_resource_file) {
+              { char *c;
+                int l = 0;
+                /* up two levels */
+                strcpy(pic30_resource_file, gcc_exec_prefix);
+                c = pic30_resource_file+strlen(gcc_exec_prefix);
+                while (c && l < 2) {
+                  if (*c == 0) c--;
+                  if (*c == DIR_SEPARATOR) {
+                    l++;
+                  }
+                  c--;
+                }
+                *c = 0;
+                strcat(pic30_resource_file, "/c30_device.info");
+              }
               rib = read_rib(pic30_resource_file);
               if (rib) {
                 Microchip = strstr(new_version,"Microchip");
@@ -7828,12 +7848,18 @@ main (int argc, char **argv)
                     }
                   }
                 }
-                close_rib();
               }
             }
             free(new_version);
             printf (_("%s %s%s\n"), programname, pkgversion_string,
 	            version_string);
+            if (rib) {
+              printf (_("Part support version: %d.%.2d (%c)\n"), 
+                      rib->version.major,
+                      rib->version.minor, 
+                      rib->resource_version_increment);
+              close_rib();
+            }
             printf (_("__XC16_VERSION__ == %d\n"), vid);
           }
 #else

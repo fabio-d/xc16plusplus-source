@@ -20,4 +20,4 @@
 
 */
 
-#error Gcc cannot run on a Roadrunner due to size problems!
+#error Gcc cannot run on a Microchip dsPIC(tm) or PIC24(tm) device!

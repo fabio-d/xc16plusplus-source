@@ -812,6 +812,7 @@ void pic30_no_section(void);
 static int pic30_valid_readwrite_attribute(tree args, tree identifier,
                                            const char *attached_to, tree decl);
 static int pic30_fixed_point_mode(enum machine_mode);
+int pic30_eds_space_operand_p(rtx op);
 
 /* c-decl.c C30 only fn */
 extern tree c_identifier_binding(tree node);
@@ -1054,8 +1055,6 @@ unsigned int validate_target_id(char *id, char **matched_id) {
   char *version_part1;
   char *version_part2;
   int mismatch=0;
-  char *match;
-  char *device_buf;
 
   mask = 0;
   if (strcmp(id, "GENERIC-16BIT") == 0) {
@@ -1085,7 +1084,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
   }
   rib = read_device_rib(pic30_resource_file, pic30_target_cpu);
   if (rib == 0) {
-    warning("Could not open resource file: %s", pic30_resource_file);
+    warning(0,"Could not open resource file: %s", pic30_resource_file);
     return 0;
   }
   if (strcmp(rib->tool_chain,"C30")) {
@@ -1121,8 +1120,8 @@ unsigned int validate_target_id(char *id, char **matched_id) {
       *Microchip = 0;
       version_part2 = Microchip+1;
       /* version part located */
-      version_string = xmalloc(strlen(version_part1) + strlen(version_part2) +
-                               40);
+      version_string = (char *)xmalloc(strlen(version_part1) + 
+                                       strlen(version_part2) + 40);
       if (mismatch) {
         sprintf(version_string,"%s, resource version %d.%.2d (%c), %s",
                 version_part1, rib->version.major, rib->version.minor,
@@ -1183,7 +1182,8 @@ unsigned int validate_target_id(char *id, char **matched_id) {
               struct isr_info *new;
 
               isr_names_max += 256;
-              new = xmalloc(isr_names_max * sizeof(struct isr_info));
+              new = (struct isr_info*)
+                    xmalloc(isr_names_max * sizeof(struct isr_info));
               if (valid_isr_names) {
                 memcpy(new, valid_isr_names,
                        isr_names_idx * sizeof(struct isr_info));
@@ -1227,8 +1227,8 @@ unsigned int validate_target_id(char *id, char **matched_id) {
 
   if (pic30_target_cpu_id) {
     /* set config data dir based from resource_file */
-    mchp_config_data_dir = xmalloc(strlen(pic30_resource_file)+
-                                   strlen(pic30_target_cpu_id));
+    mchp_config_data_dir = (char*)xmalloc(strlen(pic30_resource_file)+
+                                          strlen(pic30_target_cpu_id));
     sprintf(mchp_config_data_dir,"%s",pic30_resource_file);
     {  char *c;
 
@@ -1262,7 +1262,7 @@ static void validate_ordered_tables(void) {
 
 static int pic30_bsearch_isr_compare(const void *va, const void *vb) {
   const char *a = (const char *)va;
-  const struct isr_info *b = vb;
+  const struct isr_info *b = (const struct isr_info *)vb;
   int result = strcmp(a,b->id);
 
   if (b->mask & target_flags) return result;
@@ -1272,7 +1272,8 @@ static int pic30_bsearch_isr_compare(const void *va, const void *vb) {
 
 static int pic30_bsearch_rsn_compare(const void *va, const void *vb) {
   const char *a = (const char *)va;
-  const struct reserved_section_names_ *n = vb;
+  const struct reserved_section_names_ *n = 
+    (const struct reserved_section_names_ *)vb;
 
   if (n) return strncmp(a, n->section_name, strlen(n->section_name));
   else return 0;
@@ -1280,7 +1281,7 @@ static int pic30_bsearch_rsn_compare(const void *va, const void *vb) {
 
 static int pic30_bsearch_vsf_compare(const void *va, const void *vb) {
   const char *a = (const char *)va;
-  const struct valid_section_flags_ *f = vb;
+  const struct valid_section_flags_ *f = (const struct valid_section_flags_*)vb;
 
   if (f) return strncmp(a, f->flag_name, strlen(f->flag_name));
   else return 0;
@@ -1303,7 +1304,8 @@ static SECTION_FLAGS_INT validate_section_flags(const char *name,
     f = flags+1;
     comma = ',';
   }
-  if (name) r_section = bsearch(name, reserved_section_names,
+  if (name) r_section = (struct reserved_section_names_ *)
+                        bsearch(name, reserved_section_names,
                                 (sizeof(reserved_section_names) /
                                  sizeof(struct reserved_section_names_)) - 1,
                                 sizeof(struct reserved_section_names_),
@@ -1319,7 +1321,8 @@ static SECTION_FLAGS_INT validate_section_flags(const char *name,
     /* nasty safe-ctype.h means that we can't use isspace */
     while (*f && ISSPACE(*f)) f++;
     if (*f) {
-      v_flags = bsearch(f, valid_section_flags,
+      v_flags = (struct valid_section_flags_ *)
+                bsearch(f, valid_section_flags,
                         (sizeof(valid_section_flags) /
                          sizeof(struct valid_section_flags_)) -1,
                         sizeof(struct valid_section_flags_),
@@ -1609,6 +1612,7 @@ tree pic30_write_externals(enum pic30_special_trees kind) {
  * be careful of recursive types
  */
 
+int type_refers_to_size_t(tree type);
 int type_refers_to_size_t(tree type) {
   static struct cheap_rtx_list *recursion_check = 0;
   int result = 0;
@@ -1689,7 +1693,6 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
   tree paramtype;
   location_t loc = DECL_SOURCE_LOCATION(decl);
   int size_t_type = 0;
-  int keep_attr = 0;
 
   validate_decl_attributes(decl); /* moved from default_section_name */
 
@@ -1724,12 +1727,13 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
 
   if (TREE_CODE(decl) == VAR_DECL) {
     tree *inner_type = &TREE_TYPE(decl);
+    addr_space_t as;
 
     while ((TREE_CODE(*inner_type) == POINTER_TYPE) ||
            (TREE_CODE(*inner_type) == ARRAY_TYPE)) {
       inner_type = &TREE_TYPE(*inner_type);
     }
-    addr_space_t as = TYPE_ADDR_SPACE(*inner_type);
+    as = TYPE_ADDR_SPACE(*inner_type);
 
     if (as == pic30_space_packed) {
       flags |= SECTION_DF;
@@ -2116,7 +2120,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
                             DECL_ATTRIBUTES(decl));
     if (attr) {
       p = sprintf(buffer,
-           "%D secure() attribute for '%%s' incompatible with attribute(s):\n");
+          "%%D secure() attribute for '%%s' incompatible with attribute(s):\n");
       if (fnear) {
         if (p < 100) p += sprintf(&buffer[p]," near");
         err++;
@@ -2179,11 +2183,10 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
 }
 
 static void validate_decl_attributes(tree decl) {
-  int i,psv=0,prog=0;
+  int psv=0,prog=0;
   tree a,r,u,p,is_aligned,b,s;
   tree memory = 0;
   int is_default = 0;
-  int len_this_default_name;
   const char *pszSectionName = 0;
   location_t loc = DECL_SOURCE_LOCATION(decl);
 
@@ -2205,8 +2208,9 @@ static void validate_decl_attributes(tree decl) {
     if (b && s) {
       error("%D boot and secure specified for '%s'", decl,
             IDENTIFIER_POINTER(DECL_NAME(decl)));
-      DECL_ATTRIBUTES(decl) = remove_attribute(pic30_identSecure[0],
-                                               DECL_ATTRIBUTES(decl));
+      DECL_ATTRIBUTES(decl) = 
+        remove_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
+                         DECL_ATTRIBUTES(decl));
       s = 0;
     }
     if (p) {
@@ -2282,27 +2286,27 @@ static const char *pic30_unique_section_name(tree decl) {
             sizeof("__at_address_") + sizeof(default_name)*2 + 1;
       if (maxlen < len) {
         if (default_name) free(default_name);
-        default_name = xcalloc(len,1);
+        default_name = (char*)xcalloc(len,1);
         maxlen= len;
       }
       sprintf(default_name,"%s_%p_at_address_%p", pic30_default_section,
-              decl, TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(a))));
+              (void*)decl, (void*)TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(a))));
     } else {
       len = strlen(pic30_default_section) + sizeof(default_name)*2 +
             sizeof(long long)*2 + 2;
       if (maxlen < len) {
         if (default_name) free(default_name);
-        default_name = xcalloc(len,1);
+        default_name = (char*)xcalloc(len,1);
         maxlen= len;
       }
       sprintf(default_name,"%s_%p%lx", pic30_default_section,
-              decl, current_time);
+              (void*)decl, current_time);
     }
   } else {
     len = strlen(pic30_default_section)+1;
     if (maxlen < len) {
       if (default_name) free(default_name);
-      default_name = xcalloc(len,1);
+      default_name = (char*)xcalloc(len,1);
       maxlen= len;
     }
     default_name[0]=pic30_default_section[0];
@@ -2312,10 +2316,10 @@ static const char *pic30_unique_section_name(tree decl) {
 }
 
 #define CHECK_SIZE(result, current_len, max_len, add) \
-   if (current_len + add + 1 > max_len) {             \
+   if (current_len + (signed)add + 1 > max_len) {             \
      char *new_result;                                \
-     max_len = max_len + (add < 512 ? 512 : add*2);   \
-     new_result = xmalloc(max_len);                   \
+     max_len = max_len + ((signed)add < 512 ? 512 : add*2);   \
+     new_result = (char*)xmalloc(max_len);            \
      gcc_assert(new_result);                          \
      *new_result = 0;                                 \
      if (result) {                                    \
@@ -2332,7 +2336,7 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
   static char *result;
   static int maxlen = 0;
   int currentlen = 0;
-  char *prepend[80] = { 0 };
+  char prepend[80] = { 0 };
   int i,psv=0,implied_psv=0,prog=0;
   tree a,r,u,p,is_aligned,b,s;
   tree memory = 0;
@@ -2399,9 +2403,11 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       currentlen += sprintf(result,"%s", this_default_name);
     }
     else if (a) {
-      // + 16 covers parens, terminating null, and largest possible address
+      /* + 16 covers parens, terminating null, and largest possible address */
 #define ADDR_LEN 16
       if (!pszSectionName||(strcmp(pszSectionName,pic30_default_section) == 0)){
+        /* warning: comparison between signed and unsigned does not occur
+                    when the .i file is compiled (bug in 4.2.1?) */
         CHECK_SIZE(result, currentlen, maxlen, 
                    len_this_default_name + sizeof(SECTION_ATTR_ADDRESS) + 
                    ADDR_LEN);
@@ -2617,7 +2623,7 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
           if (!flag_function_sections || !decl)  return txt;
           else {
             char *retval;
-            retval = xmalloc(strlen(prepend)+strlen(txt)+3+
+            retval = (char *)xmalloc(strlen(prepend)+strlen(txt)+3+
                              strlen(IDENTIFIER_POINTER(DECL_NAME(decl))));
             /* if we are prepending .isr use that instead of the default name
                of .text until keep attribute is implemented */
@@ -2996,7 +3002,7 @@ void pic30_override_options(void) {
     char *copy, *copy2, *c;
     int mask;
 
-    copy = xmalloc(80);
+    copy = (char *)xmalloc(80);
     sprintf(copy, "__dsPIC%s", pic30_target_cpu);
     copy2 = (char*)"__dsPIC30F__";
     /* nasty safe-ctype.h means that we can't use toupper */
@@ -3008,7 +3014,7 @@ void pic30_override_options(void) {
       pic30_target_cpu = copy;
       if (TARGET_ARCH(PIC24F) || TARGET_ARCH(PIC24H) ||
           TARGET_ARCH(PIC24FK) || TARGET_ARCH(PIC24E)) {
-        copy2 = xmalloc(80);
+        copy2 = (char *)xmalloc(80);
         copy[2] = '_';
         copy[3] = '_';
         sprintf(copy2, "__PIC24%s__",
@@ -3057,7 +3063,7 @@ void pic30_override_options(void) {
                                          STANDARD_EXEC_PREFIX);
 
     if (!path) fatal_error("Could not locate `%s`\n", save_argv[0]);
-    exec = xmalloc(strlen(path)+sizeof("pic30-lm.exe") + 7);
+    exec = (char *)xmalloc(strlen(path)+sizeof("pic30-lm.exe") + 7);
     sprintf(exec, "%s\\pic30-lm.exe", path);
     if (pic30_resource_file && pic30_target_cpu &&
         !TARGET_ARCH(GENERIC) && !TARGET_ARCH(DA_GENERIC) &&
@@ -3065,7 +3071,7 @@ void pic30_override_options(void) {
       /* pic30_target_cpu == 0 -> no -mcpu= command line option */
       /* TARGET_ARCH(GENERIC) => -mcpu=generic-16bit */
       /* TARGET_ARCH(DA_GENERIC) => -mcpu=generic-16bit-da */
-      cpu_option = xmalloc(strlen(pic30_resource_file)+6+
+      cpu_option = (char *)xmalloc(strlen(pic30_resource_file)+6+
                            strlen(pic30_target_cpu_id)+1);
       sprintf(cpu_option,"-cpu=%s;%s", pic30_resource_file, pic30_target_cpu_id);
       args[1] = cpu_option;
@@ -3430,7 +3436,7 @@ static bool pic30_assemble_integer(rtx x, unsigned int size, int aligned_p) {
 
     case 6:
       if (pic30_fixed_point_mode(GET_MODE(x))) {
-        fprintf(asm_out_file,"\t.word 0x%4.4x, 0x%4.4x, 0x%4.4x\n",
+        fprintf(asm_out_file,"\t.word 0x%4.4lx, 0x%4.4lx, 0x%4.4lx\n",
                 CONST_FIXED_VALUE_LOW(x) & 0xFFFF,
                 (CONST_FIXED_VALUE_LOW(x) >> 16) & 0xFFFF,
                 (CONST_FIXED_VALUE_HIGH(x) & 0xFF));
@@ -3477,7 +3483,7 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
   pic30_interesting_fn *match;
   struct cheap_fn_list {
     const char *old_name;
-    const char *new_name;
+    char *new_name;
     enum pic30_fp_support_modes round_mode;
     struct cheap_fn_list *next;
   };
@@ -3499,7 +3505,7 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
   if (PIC30_HAS_NAME_P(symbol_name, PIC30_QLIBFN_FLAG)) {
     struct cheap_fn_list *l;
     enum pic30_fp_support_modes round_mode;
-    const char *p;
+    char *p;
 
     round_mode = pic30_fp_round_p();
     for (l = fixed_pt_libs; l; l=l->next)
@@ -3507,7 +3513,7 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
         return l->new_name;
     
     /* round mode not found */
-    p = xmalloc(strlen(var)+14);
+    p = (char *)xmalloc(strlen(var)+14);
     gcc_assert(p);
     switch (round_mode) {
       case pic30_truncation:
@@ -3526,7 +3532,7 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
       default:
         gcc_unreachable();
     }
-    l = xmalloc(sizeof(struct cheap_fn_list));
+    l = (struct cheap_fn_list*)xmalloc(sizeof(struct cheap_fn_list));
     gcc_assert(l);
     l->next = fixed_pt_libs;
     l->old_name = var;
@@ -3694,17 +3700,17 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
           *f++=0;
 
           if (strlen(extra_flags) > 1) {
-            match->encoded_name = xmalloc(strlen(match->map_to) +
+            match->encoded_name = (char *)xmalloc(strlen(match->map_to) +
                                           strlen(extra_flags) + 3);
             sprintf(match->encoded_name,"%s%s%s",
                     flag_short_double ? "_" : "_d",
                     match->map_to, extra_flags);
           } else {
             /* we have no flags */
-            match->encoded_name = xmalloc(strlen(match->map_to) + 5);
+            match->encoded_name = (char *)xmalloc(strlen(match->map_to) + 5);
             sprintf(match->encoded_name,"%s%s_0",
                     flag_short_double ? "_" : "_d",
-                    match->map_to, extra_flags);
+                    match->map_to);
           }
         }
         if (match->encoded_name) return match->encoded_name;
@@ -4412,6 +4418,7 @@ static tree pic30_pointer_expr(tree arg) {
 ** Determine if a parameter is suitable as an argument to
 ** the builtin table and psv instructions.
 */
+int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0);
 int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
   int p = 0;
 
@@ -4451,7 +4458,7 @@ int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
 */
 static int pic30_builtin_dma_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
   int p = 0;
-  unsigned int flag_mask;
+  SECTION_FLAGS_INT flag_mask;
 
   if (pic30_device_mask &  HAS_DMAV2) {
     flag_mask = SECTION_DMA | SECTION_WRITE;
@@ -4536,7 +4543,6 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
   const char *id = 0;
   rtx (*gen)(rtx,rtx) = 0;
   rtx (*gen3)(rtx,rtx,rtx) = 0;
-  rtx other_accumulator = NULL_RTX;
   rtx scratch0 =  gen_rtx_REG(HImode,SINK0);
   rtx scratch1 =  gen_rtx_REG(HImode,SINK1);
   rtx scratch2 =  gen_rtx_REG(HImode,SINK2);
@@ -4544,7 +4550,6 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
   rtx scratch4 =  gen_rtx_REG(HImode,SINK4);
   rtx scratch5 =  gen_rtx_REG(HImode,SINK5);
   rtx scratch6 =  gen_rtx_REG(HImode,SINK6);
-  rtx scratch7 =  gen_rtx_REG(HImode,SINK7);
 
   switch (fcode)
   {
@@ -4676,7 +4681,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
           if (TREE_STRING_LENGTH(sub_arg0) > 20) {
              error("__builtin_unique_id argument 0 exceeds maximum length");
           }
-          label_name = xmalloc(TREE_STRING_LENGTH(sub_arg0) + 5);
+          label_name = (char *)xmalloc(TREE_STRING_LENGTH(sub_arg0) + 5);
           fmt = TREE_STRING_POINTER(sub_arg0);
         }
       }
@@ -4828,8 +4833,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       {
         target = gen_reg_rtx(HImode);
       }
-      emit_insn(gen_tblpage_helper(target,
-                                   GEN_INT(pic30_section_base(r0,1,&r1))));
+      emit_insn(
+        gen_tblpage_helper(target,
+                           GEN_INT((HOST_WIDE_INT)pic30_section_base(r0,1,&r1)))
+      );
       if ((r1) && (INTVAL(r1) != 0))
         error("__builtin_tblpage argument does not allow an offset");
       return target;
@@ -4862,8 +4869,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       {
         target = gen_reg_rtx(HImode);
       }
-      emit_insn(gen_psvpage_helper(target,
-                                   GEN_INT(pic30_section_base(r0,1,&r1))));
+      emit_insn(
+        gen_psvpage_helper(target,
+                           GEN_INT((HOST_WIDE_INT)pic30_section_base(r0,1,&r1)))
+      );
       if ((r1) && (INTVAL(r1) != 0))
         error("__builtin_psvpage argument does not allow an offset");
       return target;
@@ -5537,7 +5546,6 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       rtx distance = NULL_RTX;
       rtx p_xreg = NULL_RTX;
       rtx p_yreg = NULL_RTX;
-         (fcode == PIC30_BUILTIN_EDAC ? gen_ed_hi : gen_edac_hi);
 
       if (id == 0) id = "ed";
       if (!(pic30_dsp_target())) {
@@ -6706,7 +6714,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             new_target = gen_reg_rtx(SImode);
           }
           emit_insn(
-            fn2(new_target, GEN_INT(TREE_OPERAND(TREE_OPERAND(arg0,0),0)))
+            fn2(new_target, 
+                GEN_INT((HOST_WIDE_INT)TREE_OPERAND(TREE_OPERAND(arg0,0),0)))
           );
           if (new_target != target) {
             emit_move_insn(target,new_target);
@@ -6780,8 +6789,6 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 */
 /************************************************************************/
 void pic30_notice_update_cc(rtx exp, rtx insn) {
-  rtx orig_exp = exp;
-
   if (GET_CODE(exp) == PARALLEL) {
     int i;
     rtx x;
@@ -6864,6 +6871,7 @@ void pic30_notice_update_cc(rtx exp, rtx insn) {
 
 int pic30_fixed_point_mode(enum machine_mode mode) {
   switch (mode) {
+    default: break;
     case HAmode:        /* 40-bit fixed point */
     case UHAmode:
     case SAmode:
@@ -6910,7 +6918,7 @@ int pic30_extra_constraint_p(rtx value, char c, const char *p) {
         break;
       }
       case 'O': {
-        struct fixed_value *f;
+        const struct fixed_value *f;
         f = CONST_FIXED_VALUE(value);
         if ((f->data.low == 0) && (f->data.high == 0)) result = 1;
         break;
@@ -7009,6 +7017,7 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
          otherwise only allow A and B for accumulator modes */
     if (pic30_fp_round_p() != pic30_none) {
       switch (mode) {
+        default: break;
         case HAmode:        /* 40-bit fixed point */
         case UHAmode:
         case SAmode:
@@ -7023,9 +7032,9 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
         case UTQmode:
         case DQmode:        /*   Point */
         case UDQmode:
-         if (pic30_dsp_target()) {
-           return 1;
-         }
+          if (pic30_dsp_target()) {
+            return 1;
+          }
       } 
       return 126;
     } else {
@@ -7069,13 +7078,23 @@ void pic30_pp_modify(rtx opnd, int *pre, int *dec) {
         break;
       case PRE_DEC: 
       case POST_DEC: 
-        *dec = -11;
+        *dec = -1;
         break;
       default: gcc_assert(0);
     }
   }
 }
 
+/* return true if it is a pre-modify - some operations fail with pre-modify -
+   ie, larger than word-size pre-modifies cannot be done */
+int pic30_pre_modify(rtx opnd) {
+  if (GET_CODE(opnd) == MEM) {
+    rtx inner = XEXP(opnd,0);
+    if ((GET_CODE(inner) == PRE_INC) || (GET_CODE(inner) == PRE_DEC))
+      return 1;
+  }
+  return 0;
+}
 
 int pic30_pp_modify_valid(rtx opnd ATTRIBUTE_UNUSED) {
   int pre=0;
@@ -7431,8 +7450,8 @@ rtx pic30_function_arg(CUMULATIVE_ARGS *cum, enum machine_mode mode,
       !targetm.calls.must_pass_in_stack(mode, type))
   {
     int i;
-    int nWords;    // number of regsiters
-    int alignment; // register alignment
+    int nWords;    /* number of regsiters */
+    int alignment; /* register alignment */
 
     if (mode == BLKmode)
     {
@@ -7637,6 +7656,7 @@ int pic30_dead_or_set_p(rtx first, rtx reg) {
 }
 
 /* look for a reg that is used anywhere in the fn */
+int pic30_reg_used_p(rtx first, rtx reg);
 int pic30_reg_used_p(rtx first, rtx reg) {
   rtx insn;
 
@@ -7709,7 +7729,7 @@ int pic30_lnk_removed(rtx insn, int lnk) {
   /* called from peephole2 which is performed backwards */
   static rtx ulnk=0;
 
-  if (!pic30_peep_lnk) return;
+  if (!pic30_peep_lnk) return 0;
 
   if (lnk) {
     if (!pic30_reg_used_p(next_active_insn(insn), frame_pointer_rtx) &&
@@ -8128,7 +8148,9 @@ static int pic30_address_cost(rtx op, bool speed) {
 }
 
 static 
-enum reg_class pic30_secondary_reload(bool in_p, rtx x, enum reg_class rclass,
+enum reg_class pic30_secondary_reload(bool in_p, rtx x, 
+                                      enum reg_class rclass 
+                                        __attribute__((unused)),
                                       enum machine_mode mode,
                                       secondary_reload_info *sri) {
   int disp;
@@ -9431,12 +9453,14 @@ pic30_valid_call_address_operand(rtx op, enum machine_mode mode) {
 /*
  * return true if addr is a TARGET_BIG index
  */
-int pic30_big_index(rtx addr, rtx *loc) {
+static int pic30_big_index(rtx addr, rtx loc);
+static int pic30_big_index(rtx addr, rtx loc) {
   int result = 0;
   rtx new_rtx = 0;
 
   if (!TARGET_BIG) return 0;
   switch(GET_CODE(addr)) {
+      default: break;
       case MINUS:
       case PLUS:   result = pic30_big_index(XEXP(addr,0),loc);
                    result += pic30_big_index(XEXP(addr,1),loc);
@@ -9444,6 +9468,7 @@ int pic30_big_index(rtx addr, rtx *loc) {
       case SUBREG: if ((GET_MODE(addr) == SImode) && (loc)) {
                      new_rtx = gen_rtx_SUBREG(HImode, XEXP(addr,0), 0);
                    }
+                   /* FALLSTHROUGH */
       case REG:    if (GET_MODE(addr) == SImode) {
                      if ((loc) && (new_rtx == 0)) {
                        new_rtx = gen_rtx_SUBREG(HImode, addr, 0);
@@ -9451,7 +9476,7 @@ int pic30_big_index(rtx addr, rtx *loc) {
                      if (new_rtx) {
                        rtx reg = gen_reg_rtx(HImode);
                        emit_move_insn(reg, new_rtx);
-                       replace_rtx(loc, addr, reg);
+		       replace_rtx(loc, addr, reg);
                      }
                      return 1;
                    }
@@ -9832,7 +9857,7 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
 /************************************************************************/
 /* pic30_Q_base(): extract the base for the Q addressing mode.        */
 /************************************************************************/
-int pic30_Q_base(rtx op) {
+unsigned int pic30_Q_base(rtx op) {
     int idBase = FIRST_PSEUDO_REGISTER;
     rtx rtxPlusop0;
     rtx rtxPlusop1;
@@ -10210,6 +10235,17 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
               fprintf(file, (letter=='I') ? "[%s++]" : "[%s--]",
                       reg_names[REGNO(inner)]);
               break;
+            case PRE_DEC:
+            case PRE_INC: {
+              /* convert a pre into a post */
+              rtx inner2 = XEXP(inner,0);
+              if (GET_CODE(inner2) == REG) {
+                fprintf(file, (letter=='I') ? "[%s++]" : "[%s--]",
+                        reg_names[REGNO(inner2)]);
+                break;
+              }
+              /* FALLSTHROUGH */
+            }
             default:
               output_address(inner);
               fprintf(file, "[bad code=%d]", GET_CODE(inner));
@@ -10224,6 +10260,17 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
               fprintf(file, (letter=='P') ? "[++%s]" : "[--%s]",
                       reg_names[REGNO(inner)]);
               break;
+            case POST_DEC:
+            case POST_INC: {
+              /* convert a post into a pre */
+              rtx inner2 = XEXP(inner,0);
+              if (GET_CODE(inner2) == REG) {
+                fprintf(file, (letter=='I') ? "[%++s]" : "[%--s]",
+                        reg_names[REGNO(inner2)]);
+                break;
+              }
+              /* FALLSTHROUGH */
+            }
             default:
               output_address(inner);
               fprintf(file, "[bad code=%d]", GET_CODE(inner));
@@ -14322,7 +14369,7 @@ void pic30_encode_section_info(tree decl, rtx rtl,
     const char *stripped_str = pic30_strip_name_encoding_helper(str);
 #endif
 
-    newstr = xmalloc(len + strlen(prefix) + 1);
+    newstr = (char *)xmalloc(len + strlen(prefix) + 1);
 #if 0
     sprintf(newstr, "%s%s", prefix, stripped_str);
 #else
@@ -15593,7 +15640,7 @@ pic30_output_configuration_words(void) {
     if (spec->referenced_bits) {
       fprintf(asm_out_file,"; Configuration word @ 0x%08x\n",
               spec->word->address);
-      fprintf(asm_out_file,"\t.section\t.config_%s, code, address(0x%x)\n",
+      fprintf(asm_out_file,"\t.section\t.config_%s, code, address(0x%x), keep\n",
               spec->word->settings->name, spec->word->address);
       fprintf(asm_out_file,"__config_%s:\n", spec->word->settings->name);
       fprintf(asm_out_file,"\t.pword\t%u\n", spec->value);
@@ -15675,7 +15722,7 @@ void pic30_asm_file_end(void) {
   fprintf(asm_out_file,"\n\t.set ___PA___,0\n\t.end\n");
   if (first_invalid_isr) {
     unsigned int size = 256;
-    char *buffer = xmalloc(256);
+    char *buffer = (char*)xmalloc(256);
     char *p = buffer;
     *buffer = 0;
     for (; first_invalid_isr;first_invalid_isr = first_invalid_isr->next){
@@ -16923,7 +16970,7 @@ void pic30_system_include_paths(const char *root ATTRIBUTE_UNUSED,
   if (prefix == 0) return;
   if (stdinc == 0) return;
   max_len=80 + strlen(prefix);
-  my_prefix = xmalloc(max_len);
+  my_prefix = (char *)xmalloc(max_len);
   my_prefix[0] = 0;
   strcat(my_prefix, prefix);
   /* prefix is set by -iprefix from pic30-gcc; which is always based upon where
@@ -16942,7 +16989,7 @@ void pic30_system_include_paths(const char *root ATTRIBUTE_UNUSED,
     for (; *c && (*c != ':') && (*c != ';'); c++) {
       penpenultimate[1+len++] = *c;
       if (len+base_len > max_len) {
-        char *new_prefix = xmalloc(max_len+256);
+        char *new_prefix = (char *)xmalloc(max_len+256);
 
         strcat(new_prefix, my_prefix);
         penpenultimate = new_prefix + (penpenultimate-my_prefix);
@@ -17135,44 +17182,44 @@ char *pic30_default_include_path(void) {
 
     if ((target_flags & MASK_ARCH_PIC24F) ||
         (target_flags & MASK_ARCH_PIC24FK)) {
-      my_space = xcalloc(sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(sizeof(PATH_SEPARATOR_STR
                                 MPLABC30_PIC24F_INCLUDE_PATH)+extra,1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC24F_INCLUDE_PATH);
     } else if (target_flags & MASK_ARCH_PIC24H) {
-      my_space = xcalloc(sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC24H_INCLUDE_PATH)+extra,1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC24H_INCLUDE_PATH);
     } else if (target_flags & MASK_ARCH_PIC24E) {
-      my_space = xcalloc(extra+sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC24E_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC24E_INCLUDE_PATH);
     } else if (target_flags & MASK_ARCH_PIC30F) {
-      my_space = xcalloc(extra+sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC30F_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC30F_INCLUDE_PATH);
     } else if (target_flags & MASK_ARCH_PIC33F) {
-      my_space = xcalloc(extra+sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC33F_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33F_INCLUDE_PATH);
     } else if (target_flags & MASK_ARCH_PIC33E) {
-      my_space = xcalloc(extra+sizeof(PATH_SEPARATOR_STR
+      my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC33E_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33E_INCLUDE_PATH);
     } else {
       /* generic */
-      my_space = xcalloc(extra,1);
+      my_space = (char*)xcalloc(extra,1);
       sprintf(my_space,"%s", common);
     }
 
@@ -17730,7 +17777,7 @@ void push_cheap_rtx(cheap_rtx_list **l, rtx x, tree t, int flag) {
   cheap_rtx_list *item;
 
   if (l == 0) return;
-  item = xmalloc(sizeof(cheap_rtx_list));
+  item = (cheap_rtx_list*)xmalloc(sizeof(cheap_rtx_list));
 
   item->x = x;
   item->t = t;
@@ -18126,7 +18173,7 @@ void pic30_track_sfrs(void) {
         if (REG_P(XEXP(set,0))) {
           if (REGNO(XEXP(set,0)) == A_REGNO) {
             if (required_saturation != SATA_status) {
-               // generate instruction
+               /* generate instruction */
                emit_insn_before(
                  required_saturation ?
                    gen_bsetCORCON(GEN_INT(CORCON_SET_SATA)) :
@@ -18136,7 +18183,7 @@ void pic30_track_sfrs(void) {
             }
           } else if (REGNO(XEXP(set,0)) == B_REGNO) {
             if (required_saturation != SATB_status) {
-               // generate instruction
+               /* generate instruction */
                emit_insn_before(
                  required_saturation ?
                    gen_bsetCORCON(GEN_INT(CORCON_SET_SATB)) :
@@ -18146,7 +18193,7 @@ void pic30_track_sfrs(void) {
             }
 #if 0
             if (required_saturation != SATB_status) {
-               // generate instruction
+               /* generate instruction */
                emit_insn_before(
                  gen_setSAT(GEN_INT(CORCON_SET_SATB + required_saturation)),
                insn);
@@ -18516,6 +18563,7 @@ hashval_t pic30_variant_type_hash(const void *foo) {
   val = (val >> 8 ) & 0xFF;
 
   if (val > MAXHASH) val = MAXHASH;
+  return val;
 }
 
 int pic30_variant_type_eq(const void *a, const void *b) {
@@ -18572,7 +18620,8 @@ tree pic30_build_variant_type_copy(tree type, int type_quals) {
 
       t = pic30_build_distinct_type_copy_deep(type);
       slot = htab_find_slot(table, &e, 1);
-      *slot = xmalloc(sizeof(struct pic30_variant_type_hash_entry));
+      *slot = (struct pic30_variant_type_hash_entry*)
+              xmalloc(sizeof(struct pic30_variant_type_hash_entry));
       (*slot)->main_variant = e.main_variant;
       (*slot)->packed_variant = t;
     } else return r->packed_variant;
