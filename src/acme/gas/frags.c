@@ -72,14 +72,20 @@ frag_grow (nchars)
 
       frag_wane (frag_now);
       frag_new (0);
+#ifdef PIC30
+      frag_align(0, 0, 0);
+#endif
       oldc = frchain_now->frch_obstack.chunk_size;
       frchain_now->frch_obstack.chunk_size = 2 * nchars + SIZEOF_STRUCT_FRAG;
       if (frchain_now->frch_obstack.chunk_size > 0)
 	while ((n = obstack_room (&frchain_now->frch_obstack)) < nchars
 	       && (unsigned long) frchain_now->frch_obstack.chunk_size > nchars)
-	  {
+	  { 
 	    frag_wane (frag_now);
 	    frag_new (0);
+#ifdef PIC30
+            frag_align(0, 0, 0);
+#endif
 	  }
       frchain_now->frch_obstack.chunk_size = oldc;
     }
@@ -384,6 +390,9 @@ frag_append_1_char (datum)
     {
       frag_wane (frag_now);
       frag_new (0);
+#ifdef PIC30
+      frag_align(0, 0, 0);
+#endif
     }
   obstack_1grow (&frchain_now->frch_obstack, datum);
 }
@@ -393,10 +402,10 @@ frag_append_1_char (datum)
  *       not already accounted for in the frag FR_ADDRESS.  */
 
 bfd_boolean
-frag_offset_fixed_p (const fragS *frag1, const fragS *frag2, bfd_vma *offset)
+frag_offset_fixed_p (const fragS *frag1, const fragS *frag2, offsetT *offset)
 {
   const fragS *frag;
-  bfd_vma off;
+  offsetT off;
 
   /* Start with offset initialised to difference between the two frags.
  *      Prior to assigning frag addresses this will be zero.  */

@@ -3432,6 +3432,8 @@ ENUMX
   BFD_RELOC_PIC30_WORD_PACKED_HI
 ENUMX
   BFD_RELOC_PIC30_WORD_PACKED_LO
+ENUMX
+  BFD_RELOC_PIC30_UNSIGNED_3
 ENUMDOC
   PIC30 specific relocations
 ENUM
@@ -4230,6 +4232,7 @@ bfd_generic_gc_sections (abfd, link_info)
      bfd *abfd ATTRIBUTE_UNUSED;
      struct bfd_link_info *link_info ATTRIBUTE_UNUSED;
 {
+  fprintf(stdout, "warning: --gc-sections is disabled with COFF format.\n");
   return TRUE;
 }
 

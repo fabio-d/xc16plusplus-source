@@ -430,10 +430,11 @@ dump_gimple_assign (pretty_printer *buffer, gimple gs, int spc, int flags)
       if (!(flags & TDF_RHS_ONLY))
 	{
 #ifdef _BUILD_C30_
-          { const char str[40];
+          { const char str[80];
 
-            sprintf(str,"@ %p = %p\n", gimple_assign_lhs(gs), 
-                                       gimple_assign_rhs1(gs));
+            sprintf(str,"@ [%p] %p = %p  ", gs, 
+                                          gimple_assign_lhs(gs), 
+                                          gimple_assign_rhs1(gs));
             pp_string(buffer,str);
           }
 #endif

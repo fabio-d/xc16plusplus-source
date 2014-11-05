@@ -3170,10 +3170,19 @@ operand_equal_p (const_tree arg0, const_tree arg1, unsigned int flags)
       || TREE_TYPE (arg1) == error_mark_node)
     return 0;
 
+#ifdef _BUILD_C30_
+  /* We should check the INTEGER_CSTS type code otherwise we can create the 
+     sitation where this will assert later
+     (ie size_binop_loc).  (CAW) */
+  if (TREE_CODE (arg0) == INTEGER_CST && TREE_CODE (arg1) == INTEGER_CST)
+    return tree_int_cst_equal (arg0, arg1) &&
+           (TREE_CODE(TREE_TYPE(arg0)) == TREE_CODE(TREE_TYPE(arg1)));
+#else
   /* Check equality of integer constants before bailing out due to
      precision differences.  */
   if (TREE_CODE (arg0) == INTEGER_CST && TREE_CODE (arg1) == INTEGER_CST)
     return tree_int_cst_equal (arg0, arg1);
+#endif
 
   /* If both types don't have the same signedness, then we can't consider
      them equal.  We must check this before the STRIP_NOPS calls
@@ -3457,10 +3466,16 @@ operand_equal_p (const_tree arg0, const_tree arg1, unsigned int flags)
 
     case tcc_declaration:
       /* Consider __builtin_sqrt equal to sqrt.  */
-      return (TREE_CODE (arg0) == FUNCTION_DECL
-	      && DECL_BUILT_IN (arg0) && DECL_BUILT_IN (arg1)
-	      && DECL_BUILT_IN_CLASS (arg0) == DECL_BUILT_IN_CLASS (arg1)
-	      && DECL_FUNCTION_CODE (arg0) == DECL_FUNCTION_CODE (arg1));
+      if  (TREE_CODE (arg0) == FUNCTION_DECL
+	   && DECL_BUILT_IN (arg0) && DECL_BUILT_IN (arg1)
+	   && DECL_BUILT_IN_CLASS (arg0) == DECL_BUILT_IN_CLASS (arg1)
+	   && DECL_FUNCTION_CODE (arg0) == DECL_FUNCTION_CODE (arg1))
+        return 1;
+
+#ifdef _BUILD_C30_
+        /* Not sure why we don't just check to see if arg0 == arg1 anywhere */
+        return (arg0 == arg1);
+#endif
 
     default:
       return 0;
@@ -10275,8 +10290,14 @@ fold_binary_loc (location_t loc,
     }
 
   switch (code)
-    {
-    case POINTER_PLUS_EXPR:
+    { 
+    case POINTER_PLUS_EXPR: {
+      tree this_sizetype = sizetype;
+
+#ifdef TARGET_POINTER_SIZETYPE
+      this_sizetype = TARGET_POINTER_SIZETYPE(TREE_TYPE(arg0));
+#endif
+
       /* 0 +p index -> (type)index */
       if (integer_zerop (arg0))
 	return non_lvalue_loc (loc, fold_convert_loc (loc, type, arg1));
@@ -10289,27 +10310,25 @@ fold_binary_loc (location_t loc,
       if (INTEGRAL_TYPE_P (TREE_TYPE (arg1))
 	   && INTEGRAL_TYPE_P (TREE_TYPE (arg0)))
         return fold_convert_loc (loc, type,
-				 fold_build2_loc (loc, PLUS_EXPR, sizetype,
-					      fold_convert_loc (loc, sizetype,
-								arg1),
-					      fold_convert_loc (loc, sizetype,
-								arg0)));
+	            fold_build2_loc (loc, PLUS_EXPR, this_sizetype,
+		       fold_convert_loc (loc, this_sizetype, arg1),
+		       fold_convert_loc (loc, this_sizetype, arg0)));
 
       /* index +p PTR -> PTR +p index */
       if (POINTER_TYPE_P (TREE_TYPE (arg1))
 	  && INTEGRAL_TYPE_P (TREE_TYPE (arg0)))
         return fold_build2_loc (loc, POINTER_PLUS_EXPR, type,
 			    fold_convert_loc (loc, type, arg1),
-			    fold_convert_loc (loc, sizetype, arg0));
+			    fold_convert_loc (loc, this_sizetype, arg0));
 
       /* (PTR +p B) +p A -> PTR +p (B + A) */
       if (TREE_CODE (arg0) == POINTER_PLUS_EXPR)
 	{
 	  tree inner;
-	  tree arg01 = fold_convert_loc (loc, sizetype, TREE_OPERAND (arg0, 1));
+	  tree arg01 = fold_convert_loc (loc, this_sizetype, TREE_OPERAND (arg0, 1));
 	  tree arg00 = TREE_OPERAND (arg0, 0);
-	  inner = fold_build2_loc (loc, PLUS_EXPR, sizetype,
-			       arg01, fold_convert_loc (loc, sizetype, arg1));
+	  inner = fold_build2_loc (loc, PLUS_EXPR, this_sizetype,
+			       arg01, fold_convert_loc (loc, this_sizetype, arg1));
 	  return fold_convert_loc (loc, type,
 				   fold_build2_loc (loc, POINTER_PLUS_EXPR,
 						TREE_TYPE (arg00),
@@ -10327,12 +10346,13 @@ fold_binary_loc (location_t loc,
       if (TREE_CODE (arg0) == ADDR_EXPR)
 	{
 	  tem = try_move_mult_to_index (loc, arg0,
-					fold_convert_loc (loc, sizetype, arg1));
+					fold_convert_loc (loc, this_sizetype, arg1));
 	  if (tem)
 	    return fold_convert_loc (loc, type, tem);
 	}
 
       return NULL_TREE;
+    }
 
     case PLUS_EXPR:
       /* A + (-B) -> A - B */

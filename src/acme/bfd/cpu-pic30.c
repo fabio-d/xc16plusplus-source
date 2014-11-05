@@ -78,6 +78,7 @@ int pic30_is_eds_machine(const bfd_arch_info_type *);
 int pic30_is_pmp_machine(const bfd_arch_info_type *);
 int pic30_is_epmp_machine(const bfd_arch_info_type *);
 int pic30_is_ecore_machine(const bfd_arch_info_type *);
+int pic30_is_dualpartition_machine(const bfd_arch_info_type *);
 int pic30_is_5V_machine(const bfd_arch_info_type *);
 void pic30_update_resource(const char *resource);
 void pic30_load_codeguard_settings(const bfd_arch_info_type *, int);
@@ -92,10 +93,11 @@ void pic30_dump_selected_codeguard_options(FILE *);
 char * pic30_unique_selected_configword_names(void);
 int pic30_decode_CG_settings(char *, unsigned short, int);
 unsigned short pic30_encode_CG_settings(char *);
-
+void pic30_get_aivt_settings(const bfd_arch_info_type *, int);
 
 #define ARCH_TABLE 1
 #define CODEGUARD_SETTINGS 2
+#define AIVT_SETTINGS 3
 static void process_resource_file(unsigned int, unsigned int, int);
 
 
@@ -182,7 +184,12 @@ static int pic30_tool_version;
 char *pic30_resource_version;
 
 static char *version_part1;
-static char *version_part2;
+
+unsigned int aivtdis_bit_ptr = 0;
+unsigned int aivtdis_mask = 0;
+unsigned int aivtloc_ptr = 0;
+unsigned int aivtloc_mask = 0;
+bfd_boolean pic30_has_floating_aivt = FALSE;
 
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
@@ -316,7 +323,6 @@ void pic30_update_resource(const char *resource) {
       pic30_tool_version = major *100 + minor;
       version_part1 = new_version;
       *Microchip = 0;
-      version_part2 = Microchip+1;
     }
   }
   get_resource_path(resource);
@@ -354,22 +360,23 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
   }
 
   if (!pic30_resource_version) {
-    pic30_resource_version = xmalloc(strlen(version_part1) + 
-                                     strlen(version_part2) + 40);
+    pic30_resource_version = xmalloc(strlen(version_part1) + 40);
     version = rib->version.major * 100 + rib->version.minor;
 #ifndef RESOURCE_MISMATCH_OK
     if (version != pic30_tool_version) {
       fprintf(stderr,"Warning: resource version (%d.%.2d) does not match!\n",
               rib->version.major, rib->version.minor);
-      sprintf(pic30_resource_version,"%s, resource version %d.%02d (%c), %s",
+      sprintf(pic30_resource_version,"%s, resource version %d.%02d (%c)",
               version_part1, rib->version.major, rib->version.minor, 
-              rib->resource_version_increment,version_part2);
+              rib->resource_version_increment);
     }  
-#else
     else {
-      sprintf(pic30_resource_version,"%s (%c) %s",
-              version_part1, rib->resource_version_increment, version_part2);
+      sprintf(pic30_resource_version,"%s (%c)",
+              version_part1, rib->resource_version_increment);
     }
+#else
+      sprintf(pic30_resource_version,"%s (%c)",
+              version_part1, rib->resource_version_increment);
 #endif
   }
 
@@ -386,7 +393,8 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
 
       read_value(rik_string, &d);
       read_value(rik_int, &d2);
-      if (d2.v.i & IS_DEVICE_ID) {
+      // if (d2.v.i & IS_DEVICE_ID) 
+      if ((d2.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
         next = xmalloc(sizeof(bfd_arch_info_type));
         memcpy(next, last_generic, sizeof(bfd_arch_info_type));
         last_generic->next = next;
@@ -418,16 +426,21 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
       codeguard_setting_type *next;
       struct resource_data d2,d3,d4,d5,d6;
 
-      read_value(rik_string, &d);
-      read_value(rik_int, &d2);
+      read_value(rik_string, &d); // name
+      read_value(rik_int, &d2);   // flags
       read_value(rik_int, &d3);
 
       /* we don't support generic codeguard settings */
-      if ((d2.v.i & IS_CODEGUARD_ID) && (d2.v.i & FAMILY_MASK) &&
+      // if ((d2.v.i & IS_CODEGUARD_ID) && (d2.v.i & FAMILY_MASK) &&
+      if (((d2.v.i & RECORD_TYPE_MASK) == IS_CODEGUARD_ID) && 
+          (d2.v.i & FAMILY_MASK) &&
           (d3.v.i == 0))
         printf("\nGeneric CodeGuard settings are not supported\n");
 
-      if ((d2.v.i & IS_CODEGUARD_ID) && (d3.v.i == procID)) {
+      // if ((d2.v.i & IS_CODEGUARD_ID) && (d3.v.i == procID)) 
+      if (((d2.v.i & RECORD_TYPE_MASK) == IS_CODEGUARD_ID)  && 
+          (((d2.v.i & PARTITIONED) != 0) == pic30_partition_flash) &&
+          (d3.v.i == procID)) {
         if (debug)
           printf(".");
         read_value(rik_int, &d4);
@@ -445,6 +458,37 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         last_CG_setting->next = next;
         last_CG_setting = next;
       } else free(d.v.s);
+    }
+  }
+
+  if ((mode == AIVT_SETTINGS) && rib->field_count >= 5) {
+    int record;
+    for (record = 0; move_to_record(record); record++) {
+      struct resource_data d2,d3,d4,d5;
+
+      read_value(rik_string, &d); 
+      read_value(rik_int, &d2);   // flags
+      read_value(rik_int, &d3);
+
+      if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
+          (((d2.v.i & MEM_PARTITIONED) != 0) == pic30_partition_flash) &&
+          (d3.v.i == procID)) {
+        if (debug)
+          printf(".");
+        read_value(rik_int, &d4);
+        read_value(rik_int, &d5);
+
+        if (d2.v.i & MEM_IS_AIVT_ENABLED) {
+          pic30_has_floating_aivt = TRUE;
+          aivtdis_bit_ptr = d4.v.i;
+          aivtdis_mask = d5.v.i;
+        }
+
+        if (d2.v.i & MEM_AIVT_LOCATION) {
+          aivtloc_ptr = d4.v.i;
+          aivtloc_mask = d5.v.i;
+        }
+      }  else free(d.v.s);
     }
     close_rib();
     if (debug)
@@ -975,6 +1019,23 @@ pic30_is_ecore_machine(const bfd_arch_info_type *proc)
 }
 
 int
+pic30_is_dualpartition_machine(const bfd_arch_info_type *proc)
+{
+  int rc = 0;
+  struct pic30_resource_info *f;
+
+  if (proc == NULL)    /* if no processor has been specified,        */
+    return rc;         /*  assume it does NOT support ECORE          */
+
+  for (f = arch_flags_head[0].next; f != NULL; f = f->next)
+    if (proc == f->arch_info) {
+      rc = f->flags & HAS_DUALPARTITION;
+    }
+
+  return rc;
+}
+
+int
 pic30_is_5V_machine(const bfd_arch_info_type *proc)
 {
   int rc = 0;
@@ -1029,3 +1090,23 @@ pic30_display_as_readonly_memory_p(asection *sec)
 
   return(fDisplay);
 }
+
+/*
+** Get aivt settings from a resource file
+** for a particular processor.
+*/
+void pic30_get_aivt_settings(const bfd_arch_info_type *proc, int debug)
+{
+  /* do nothing if no processor specified */
+  if (!proc) {
+    if (debug)
+      printf("\nCan't get aivt settings; no target device specified.\n");
+    return;
+  }
+
+  /* else read the resource file */
+  if (debug)
+    printf("\nGetting aivt settings for %s:\n", proc->printable_name);
+  process_resource_file(AIVT_SETTINGS, proc->mach, debug);
+}
+

@@ -187,6 +187,13 @@ make_temp_file (const char *suffix)
   char *temp_filename;
   int base_len, suffix_len;
   int fd;
+#ifdef _BUILD_MCHP_
+#ifdef _WIN32
+  DWORD pid = GetCurrentProcessId();
+#else
+  pid_t pid = getpid();
+#endif
+#endif
 
   if (suffix == 0)
     suffix = "";
@@ -195,11 +202,25 @@ make_temp_file (const char *suffix)
   suffix_len = strlen (suffix);
 
   temp_filename = XNEWVEC (char, base_len
+#ifdef _BUILD_MCHP_
+                           + 9
+#endif
 			   + TEMP_FILE_LEN
 			   + suffix_len + 1);
+#ifdef _BUILD_MCHP_
+  { char *p = temp_filename;
+
+    p += sprintf(p, "%s", base);
+    p += sprintf(p, "%s", TEMP_FILE);
+    p += sprintf(p, ".0x%8.8x",  pid);
+    p += sprintf(p, "%s", suffix);
+    suffix_len += 9;
+  }
+#else
   strcpy (temp_filename, base);
   strcpy (temp_filename + base_len, TEMP_FILE);
   strcpy (temp_filename + base_len + TEMP_FILE_LEN, suffix);
+#endif
 
   fd = mkstemps (temp_filename, suffix_len);
   /* Mkstemps failed.  It may be EPERM, ENOSPC etc.  */

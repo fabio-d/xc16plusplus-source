@@ -45,11 +45,26 @@ static bfd_size_type actual_prog_used;
 
 const char *version = VERSION;
 
+static long long int offset_address_by = 0;
 static int sort_by_address = 0;
 static int upper_case = 0;
 static struct pic30_section *outputs;
 
 char *program_name;
+
+void help(char **argv);
+void help(char **argv) {
+  printf("\n  %s -- convert an object file to Intel hex format\n", argv[0]);
+  printf ("  %s", strstr (version, "- ") + 2);
+  printf("\n  usage: %s file [options]\n\n", argv[0]);
+  printf("  options:\n");
+  printf("    -a          sort sections by address\n");
+  printf("    -u          use upper-case hex digits\n");
+  printf("    -v          print verbose messages\n");
+  printf("\n");
+  printf("    --offset n  offset hex file addresses offset by n\n");
+  printf("\n");
+}
 
 int
 main (argc, argv)
@@ -57,51 +72,63 @@ main (argc, argv)
      char **argv;
 {
   bfd *abfd;
-  char *file;
+  char *file = 0;
   char * dot;
   char * hex_file;
-  int c;
-
-  program_name = argv[0];
-  file = argv[1];
+  int arg,c;
 
   if (argc == 1)  {
-    printf("\n  %s -- convert an object file to Intel hex format\n", argv[0]);
-    printf ("  %s", strstr (version, "- ") + 2);
-    printf("\n  usage: %s file [options]\n\n", argv[0]);
-    printf("  options:\n");
-    printf("    -a        sort sections by address\n");
-    printf("    -u        use upper-case hex digits\n");
-    printf("    -v        print verbose messages\n");
-    printf("\n");
+    help(argv);
     return success;
   }
 
+  program_name = argv[0];
+
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "uva")) != -1)
-    switch (c)
-      {
-      case 'a':
-        sort_by_address = 1;
-        break;
-      case 'u':
-        upper_case = 1;
-        break;
-      case 'v':
-        verbose++;
-        break;
-      case '?':
-        if (isprint (optopt))
-          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-        else
-          fprintf (stderr,
-                   "Unknown option character `\\x%x'.\n",
-                   optopt);
-        return 1;
-      default:
-        abort ();
+  for (arg = 1; arg < argc; arg++) {
+    if (argv[arg][0] == '-') {
+      // an option
+      c = argv[arg][1];
+      switch (c) {
+        case '-':
+          // extended option
+          if (strcmp(argv[arg],"--offset") == 0) {
+            offset_address_by = strtoll(argv[arg+1],0,0);
+          }
+          arg++;
+          break;
+        case 'a':
+          sort_by_address = 1;
+          break;
+        case 'u':
+          upper_case = 1;
+          break;
+        case 'v':
+          verbose++;
+          break;
+        default:
+          if (isprint (optopt))
+            fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+          else
+            fprintf (stderr,
+                     "Unknown option character `\\x%x'.\n",
+                     optopt);
+          help(argv);
+          return 1;
       }
+    } else {
+      if (file == 0) {
+        /* allow the file anywhere, but... only one.
+           users should not notice */
+        file = argv[arg];
+      } else {
+        fprintf(stderr,"Stray option \"%s\"?\n", argv[arg]);
+        help(argv);
+        return 1;
+      }
+    }
+  }
 
   bfd_init ();
 
@@ -121,8 +148,10 @@ main (argc, argv)
       return error;
     }
 
-  if (verbose)
+  if (verbose) {
     printf("\n");
+    printf("Offsetting addresses by 0x%16.16llx\n", offset_address_by);
+  }
 
   /* strip extension from filename if present */
   dot = strrchr(file, '.');
@@ -306,6 +335,7 @@ write_section(bfd *abfd, asection *sect, PTR fp) {
     /* print section header */
     PCstart = sect->lma;
     start = PCstart << 1;
+    start += offset_address_by;
     total = sect->_raw_size;
     actual = total * .75;
 

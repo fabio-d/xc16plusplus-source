@@ -298,6 +298,7 @@ struct pic30_section
 };
 
 extern bfd_boolean pic30_has_fill_option;
+extern bfd_boolean pic30_partition_flash;
 
 /*****************************************************************************/
 

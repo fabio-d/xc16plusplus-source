@@ -3,6 +3,8 @@
  */
 
 #ifndef CCI
+#ifndef _CCI_H_
+#define _CCI_H_
 /*
  * General defines....
  *
@@ -98,6 +100,7 @@ struct mchp_config_word
     unsigned address;
     unsigned mask;
     unsigned default_value;
+    unsigned partitioned;
     struct mchp_config_setting *settings;
   };
 
@@ -115,6 +118,7 @@ struct mchp_config_specification
 extern struct mchp_config_specification *mchp_configuration_values;
 
 
+#endif
 #else
 
 /* CCI mapping */

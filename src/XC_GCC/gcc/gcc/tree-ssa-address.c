@@ -568,8 +568,14 @@ static void
 addr_to_parts (tree type, aff_tree *addr, tree base_hint,
 	       struct mem_address *parts, bool speed)
 {
+  tree this_sizetype = sizetype;
   tree part;
   unsigned i;
+
+#ifdef TARGET_POINTER_SIZETYPE
+  if (base_hint)
+    this_sizetype = TARGET_POINTER_SIZETYPE(TREE_TYPE(base_hint));
+#endif
 
   parts->symbol = NULL_TREE;
   parts->base = NULL_TREE;
@@ -577,7 +583,7 @@ addr_to_parts (tree type, aff_tree *addr, tree base_hint,
   parts->step = NULL_TREE;
 
   if (!double_int_zero_p (addr->offset))
-    parts->offset = double_int_to_tree (sizetype, addr->offset);
+    parts->offset = double_int_to_tree (this_sizetype, addr->offset);
   else
     parts->offset = NULL_TREE;
 
@@ -599,14 +605,15 @@ addr_to_parts (tree type, aff_tree *addr, tree base_hint,
   /* Then try to process the remaining elements.  */
   for (i = 0; i < addr->n; i++)
     {
-      part = fold_convert (sizetype, addr->elts[i].val);
+      part = fold_convert (this_sizetype, addr->elts[i].val);
       if (!double_int_one_p (addr->elts[i].coef))
-	part = fold_build2 (MULT_EXPR, sizetype, part,
-			    double_int_to_tree (sizetype, addr->elts[i].coef));
+	part = fold_build2 (MULT_EXPR, this_sizetype, part,
+			    double_int_to_tree (this_sizetype, 
+						addr->elts[i].coef));
       add_to_parts (parts, part);
     }
   if (addr->rest)
-    add_to_parts (parts, fold_convert (sizetype, addr->rest));
+    add_to_parts (parts, fold_convert (this_sizetype, addr->rest));
 }
 
 /* Force the PARTS to register.  */

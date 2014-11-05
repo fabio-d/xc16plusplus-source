@@ -1725,7 +1725,7 @@ expr (rankarg, resultP)
   while (op_left != O_illegal && op_rank[(int) op_left] > rank)
     {
       segT rightseg;
-      bfd_vma frag_off;
+      offsetT frag_off;
 
       input_line_pointer += op_chars;	/* -> after operator.  */
 
@@ -1852,8 +1852,8 @@ expr (rankarg, resultP)
 	       && right.X_op == O_symbol
 	       && resultP->X_op == O_symbol
                && retval == rightseg
-	       && frag_offset_fixed_p(symbol_get_frag (right.X_add_symbol),
-		                      symbol_get_frag (resultP->X_add_symbol),
+	       && frag_offset_fixed_p(symbol_get_frag (resultP->X_add_symbol),
+		                      symbol_get_frag (right.X_add_symbol),
                                       &frag_off)
 	       && (SEG_NORMAL (rightseg)
 		   || right.X_add_symbol == resultP->X_add_symbol))

@@ -1163,6 +1163,7 @@ struct print_file_list
   char *filename;
   unsigned int line;
   FILE *f;
+  asection *section;
 };
 
 static struct print_file_list *print_files;
@@ -1243,7 +1244,7 @@ show_line (abfd, section, addr_offset)
       && line > 0)
     {
       struct print_file_list **pp, *p;
-
+      int l;
       for (pp = &print_files; *pp != NULL; pp = &(*pp)->next)
 	if (strcmp ((*pp)->filename, filename) == 0)
 	  break;
@@ -1253,7 +1254,6 @@ show_line (abfd, section, addr_offset)
 	{
 	  if (p != print_files)
 	    {
-	      int l;
 
 	      /* We have reencountered a file name which we saw
 		 earlier.  This implies that either we are dumping out
@@ -1290,17 +1290,27 @@ show_line (abfd, section, addr_offset)
 		}
 	    }
 
-	  if (p->f != NULL)
+          if (line != p->line && p->f != NULL && p->section != section)
+            {
+              l = line - SHOW_PRECEDING_CONTEXT_LINES;
+              p->line = 0;
+              rewind(p->f);
+              skip_to_line (p, l, FALSE);
+            }
+
+	  if ((p) && (p->f != NULL))
 	    {
 	      skip_to_line (p, line, TRUE);
 	      *pp = p->next;
 	      p->next = print_files;
 	      print_files = p;
+              p->section = section;
 	    }
 	}
-      else
+      
+      if (p == NULL)
 	{
-	  FILE *f;
+          FILE *f;
 
 	  f = fopen (filename, "r");
 	  if (f != NULL)
@@ -1313,6 +1323,7 @@ show_line (abfd, section, addr_offset)
 	      strcpy (p->filename, filename);
 	      p->line = 0;
 	      p->f = f;
+              p->section = section;
 
 	      if (print_files != NULL && print_files->f != NULL)
 		{

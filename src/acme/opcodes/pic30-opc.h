@@ -187,6 +187,7 @@
 #define F_IS_2_WORD_INSN             (1 << 6)
 #define F_ECORE                      (1 << 7)
 #define F_FCORE                      (1 << 8)
+#define F_DUALPARTITION              (1 << 9)
 
 /******************************************************************************
  *
@@ -505,6 +506,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define BCLRF_B          OP_BCLRF_B,    1, { 0xA90000 }, 0xFF0000
 #define BCLR_B           OP_BCLR_B,     1, { 0xA10400 }, 0xFF0F80
 
+#define BOOTSWP          OP_BOOTSWP,    1, { 0xFE2000 }, 0xFFFFFF
+
 #define BRA_DSP          OP_BRA_DSP,    1, { BRA_DSP_INSN }, 0xFC0000
 #define BRA              OP_BRA,        1, { BRA_INSN },     0xFF0000
 #define BRA_CC           OP_BRA_CC,     1, { BRA_CC_INSN },  0xF00000
@@ -639,6 +642,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define CPWBNE_W         OP_CPWBNE_W,   1, { CPWBNE_W_INSN }, 0xFF8400
 #define CPWSNE_E_B       OP_CPWSNE_E_B, 1, { 0xE70410 }, 0xFF87F0
 #define CPWSNE_E_W       OP_CPWSNE_E_W, 1, { 0xE70010 }, 0xFF87F0
+#define CTXTSWPL	 OP_CTXTSWPL,   1, { 0xFEE000 }, 0xFFF000
+#define CTXTSWPW         OP_CTXTSWPW,   1, { 0xFEF000 }, 0xFFF000
 
 #define DAW_B            OP_DAW_B,      1, { 0xFD4000 }, 0xFFFFF0
 

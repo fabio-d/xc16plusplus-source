@@ -1635,7 +1635,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
     }
 
     else if ((0 <= (option2 % PSV_BOUNDARY)) &&
-             ((option2 % PSV_BOUNDARY) < 4))
+             ((option2 % PSV_BOUNDARY) < 4) && pic30_has_psv_trap_errata)
       option2_valid = FALSE;
 
     else {

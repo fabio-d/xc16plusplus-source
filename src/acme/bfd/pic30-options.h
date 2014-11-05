@@ -61,6 +61,7 @@ extern bfd_boolean pic30_select_objects;
 extern bfd_boolean pic30_local_stack;
 extern bfd_boolean pic30_psv_override;
 extern bfd_boolean pic30_eds_stack;
+extern bfd_boolean pic30_partition_flash;
 
 /* --fill option specific definitions */
 extern bfd_boolean pic30_has_fill_option;
@@ -151,7 +152,8 @@ enum pic30_options {
   FILL_OPTION,
   LOCAL_STACK_OPTION,
   NO_LOCAL_STACK_OPTION,
-  PSV_OVERRIDE_OPTION
+  PSV_OVERRIDE_OPTION,
+  PARTITION_FLASH
 };
 
 static struct option longopts[] = 
@@ -190,5 +192,6 @@ static struct option longopts[] =
   { "local-stack", no_argument, NULL, LOCAL_STACK_OPTION},
   { "no-local-stack", no_argument, NULL, NO_LOCAL_STACK_OPTION},
   { "psv-override", no_argument, NULL, PSV_OVERRIDE_OPTION },
+  { "partition", no_argument, NULL, PARTITION_FLASH },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

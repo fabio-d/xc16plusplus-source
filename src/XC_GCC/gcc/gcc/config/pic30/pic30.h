@@ -61,6 +61,7 @@ enum pic30_builtins
    PIC30_BUILTIN_WRITESFR,    /*  __builtin_writesfr(...) */
    PIC30_BUILTIN_TBLADDRESS,  /*  __builtin_tbladdress(...) */
    PIC30_BUILTIN_TBLPAGE,     /*  __builtin_tblpage(...) */
+   PIC30_BUILTIN_DATAFLASHOFFSET,   /*  __builtin_dataflashoffset(...) */
    PIC30_BUILTIN_TBLOFFSET,   /*  __builtin_tbloffset(...) */
    PIC30_BUILTIN_PSVPAGE,     /*  __builtin_psvpage(...) */
    PIC30_BUILTIN_PSVOFFSET,   /*  __builtin_psvoffset(...) */
@@ -126,7 +127,9 @@ enum pic30_builtins
    MCHP_BUILTIN_SET_ISR_STATE,
    MCHP_BUILTIN_DISABLE_ISR,
    MCHP_BUILTIN_ENABLE_ISR,
-   MCHP_BUILTIN_SOFTWARE_BREAK
+   MCHP_BUILTIN_SOFTWARE_BREAK,
+   PIC30_BUILTIN_WRITEDATAFLASH,
+   PIC30_BUILTIN_WRITEDATAFLASH_SECURE
 };
 
 #define       TARGET_USE_PA   1
@@ -141,7 +144,7 @@ enum pic30_builtins
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
 
-#define ASM_SPEC   "%{!.s:%{!.S:--relax}} %{mcpu=*:-p%*} -omf=" OMF
+#define ASM_SPEC   "%{mpartition=*:--partition %*} %{!.s:%{!.S:--relax}} %{mcpu=*:-p%*} -omf=" OMF
 
 #ifndef MCHP_CCI_CC1_SPEC
 #error MCHP_CCI_CC1_SPEC not defined
@@ -151,7 +154,7 @@ enum pic30_builtins
   %(mchp_cci_cc1_spec) \
   -mresource=%I-../../c30_device.info -omf=" OMF
 
-#define LINK_SPEC   "%{mcpu=*:-p%*} -omf=" OMF
+#define LINK_SPEC   "%{mpartition=*:--partition %*} %{mcpu=*:-p%*} -omf=" OMF
 
 /*
 ** A C string constant that tells the GNU CC driver program how to run any
@@ -273,7 +276,7 @@ enum pic30_builtins
 /* define PATH to be used if C_INCLUDE_PATH is not declared 
    (and CPLUS_INCLUDE_PATH for C++, &c).  The directories are all relative
    to the current executable's directory */
-extern char * pic30_default_include_path(void) __attribute__((weak));
+#if 0
 #define DEFAULT_INCLUDE_PATH ( pic30_default_include_path ?     \
                                  pic30_default_include_path() : \
                                MPLABC30_COMMON_INCLUDE_PATH ":" \
@@ -283,6 +286,8 @@ extern char * pic30_default_include_path(void) __attribute__((weak));
                                MPLABC30_PIC30F_INCLUDE_PATH ":" \
                                MPLABC30_PIC33E_INCLUDE_PATH ":" \
                                MPLABC30_PIC33F_INCLUDE_PATH )
+#endif
+
 #ifndef TARGET_EXTRA_INCLUDES
 extern void pic30_system_include_paths(const char *root, const char *system, 
                                        int nostdinc);
@@ -1779,9 +1784,10 @@ typedef struct pic30_args
 #define PIC30_SECURE_FLAG     PIC30_EXTENDED_FLAG "sec"
 #define PIC30_AUXFLASH_FLAG   PIC30_EXTENDED_FLAG "aux"     PIC30_EXTENDED_FLAG
 #define PIC30_AUXPSV_FLAG     PIC30_EXTENDED_FLAG "xpsv"    PIC30_EXTENDED_FLAG
-#define PIC30_DF_FLAG         PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
+#define PIC30_PACKEDFLASH_FLAG PIC30_EXTENDED_FLAG "pf"      PIC30_EXTENDED_FLAG
 #define PIC30_KEEP_FLAG       PIC30_EXTENDED_FLAG "keep"    PIC30_EXTENDED_FLAG
 #define PIC30_QLIBFN_FLAG     PIC30_EXTENDED_FLAG "qlib"    PIC30_EXTENDED_FLAG
+#define PIC30_DATAFLASH_FLAG  PIC30_EXTENDED_FLAG "df"     PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -2703,6 +2709,7 @@ extern int pic30_license_valid;
 #define PRE_PROLOGUE_FN \
   { \
     (void) pic30_asm_function_p(1); \
+    (void) pic30_function_uses_w0(1); \
   }
 
 #define SECTION_FLAGS_INT unsigned long long
@@ -2746,7 +2753,8 @@ enum pic30_address_space {
   pic30_space_pmp,
   pic30_space_external,
   pic30_space_eds,
-  pic30_space_packed
+  pic30_space_packed,
+  pic30_space_data_flash
 };
 
 #define TARGET_ADDR_SPACE_KEYWORDS \
@@ -2858,6 +2866,7 @@ enum pic30_acceptible_regs_flags {
 #define TARGET_CHECK_SECTION_FLAGS pic30_check_section_flags
 
 #define MCHP_CONFIGURATION_DATA_FILENAME "configuration.data"
+#define AUX_MCHP_CONFIGURATION_DATA_FILENAME "aux_configuration.data"
 #define MCHP_CONFIGURATION_HEADER_MARKER "Configuration Word Definitions: "
 #define MCHP_CONFIGURATION_HEADER_VERSION "0001"
 #define MCHP_CONFIGURATION_HEADER_SIZE \
@@ -2916,12 +2925,21 @@ struct saved_list {
 
 /* Memory sizes for current device; */
 struct pic30_mem_info_ {
-  int flash[2];
-  int ram[2];
-  int eeprom[2];
+  int flash[2];      /* [0] -> main flash,    [1] -> aux flash */
+  int ram[2];        /* [0] -> main ram,      [1] -> aux ram */
+  int eeprom[2];     /* [0] -> eeprom size,   [1] -> unused */
+  int dataflash[2];  /* [0] -> size in bytes, [1] -> page number */
 };
 
 extern struct pic30_mem_info_ pic30_mem_info;
+
+#define MCHP_VALIDATE_SETTING_CHOICE(spec, setting, FAIL) \
+  if (pic30_validate_config_setting(spec,setting) == 0) { FAIL; } (void)0
+
+/* stealing this function from varasm.c */
+extern bool bss_initializer_p (const_tree decl);
+
+#define TARGET_POINTER_SIZETYPE pic30_target_pointer_sizetype
 
 #endif
 

@@ -389,6 +389,12 @@ extern lang_statement_list_type file_chain;
 extern lang_output_section_statement_type *pic30_current_os;
 extern void lang_select_startup_file
   PARAMS ((const char *, int));
+
+extern unsigned int aivtdis_bit_ptr;
+extern unsigned int aivtdis_mask;
+extern unsigned int aivtloc_ptr;
+extern unsigned int aivtloc_mask;
+extern bfd_boolean pic30_has_floating_aivt;
 #endif
 
 extern void lang_init

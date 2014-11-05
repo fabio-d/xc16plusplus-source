@@ -70,6 +70,8 @@ pic30_list_options (file)
                    " extended data space memory (default)\n"));
   fprintf (file, _("  --no-local-stack     Allow allocating the stack in"
                    " extended data space memory\n"));
+  fprintf (file, _("  --partition          Specify that a memory partition"
+                   " is being used\n"));
 } /* static void pic30_list_options () */
 
 
@@ -349,7 +351,7 @@ pic30_process_fill_argument (char * fill_arg)
               option->expr.addened &= 0xFF;}
            }
          /* expression is a range of values */
-         else if (strchr(expression, '.'))
+         else if (strchr(expression, ','))
            {
             int count = 0;
             char *token = (( char *) malloc(strlen(expression)));
@@ -357,15 +359,15 @@ pic30_process_fill_argument (char * fill_arg)
             char *value_token;
             char *buff;
             strcpy(token, expression);
-            for (value_token = strtok(token, "."); value_token;
-                 value_token = strtok(NULL, "."))
+            for (value_token = strtok(token, ","); value_token;
+                 value_token = strtok(NULL, ","))
                count++; /*get the range size*/
             option->range_size = count;
             free(token);
             buff = malloc((count * option->fill_width) * sizeof(char));
             option->expr.values_range = buff;
-            for (value_token = strtok(expression, "."); value_token;
-                 value_token = strtok(NULL, "."))
+            for (value_token = strtok(expression, ","); value_token;
+                 value_token = strtok(NULL, ","))
                {
                 (void)sscanf(value_token, "%i", &value);
                 if (option->fill_width == 1)
@@ -650,7 +652,12 @@ pic30_parse_args (argc, argv)
       return 0;
     case PSV_OVERRIDE_OPTION:
       pic30_psv_override = TRUE;
+      break;
+    case PARTITION_FLASH:
+      pic30_partition_flash = TRUE;
+      break;
     }
+    
   
   return 1; 
 } /* static int pic30_parse_args ()*/

@@ -5118,6 +5118,12 @@ check_array_ref (location_t location, tree ref, bool ignore_off_by_one)
   tree low_sub, up_sub;
   tree low_bound, up_bound = array_ref_up_bound (ref);
 
+#ifdef _BUILD_C30_
+  /* we might be able to check the lower bound independantly of upper */
+  int check_upper = 1;
+  int check_lower = 1;
+#endif
+
   low_sub = up_sub = TREE_OPERAND (ref, 1);
 
   if (!up_bound || TREE_NO_WARNING (ref)
@@ -5130,9 +5136,17 @@ check_array_ref (location_t location, tree ref, bool ignore_off_by_one)
          extension) and 1 are likely intentional ("struct
          hack").  */
       || compare_tree_int (up_bound, 1) <= 0)
+#ifdef _BUILD_C30_
+    check_upper = 0;
+#else
     return;
+#endif
 
   low_bound = array_ref_low_bound (ref);
+
+#ifdef _BUILD_C30_
+  if (!low_bound) check_lower = 0;
+#endif
 
   if (TREE_CODE (low_sub) == SSA_NAME)
     {
@@ -5144,6 +5158,9 @@ check_array_ref (location_t location, tree ref, bool ignore_off_by_one)
         }
     }
 
+#ifdef _BUILD_C30_
+  if (check_lower && check_upper)
+#endif
   if (vr && vr->type == VR_ANTI_RANGE)
     {
       if (TREE_CODE (up_sub) == INTEGER_CST
@@ -5155,8 +5172,16 @@ check_array_ref (location_t location, tree ref, bool ignore_off_by_one)
 		      "array subscript is outside array bounds");
           TREE_NO_WARNING (ref) = 1;
         }
+#ifdef _BUILD_C30_
+      return;
+#endif
     }
-  else if (TREE_CODE (up_sub) == INTEGER_CST
+#ifdef _BUILD_C30_
+  if (check_upper)
+#else
+  else 
+#endif
+      if (TREE_CODE (up_sub) == INTEGER_CST
            && tree_int_cst_lt (up_bound, up_sub)
            && !tree_int_cst_equal (up_bound, up_sub)
            && (!ignore_off_by_one
@@ -5169,8 +5194,16 @@ check_array_ref (location_t location, tree ref, bool ignore_off_by_one)
       warning_at (location, OPT_Warray_bounds,
 		  "array subscript is above array bounds");
       TREE_NO_WARNING (ref) = 1;
+#ifdef _BUILD_C30_
+      return;
+#endif
     }
-  else if (TREE_CODE (low_sub) == INTEGER_CST
+#ifdef _BUILD_C30_
+  if (check_lower)
+#else
+  else 
+#endif
+      if (TREE_CODE (low_sub) == INTEGER_CST
            && tree_int_cst_lt (low_sub, low_bound))
     {
       warning_at (location, OPT_Warray_bounds,
@@ -5276,8 +5309,11 @@ check_all_array_refs (void)
 	{
 	  gimple stmt = gsi_stmt (si);
 	  struct walk_stmt_info wi;
+
+#if 0
 	  if (!gimple_has_location (stmt))
 	    continue;
+#endif
 
 	  if (is_gimple_call (stmt))
 	    {

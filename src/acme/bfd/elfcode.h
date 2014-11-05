@@ -1165,7 +1165,7 @@ elf_slurp_symbol_table (abfd, symptrs, dynamic)
 	    {
 	      sym->symbol.section = section_from_elf_index (abfd,
 							    isym->st_shndx);
-	      if (sym->symbol.section == NULL)
+	      if (sym->symbol.section == NULL) 
 		{
 		  /* This symbol is in a section for which we did not
 		     create a BFD section.  Just use bfd_abs_section,
