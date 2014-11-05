@@ -551,6 +551,21 @@ read_abbrevs (abfd, offset, stash)
 	  return 0;
     }
 
+#if defined(PIC30)
+        /*
+        ** Convert 16-bit octets to 8-bit bytes
+        */
+        {
+              size_t j;
+
+              for (j = 0; j < stash->dwarf_abbrev_size; ++j)
+              {
+                      stash->dwarf_abbrev_buffer[j/2] = stash->dwarf_abbrev_buffer[j++];
+              }
+              stash->dwarf_abbrev_size = j/2;
+        }
+#endif
+
   if (offset >= stash->dwarf_abbrev_size)
     {
       (*_bfd_error_handler) (_("Dwarf Error: Abbrev offset (%lu) greater than or equal to .debug_abbrev size (%lu)."),
@@ -1041,6 +1056,21 @@ decode_line_info (unit, stash)
       if (! stash->dwarf_line_buffer)
 	return 0;
     }
+
+#if defined(PIC30)
+        /*
+        ** Convert 16-bit octets to 8-bit bytes
+        */
+        {
+              size_t j;
+
+              for (j = 0; j < stash->dwarf_line_size; ++j)
+              {
+                      stash->dwarf_line_buffer[j/2] = stash->dwarf_line_buffer[j++];
+              }
+              stash->dwarf_line_size = j/2;
+        }
+#endif
 
   /* It is possible to get a bad value for the line_offset.  Validate
      it here so that we won't get a segfault below.  */

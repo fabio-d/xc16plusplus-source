@@ -163,6 +163,7 @@ extern int pic30_dat_alignment(tree, int);
 extern void mchp_cache_conversion_state(rtx, tree);
 extern int pic30_check_for_conversion(rtx);
 extern const char *pic30_strip_name_encoding(const char *);
+int pic30_pre_modify(rtx opnd);
 extern void pic30_pp_modify(rtx opnd, int *pre, int *dec);
 extern int pic30_pp_modify_valid(rtx);
 extern void pic30_override_options(void);
@@ -350,7 +351,7 @@ extern int  pic30_near_mode2_APSV_operand(rtx, enum machine_mode);
 extern int  pic30_reg_or_symbolic_address(rtx, enum machine_mode);
 extern int  pic30_neardata_space_operand_p(rtx);
 extern int  pic30_IndexEqual(rtx, rtx);
-extern int  pic30_Q_base(rtx);
+extern unsigned int  pic30_Q_base(rtx);
 extern int  pic30_Q_displacement(rtx);
 extern int  pic30_registerpairs_p(rtx, rtx, rtx, rtx);
 extern int  pic30_near_function_p(rtx);
@@ -362,6 +363,13 @@ extern enum reg_class pic30_secondary_reload_class(enum reg_class,
        enum machine_mode, rtx);
 extern void pic30_asm_output_case_label(FILE *, char *, int, rtx);
 extern void pic30_asm_output_case_end(FILE *, int, rtx);
+extern int  pic30_mode1MinMax_operand(rtx op, enum machine_mode mode,
+                                      int nMin,int nMax);
+extern int  pic30_modek_APSV_possible_operand(rtx op, enum machine_mode mode);
+extern int pic30_modek_operand_helper(rtx op, enum machine_mode mode);
+extern int pic30_modek_APSV_operand_helper(rtx op, enum machine_mode mode);
+extern int pic30_mode3_APSV_operand_helper(rtx op, enum machine_mode mode);
+extern int pic30_sfr_operand_helper(rtx op);
 
 #endif /* RTX_CODE */
 
