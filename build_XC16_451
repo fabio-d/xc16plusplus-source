@@ -25,7 +25,9 @@ while [ "$DONE" = "0" ]; do
   else
     case $1 in
       -user)
-         BUGURL="email:`whoami`@`hostname`"
+         #BUGURL="email:`whoami`@`hostname`"
+         #BUGURL="email:fabiodurso@hotmail.it"
+         BUGURL="https://github.com/fabio-d/xc16plusplus/issues"
          EXTRA_DEFINES="-DRESOURCE_MISMATCH_OK"
          shift 1;;
       -install=*) 
