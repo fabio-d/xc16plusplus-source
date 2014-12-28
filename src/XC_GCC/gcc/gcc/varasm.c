@@ -1624,7 +1624,8 @@ default_stabs_asm_out_destructor (rtx symbol ATTRIBUTE_UNUSED,
   dbxout_begin_simple_stabs ("___DTOR_LIST__", 22 /* N_SETT */);
   dbxout_stab_value_label (XSTR (symbol, 0));
 #else
-  sorry ("global destructors not supported on this target");
+  // sorry ("global destructors not supported on this target");
+  // silently ignore, there is no need to call global dtors on a PIC
 #endif
 }
 
@@ -1690,7 +1691,10 @@ default_stabs_asm_out_constructor (rtx symbol ATTRIBUTE_UNUSED,
   dbxout_begin_simple_stabs ("___CTOR_LIST__", 22 /* N_SETT */);
   dbxout_stab_value_label (XSTR (symbol, 0));
 #else
-  sorry ("global constructors not supported on this target");
+  //sorry ("global constructors not supported on this target");
+    fprintf(asm_out_file, "\t.pushsection .user_init,code\n");
+    assemble_integer_with_op("\tcall ", symbol);
+    fprintf(asm_out_file, "\t.popsection\n");
 #endif
 }
 
