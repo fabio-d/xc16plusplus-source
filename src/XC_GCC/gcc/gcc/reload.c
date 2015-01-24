@@ -431,6 +431,7 @@ push_secondary_reload (int in_p, rtx x, int opnum, int optional,
       if (*scratch_constraint == '&')
 	scratch_constraint++;
       letter = *scratch_constraint;
+
       scratch_class = (letter == 'r' ? GENERAL_REGS
 		       : REG_CLASS_FROM_CONSTRAINT ((unsigned char) letter,
 						   scratch_constraint));
@@ -6652,6 +6653,9 @@ subst_reloads (rtx insn)
       else
 	gcc_assert (rld[r->what].optional);
     }
+#if 0
+  INSN_CODE(insn) = -1;
+#endif
 }
 
 /* Make a copy of any replacements being done into X and move those

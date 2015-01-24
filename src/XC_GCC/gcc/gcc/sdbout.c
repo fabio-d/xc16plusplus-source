@@ -868,7 +868,9 @@ sdbout_symbol (tree decl, int local)
       /* according to the newest manual; for a VAR_DECL, DECL_ASSEMBLER_NAME
          can be the register name for the decl for user declared register
          variables (CW) */
-      if (DECL_REGISTER(decl))
+      if (!local && 
+          ((DECL_REGISTER(decl)) ||
+           (IDENTIFIER_POINTER(DECL_ASSEMBLER_NAME(decl))[0] == '*')))
         name = IDENTIFIER_POINTER (DECL_NAME (decl));
       else
 #endif

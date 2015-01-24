@@ -334,8 +334,12 @@ write_section(bfd *abfd, asection *sect, PTR fp) {
 
     /* print section header */
     PCstart = sect->lma;
-    start = PCstart << 1;
+    start = (PCstart + offset_address_by) << 1;
+#if 0
+    /* offset un-shifted address instead; this makes it easier to get the
+       right offset */
     start += offset_address_by;
+#endif
     total = sect->_raw_size;
     actual = total * .75;
 

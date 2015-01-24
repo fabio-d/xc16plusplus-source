@@ -84,13 +84,14 @@ char * pic30_section_size_string
 
 
 /*****************************************************************************/
+unsigned int pic30_auxpsv_attribute = (1<<auxflash)+(1<<page);
+
 unsigned int pic30_is_auxpsv()
 {
-  return ((1<<auxflash) | (1<<page));
+  return pic30_auxpsv_attribute;
 }
 /*****************************************************************************/
 
-unsigned int pic30_auxpsv_attribute = (1<<auxflash)+(1<<page);
 
 /*
  * This function builds a bit map that represents all
@@ -220,6 +221,7 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
   int result = 0;  /* default = quiet, no conflicts */
   unsigned int mask;
   long map = pic30_attribute_map(sec);
+  int section_name_seen = 0;
 
   if (flag_debug)
     printf ("--> pic30_set_implied_attributes::begin\n");
@@ -267,6 +269,12 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
     printf ("    pic30_set_implied_attributes::map = %lx\n", map);
 
 
+/* CAW 
+
+   Fix for XC16-755, where we want to sometimes say .const,auxflash,page
+   Allow multiple implied section name type qualifers.
+*/
+
 #undef ATTR
 #undef ATTR_IS
 #undef MASK1
@@ -274,7 +282,7 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
 #undef MASK3
 #undef MASK4
 #define MASK4(id,quiet,c,d)                                               \
-  } else if SECTION(id) {                                                 \
+  if SECTION(id) {                                                        \
       mask = (1<<c);         /* set type */                               \
       if (d) mask |= (1<<d); /* and modifier (if any) */                  \
       if (flag_debug) {                                                   \
@@ -282,20 +290,25 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
         printf ("    pic30_set_implied_attributes::mask = %x\n", mask);   \
       }                                                                   \
       if ((map & mask) == mask)                                           \
-        {} /* do nothing */                                               \
+        { result = 0; /* do nothing */  }                                 \
       else if (pic30_is_valid_attributes((map|mask), flag_debug))         \
         { /* set the implied attributes */                                \
           pic30_set_attributes(sec, mask, flag_debug);                    \
           result = !(quiet); }                                            \
-      else                                                                \
-        result = -1; /* report the conflict */ 
+      else {                                                              \ 
+	  /* possibly report the conflict */                              \
+          if (!section_name_seen) result = -1;                            \
+      }                                                                   \
+      section_name_seen = 1;                                              \
+  }
 
- if (0) {
 #include "pic30-attributes.h"
- } else                           /* a section by any other name... */
+ if (!section_name_seen) {
+   /* a section by any other name... */
    if ((map &                     /* if no type attribute is set    */
         (TYPE_ATTR_MASK | INFO_ATTR_MASK)) == 0)
        PIC30_SET_DATA_ATTR(sec);  /* set the default, quietly       */
+  }
    
   if (flag_debug)
     printf ("<-- pic30_set_implied_attributes::exit(%d)\n", result);
@@ -357,7 +370,11 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
    if (flag_debug)
      printf ("    pic30_is_valid_attributes::type = %x\n", type);
    for (num=0,idx=0; idx<MAX_TYPES; idx++) {
-     if ((type) & (1<<idx)) num++;
+     if ((type) & (1<<idx)) {
+        if (flag_debug)
+           printf ("    pic30_is_valid_attributes::type specified %d\n",idx);
+        num++;
+     }
    }
    if (num < 2) valid_type |= 1;
 

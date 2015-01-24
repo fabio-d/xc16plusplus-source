@@ -3501,6 +3501,10 @@ pic30_section (push)
      /* process the attribute list, if any */
      pic30_attribute (1);
 
+     /*all info sections should not be aligned xc16-392*/
+     if (PIC30_IS_INFO_ATTR(sec))
+       sec->alignment_power = 0;
+
      if (flag_debug)
        printf ("    pic30_section::new_attribute_map = 0x%x\n",
                pic30_attribute_map (sec));
@@ -4545,8 +4549,9 @@ pic30_cleanup (void)
 {
    if (flag_debug)
       printf ("--> pic30_cleanup::begin\n");
-
-   PIC30_DO_CODE_ALIGNMENT ();
+   /* do not align info sections xc16-392 */
+   if (!PIC30_IS_INFO_ATTR(now_seg))
+     PIC30_DO_CODE_ALIGNMENT ();
 
    if (flag_debug)
       printf ("<-- pic30_cleanup::exit\n");

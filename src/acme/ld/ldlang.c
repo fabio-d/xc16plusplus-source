@@ -237,11 +237,18 @@ static char * get_first_input_target
   PARAMS ((void));
 
 #ifdef PIC30
-static void get_aivt_address
-  PARAMS ((void));
-static bfd_boolean aivt_enabled = FALSE;
-       bfd_vma aivt_address = 0;
-       bfd_vma aivt_len = 0;
+#if 0
+/* CAW - moved to the emulation file */
+void get_aivt_address PARAMS ((void));
+
+bfd_boolean aivt_enabled = FALSE;
+bfd_vma aivt_address = 0;
+bfd_vma aivt_len = 0;
+#else
+extern bfd_boolean aivt_enabled;
+extern bfd_vma aivt_address;
+extern bfd_vma aivt_len;
+#endif
 #endif
 
 /* Exported variables.  */
@@ -1465,6 +1472,9 @@ lang_add_section (ptr, section, output, file)
 	output->bfd_section->alignment_power = output->section_alignment;
 
      if (PIC30_IS_PACKEDFLASH_ATTR(section))
+       section->alignment_power = output->bfd_section->alignment_power = 0;
+
+     if (PIC30_IS_INFO_ATTR(section))
        section->alignment_power = output->bfd_section->alignment_power = 0;
 
       if (section->flags & SEC_BLOCK)
@@ -3494,7 +3504,6 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		    if (!r.valid_p)
 		      einfo (_("%F%S: non constant address expression for section %s\n"),
 			     os->name);
-
 		    dot = r.value + r.section->bfd_section->vma;
 #if PIC30
                     /* Address of this section was set by user */
@@ -3623,15 +3632,26 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                          os->bfd_section->name, s->sec->name);
                 os_start = s_end + 1;
                 os_end   = os_start + os_len - 1;
+                /* CAW - check for extending past the region */
+                if (os->region) {
+                  bfd_vma region_end;
+
+                  region_end = os->region->origin + os->region->length;
+                  if (os_start >= region_end) {
+                    einfo(_("%F%S: computed address for section %s extends"
+                            " beyond MEMORY region %s\n"),
+                            os->bfd_section->name, os->region->name);
+                  }
+                }
               }
             }
           }
-        /* lock down the output section, unless
-           the section address is already fixed */
-        if (!os->bfd_section->user_set_vma) {
-          os->bfd_section->lma = os_start;
-          os->bfd_section->vma = os_start;
-        }
+          /* lock down the output section, unless
+             the section address is already fixed */
+          if (!os->bfd_section->user_set_vma) {
+            os->bfd_section->lma = os_start;
+            os->bfd_section->vma = os_start;
+          }
         }
       }
 #endif
@@ -3671,7 +3691,12 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 	       If the SEC_NEVER_LOAD bit is not set, it will affect the
 	       addresses of sections after it. We have to update
 	       dot.  */
+               /* bfd_section flags are not set at this point,
+                  this needs to be fixed */
+               /* xc16-762: update os->region->current if section size 
+                  is not zero */
 	    if (os->region != (lang_memory_region_type *) NULL
+                && (os->bfd_section->_raw_size != 0)
 		&& ((bfd_get_section_flags (output_bfd, os->bfd_section)
 		     & SEC_NEVER_LOAD) == 0
 		    || (bfd_get_section_flags (output_bfd, os->bfd_section)
@@ -3765,6 +3790,10 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		output_section_statement->bfd_section->flags |=
 		  SEC_ALLOC | SEC_LOAD;
 	      }
+            if ((strcmp(output_section_statement->name,".aivt") == 0) &&
+                 aivt_enabled)
+              output_section_statement->bfd_section->_raw_size = aivt_len * opb;
+       
 	  }
 	  break;
 
@@ -4998,9 +5027,12 @@ lang_process ()
      files.  */
   ldctor_build_sets ();
 
+#if 0
+/* CAW - moved to the emulation file */
 #ifdef PIC30  
   if (pic30_has_floating_aivt)
    get_aivt_address();
+#endif
 #endif
 
   /* Remove unreferenced sections if asked to.  */
@@ -6130,13 +6162,16 @@ lang_add_unique (name)
   unique_section_list = ent;
 }
 
-static void 
+#if 0
+/* CAW - moved to the emulation file */
+void 
 get_aivt_address ()
 {
     bfd_size_type len;
     int i, count = 0;
     unsigned int aivtdis_bit = 0;
     unsigned char *contents;
+    lang_memory_region_type *region;
 
     LANG_FOR_EACH_INPUT_STATEMENT (f) 
     {
@@ -6180,11 +6215,28 @@ get_aivt_address ()
               aivt_address -= 1;
               aivt_address *= 1024;
               /* CAW - this should be recorded in the resource information? */
-              aivt_len = 0x200;
+              aivt_len = 0x400; /* The device requires that the entire page 
+                                   where the vector table resides 
+                                   be allocated. xc16-746 */
+              /* CAW - Also, this defines the boot sector boundary */
+              {  extern bfd_boolean pic30_has_user_boot;
+                 extern unsigned int pic30_boot_flash_size;
+
+                 pic30_has_user_boot = 1;
+                 pic30_boot_flash_size =  aivt_address;
+              }
             }
             free(contents);
           } 
         }
       }
     }
+    
+    region = lang_memory_region_lookup ("program");
+    
+    if ((aivt_address < region->origin) || 
+        (aivt_address >= (region->origin + region->length)))
+      aivt_enabled = FALSE;
+
 }
+#endif

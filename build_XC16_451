@@ -15,8 +15,24 @@ EXTRA_OPTS=
 CROSS=
 STATIC=
 BUILD_SHA=
+INSTALL_DIR=  
 
 BUGURL="http://www.microchip.com/support"
+
+# What is the native host?
+export NATIVE=
+
+THIS_HOST=`uname -s`
+this_host=`uname -s | tr "[:upper:]" "[:lower:]"`
+
+# Normalize HOST OS
+case $THIS_HOST in
+  Darwin*) NATIVE="mac";;
+  SunOS*)  NATIVE="solaris";;
+  *inux*)  NATIVE="linux";;
+  CYGWIN*) NATIVE="mingw32";;
+esac
+
 
 DONE=0
 while [ "$DONE" = "0" ]; do
@@ -30,6 +46,9 @@ while [ "$DONE" = "0" ]; do
          shift 1;;
       -install=*) 
          INSTALL=`echo $1 | sed 's/.*=//'`;
+         shift 1;;
+      -install_dir=*) 
+         INSTALL_DIR=`echo $1 | sed 's/.*=//'`;
          shift 1;;
       -src=*) 
          SRC_DIR=`echo $1 | sed 's/.*=//'`;
@@ -53,7 +72,7 @@ while [ "$DONE" = "0" ]; do
            *-*) SUFFIX=`echo $SUFFIX | sed -e 's/.*-/-/'`;;
            *) SUFFIX="";
          esac
-         if ( echo $TARGET_OS | grep -v -q "native" ); then
+         if ( echo $TARGET_OS | grep -v -q -e "native" -e $NATIVE ); then
            if ( echo ${TARGET_OS} | grep "i[0-9]86" ); then
               # full host os specified
               CROSS="--host=${TARGET_OS}"
@@ -86,7 +105,6 @@ while [ "$DONE" = "0" ]; do
   fi
 done
 
-INSTALL_DIR=  
 if [ "$INSTALL" != "" ]; then
   INSTALL_DIR="${INSTALL}-${TARGET_OS}${SUFFIX}"
 fi
@@ -237,7 +255,12 @@ mkdir -p zlib
   # note to self: I think the configure will now set AR=,CC= and such for me
 
   # if [ "$CROSS" != "" ]; then
-    make CFLAGS="$EXTRA_CFLAGS $OPT" RANLIB="${ZLIB_TOOLS}-ranlib" LDSBARED="${ZLIB_TOOLS}-gcc" AR="${ZLIB_TOOLS}-ar" CC="${ZLIB_TOOLS}-gcc"  prefix=$WORKING_DIR//host-libs install
+    if [ "$RANLIB" != "" -a "$AR" != "" -a "$CC" != "" ]; then
+      # use the environment
+      make -e CFLAGS="$EXTRA_CFLAGS $OPT" LDSBARED="${CC}" prefix=$WORKING_DIR//host-libs install
+    else
+      make CFLAGS="$EXTRA_CFLAGS $OPT" RANLIB="${ZLIB_TOOLS}-ranlib" LDSBARED="${ZLIB_TOOLS}-gcc" AR="${ZLIB_TOOLS}-ar" CC="${ZLIB_TOOLS}-gcc"  prefix=$WORKING_DIR//host-libs install
+    fi
   # else
   #   make install
   # fi
@@ -290,20 +313,22 @@ if [ "$INSTALL_DIR" != "" ]; then
   echo "**** Installing GCC"
   echo
   
+  mkdir -p $INSTALL_DIR/bin/bin/
+
   EXE=
   if [ "$TARGET_OS" = "mingw32" ]; then
     EXE=".exe"
   fi
 
   if [ -f gcc/gcc/xgcc${EXE} ]; then
-    cp gcc/gcc/xgcc${EXE}  $INSTALL_DIR/bin/bin/$OMF-gcc${EXE}
+    cp -v gcc/gcc/xgcc${EXE}  $INSTALL_DIR/bin/bin/$OMF-gcc${EXE}
   fi
 
   if [ -f gcc/gcc/cc1${EXE} ]; then
-    cp gcc/gcc/cc1${EXE}  $INSTALL_DIR/bin/bin/$OMF-cc1${EXE}
+    cp -v gcc/gcc/cc1${EXE}  $INSTALL_DIR/bin/bin/$OMF-cc1${EXE}
   fi
 
   if [ -f gcc/gcc/cpp${EXE} ]; then
-    cp gcc/gcc/cpp${EXE}  $INSTALL_DIR/bin/bin/$OMF-cpp${EXE}
+    cp -v gcc/gcc/cpp${EXE}  $INSTALL_DIR/bin/bin/$OMF-cpp${EXE}
   fi
 fi

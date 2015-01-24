@@ -976,7 +976,12 @@ type_suffix (tree type)
   int unsigned_suffix;
   int is_long;
 
-  if (type == long_long_integer_type_node
+#ifdef TARGET_TYPE_SUFFIX
+  if (TARGET_TYPE_SUFFIX(type, &is_long))
+      ;// handled by TARGET_FUNCTION
+  else 
+#endif
+      if (type == long_long_integer_type_node
       || type == long_long_unsigned_type_node)
     is_long = 2;
   else if (type == long_integer_type_node

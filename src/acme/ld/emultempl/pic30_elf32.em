@@ -49,6 +49,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 #include "../bfd/pic30-options.h"
 
 #include "ctype.h"
+#include <stdarg.h>
 
 /* defined in bfd/pic30-attributes.c */
 char * pic30_section_size_string
@@ -354,6 +355,9 @@ static void pic30_create_unused_program_sections
 static void pic30_create_unused_auxflash_sections
   PARAMS ((struct pic30_fill_option *));
 
+static void bfd_pic30_ide_dashboard_memory_report
+  PARAMS ((void));
+
 int fill_section_count = 0;
 unsigned int enable_fixed = 0;
 
@@ -444,6 +448,12 @@ static struct pic30_section *psv_sections, *code_sections;
 struct pic30_section *unassigned_sections;
 static struct pic30_section *alloc_section_list;
 
+/* Movable AIVT information */
+bfd_boolean aivt_enabled = FALSE; 
+bfd_vma aivt_address = 0;
+bfd_vma fbslim_address = 0;
+bfd_vma aivt_len = 0;
+
 #if 0
 /* Free Memory List */
 struct pic30_memory
@@ -488,6 +498,16 @@ static char * valid_cg_section_names[] = {
   "__FBS.sec",
   "__FSS.sec",
   "__FGS.sec",
+  ".config_GCP",
+  ".config_GSS",
+  ".config_GSS0",
+  ".config_BSS",
+  ".config_RBS",
+  ".config_SSS",
+  ".config_RSS",
+  ".config_EBS",
+  ".config_ESS",
+  ".config_CSS",
   0, };
 
 /* The Upper Limit of Region "Program" */
@@ -769,7 +789,7 @@ static void print_output_section_statement
   PARAMS ((lang_output_section_statement_type *));
 
 static struct pic30_memory * select_free_block
-  PARAMS ((struct pic30_section *, unsigned int,
+  PARAMS ((struct pic30_section *, unsigned int, unsigned int,
           struct memory_region_struct *));
 
 static void remove_free_block
@@ -3121,6 +3141,87 @@ bfd_pic30_remove_archive_module (name)
   }
 }
 
+void
+get_aivt_address ()
+{
+    bfd_size_type len;
+    int i, count = 0;
+    unsigned int aivtdis_bit = 0;
+    unsigned char *contents;
+    lang_memory_region_type *region;
+
+    LANG_FOR_EACH_INPUT_STATEMENT (f)
+    {
+      asection *sec;
+      for (sec = f->the_bfd->sections; sec != NULL; sec = sec->next)
+      {
+        if (PIC30_IS_ABSOLUTE_ATTR(sec))
+        {
+          len = bfd_section_size (f->the_bfd, sec);
+          if ((aivtdis_bit_ptr >= sec->vma) &&
+              (aivtdis_bit_ptr < sec->vma + len))
+          {
+            contents = xmalloc (len);
+            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
+              einfo (_("%X%P: unable to read %s section contents\n"), sec);
+            else
+            {
+              for (i = 0; i < 3; i++)  {
+                unsigned int val = contents[i+(aivtdis_bit_ptr - sec->vma)];
+                aivtdis_bit |= val << (i * 8);
+              }
+              if ((aivtdis_bit & aivtdis_mask) == 0)
+                aivt_enabled = TRUE;
+            }
+            free(contents);
+          }
+          if ((aivtloc_ptr >= sec->vma) &&
+              (aivtloc_ptr < sec->vma + len))
+          {
+            contents = xmalloc (len);
+            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
+              einfo (_("%X%P: unable to read %s section contents\n"), sec);
+            else
+            {
+              for (i = 0; i < 3; i++) {
+                unsigned int val = contents[i+(aivtloc_ptr - sec->vma)];
+                aivt_address |= val << (i * 8);
+              }
+              aivt_address = ~(aivt_address);
+              aivt_address &= aivtloc_mask;
+              fbslim_address = aivt_address * 1024;
+              if ((fbslim_address < program_base_address()) ||
+                  (fbslim_address >= program_end_address()))
+                einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));             
+              aivt_address -= 1;
+              aivt_address *= 1024;
+              /* CAW - this should be recorded in the resource information? */
+              aivt_len = 0x400; /* The device requires that the entire page
+                                   where the vector table resides
+                                   be allocated. xc16-746 */
+            }
+            free(contents);
+          }
+        }
+      }
+    }
+
+
+    if ((fbslim_address < program_base_address()) ||
+        (fbslim_address >= program_end_address()))
+      aivt_enabled = FALSE;
+    else 
+      /* CAW - Also, this defines the boot sector boundary */
+      {  extern bfd_boolean pic30_has_user_boot;
+         extern unsigned int pic30_boot_flash_size;
+
+         pic30_has_user_boot = 1;
+         pic30_boot_flash_size =  fbslim_address - program_base_address();
+      }
+
+
+}
+
 /*
 ** Print memory region info
 */
@@ -4674,6 +4775,24 @@ config_word_name(const char *secname)
   return p;
 }
 
+/*
+** Extract aaa from a string like .config_aaa
+*/
+static char *
+pragma_config_word_name(const char *secname)
+{
+  char *p,*p2;
+
+  if (strncmp(secname, ".config_", 8) == 0) {
+    p = xmalloc(strlen(secname)+1);
+    p = strcpy(p, secname+8);
+    return p;
+  }
+  else 
+    return (char *) secname;
+}
+
+
 
 /*****************************************************************************/
 
@@ -5375,6 +5494,8 @@ gld${EMULATION_NAME}_after_open()
   if (global_PROCESSOR) {
     pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
     pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
+    if (pic30_has_floating_aivt)
+      get_aivt_address();
   }
 
   /*
@@ -5407,8 +5528,10 @@ gld${EMULATION_NAME}_after_open()
           ** a list. If no valid settings are found,
           ** report an error.
           */
-          if (!pic30_decode_CG_settings(config_word_name(sec->name),
-                                        val, pic30_debug))
+          if (((!pic30_decode_CG_settings(config_word_name(sec->name),
+                                        val, pic30_debug)) &&
+              (!pic30_decode_CG_settings(pragma_config_word_name(sec->name),
+                                        val, pic30_debug))))
             einfo(_("%P%F: Error: Settings in \'%s\' are not valid"
                     " for target device %s\n" ),
                   sec->name, global_PROCESSOR ?
@@ -5970,6 +6093,7 @@ static void
 gld${EMULATION_NAME}_before_allocation()
 {
   extern bfd_vma aivt_address;
+  extern bfd_boolean aivt_enabled;
   extern bfd_vma aivt_len;
 
   if (pic30_debug)
@@ -5991,19 +6115,16 @@ gld${EMULATION_NAME}_before_allocation()
       region->current = base_address[GENERALx][FLASHx];
     }
   }
-
-  if (aivt_address) {
+  if (fbslim_address && 
+      (fbslim_address >= program_base_address() && 
+       fbslim_address <= program_end_address())){
      /* we have movable aivt section - adjust the start address of the
         program region to be aivt_address + aivt_len */
     lang_memory_region_type *region;
 
     region = lang_memory_region_lookup ("program");
-    region->length = region->length - 
-                       ((aivt_address + aivt_len) - region->origin);
-    region->origin = aivt_address + aivt_len;
-    region->current = region->origin;
+    region->current = fbslim_address;
   }
-
   if (pic30_debug)
     {
       printf("\nBefore sequential allocation:\n");
@@ -6260,6 +6381,10 @@ gld${EMULATION_NAME}_finish()
   }
   if (pic30_report_mem)
     bfd_pic30_report_memory_usage (stdout);
+
+  if (pic30_ide_dashboard) 
+     bfd_pic30_ide_dashboard_memory_report();
+
 } /* static void gld${EMULATION_NAME}_finish ()*/
 
 
@@ -6511,6 +6636,12 @@ elf_link_check_archive_element (name, abfd, info)
     if (undefsyms) {
       usym = pic30_undefsym_lookup(undefsyms, name, 0, 0);
       if (usym) {
+        if (usym->external_options_mask)
+          if (global_signature_set && !usym->options_set)
+            einfo (_("%FLink Error: %s compilation options are not"
+                     " compatible with the project global compilation"
+                     " options.\n"), 
+                     usym ->most_recent_reference->filename);
         usym->external_options_mask |= global_signature_mask;
         usym->options_set |= global_signature_set;
       }
@@ -6598,8 +6729,6 @@ static void
 update_object_compatibility(const char *symname, bfd *abfd,
                                   unsigned int *signature_mask,
                                   unsigned int *signature_set) {
-  const char *err_str = "Link Error: reference to \'%s\' in \'%s\'"
-                        " is not compatible with previous references\n";
   struct pic30_undefsym_entry *usym;
   unsigned int mask;
 
@@ -6634,10 +6763,9 @@ update_object_compatibility(const char *symname, bfd *abfd,
         printf("    updated signature:   %x %x\n",
                usym->external_options_mask, usym->options_set);
     } else {
-      /* report an error */
-      fflush(stdout);
-      fprintf(stderr, err_str, symname, abfd->filename);
-      abort();
+      /* report fatal error */
+      einfo (_("%FLink Error: reference to %s in %s is not compatible "
+               "with previous references.\n"), symname, abfd->filename);
     }
   }
 }

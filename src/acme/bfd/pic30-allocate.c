@@ -473,7 +473,7 @@ allocate_program_memory() {
 static int
 allocate_auxflash_memory() {
   struct memory_region_struct *region;
-  unsigned int has_mask = auxflash|psv;
+  unsigned int has_mask = auxflash;
   unsigned int hasnot_mask = 0;
   int result = 0;
 
@@ -504,7 +504,6 @@ allocate_auxflash_memory() {
 
   reset_locate_options();
   result |= locate_sections(address, 0, region);   /* most restrictive  */
-  result |= locate_sections(psv, 0, region);       /* :                 */
   result |= locate_sections(all_attr, 0, region);  /* least restrictive */
 
 /* save the free blocks list */
@@ -878,6 +877,10 @@ is_group_section(asection *sec)
   int i = 0;
   if (PIC30_IS_PSV_ATTR(sec))
     return 1;
+
+  if (PIC30_IS_AUXFLASH_ATTR(sec) && PIC30_IS_PAGE_ATTR(sec))
+    return 1;
+
   while (group_sections[i]) {  /* null terminated list */
     if (strcmp(sec->name, group_sections[i++]) == 0)
       return 1;
@@ -896,8 +899,27 @@ group_section_size(struct pic30_section *g)
     next = s->next;
     if (s->sec == 0)
       continue;
-    if (s->sec && (strcmp(g->sec->name, s->sec->name) == 0))
+    if (s->sec && (strcmp(g->sec->name, s->sec->name) == 0)) 
       result += s->sec->_raw_size / opb;
+  }
+  return result;
+}
+
+static bfd_vma
+group_section_alignment(struct pic30_section *g)
+{
+  struct pic30_section *s,*next;
+  bfd_vma result = g->sec->alignment_power;
+
+  for (s = g; s != NULL; s = next) {
+    next = s->next;
+    if (s->sec == 0)
+      continue;
+    if (s->sec && (strcmp(g->sec->name, s->sec->name) == 0)) {
+
+      if (s->sec->alignment_power > result)
+        result = s->sec->alignment_power;
+    }
   }
   return result;
 }
@@ -929,6 +951,7 @@ group_section_size(struct pic30_section *g)
 
   struct pic30_memory *b;
   bfd_vma len = group_section_size(s);
+  bfd_vma align = group_section_alignment(s);
   bfd_vma addr = s->sec->lma;
   int result = 0;
 
@@ -936,7 +959,9 @@ group_section_size(struct pic30_section *g)
   if (pic30_debug)
     printf("  group section \"%s\", total size = %lx\n",
            s->sec->name, len);
-  if (PIC30_IS_PSV_ATTR(s->sec) && (len > 0x8000)) {
+  if ((PIC30_IS_PSV_ATTR(s->sec) ||
+      (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) && 
+      (len > 0x8000)) {
     einfo(_("%X Link Error: PSV section \'%s\' exceeds 32K bytes"
             " (actual size = %u).\n"),
           s->sec->name, len);
@@ -993,7 +1018,7 @@ group_section_size(struct pic30_section *g)
     update_group_section_info(addr, s, region);  /* falls outside region */
   }
   else {                          /* locate using free_blocks list */
-    b = select_free_block(s, len, region);
+    b = select_free_block(s, len, align, region);
     if (b) {
       addr = b->addr + b->offset;
       update_group_section_info(addr,s,region);
@@ -1041,10 +1066,13 @@ group_section_size(struct pic30_section *g)
    s->sec->_raw_size = s->sec->_cooked_size =((s->sec->_raw_size * 3) / 4);
 #endif
    len = s->sec->_raw_size / opb;
+  bfd_vma align = s->sec->alignment_power;
   bfd_vma addr = s->sec->lma;
   int result = 0;
   /* validate the size of PSV sections */
-  if (PIC30_IS_PSV_ATTR(s->sec) && (len > 0x8000)) {
+  if ((PIC30_IS_PSV_ATTR(s->sec) ||
+       (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)))&& 
+       (len > 0x8000)) {
     einfo(_("%X Link Error: PSV section \'%s\' exceeds 32K bytes"
             " (actual size = %u).\n"),
           s->sec->name, len);
@@ -1101,7 +1129,7 @@ group_section_size(struct pic30_section *g)
     update_section_info(addr, s, region);  /* falls outside region */
   }
   else {                          /* locate using free_blocks list */
-    b = select_free_block(s, len, region);
+    b = select_free_block(s, len, align, region);
     if (b) {
       addr = b->addr + b->offset;
       update_section_info(addr,s,region);
@@ -1211,6 +1239,32 @@ prev_aligned_address( bfd_vma start, unsigned int align_power) {
     return (bfd_vma) ((start - 1 - mask) & (~mask));
 }
 
+static void
+confirm_dma_range_defined() {
+  struct bfd_link_hash_entry *h;
+  static bfd_boolean err_reported = FALSE;
+
+  if ((!dma_base_defined) || (!dma_end_defined)) {
+
+    h = bfd_pic30_is_defined_global_symbol(str3);
+    if (h) {
+      dma_base = h->u.def.value;
+      dma_base_defined = TRUE;
+    }
+
+    h = bfd_pic30_is_defined_global_symbol(str4);
+    if (h) {
+      dma_end = h->u.def.value;
+      dma_end_defined = TRUE;
+    }
+    if ((!dma_base_defined) || (!dma_end_defined)) {
+      if (!err_reported) {
+        einfo(_(str1));
+        err_reported = TRUE;
+      }
+    }
+  }
+}
 
 /*
  * select_free_block()
@@ -1239,40 +1293,11 @@ prev_aligned_address( bfd_vma start, unsigned int align_power) {
  * Returns:   suitable free block, or 0
  */
 
-
-static void
-confirm_dma_range_defined() {
-  struct bfd_link_hash_entry *h;
-  static bfd_boolean err_reported = FALSE;
-
-  if ((!dma_base_defined) || (!dma_end_defined)) {
-
-    h = bfd_pic30_is_defined_global_symbol(str3);
-    if (h) {
-      dma_base = h->u.def.value;
-      dma_base_defined = TRUE;
-    }
-
-    h = bfd_pic30_is_defined_global_symbol(str4);
-    if (h) {
-      dma_end = h->u.def.value;
-      dma_end_defined = TRUE;
-    }
-    if ((!dma_base_defined) || (!dma_end_defined)) {
-      if (!err_reported) {
-        einfo(_(str1));
-        err_reported = TRUE;
-      }
-    }
-  }
-}
-
-
 static struct pic30_memory *
 select_free_block(struct pic30_section *s, unsigned int len,
-                  struct memory_region_struct *region) {
+                  unsigned int align, struct memory_region_struct *region) {
 
-  unsigned int align_power = s->sec->alignment_power;
+  unsigned int align_power = align;
 
   const char *err_str1 = "Link Error: Could not allocate section";
   const char *err_str2 = "Link Warning: Allocating section";
@@ -1519,7 +1544,8 @@ select_free_block(struct pic30_section *s, unsigned int len,
         continue;
       }
 
-      if (PIC30_IS_PSV_ATTR(s->sec) && 
+      if ((PIC30_IS_PSV_ATTR(s->sec) || 
+          (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) && 
           ((0 <= (option1 % PSV_BOUNDARY)) && ((option1 % PSV_BOUNDARY)< 4 ))) {
         if (pic30_has_psv_trap_errata) {
           option1 += 4 - (option1 % PSV_BOUNDARY) - 2;
@@ -1531,7 +1557,9 @@ select_free_block(struct pic30_section *s, unsigned int len,
         }
       }
 
-      if (PIC30_IS_PSV_ATTR(s->sec) && !VALID_PSV((bfd_vma)option1, len)) {
+      if ((PIC30_IS_PSV_ATTR(s->sec) ||
+          (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)))
+          && !VALID_PSV((bfd_vma)option1, len)) {
         option1 = NEXT_PSV_PAGE(option1) - 2;
         if (pic30_has_psv_trap_errata)
           option1 += 4;
@@ -1695,7 +1723,9 @@ select_free_block(struct pic30_section *s, unsigned int len,
           break;
         }
         
-        if (PIC30_IS_PSV_ATTR(s->sec) && !VALID_PSV((bfd_vma)option2, len)) {
+        if ((PIC30_IS_PSV_ATTR(s->sec) ||
+            PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)) 
+            && !VALID_PSV((bfd_vma)option2, len)) {
           if (option2 < PSV_BOUNDARY) {
             option2_valid = FALSE;
             break;
@@ -1956,7 +1986,8 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
   os->processed = TRUE; /* new in 3.0 */
 
   if (PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_EEDATA_ATTR(s->sec) ||
-      PIC30_IS_PACKEDFLASH_ATTR(s->sec)) {
+      PIC30_IS_PACKEDFLASH_ATTR(s->sec) ||
+      (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) {
     load_addr_tree = xmalloc(sizeof(etree_type));
     load_addr_tree->value.type.node_class = etree_value;
     load_addr_tree->value.value = s->sec->lma;
@@ -1965,15 +1996,16 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
 } /* finish_section_info() */
 
 
-#define update_section_addr(s,addr)                     \
-  {                                                     \
-  s->lma = addr;                                        \
-  if (PIC30_IS_PSV_ATTR(s) || PIC30_IS_EEDATA_ATTR(s))  \
-    s->vma = PSV_BASE + (addr & 0x7FFF);                \
-  else if (PIC30_IS_PACKEDFLASH_ATTR(s))                \
-    s->vma = addr * 3 / 2;                              \
-  else                                                  \
-    s->vma = addr;                                      \
+#define update_section_addr(s,addr)                          \
+  {                                                          \
+  s->lma = addr;                                             \
+  if (PIC30_IS_PSV_ATTR(s) || PIC30_IS_EEDATA_ATTR(s) ||     \
+      (PIC30_IS_AUXFLASH_ATTR(s) && PIC30_IS_PAGE_ATTR(s)))  \
+    s->vma = PSV_BASE + (addr & 0x7FFF);                     \
+  else if (PIC30_IS_PACKEDFLASH_ATTR(s))                     \
+    s->vma = addr * 3 / 2;                                   \
+  else                                                       \
+    s->vma = addr;                                           \
   }
 
 /*

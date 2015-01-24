@@ -4769,7 +4769,12 @@ c_common_nodes_and_builtins (void)
      and this must agree, even if long and int are the same size.  */
   size_type_node =
     TREE_TYPE (identifier_global_value (get_identifier (SIZE_TYPE)));
+#ifdef _BUILD_C30_
+  /* make a unique size_type_node, so we can tell the difference */
   signed_size_type_node = c_common_signed_type (size_type_node);
+  size_type_node = build_distinct_type_copy(size_type_node);
+  signed_size_type_node = build_distinct_type_copy(signed_size_type_node);
+#endif
   set_sizetype (size_type_node);
 
   pid_type_node =
