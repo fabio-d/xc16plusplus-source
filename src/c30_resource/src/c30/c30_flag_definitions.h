@@ -15,7 +15,7 @@
 #define RECORD_TYPE_MASK (0xF0000000)
 
 /*
-** Family-specific flags - bits 0 - 7
+** Family-specific flags - bits [0 - 7]
 */
 
 /*
@@ -39,7 +39,7 @@
 #define P24FV    P24FK | HAS_5VOLTS
 
 /*
-** Flags that are specific to record types - bits 8 - 27
+** Flags that are specific to record types - bits [8 - 27]
 */
 
 /* IS_DEVICE_ID flags */
@@ -57,6 +57,7 @@
 #define HAS_GIE           1 << 19
 #define HAS_DUALPARTITION 1 << 20
 #define HAS_DATAFLASH     1 << 21
+#define HAS_ALTREGS       1 << 22
 
 /* IS_CODEGUARD_ID flags */
 #define FLASH         1 << 8
@@ -92,7 +93,7 @@
 #define MEM_AIVT_LOCATION   1 << 14 /* identifies fuse location for AIVT */
 
 /*
-** Values that identify record types - bits 28-31
+** Values that identify record types - bits [28-31]
 **
 ** Once we use a value that has 2-bits set, we will no longer be able to
 **   support compilers released before 12 Feb 2014

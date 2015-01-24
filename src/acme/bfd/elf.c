@@ -117,6 +117,15 @@ static bfd_boolean elfcore_grok_nto_status
 static bfd_boolean elfcore_grok_nto_note
   PARAMS ((bfd *, Elf_Internal_Note *));
 
+#ifdef PIC30
+static asymbol ** slurp_symtab
+  PARAMS ((bfd *));
+/* The symbol table.  */
+static asymbol **syms;
+/* Number of symbols in `syms'.  */
+static long symcount = 0;
+#endif
+
 /* Swap version information in and out.  The version information is
    currently size independent.  If that ever changes, this code will
    need to move into elfcode.h.  */
@@ -804,7 +813,7 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 #if defined(PIC30)
   else if (((flags & SEC_LOAD) != 0) &&
            (hdr->sh_type != SHT_NOTE) &&
-           ((hdr->sh_flags & (SHF_PSV | SHF_EEDATA | SHF_PACKEDFLASH)) == 0))
+           ((hdr->sh_flags & (SHF_PSV | SHF_EEDATA)) == 0))
     flags |= SEC_DATA;
   else if ((hdr->sh_flags & SHF_NOLOAD) &&
            (hdr->sh_type != SHT_NOTE) &&
@@ -1961,6 +1970,37 @@ bfd_section_from_shdr (abfd, shindex)
       elf_elfsections (abfd)[shindex] = hdr = &elf_tdata (abfd)->symtab_hdr;
       abfd->flags |= HAS_SYMS;
 
+#ifdef PIC30
+  /* load symbols now */
+  syms = slurp_symtab (abfd);
+
+  {
+    char *ext_attr_prefix = "__ext_attr_";
+    asymbol **current = syms;
+    const char *sym_name;
+    long count;
+
+    for (count = 0; count < symcount; count++) {
+
+      if (*current) {
+        sym_name = bfd_asymbol_name(*current);
+
+        if (strstr(sym_name, ext_attr_prefix)) {
+          asection *s;
+          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          bfd_vma attr = bfd_asymbol_value(*current);
+
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              if ((attr & STYP_PACKEDFLASH) && (s->flags & SEC_DATA))
+                s->flags &= ~SEC_DATA;
+        }
+        current++;
+      }
+   }
+  }
+#endif
+
       /* Sometimes a shared object will map in the symbol table.  If
          SHF_ALLOC is set, and this is a shared object, then we also
          treat this section as a BFD section.  We can not base the
@@ -2721,8 +2761,6 @@ elf_fake_sections (abfd, asect, failedptrarg)
     this_hdr->sh_flags |= SHF_MEMORY;
   if (PIC30_IS_NOLOAD_ATTR(asect))
     this_hdr->sh_flags |= SHF_NOLOAD;
-  if (PIC30_IS_PACKEDFLASH_ATTR(asect))
-    this_hdr->sh_flags |= SHF_PACKEDFLASH;
  
 #if PIC30_DEBUG
   printf("elf_fake_sections: %s, sh_flags = %lx\n",
@@ -7788,3 +7826,29 @@ _bfd_elf_section_offset (abfd, info, sec, offset)
       return offset;
     }
 }
+
+#ifdef PIC30
+static asymbol **
+slurp_symtab (abfd)
+     bfd *abfd;
+{
+  asymbol **sy = (asymbol **) NULL;
+  long storage;
+
+  if (!(bfd_get_file_flags (abfd) & HAS_SYMS))
+    {
+      symcount = 0;
+      return NULL;
+    }
+  storage = bfd_get_symtab_upper_bound (abfd);
+  //if (storage < 0)
+    //bfd_fatal (bfd_get_filename (abfd));
+  if (storage)
+    sy = (asymbol **) xmalloc (storage);
+
+  symcount = bfd_canonicalize_symtab (abfd, sy);
+  //if (symcount < 0)
+    //bfd_fatal (bfd_get_filename (abfd));
+  return sy;
+}
+#endif

@@ -947,7 +947,7 @@ resolve_symbol_value (symp)
   if (symp->sy_resolving)
     {
       if (finalize_syms)
-	as_bad (_("symbol definition loop encountered at `%s'"),
+	as_fatal (_("symbol definition loop encountered at `%s'"),
 		S_GET_NAME (symp));
       final_val = 0;
       resolved = 1;

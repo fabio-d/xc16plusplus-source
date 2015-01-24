@@ -293,7 +293,7 @@
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
-      fMode2Operand = register_operand(op, mode);
+      fMode2Operand = pic30_register_operand(op, mode);
       break;
     case REG:
       /*
@@ -323,7 +323,7 @@
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
-      fMode2Operand = register_operand(op, mode);
+      fMode2Operand = pic30_register_operand(op, mode);
       break;
     case REG:
       /*
@@ -354,7 +354,7 @@
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
-      fMode2Operand = register_operand(op, mode);
+      fMode2Operand = pic30_register_operand(op, mode);
       break;
     case REG:
       /*
@@ -384,7 +384,7 @@
   if (mode == VOIDmode) mode = GET_MODE(op);
   switch (code) {
     case SUBREG:
-      fMode2Operand = register_operand(op, mode);
+      fMode2Operand = pic30_register_operand(op, mode);
       break;
     case REG:
       /*
@@ -509,7 +509,7 @@
 ;;  { "pic30_wreg_operand",  { SUBREG, REG }}, 
 
 (define_predicate "pic30_wreg_operand"
-  (match_operand 0 "register_operand")
+  (match_operand 0 "pic30_register_operand")
 {  rtx inner = op;
  
    if (GET_CODE(inner) == SUBREG) inner = SUBREG_REG(inner);
@@ -519,7 +519,7 @@
 ;;  { "pic30_breg_operand",  { SUBREG, REG }}, 
 
 (define_predicate "pic30_breg_operand"
-  (match_operand 0 "register_operand")
+  (match_operand 0 "pic30_register_operand")
 {  rtx inner = op;
  
    if (GET_CODE(inner) == SUBREG) inner = SUBREG_REG(inner);
@@ -529,7 +529,7 @@
 ;;  { "pic30_creg_operand", { SUBREG, REG }}, 
 
 (define_predicate "pic30_creg_operand"
-  (match_operand 0 "register_operand")
+  (match_operand 0 "pic30_register_operand")
 {  rtx inner = op;
  
    if (GET_CODE(inner) == SUBREG) inner = SUBREG_REG(inner);
@@ -539,7 +539,7 @@
 ;;  { "pic30_ereg_operand", { SUBREG, REG }}, 
 
 (define_predicate "pic30_ereg_operand"
-  (match_operand 0 "register_operand")
+  (match_operand 0 "pic30_register_operand")
 {  rtx inner = op;
  
    if (GET_CODE(inner) == SUBREG) inner = SUBREG_REG(inner);
@@ -574,20 +574,20 @@
 ;;  { "pic30_reg_or_code_operand", { SUBREG, REG, MEM }}, 
 
 (define_predicate "pic30_reg_or_code_operand"
-  (ior (match_operand 0 "register_operand")
+  (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_code_operand")))
 
 ;;  { "pic30_reg_or_near_operand", { SUBREG, REG, MEM }}, 
 
 (define_predicate "pic30_reg_or_near_operand"
-  (ior (match_operand 0 "register_operand")
+  (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_near_operand")))
 
 ;;  { "pic30_reg_imm_or_near_operand", { SUBREG, REG, MEM, CONST_INT }}, 
 
 (define_predicate "pic30_reg_imm_or_near_operand"
   (ior (match_operand 0 "immediate_operand")
-       (match_operand 0 "register_operand")
+       (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_near_operand")))
 
 ;;  { "pic30_R_operand", { MEM }},
@@ -601,11 +601,11 @@
 ;;  { "pic30_reg_or_R_operand", { SUBREG, REG, MEM }}, 
 
 (define_predicate "pic30_reg_or_R_operand"
-  (ior (match_operand 0 "register_operand")
+  (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_R_operand")))
 
 (define_predicate "pic30_reg_or_R_APSV_operand"
-  (ior (match_operand 0 "register_operand")
+  (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_R_APSV_operand")))
 
 ;;  { "pic30_rR_or_near_operand", { SUBREG, REG, MEM }}, 
@@ -800,8 +800,31 @@
     switch (GET_CODE (op)) {
       case SUBREG:
         if (GET_MODE(op) != mode) break;
-        mode = VOIDmode;  /* allow the cast */
         op = XEXP(op,0);
+        /* allow the cast from modes that do not require special handling */
+        switch (GET_CODE(op)) {
+          case SYMBOL_REF:
+          case LABEL_REF: 
+            switch (GET_MODE(op)) {
+              default:  /* the outer type must match */
+                        break;
+              case QImode:
+              case HImode:
+              case SImode:
+              case DImode:
+              case SFmode:
+              case DFmode:
+              case P16APSVmode:
+                mode = VOIDmode;
+                break;
+            }
+            break;
+          default:
+            /* other operations do not require special handling, regardless of
+               mode */
+	    mode = VOIDmode;
+            break;
+        }
         done = 0;
         break;
       case SYMBOL_REF:
@@ -901,7 +924,7 @@
 
 (define_special_predicate "pic30_reg_or_zero_operand"
   (ior (match_test "op == CONST0_RTX(mode)")
-       (match_operand 0 "register_operand")))
+       (match_operand 0 "pic30_register_operand")))
  
 ;;  { "pic30_rR_or_zero_operand", { SUBREG, REG, MEM, CONST_INT }}, 
 
@@ -928,7 +951,7 @@
 ;;  { "pic30_reg_or_P_operand", { SUBREG, REG, CONST_INT }}, 
 
 (define_special_predicate "pic30_reg_or_P_operand"
-  (ior (match_operand 0 "register_operand")
+  (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_N_operand")))
 
 ;;  { "pic30_rR_or_JN_operand", { MEM, SUBREG, REG, CONST_INT }}, 
@@ -1161,9 +1184,10 @@
 ;
 
 (define_insn "exch"
- [(parallel [(set (match_operand:HI 0 "pic30_register_operand" "=&r")
-                  (match_operand:HI 1 "pic30_register_operand" "=&r"))
-             (set (match_dup 1) (match_dup 0))]
+ [(parallel [(set (match_operand:HI 0 "pic30_register_operand" "+r")
+                  (match_operand:HI 1 "pic30_register_operand" "+r"))
+             (set (match_dup 1)
+                  (match_dup 0))]
  )]
  ""
  "*
@@ -3308,7 +3332,7 @@
        if (repeat_count < 4) {
          word_size = 1;
        } else {
-         c += sprintf(c,\"sl %%2,#8,%%6\;ior %%2,%%6,%%6\;\");
+         c += sprintf(c,\"sl %%2,#8,%%6\;ior.b %%2,%%6,%%6\;\");
          op1=\"%6,\";
      }
      }
@@ -4707,9 +4731,9 @@
 ; general case
 (define_insn "movqi_gen_DATA"
   [(set (match_operand:QI 0 "pic30_move_operand"
-                 "=r<>,RS,r<>, R,   r<>,RS,r<>, R,   Q,r,a,U,?d, U")
+                 "=r<>,RS,r<>, R,   r<>,RS,r<>, R,   Q,r,a,!U,d")
         (match_operand:QI 1 "pic30_move_operand"
-                  "r,  r, <>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U,?d"))
+                  "r,  r, <>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U"))
   ]
   ""
   "*
@@ -4734,32 +4758,21 @@
                 return \"mov #%1,%0\;nop\;mov.b [%0],%0\";
               } 
               return \"mov #%1,%0\;mov.b [%0],%0\";
-     /* if w0 is dead-or-set and we are in an interrupt service routine,
-          we cannot implicitly use W0 in an ISR unless it is already
-          marked for being save/restored */
-     case 13: if (pic30_dead_or_set_p(insn, w0) &&
-                  ((!pic30_interrupt_function_p(cfun->decl)) ||
-                   (pic30_md_mustsave(w0))))
-                return \"mov %1,w0\;mov.b WREG,%0\";
-              else if (pic30_errata_mask & exch_errata)
-                return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
-              else
-                return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
   }
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0")
    (set_attr "type"
-	"def,use,defuse,use,def,use,defuse,use,etc,use,def,etc,def,etc")
+	"def,use,defuse,use,def,use,defuse,use,etc,use,def,etc,def")
   ]
 )
 
 (define_insn "movqi_gen_APSV"
   [(set (match_operand:QI 0 "pic30_mode3_APSV_operand"
-                "=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d, U")
+                "=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d")
         (match_operand:QI 1 "pic30_move_APSV_operand"
-                 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U,?d"))
+                 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U"))
     (use (reg:HI PSVPAG))
   ]
   ""
@@ -4785,32 +4798,21 @@
                 return \"mov #%1,%0\;nop\;mov.b [%0],%0\";
               } 
               return \"mov #%1,%0\;mov.b [%0],%0\";
-     /* if w0 is dead-or-set and we are in an interrupt service routine,
-          we cannot implicitly use W0 in an ISR unless it is already
-          marked for being save/restored */
-     case 13: if (pic30_dead_or_set_p(insn, w0) &&
-                  ((!pic30_interrupt_function_p(cfun->decl)) ||  
-                   (pic30_md_mustsave(w0))))
-                return \"mov %1,w0\;mov.b WREG,%0\";
-              else if (pic30_errata_mask & exch_errata)
-                return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
-              else
-                return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
   }
 }
 "
   [(set_attr "cc"
-        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0,unchanged")
+        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0")
    (set_attr "type"
-        "def,use,defuse,use,def,use,defuse,use,etc,use,defuse,etc,def,etc")
+        "def,use,defuse,use,def,use,defuse,use,etc,use,defuse,etc,def")
   ]
 )
 
 (define_insn "movqi_gen_a_DATA"
   [(set (match_operand:QI 0 "pic30_move_operand"
-		"=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U, U")
+		"=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U")
         (match_operand:QI 1 "pic30_move2_operand"
-		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,?d"))
+		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a"))
   ]
   ""
   "*
@@ -4828,35 +4830,22 @@
      case 8:  return \"mov.b %1,%0\";
      case 9:  return \"mov.b %1,%0\";
      case 10: return \"mov.b WREG,%0\";
-     /* if w0 is dead-or-set and we are in an interrupt service routine,
-          we cannot implicitly use W0 in an ISR unless it is already
-          marked for being save/restored */
-     case 11: if (REGNO(operands[1]) == WR0_REGNO)
-                return \"mov.b WREG,%0\";
-              else  if (pic30_dead_or_set_p(insn, w0) &&
-                        ((!pic30_interrupt_function_p(cfun->decl)) ||
-                         (pic30_md_mustsave(w0))))
-                return \"mov %1,w0\;mov.b WREG,%0\";
-              else if (pic30_errata_mask & exch_errata)
-                return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
-              else
-                return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
   }
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged,unchanged")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged")
    (set_attr "type"
-	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc,etc")
+	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc")
   ]
 )
 
 (define_insn "movqi_gen_a_APSV"
   [(set (match_operand:QI 0 "pic30_move_operand"
-		"=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U, U")
+		"=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U")
         (unspec:QI [
            (match_operand:QI 1 "pic30_move2_APSV_operand"
-		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,?d")
+		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a")
            (reg:HI PSVPAG)] UNSPECV_USEPSV))
   ]
   ""
@@ -4875,26 +4864,13 @@
      case 8:  return \"mov.b %1,%0\";
      case 9:  return \"mov.b %1,%0\";
      case 10: return \"mov.b WREG,%0\";
-     /* if w0 is dead-or-set and we are in an interrupt service routine,
-          we cannot implicitly use W0 in an ISR unless it is already
-          marked for being save/restored */
-     case 11: if (REGNO(operands[1]) == WR0_REGNO)
-                return \"mov.b WREG,%0\";
-              else if (pic30_dead_or_set_p(insn, w0) &&
-                       ((!pic30_interrupt_function_p(cfun->decl)) ||
-                        (pic30_md_mustsave(w0))))
-                return \"mov %1,w0\;mov.b WREG,%0\";
-              else if (pic30_errata_mask & exch_errata)
-                return \"push w0\;mov %1,w0\;mov.b WREG,%0\;pop w0\";
-              else
-                return \"exch w0,%1\;mov.b WREG,%0\;exch w0,%1\";
   }
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged,unchanged")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged")
    (set_attr "type"
-	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc,etc")
+	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc")
   ]
 )
 
@@ -4904,7 +4880,7 @@
   [(set (match_operand:QI 0 "pic30_move2_operand"
 		"=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,a,r")
         (match_operand:QI 1 "pic30_move_operand"
-		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,U,  U"))
+		 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,U,U"))
   ]
   ""
   "*
@@ -14149,7 +14125,7 @@
 )
 
 (define_insn "movsi_address"
-  [(set (match_operand:SI 0 "pic30_register_operand"              "=r")
+  [(set (match_operand:SI 0 "pic30_register_operand"        "=r")
         (match_operand:SI 1 "pic30_symbolic_address_operand" "g"))]
   ""
   "mov #%z1,%0\;mov #%y1,%d0"
@@ -18135,16 +18111,18 @@
 }")
 
 (define_insn "*umulp16apsvsi3sfr"
-  [(set (match_operand:SI     0 "pic30_creg_operand"        "=C,C")
+  [(set (match_operand:SI     0 "pic30_register_operand"         "=C,C,&r,r")
         (mult:SI 
           (zero_extend:SI 
-            (match_operand:P16APSV 1 "pic30_wreg_operand"        "%a,a"))
+            (match_operand:P16APSV 1 "pic30_wreg_operand"        "%a,a, a,a"))
           (zero_extend:SI 
-            (match_operand:P16APSV 2 "pic30_reg_or_near_operand" "r,U"))))]
+            (match_operand:P16APSV 2 "pic30_reg_or_near_operand" " r,U, U,r"))))]
   ""
   "@
    mul.w %m2
-   mul.w %2"
+   mul.w %2
+   mov %2,%0\;mul.uu %1,%0,%0
+   mul.uu %1,%2,%0"
   [
    (set_attr "cc" "change0")
    (set_attr "type" "def")
@@ -20667,67 +20645,18 @@
 ; this match_can cause issues iff operand 1 is dies in this instruction and
 ;   we decide to use it to reload operand 0 (CAW)
 (define_insn "iorhi3_sfr0"
-  [(set (match_operand:HI 0 "pic30_reg_or_near_operand"         "=U,r")
-        (ior:HI (match_operand:HI 1 "pic30_register_operand"   "a,r")
-                (match_operand:HI 2 "pic30_reg_or_near_operand" " 0,0")))
+  [(set (match_operand:HI 0         "pic30_reg_or_near_operand" "=U,a,r")
+        (ior:HI (match_operand:HI 1 "pic30_register_operand"    "%a,0,r")
+                (match_operand:HI 2 "pic30_reg_or_near_operand" " 0,U,r")))
   ]
   ""
   "@
    ior %0
-   ior %0,%1,%0"
-  [
-    (set_attr "cc" "math")
-    (set_attr "type" "etc,def")
-  ]
-)
-
-; this match_can cause issues iff operand 1 is dies in this instruction and
-;   we decide to use it to reload operand 0 (CAW)
-(define_insn "iorhi3_sfr0a"
-  [(set (match_operand:HI 0 "pic30_reg_or_near_operand"         "=U,r")
-        (ior:HI (match_operand:HI 1 "pic30_reg_or_near_operand" " 0,0")
-                (match_operand:HI 2 "pic30_register_operand"    " a,r")))
-  ]
-  ""
-  "@
-   ior %0
-   ior %0,%2,%0"
-  [
-    (set_attr "cc" "math")
-    (set_attr "type" "etc,def")
-  ]
-)
-
-
-(define_insn "*iorhi3_sfr1"
-  [(set (match_operand:HI 0 "pic30_register_operand"          "=a, a, ?r")
-        (ior:HI (match_operand:HI 1 "pic30_register_operand"  "0, r, r")
-                (match_operand:HI 2 "pic30_near_operand" "U,  U, U")))
-                (clobber (match_scratch:HI 3            "=X,  X, &r"))]
-  ""
-  "@
    ior %2,WREG
-   mov %1,w0\;ior %2,WREG
-   mov %2,%3\;ior %3,%1,%0"
+   ior %2,%1,%0"
   [
-   (set_attr "cc" "math")
-   (set_attr "type" "def")
-  ]
-)
-
-; leave this match_dup, operand 1 cannot interfere with reload (CAW)
-(define_insn "*iorhi3_sfr1a"
-  [(set (match_operand:HI 0 "pic30_register_operand"          "=a, ?r")
-        (ior:HI (match_operand:HI 1 "pic30_near_operand" "U,  U")
-                (match_dup 0)))
-   (clobber (match_scratch:HI 2 "=X,  &r"))]
-  ""
-  "@
-   ior %1,WREG
-   mov %1,%2\;ior %2,%0,%0"
-  [
-   (set_attr "cc" "math")
-   (set_attr "type" "def")
+    (set_attr "cc" "math")
+    (set_attr "type" "etc,def,def")
   ]
 )
 
@@ -21000,9 +20929,9 @@
 ;;;;;;;;;;;;;;;;;;
 
 (define_insn "*xorqi3_imm"
-  [(set (match_operand:QI 0 "pic30_register_operand"         "=r")
+  [(set (match_operand:QI         0 "pic30_register_operand" "=r")
         (xor:QI (match_operand:QI 1 "pic30_register_operand" "%0")
-                (match_operand:QI 2 "pic30_J_operand"   "J")))]
+                (match_operand:QI 2 "pic30_J_operand"        " J")))]
   ""
   "xor.b #%2,%0"
   [
@@ -21211,6 +21140,22 @@
     emit(gen_xorhi3_APSV(operands[0],operands[1],operands[2]));
   DONE;
 }")
+
+(define_insn "xorhi3_sfr0"
+  [(set (match_operand:HI 0         "pic30_reg_or_near_operand" "=U,a,r")
+        (xor:HI (match_operand:HI 1 "pic30_register_operand"    "%a,0,r")
+                (match_operand:HI 2 "pic30_reg_or_near_operand" " 0,U,r")))
+  ]
+  ""
+  "@
+   xor %0
+   xor %2,WREG
+   xor %2,%1,%0"
+  [
+    (set_attr "cc" "math")
+    (set_attr "type" "etc,def,def")
+  ]
+)
 
 ; leave this match_dup, operand 0 will not require a reload (CAW)
 (define_insn "xorhi3_sfr2"
@@ -25498,7 +25443,7 @@
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (unspec:HI [ (match_dup 0) ] UNSPEC_EXTRACT_GIE))]
   ""
-  "btsc _INTCON2,#15\;bset %0,#3"
+  "bclr %0,#3\;btsc _INTCON2,#15\;bset %0,#3"
 )
 
 (define_expand "get_isr_state"
@@ -25546,7 +25491,7 @@
       (match_operand:HI 0 "pic30_register_operand" "r")] UNSPEC_INSERT_GIE)
    (clobber (match_scratch:HI 1                    "=r"))]
   ""
-  "mov _INTCON2,%1\;bclr %1,#15\;btsc %0,#3\;bset %1,#15\;mov %1,_INTCON2"
+  "btsc %0,#3\;bset _INTCON2,#15\;btss %0,#3\;bclr _INTCON2,#15\;nop\;nop"
 )
 
 
@@ -25584,7 +25529,7 @@
    {
      if (pic30_device_has_gie()) {
        /* clear the GIE */
-       return \"bclr _INTCON2,#15\";
+       return \"bclr _INTCON2,#15\;nop\;nop\";
      } else {
        error(\"This device has no GIE\");
        return \"; This device has no GIE\";
@@ -25599,7 +25544,7 @@
    {
      if (pic30_device_has_gie()) {
        /* set the GIE */
-       return \"bset _INTCON2,#15\";
+       return \"bset _INTCON2,#15\;nop\;nop\";
      } else {
        error(\"This device has no GIE\");
        return \"; This device has no GIE\";
@@ -25805,6 +25750,73 @@
   [(unspec_volatile [(const_int 0)] UNSPECV_NOP)]
   ""
 )
+
+;;
+;; redundant copy
+;;
+(define_peephole2
+  [
+   (set (match_operand 0 "pic30_register_operand" "")
+        (match_operand 1 "pic30_register_operand" ""))
+   (set (match_operand 2 "pic30_register_operand" "")
+        (match_operand 3 "pic30_register_operand" ""))
+  ]
+  "((REGNO(operands[3]) == REGNO(operands[0])) &&
+    (GET_MODE(operands[3]) == GET_MODE(operands[0])) &&
+    peep2_reg_dead_p(2, operands[0]))"
+  [
+   (set (match_dup 2)
+        (match_dup 1))
+  ]
+  ""
+)
+
+(define_peephole2
+  [
+   (set (match_operand 0 "pic30_register_operand" "")
+        (match_operand 1 "immediate_operand" ""))
+   (set (match_operand 2 "pic30_register_operand" "")
+        (match_operand 3 "pic30_register_operand" ""))
+  ]
+  "((REGNO(operands[3]) == REGNO(operands[0])) &&
+    (GET_MODE(operands[3]) == GET_MODE(operands[0])) &&
+    peep2_reg_dead_p(2, operands[0]))"
+  [
+   (set (match_dup 2)
+        (match_dup 1))
+  ]
+  ""
+)
+   
+;;
+;; clean up Ureload_outQI
+;;
+(define_peephole2
+  [
+   (set (match_operand:QI 0 "pic30_register_operand" "")
+        (match_operand:QI 1 "pic30_register_operand" ""))
+   (parallel [
+     (set
+        (match_operand:QI 2 "pic30_near_operand"     "=U")
+        (match_operand:QI 3 "pic30_register_operand" " r"))
+     (clobber
+        (match_operand:HI 4 "pic30_register_operand" "=&r"))
+   ])
+  ]
+  "((REGNO(operands[3]) == REGNO(operands[0])) &&
+    (REGNO(operands[1]) != REGNO(operands[4])) &&
+    peep2_reg_dead_p(2, operands[0]))"
+  [(parallel [
+     (set
+        (match_dup 2)
+        (match_dup 1))
+     (clobber
+        (match_dup 4))
+   ])
+  ]
+  ""
+)
+
   
 ;;
 ;; 16-bit shift right SI followed by truncate to HI.
@@ -40395,6 +40407,36 @@
 
 
 ;;  Secondary reload functions
+
+(define_insn "Ureload_inQI"
+  [(set
+     (match_operand:QI 0 "pic30_register_operand" "=r")
+     (match_operand:QI 1 "pic30_near_operand"     " U"))
+   (clobber 
+     (match_operand:HI 2 "pic30_register_operand" "=&r"))
+  ]
+  ""
+  "*
+   if (REGNO(operands[0]) == WR0_REGNO)
+     return \"mov.b %1,WREG\";
+   return \"mov #%1,%2\;mov.b [%2],%0\";
+  "
+)
+
+(define_insn "Ureload_outQI"
+  [(set
+     (match_operand:QI 0 "pic30_near_operand"     "=U")
+     (match_operand:QI 1 "pic30_register_operand" " r"))
+   (clobber 
+     (match_operand:HI 2 "pic30_register_operand" "=&r"))
+  ]
+  ""
+  "*
+   if (REGNO(operands[1]) == WR0_REGNO) 
+     return \"mov.b WREG,%0\";
+   else return \"mov #%0,%2\;mov.b %1,[%2]\";
+  "
+)
 
 (define_insn "Qreload_in<mode>"
   [(set

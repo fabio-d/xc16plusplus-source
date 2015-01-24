@@ -1246,7 +1246,7 @@ enum reg_class
 #define   PIC30_DISP_MIN   -512   /* min(k) in [Wn+k] addressing   */
 #define   PIC30_DISP_MAX    511   /* max(k) in [Wn+k] addressing   */
 #define   PIC30_LNK_MAX   16382   /* lnk #lit14 (even)      */
-#define   PIC30_ADD_MAX   511   /* add #Slit10         */
+#define   PIC30_ADD_MAX     511   /* add #Slit10         */
 
 #define CONST_OK_FOR_LETTER_P(VALUE, C) \
 ( \
@@ -1960,8 +1960,10 @@ extern void pic30_cpu_cpp_builtins(void *);
 **
 ** Memory move cost is double that of register to register.
 */
+#if 0
 #define MEMORY_MOVE_COST(MODE,CLASS,IN)      \
 ((MODE) == HImode ? 2 : 4)
+#endif
 
 /*
 ** Branches costs.
@@ -2178,6 +2180,18 @@ if (pic30_near_operand(OP1, GET_MODE(OP1)))         \
 /************************************************************************/
 /* Control the assembler format that we output.                         */
 /************************************************************************/
+
+#undef SIZE_ASM_OP
+#define SIZE_ASM_OP "\t.size\t"
+
+#define ASM_OUTPUT_MEASURED_SIZE(stream,name) \
+  fprintf(stream,SIZE_ASM_OP ".-%s\n", name)
+
+#if defined(OBJECT_FORMAT_ELF)
+/* This is not valid for COFF */
+#define ASM_DECLARE_FUNCTION_SIZE(stream,name,decl) \
+   ASM_OUTPUT_MEASURED_SIZE(stream,name)
+#endif
 
 #define GLOBAL_ASM_OP ".global\t"
 
@@ -2710,7 +2724,6 @@ extern int pic30_license_valid;
 #define PRE_PROLOGUE_FN \
   { \
     (void) pic30_asm_function_p(1); \
-    (void) pic30_function_uses_w0(1); \
   }
 
 #define SECTION_FLAGS_INT unsigned long long
@@ -2941,6 +2954,39 @@ extern struct pic30_mem_info_ pic30_mem_info;
 extern bool bss_initializer_p (const_tree decl);
 
 #define TARGET_POINTER_SIZETYPE pic30_target_pointer_sizetype
+
+extern int pic30_type_suffix(tree type, int* is_long);
+#define TARGET_TYPE_SUFFIX pic30_type_suffix
+
+/* PIC30 section flag defines */
+#ifndef JOIN
+#define JOIN2(X,Y) (X ## Y)
+#define JOIN(X,Y) JOIN2(X,Y)
+#endif
+#define PIC30_LL(X) JOIN2(X,LL)
+                                /* 0x1000000 */
+#define SECTION_READ_ONLY       (PIC30_LL(SECTION_MACH_DEP))          /* 24 */
+#define SECTION_XMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 1)     /* 26 */
+#define SECTION_YMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 2)     /* 27 */
+#define SECTION_NEAR            (PIC30_LL(SECTION_MACH_DEP) << 3)     /* 28 */
+#define SECTION_PERSIST         (PIC30_LL(SECTION_MACH_DEP) << 4)     /* 29 */
+#define SECTION_PSV             (PIC30_LL(SECTION_MACH_DEP) << 5)     /* 30 */
+#define SECTION_EEDATA          (PIC30_LL(SECTION_MACH_DEP) << 6)     /* 31 */
+#define SECTION_NOLOAD          (PIC30_LL(SECTION_MACH_DEP) << 7)     /* 32 */
+#define SECTION_REVERSE         (PIC30_LL(SECTION_MACH_DEP) << 8)     /* 33 */
+#define SECTION_INFO            (PIC30_LL(SECTION_MACH_DEP) << 9)     /* 34 */
+#define SECTION_ADDRESS         (PIC30_LL(SECTION_MACH_DEP) << 10)    /* 35 */
+#define SECTION_ALIGN           (PIC30_LL(SECTION_MACH_DEP) << 11)    /* 36 */
+#define SECTION_DMA             (PIC30_LL(SECTION_MACH_DEP) << 12)    /* 37 */
+#define SECTION_PMP             (PIC30_LL(SECTION_MACH_DEP) << 13)    /* 38 */
+#define SECTION_EXTERNAL        (PIC30_LL(SECTION_MACH_DEP) << 14)    /* 39 */
+#define SECTION_EDS             (PIC30_LL(SECTION_MACH_DEP) << 15)    /* 41 */
+#define SECTION_PAGE            (PIC30_LL(SECTION_MACH_DEP) << 16)    /* 42 */
+#define SECTION_AUXFLASH        (PIC30_LL(SECTION_MACH_DEP) << 17)    /* 43 */
+#define SECTION_AUXPSV          (PIC30_LL(SECTION_MACH_DEP) << 18)    /* 44 */
+#define SECTION_PACKEDFLASH     (PIC30_LL(SECTION_MACH_DEP) << 19)    /* 45 */
+#define SECTION_KEEP            (PIC30_LL(SECTION_MACH_DEP) << 20)    /* 46 */
+#define SECTION_CONST_NAME      (PIC30_LL(SECTION_MACH_DEP) << 21)    /* 47 */
 
 #endif
 

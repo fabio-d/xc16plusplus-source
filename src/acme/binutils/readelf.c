@@ -8895,6 +8895,12 @@ display_debug_frames (section, start, file)
 	}
 
       block_end = saved_start + length + initial_length_size;
+      if (block_end > end)
+        {
+          warn ("Invalid length %#08lx in FDE at %#08lx\n",
+                length, (unsigned long)(saved_start - section_start));
+          block_end = end;
+        }
       cie_id = byte_get (start, offset_size); start += offset_size;
 
       if (is_eh ? (cie_id == 0) : (cie_id == DW_CIE_ID))

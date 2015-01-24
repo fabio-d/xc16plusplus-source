@@ -1329,8 +1329,16 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
     if (undefsyms) {
       usym = pic30_undefsym_lookup(undefsyms, p->name, 0, 0);
       if (usym) {
-        usym->external_options_mask |= global_signature_mask;
-        usym->options_set |= global_signature_set;
+        if (usym->external_options_mask)
+          if (global_signature_set && !usym->options_set) {
+            fprintf(stderr,"Link Error: %s compilation options are not"
+                     " compatible with the project global compilation"
+                     " options.\n",
+                     usym ->most_recent_reference->filename);
+             exit(1);
+             }
+       usym->external_options_mask |= global_signature_mask;
+       usym->options_set |= global_signature_set;
       }
     }
 
@@ -1422,6 +1430,14 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
 	 SVR4 ABI, p. 4-27.  */
       h = bfd_link_hash_lookup (info->hash, bfd_asymbol_name (p), FALSE,
 				FALSE, TRUE);
+
+      if (h == (struct bfd_link_hash_entry *) NULL
+          || (h->type != bfd_link_hash_undefined
+              && h->type != bfd_link_hash_common))
+        continue;
+ 
+      /* P is a symbol we are looking for.  */
+
 #if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
       /* we may need to pull this symbol in because it is a SMARTIO fn */
       if (pic30_force_keep_symbol && 
@@ -1453,13 +1469,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
           }
       }
 #endif
-
-      if (h == (struct bfd_link_hash_entry *) NULL
-	  || (h->type != bfd_link_hash_undefined
-	      && h->type != bfd_link_hash_common))
-	continue;
-
-      /* P is a symbol we are looking for.  */
 
 #ifdef PIC30
       /* check this element against target-specific rules */

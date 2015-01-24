@@ -26,9 +26,47 @@
   (PIC30_IS_EEDATA_ATTR(sect))
 
 #define REPORT_AS_AUXFLASH(s) \
-  (PIC30_IS_AUXFLASH_ATTR(sect))
+  (PIC30_IS_AUXFLASH_ATTR(sect) || PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
 
 /*****************************************************************************/
+
+int indent_fprintf(FILE *stream, char *format, ...) {
+  int indent_level=0;
+  static char buffer[] = "%12345s";
+  static unsigned int nesting = 0;
+  int indent_to = 0;
+  va_list ap;
+  char *c = format;
+  char last_c;
+  int result = 0;
+
+  va_start(ap,format);
+  last_c = 0;
+  for (c = format; *c; c++) {
+    switch (*c) {
+      case '<': indent_to = 2 * nesting;
+                nesting++;
+                break;
+      case '/': if (last_c == '<') {
+                  nesting -= 2;
+                  indent_to = 2 * nesting;
+                  //indent_level -= 2;
+                }
+                else if (c[1] == '>') indent_to -= 2;
+                break;
+      default:  break;
+    }
+    last_c  = *c;
+  }
+  sprintf(buffer,"%%%ds", indent_to);
+  fprintf(stream, buffer, "");
+  result = vfprintf(stream, format, ap);
+  va_end(ap);
+  //indent_level += indent_to;
+  if (indent_level < 0) indent_level = 0;
+  if (indent_level > 40) indent_level = 40;
+  return result;
+}
 
 /*
 ** Utility routine: bfd_pic30_report_program_sections()
@@ -595,3 +633,88 @@ pic30_report_external_symbols (FILE *fp) {
 
 } /* static void bfd_pic30_report_external_symbols */
 
+/**
+**  bfd_pic30_ide_dashboard_memory_report
+**
+**/
+static void
+bfd_pic30_ide_dashboard_memory_report () {
+  lang_memory_region_type *region;
+  struct pic30_section *s;
+  int i;
+  
+  FILE *memoryFile;
+  memoryFile = fopen("memory.xml", "w");
+
+  if (memoryFile == NULL)
+    fprintf(stderr,"Could not open memory.xml.\n");
+
+  else {
+    lang_memory_region_type *region;
+    struct pic30_section *s;
+    int i;
+    const char *header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    const char *end_header = "\n";
+    const char *units = "bytes";
+
+    /* build an ordered list of output sections */
+    pic30_init_section_list(&pic30_section_list);
+    bfd_map_over_sections(output_bfd, &pic30_build_section_list, NULL);
+
+    fprintf(memoryFile, "%s", header);
+    fprintf(memoryFile, "%s", end_header);
+
+    indent_fprintf(memoryFile, "<project>\n");
+    indent_fprintf(memoryFile, "<executable name=\"%s\">\n", output_bfd->filename);
+
+       bfd_size_type length = 0;
+       bfd_size_type used = 0;
+       bfd_size_type free = 0;
+
+       indent_fprintf(memoryFile, "<memory name=\"data\">\n");
+       region = region_lookup("data");
+
+       length = region->length;
+       for (s = pic30_section_list; s != NULL; s=s->next)
+          if ((s->sec) && in_bounds(s->sec, region))
+            if (REPORT_AS_DATA(s->sec))
+              used += (s->sec->_raw_size / 2);
+
+       free = length - used;
+
+       indent_fprintf(memoryFile,"<units>%s</units>\n", units);
+       indent_fprintf(memoryFile,"<length>%d</length>\n", length);
+       indent_fprintf(memoryFile,"<used>%d</used>\n", used);
+       indent_fprintf(memoryFile,"<free>%d</free>\n",free);
+
+       indent_fprintf(memoryFile,"</memory>\n");
+
+       length = 0;
+       used = 0;
+       free = 0;
+       
+       indent_fprintf(memoryFile, "<memory name=\"program\">\n");
+       region = region_lookup("program");
+            
+       length = ((region->length / 2 ) * 3);
+       for (s = pic30_section_list; s != NULL; s=s->next)
+          if ((s->sec) && in_bounds(s->sec, region))
+            if (REPORT_AS_PROGRAM(s->sec))
+              used += (s->sec->_raw_size * 3 / 4);
+
+       free = length - used;
+
+       indent_fprintf(memoryFile,"<units>%s</units>\n", units);
+       indent_fprintf(memoryFile,"<length>%d</length>\n", length);
+       indent_fprintf(memoryFile,"<used>%d</used>\n", used);
+       indent_fprintf(memoryFile,"<free>%d</free>\n",free);
+
+       indent_fprintf(memoryFile,"</memory>\n");
+
+    indent_fprintf(memoryFile, "</executable>\n");
+    indent_fprintf(memoryFile, "</project>\n");
+
+    fclose(memoryFile);
+  }
+
+}

@@ -591,7 +591,10 @@ subseg_text_p (sec)
 {
 #ifdef BFD_ASSEMBLER
 #ifdef TC_PIC30
-  return (sec->auxflash || ((bfd_get_section_flags (stdoutput, sec) & SEC_CODE) != 0));
+  if (sec->auxflash) {
+     return (strcmp(sec->name,".const") != 0);
+  }
+  return ((bfd_get_section_flags (stdoutput, sec) & SEC_CODE) != 0);
 #else 
    return ((bfd_get_section_flags (stdoutput, sec) & SEC_CODE) != 0);
 #endif

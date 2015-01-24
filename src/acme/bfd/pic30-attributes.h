@@ -139,7 +139,7 @@ ATTR_IS( keep, PIC30_IS_KEEP_ATTR(sec))
 /*
  * MASK1: Attributes that represent section types
  */
-MASK1( code, data, bss, persist, psv, eedata, memory, heap, stack, auxflash,\
+MASK1( code, data, bss, persist, psv, eedata, memory, heap, stack, auxflash, \
        packedflash)
 
 
@@ -205,5 +205,6 @@ MASK4( .dconst,  0, data, 0 )
 MASK4( .ybss,    0, bss, ymemory )
 MASK4( .ydata,   0, data, ymemory )
 MASK4( .const,   0, psv, 0 )
+MASK4( .const,   0, auxflash, page )
 MASK4( .eedata,  0, eedata, 0 )
 

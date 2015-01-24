@@ -744,12 +744,14 @@ int pic30_decode_CG_settings(char *name, unsigned short value, int debug)
 
   if (!CG_settings) return 0;
 
-  for (s = CG_settings; s->next; s = s->next ) {
+  for (s = CG_settings; s ; s = s->next ) {
 #if 0
     if (s) printf("  pic30_decode_CG_settings: %s, mask = %x, value = %x\n",
                   s->name, s->mask, s->value);
 #endif
-    if (s->name && strncmp(s->name, name, strlen(name)) == 0) {
+    if (s && s->name && ((strncmp(s->name, name, strlen(name)) == 0) ||
+                    (strstr(s->name, name))))
+     {
       if ((value & s->mask) == s->value) {
         if (pic30_add_selected_codeguard_option(s))
           matches++;

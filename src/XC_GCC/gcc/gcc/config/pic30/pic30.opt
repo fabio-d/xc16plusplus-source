@@ -210,6 +210,11 @@ Target RejectNegative Var(pic30_peep_lnk) Undocumented
 
 menable-fixed
 Target RejectNegative JoinedOrMissing Var(pic30_fp_support) VarExists
+Enable fixed point support
+
+fnofallback
+Target RejectNegative Var(pic30_nofallback)
+Do not fall back to free licesnse when license not available
 
 ;
 ; **************************** CAUTION
@@ -263,4 +268,3 @@ Enable support for importing external code from another vendor
 
 mpartition=
 Target Joined Var(pic30_partition) Undocumented
-

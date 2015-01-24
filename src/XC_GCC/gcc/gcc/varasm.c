@@ -590,10 +590,10 @@ get_section (const char *name, unsigned int flags, tree decl)
   else
     {
       sect = *slot;
-#if defined(_BUILD_MCHP_) && defined(TARGET_CHECK_SECTION_FLAGS)
+#if defined(_BUILD_C30_) && defined(TARGET_CHECK_SECTION_FLAGS)
       /* not all targets must have all section flags identical,
          eg its okay not to specify address() on subsequent sections */
-      if ((sect->common.flags & ~SECTION_DECLARED) != flags
+      if ((sect->common.flags & ~(SECTION_DECLARED|SECTION_CONST_NAME)) != flags
 	  && (TARGET_CHECK_SECTION_FLAGS(sect->common.flags, flags)))
 #else
       if ((sect->common.flags & ~SECTION_DECLARED) != flags
@@ -1280,7 +1280,7 @@ get_variable_section (tree decl, bool prefer_noswitch_p ATTRIBUTE_UNUSED)
 
   resolve_unique_section (decl, reloc, flag_data_sections);
 
-#if defined(TARGET_MCHP_PIC32MX)
+#if defined(_BUILD_MCHP_)
   return targetm.asm_out.select_section (decl, reloc, DECL_ALIGN (decl));
 #else
 
@@ -2362,7 +2362,7 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
   {
     /* For C30 we need to output the 'constants' into the same section
        as the DECL, just in case the data is in a peculiar section */
-    if (SECTION_STYLE(sect) == SECTION_NAMED) 
+    if (sect->common.flags & SECTION_CONST_NAME) 
       pic30_set_constant_section(sect->named.name, sect->common.flags,
                                  sect->named.decl);
 #endif
@@ -2398,7 +2398,7 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
 	ASM_OUTPUT_ALIGN (asm_out_file, floor_log2 (DECL_ALIGN_UNIT (decl)));
       assemble_variable_contents (decl, name, dont_output_data);
 #ifdef _BUILD_C30_
-    if (SECTION_STYLE(sect) == SECTION_NAMED) 
+    if (sect->common.flags & SECTION_CONST_NAME) 
       pic30_set_constant_section(0,0,sect->named.decl);
 #endif
 #ifdef _BUILD_C30_
@@ -3117,11 +3117,8 @@ const_desc_eq (const void *p1, const void *p2)
     return 0;
 #ifdef _BUILD_C30_
   if (c1->section_name || c2->section_name) {
-    if (c1->section_name != c2->section_name) {
-      if (!(c1->section_name && c2->section_name &&
-          (strcmp(c1->section_name,c2->section_name) == 0))) return 0;
-    }
-    /* else names equal by default */
+    if ((c1->section_name == 0) || (c2->section_name == 0)) return 0;
+    if (strcmp(c1->section_name,c2->section_name) != 0) return 0;
   } /* else no named section */
 #endif
   return compare_constant (c1->value, c2->value);
@@ -3480,7 +3477,7 @@ output_constant_def (tree exp, int defer)
       desc = build_constant_desc (exp);
       desc->hash = key.hash;
 #ifdef _BUILD_C30_
-      desc->section_name = section_name;
+      desc->section_name = section_name ? xstrdup(section_name) : section_name;
       if (loc)
 #endif
       *loc = desc;

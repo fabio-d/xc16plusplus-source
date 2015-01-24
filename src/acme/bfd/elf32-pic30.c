@@ -156,6 +156,7 @@ bfd_boolean pic30_has_fill_option = 0;
 bfd_boolean pic30_local_stack = TRUE;
 bfd_boolean pic30_psv_override = 0;
 bfd_boolean pic30_partition_flash = 0;
+bfd_boolean pic30_ide_dashboard = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -1934,7 +1935,7 @@ pic30_bfd_elf32_new_section_hook (abfd, sec)
      asection *sec;
 {
   const char *sname = bfd_get_section_name(abfd, sec);
-  if (strncmp(sname, ".debug", 6) != 0)
+  if (strncmp(sname, ".debug", 6) != 0) 
   {
     /*
     ** Set the default section alignment for non-debug sections to 2^1
