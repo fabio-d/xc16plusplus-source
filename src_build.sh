@@ -69,6 +69,8 @@ mkdir bin
        cp gcc/gcc/xgcc${EXE} ${install_dir}/bin/bin/${OMF}-gcc${EXE}
        cp gcc/gcc/cc1${EXE} ${install_dir}/bin/bin/${OMF}-cc1${EXE}
        cp gcc/gcc/cpp${EXE} ${install_dir}/bin/bin/${OMF}-cpp${EXE}
+       cp gcc/gcc/g++${EXE} ${install_dir}/bin/bin/${OMF}-g++${EXE}
+       cp gcc/gcc/cc1plus${EXE} ${install_dir}/bin/bin/${OMF}-cc1plus${EXE}
     )
   done
 
