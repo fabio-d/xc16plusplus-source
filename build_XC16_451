@@ -184,7 +184,7 @@ mkdir -p ppl
   export CFLAGS=-m32
   export CXXFLAGS=-m32
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" --build=$BUILD_OS
+  CXXFLAGS="$EXTRA_CFLAGS $OPT -fpermissive" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" --build=$BUILD_OS
 
   make -j 2 install
 )
