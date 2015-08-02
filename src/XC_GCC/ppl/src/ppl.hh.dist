@@ -692,6 +692,7 @@ class stdiobuf;
 /* Automatically generated from PPL source file ../src/stdiobuf.defs.hh line 27. */
 #include <cstdio>
 #include <streambuf>
+#include <cstddef>
 
 class Parma_Polyhedra_Library::stdiobuf
   : public std::basic_streambuf<char, std::char_traits<char> > {
@@ -16911,7 +16912,7 @@ public:
   class const_iterator
     : public std::iterator<std::forward_iterator_tag,
 			   Constraint,
-			   ptrdiff_t,
+			   std::ptrdiff_t,
 			   const Constraint*,
 			   const Constraint&> {
   public:
@@ -18464,7 +18465,7 @@ public:
   class const_iterator
     : public std::iterator<std::forward_iterator_tag,
 			   Generator,
-			   ptrdiff_t,
+			   std::ptrdiff_t,
 			   const Generator*,
 			   const Generator&> {
   public:
@@ -20151,7 +20152,7 @@ public:
   class const_iterator
     : public std::iterator<std::forward_iterator_tag,
 			   Congruence,
-			   ptrdiff_t,
+			   std::ptrdiff_t,
 			   const Congruence*,
 			   const Congruence&> {
   public:
@@ -21334,7 +21335,7 @@ public:
   class const_iterator
     : public std::iterator<std::forward_iterator_tag,
 			   Grid_Generator,
-			   ptrdiff_t,
+			   std::ptrdiff_t,
 			   const Grid_Generator*,
 			   const Grid_Generator&>,
       private Generator_System::const_iterator {
