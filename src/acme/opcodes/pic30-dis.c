@@ -45,6 +45,10 @@ void pic30_disassemble_call_goto_insn PARAMS
 (( const struct pic30_opcode * opcode, unsigned long insn_word1,
    unsigned long insn_word2, struct disassemble_info *info));
 
+void pic30_disassemble_bfins_insn PARAMS
+(( const struct pic30_opcode * opcode, unsigned long insn_word1,
+   unsigned long insn_word2, struct disassemble_info *info));
+
 char pic30_disassemble_2word_insn PARAMS
 (( const struct pic30_opcode * opcode, unsigned long insn_word1,
    bfd_vma memaddr, struct disassemble_info *info));
@@ -230,6 +234,9 @@ pic30_disassemble_2word_insn (opcode, insn_word1, memaddr, info)
                                            insn_word2, info);
          break;
 
+      case BFINS_INSN:
+         pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info);
+         break;
       default:
          rc = FALSE;
          break;
@@ -464,3 +471,78 @@ pic30_print_insn (memaddr, info)
 
    return rc;
 }
+
+/******************************************************************************/
+
+void
+pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info)
+   const struct pic30_opcode * opcode;
+   unsigned long insn_word1;
+   unsigned long insn_word2;
+   struct disassemble_info * info;
+{
+   int i;
+
+   (*info->fprintf_func) (info->stream, "%-10s", opcode->name);
+
+   for (i = 0; i < opcode->number_of_operands; i++)
+   {
+      const struct pic30_operand * opnd =
+         &(pic30_operands[opcode->operands[i]]);
+
+      char operand_string[BUFSIZ] = "";
+      unsigned long insn_word = (i == 0) ? insn_word1 : insn_word2;
+      long operand_value = 0;
+      unsigned char print_symbol = FALSE;
+
+      if (opnd->extract)
+      {
+         char * extracted_string;
+         unsigned char error_found = FALSE;
+
+         extracted_string =
+            (*opnd->extract) (insn_word, info,
+                              opcode->flags, opnd, &error_found);
+         strcpy (operand_string, extracted_string);
+         free (extracted_string);
+      } /* if (opnd->extract) */
+      else
+      {
+         operand_value = ((insn_word) >> opnd->shift) & ((1 << opnd->bits) - 1);
+
+         switch (opnd->type)
+         {
+            case OPND_REGISTER_DIRECT:
+               strcpy (operand_string, pic30_registers[operand_value]);
+               break;
+
+            case OPND_SYMBOL:
+               if ((*info->symbol_at_address_func) (operand_value, info))
+                  print_symbol = TRUE;
+               /* drop through */
+            case OPND_VALUE:
+            {
+               if (opnd->immediate)
+                  strcpy (operand_string, "#0x");
+               else
+                  strcpy (operand_string, "0x");
+
+               if (!PRINT_SYMBOL)
+                  sprintf (operand_string, "%s%lx", operand_string,
+                           operand_value);
+            }
+         } /* switch */
+      } /* else */
+
+      (*info->fprintf_func) (info->stream, "%s", operand_string);
+
+      if ((!opnd->extract) && (PRINT_SYMBOL))
+         (*info->print_address_func) (operand_value, info);
+
+      if ((i != (opcode->number_of_operands - 1)) &&
+          (strcmp (operand_string, "") != 0))
+         (*info->fprintf_func) (info->stream, ", ");
+   }
+}
+
+/******************************************************************************/

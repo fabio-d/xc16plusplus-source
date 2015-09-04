@@ -1294,6 +1294,9 @@ static const struct option_map option_map[] =
    {"--library-directory", "-L", "a"},
    {"--machine", "-m", "aj"},
    {"--machine-", "-m", "*j"},
+#if defined(_BUILD_MCHP_)
+   {"--memorysummary", "-mmemorysummary=", "aj"},
+#endif
    {"--no-canonical-prefixes", "-no-canonical-prefixes", 0},
    {"--no-integrated-cpp", "-no-integrated-cpp", 0},
    {"--no-line-commands", "-P", 0},
@@ -1373,6 +1376,9 @@ translate_options (int *argcp, const char *const **argvp)
   int newvsize = (argc + 2) * 2 * sizeof (const char *);
   const char **newv = XNEWVAR (const char *, newvsize);
   int newindex = 0;
+#ifdef _BUILD_MCHP_
+  int legacy_specified =0;
+#endif
 
   i = 0;
   newv[newindex++] = argv[i++];
@@ -1532,6 +1538,11 @@ translate_options (int *argcp, const char *const **argvp)
       else if (strcmp(argv[i],"-legacy-libc") == 0) {
         newv[newindex++] = "-mlegacy-libc";
         i++;
+        legacy_specified = 1;
+      } else if (strcmp(argv[i],"-no-legacy-libc") == 0) {
+        newv[newindex++] = "-mno-legacy-libc";
+        i++;
+        legacy_specified = 1;
       }
 
 #endif
@@ -1573,6 +1584,12 @@ translate_options (int *argcp, const char *const **argvp)
 	/* Ordinary operands, or +e options.  */
 	newv[newindex++] = argv[i++];
     }
+
+#ifdef _BUILD_MCHP_
+   if (!legacy_specified) {
+     newv[newindex++] = "-mlegacy-libc";
+   }
+#endif
 
   newv[newindex] = 0;
 
@@ -3587,6 +3604,8 @@ display_help (void)
   -relaxed-math            Use alternative floating point support routines\n"), stdout);
   fputs (_("\
   -legacy-libc             Use legacy (pre C30 v3.25) lib C routines\n"),stdout);
+  fputs (_("\
+  -no-legacy-libc          Use C30 v3.25 -> XC16 v1.24 lib C routines\n"),stdout);
 #elif defined(TARGET_MCHP_PIC32MX)
   fputs (_("\
   -legacy-libc             Use legacy (pre v1.12) lib C routines\n"), stdout);
@@ -3635,8 +3654,6 @@ display_help (void)
 #ifdef _BUILD_C30_
   fputs (_("\
   -fast-math               Use alternative floating point support routines\n"), stdout);
-  fputs (_("\
-  -legacy-libc             Use legacy (pre v3.25) lib C routines\n"), stdout);
 #endif
 
   printf (_("\
@@ -3716,7 +3733,7 @@ process_command (int argc, const char **argv)
     pls_fast_math = 1,
     pls_legacy_libc = 2,
     pls_relaxed_math = 4
-  } pic30_which_spec = pls_default;
+  } pic30_which_spec = pls_legacy_libc;
 
   char *libspecs[] = {
     LIB_SPEC,         // 0 default
@@ -3739,6 +3756,7 @@ process_command (int argc, const char **argv)
   n_switches = 0;
   n_infiles = 0;
   added_libraries = 0;
+  lib_spec = libspecs[pic30_which_spec];
 
   /* Figure compiler version from version string.  */
 
@@ -4134,6 +4152,10 @@ process_command (int argc, const char **argv)
       } else if (strcmp (argv[i], "-mlegacy-libc") == 0) {
         n_switches++;
         pic30_which_spec |= pls_legacy_libc;
+        lib_spec = libspecs[pic30_which_spec];
+      } else if (strcmp (argv[i], "-mno-legacy-libc") == 0) {
+        n_switches++;
+        pic30_which_spec &= ~pls_legacy_libc;
         lib_spec = libspecs[pic30_which_spec];
       }
 #endif

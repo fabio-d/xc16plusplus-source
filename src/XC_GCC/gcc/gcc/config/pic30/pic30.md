@@ -1,4 +1,4 @@
-;- Machine description for GNU compiler
+;;- Machine description for GNU compiler
 ;;- Microchip dsPIC30 version.
 ;; Copyright (C) 1994, 1995, 1996, 1997 Free Software Foundation, Inc.
 
@@ -102,7 +102,7 @@
 
 (define_predicate "pic30_pushhi_operand"
   (ior (match_code "reg")
-       (match_test "pic30_T_constraint(op)")
+       (match_test "pic30_T_constraint(op,mode)")
        (and (match_code "mem")
             (match_test "GET_CODE(XEXP(op,0)) == REG")
             (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode"))
@@ -223,8 +223,14 @@
 
 (define_predicate "pic30_indirect_mem_operand_modify"
   (and (match_code "mem")
-       (match_code "post_inc,post_dec,pre_inc,pre_dec" "0")
+       (match_code "post_inc,post_dec" "0")
        (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
+
+(define_predicate "pic30_reg_or_indirect_mem_operand_modify"
+  (ior (match_code "reg")
+       (and (match_code "mem")
+            (match_code "post_inc,post_dec" "0")
+            (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode"))))
 
 (define_predicate "pic30_APSV_indirect_mem_operand_modify"
   (and (match_code "mem")
@@ -237,6 +243,16 @@
        (match_code "post_inc,post_dec,pre_inc,pre_dec,reg" "0")
        (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
 
+(define_predicate "pic30_DI_indirect_mem_operand"
+  (and (match_code "mem")
+       (match_code "post_inc,pre_inc,reg" "0")
+       (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
+
+(define_predicate "pic30_unified_indirect_mem_operand"
+  (and (match_code "mem")
+       (match_code "post_inc,post_dec,pre_inc,pre_dec,reg" "0")
+       (match_test "GET_MODE(XEXP(op,0)) == Pmode")))
+
 (define_predicate "pic30_APSV_indirect_mem_operand"
   (and (match_code "mem")
        (match_code "post_inc,post_dec,pre_inc,pre_dec,reg" "0")
@@ -247,7 +263,11 @@
 
 (define_predicate "pic30_mode3_operand"
   (and (match_code "subreg,reg,mem")
-       (match_test "pic30_mode3_operand_helper(op,mode)")))
+       (match_test "pic30_mode3_operand_helper(op,mode,0)")))
+
+(define_predicate "pic30_unified_mode3_operand"
+  (and (match_code "subreg,reg,mem")
+       (match_test "pic30_mode3_operand_helper(op,mode,1)")))
 
 (define_predicate "pic30_mode3_APSV_operand"
   (and (match_code "subreg,reg,mem")
@@ -257,7 +277,11 @@
 
 (define_predicate "pic30_modek_operand"
   (and (match_code "subreg,mem")
-       (match_test "pic30_modek_operand_helper(op,mode)")))
+       (match_test "pic30_modek_operand_helper(op,mode,0)")))
+
+(define_predicate "pic30_unified_modek_operand"
+  (and (match_code "subreg,mem")
+       (match_test "pic30_modek_operand_helper(op,mode,1)")))
 
 (define_predicate "pic30_modek_APSV_operand"
   (and (match_code "subreg,mem")
@@ -266,15 +290,18 @@
 ;;  { "pic30_data_operand", { MEM }}, 
 
 (define_predicate "pic30_data_operand"
-  (and (match_code "mem")
-       (match_test "GET_MODE(op) != QImode")
-       (match_test "pic30_T_constraint(op)")))
+  (and (match_test "GET_MODE(op) != QImode")
+       (match_test "pic30_T_constraint(op,mode)")))
 
 ;;  { "pic30_move2_operand", { SUBREG, REG, MEM }}, 
 
 (define_predicate "pic30_move2_operand"
   (ior (match_operand 0 "pic30_mode3_operand")
        (match_operand 0 "pic30_modek_operand")))
+
+(define_predicate "pic30_unified_move2_operand"
+  (ior (match_operand 0 "pic30_unified_mode3_operand")
+       (match_operand 0 "pic30_unified_modek_operand")))
 
 (define_predicate "pic30_move2_APSV_operand"
   (ior (match_operand 0 "pic30_mode3_APSV_operand")
@@ -305,6 +332,66 @@
       break;
     case MEM:
       fMode2Operand = pic30_indirect_mem_operand(op,mode);
+      break;
+    default:
+        break;
+  }
+  return fMode2Operand;
+})
+
+(define_predicate "pic30_DI_mode2_operand"
+  (match_code "subreg,reg,mem")
+{
+  int fMode2Operand;
+  enum rtx_code code;
+
+  fMode2Operand = FALSE;
+  if (mode == VOIDmode) mode = GET_MODE(op);
+  code = GET_CODE(op);
+  switch (code) {
+    case SUBREG:
+      fMode2Operand = pic30_register_operand(op, mode);
+      break;
+    case REG:
+      /*
+      ** Register to register
+      */
+      fMode2Operand = ((GET_MODE(op) == mode) &&
+                       ((REGNO(op) <= WR15_REGNO) ||
+                        (REGNO(op) >= FIRST_PSEUDO_REGISTER)));
+      break;
+    case MEM:
+      fMode2Operand = pic30_DI_indirect_mem_operand(op,mode);
+      break;
+    default:
+        break;
+  }
+  return fMode2Operand;
+})
+
+(define_predicate "pic30_unified_mode2_operand"
+  (match_code "subreg,reg,mem")
+{
+  int fMode2Operand;
+  enum rtx_code code;
+
+  fMode2Operand = FALSE;
+  if (mode == VOIDmode) mode = GET_MODE(op);
+  code = GET_CODE(op);
+  switch (code) {
+    case SUBREG:
+      fMode2Operand = pic30_register_operand(op, mode);
+      break;
+    case REG:
+      /*
+      ** Register to register
+      */
+      fMode2Operand = ((GET_MODE(op) == mode) &&
+                       ((REGNO(op) <= WR15_REGNO) ||
+                        (REGNO(op) >= FIRST_PSEUDO_REGISTER)));
+      break;
+    case MEM:
+      fMode2Operand = pic30_unified_indirect_mem_operand(op,mode);
       break;
     default:
         break;
@@ -559,7 +646,7 @@
 
 (define_predicate "pic30_T_operand"
   (and (match_code "mem")
-       (match_test "pic30_T_constraint(op)")))
+       (match_test "pic30_T_constraint(op,mode)")))
 
 (define_predicate "pic30_UT_operand"
   (ior (match_operand 0 "pic30_T_operand")
@@ -581,6 +668,12 @@
 
 (define_predicate "pic30_reg_or_near_operand"
   (ior (match_operand 0 "pic30_register_operand")
+       (match_operand 0 "pic30_near_operand")))
+
+;;  { "pic30_mode2_or_near_operand", { SUBREG, REG, MEM }},
+
+(define_predicate "pic30_mode2_or_near_operand"
+  (ior (match_operand 0 "pic30_mode2_operand")
        (match_operand 0 "pic30_near_operand")))
 
 ;;  { "pic30_reg_imm_or_near_operand", { SUBREG, REG, MEM, CONST_INT }}, 
@@ -880,7 +973,9 @@
           /* these pointers are compatible with a multitude of spaces */
           if (pic30_eds_space_operand_p(op)) return TRUE;
         }
-        if (mode == HImode) return TRUE;
+        if (mode == STACK_Pmode) return TRUE;
+        if (mode == FN_Pmode) return TRUE;
+        if (mode == Pmode) return TRUE;
         break;
       case CONST:
         op = XEXP (op, 0);
@@ -920,6 +1015,11 @@
   (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_symbolic_address_operand")))
 
+(define_predicate "pic30_reg_or_symbolic_address_or_immediate"
+  (ior (match_operand 0 "pic30_register_operand")
+       (ior (match_operand 0 "immediate_operand")
+            (match_operand 0 "pic30_symbolic_address_operand"))))
+
 ;;  { "pic30_reg_or_zero_operand", { SUBREG, REG, CONST_INT }}, 
 
 (define_special_predicate "pic30_reg_or_zero_operand"
@@ -948,6 +1048,12 @@
   (ior (match_operand 0 "pic30_P_operand")
        (match_operand 0 "pic30_N_operand")))
 
+;;  { "pic30_JMNP_operand", { CONST_INT }},
+
+(define_special_predicate "pic30_JMNP_operand"
+  (ior (match_operand 0 "pic30_JM_operand")
+       (match_operand 0 "pic30_PN_operand")))
+
 ;;  { "pic30_reg_or_P_operand", { SUBREG, REG, CONST_INT }}, 
 
 (define_special_predicate "pic30_reg_or_P_operand"
@@ -963,6 +1069,16 @@
 (define_special_predicate "pic30_rR_or_JN_APSV_operand"
   (ior (match_operand 0 "pic30_reg_or_R_APSV_operand")
        (match_operand 0 "pic30_JN_operand")))
+
+;;  { "pic30_rR_or_JMNP_operand", { MEM, SUBREG, REG, CONST_INT }},
+
+(define_special_predicate "pic30_rR_or_JMNP_operand"
+  (ior (match_operand 0 "pic30_reg_or_R_operand")
+       (match_operand 0 "pic30_JMNP_operand")))
+
+(define_special_predicate "pic30_rR_or_JMNP_APSV_operand"
+  (ior (match_operand 0 "pic30_reg_or_R_APSV_operand")
+       (match_operand 0 "pic30_JMNP_operand")))
 
 ;;  { "pic30_Q_operand", { MEM }}, 
 
@@ -991,7 +1107,16 @@
        (match_test "MEM_ADDR_SPACE(op) == ADDR_SPACE_GENERIC")
        (match_operand 0 "memory_operand")))
 
+(define_predicate "pic30_RTU_operand"
+  (and (match_code "mem")
+       (ior (match_operand 0 "pic30_R_operand")
+            (match_operand 0 "pic30_near_operand")
+            (match_operand 0 "pic30_data_operand"))))
 
+(define_predicate "pic30_unified_mode2k_operand"
+  (ior (match_operand 0 "pic30_unified_mode2_operand")
+       (match_operand 0 "pic30_unified_modek_operand")))
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Uses of UNSPEC in this file:
@@ -1103,6 +1228,11 @@
   (UNSPEC_FIXSIGN              92)
   (UNSPECV_SOFTWARE_BREAK      93)
   (UNSPECV_WRITEDATAFLASH      94) ; __builtin_write_DATAFLASH
+  (UNSPEC_ADDR_LOW             95)
+  (UNSPEC_ADDR_HI              96)
+  (UNSPEC_ADDR                 97)
+  (UNSPECV_PWRSAV              98)
+  (UNSPECV_CLRWDT              99)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -2532,6 +2662,8 @@
   ]
 )
 
+(define_mode_iterator MODES32 [SI SF P32PEDS P32EDS P24PSV P24PROG P32EXT])
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; stackpush
 ;; These patterns are used for passing arguments on the stack.
@@ -2540,7 +2672,13 @@
   [(set (match_operand:QI 0 "push_operand"   "=>")
         (match_operand:QI 1 "pic30_general_operand" "r"))]
   ""
-  "mov %1,[w15++]"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;mov %1,[w15++]\";
+   } else {
+     return \"mov %1,[w15++]\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2551,7 +2689,13 @@
   [(set (mem:HI (post_inc:HI (reg:HI SPREG)))
                 (subreg:HI (match_operand:QI 0 "register_operand" "r") 0))]
   ""
-  "push %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;push %0\";
+   } else {
+     return \"push %0\";
+   }
+  "
   [ 
     (set_attr "cc" "unchanged")
     (set_attr "type" "def")
@@ -2562,7 +2706,13 @@
   [(set (match_operand:HI 0 "push_operand"   "=>")
 	(const_int -1))]
   ""
-  "setm %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;setm %0\";
+   } else {
+     return \"setm %0\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2584,11 +2734,35 @@
   [(set (match_operand:HI 0 "push_operand"   "=>,>,>,>")
         (match_operand:HI 1 "pic30_pushhi_operand" "r,R>,O,T"))]
   ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   clr %0
-   push %1"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+  
+       case 0: return \"movpag #1,DSWPAG\;mov %1,%0\";
+               break;
+       case 1: return \"movpag #1,DSWPAG\;mov %1,%0\";
+               break;
+       case 2: return \"movpag #1,DSWPAG\;clr %0\";
+               break;
+       case 3: return \"movpag #1,DSWPAG\;push %1\";
+               break;
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+
+       case 0: return \"mov %1,%0\";
+               break;
+       case 1: return \"mov %1,%0\";
+               break;
+       case 2: return \"clr %0\";
+               break;
+       case 3: return \"push %1\";
+               break;
+     }
+  }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def,defuse,def,def")
@@ -2599,18 +2773,30 @@
   [(set (mem:SI (post_inc:HI (reg:HI SPREG)))
                 (match_operand:SI 0 "register_operand" "r"))]
   ""
-  "push.d %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;push.d %0\";
+   } else {
+     return \"push.d %0\";
+   }
+  "
   [ 
     (set_attr "cc" "unchanged")
     (set_attr "type" "def")
   ]
 )
  
-(define_insn "pushsi"
-  [(set (match_operand:SI 0 "push_operand"   "=>")
-        (match_operand:SI 1 "pic30_register_operand" "r"))]
+(define_insn "push<mode>"
+  [(set (match_operand:MODES32 0 "push_operand"   "=>")
+        (match_operand:MODES32 1 "pic30_register_operand" "r"))]
   ""
-  "mov.d %1,[w15++]"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
+   } else {
+     return \"mov.d %1,[w15++]\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2621,7 +2807,13 @@
   [(set (mem:DI (post_inc:HI (reg:HI SPREG)))
                 (match_operand:DI 0 "register_operand" "r"))]
   ""
-  "push.d %0\;push.d %t0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;push.d %0\;push.d %t0\";
+   } else {
+     return \"push.d %0\;push.d %t0\";
+   }
+  "
   [ 
     (set_attr "cc" "unchanged")
     (set_attr "type" "def")
@@ -2632,7 +2824,13 @@
   [(set (match_operand:DI 0 "push_operand"   "=>")
         (match_operand:DI 1 "pic30_register_operand" "r"))]
   ""
-  "mov.d %1,[w15++]\;mov.d %t1,[w15++]"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
+   } else { 
+     return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2643,7 +2841,13 @@
   [(set (mem:SF (post_inc:HI (reg:HI SPREG)))
                 (match_operand:SF 0 "register_operand" "r"))]
   ""
-  "push.d %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;push.d %0\";
+   } else {
+     return \"push.d %0\";
+   }
+  "
   [ 
     (set_attr "cc" "unchanged")
     (set_attr "type" "def")
@@ -2654,7 +2858,13 @@
   [(set (match_operand:SF 0 "push_operand"   "=>")
         (match_operand:SF 1 "pic30_register_operand" "r"))]
   ""
-  "mov.d %1,[w15++]"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
+   } else {
+     return \"mov.d %1,[w15++]\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2672,11 +2882,17 @@
   ]
 )
  
-(define_insn "*pushdf"
+(define_insn "pushdf"
   [(set (match_operand:DF 0 "push_operand"   "=>")
         (match_operand:DF 1 "pic30_register_operand" "r"))]
   ""
-  "mov.d %1,[w15++]\;mov.d %t1,[w15++]"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
+   } else {
+     return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def")
@@ -2713,7 +2929,13 @@
   [(set (match_operand:QI 0 "pic30_register_operand" "=r")
         (match_operand:QI 1 "pop_operand"       "<"))]
   ""
-  "mov %1,%0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSRPAG\;mov %1,%0\";
+   } else {
+     return \"mov %1,%0\";
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "use")
@@ -2724,11 +2946,25 @@
   [(set (match_operand:HI 0 "pic30_general_operand" "=r,<,O,T")
         (match_operand:HI 1 "pop_operand"    " <,<,<,<"))]
   ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   clr %0
-   pop %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 0: return \"movpag #1,DSRPAG\;mov %1,%0\";
+       case 1: return \"movpag #1,DSRPAG\;mov %1,%0\";
+       case 2: return \"movpag #1,DSRPAG\;clr %0\";
+       case 3: return \"movpag #1,DSRPAG\;pop %0\";
+     } 
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 0: return \"mov %1,%0\";
+       case 1: return \"mov %1,%0\";
+       case 2: return \"clr %0\";
+       case 3: return \"pop %0\";
+     } 
+   }
+  "
   [
    (set_attr "cc" "unchanged")
    (set_attr "type" "def,defuse,def,def")
@@ -2742,9 +2978,21 @@
    (clobber (match_dup 0))
   ]
   ""
-  "@
-   mov [--w15],%0
-   pop %0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 0: return \"movpag #1,DSRPAG\;mov [--w15],%0\";
+       case 1: return \"movpag #1,DSRPAG\;pop %0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 0: return \"mov [--w15],%0\";
+       case 1: return \"pop %0\";
+     }
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "defuse,use")
@@ -2756,7 +3004,13 @@
         (match_operand:SI 1 "pop_operand"       "<"))
   ]
   ""
-  "mov.d %1,%0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSRPAG\;mov.d %1,%0\";
+   } else {
+     return \"mov.d %1,%0\";
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "use")
@@ -2767,7 +3021,13 @@
   [(set (match_operand:DI 0 "pic30_register_operand" "=r")
         (match_operand:DI 1 "pop_operand"       "<"))]
   ""
-  "mov.d %1,%t0\;mov.d %1,%0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
+   } else {
+     return \"mov.d %1,%t0\;mov.d %1,%0\";
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "use")
@@ -2778,7 +3038,13 @@
   [(set (match_operand:SF 0 "pic30_register_operand" "=r")
         (match_operand:SF 1 "pop_operand"       "<"))]
   ""
-  "mov.d %1,%0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSRPAG\;mov.d %1,%0\";
+   } else {
+     return \"mov.d %1,%0\";
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "use")
@@ -2789,7 +3055,13 @@
   [(set (match_operand:DF 0 "pic30_register_operand" "=r")
         (match_operand:DF 1 "pop_operand"       "<"))]
   ""
-  "mov.d %1,%t0\;mov.d %1,%0"
+  "*
+   if (pic30_ecore_target() && TARGET_EDS) {
+     return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
+   } else {
+     return \"mov.d %1,%t0\;mov.d %1,%0\";
+   }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "use")
@@ -2815,7 +3087,11 @@
 
 (define_insn "tstqi_DATA"
   [(set (cc0)
-        (match_operand:QI 0 "pic30_near_mode2_operand" "U,r,R<>"))]
+        (compare
+           (match_operand:QI 0 "pic30_near_mode2_operand" "U,r,R<>")
+           (const_int 0))
+   )
+  ]
   ""
   "cp0.b %0"
   [
@@ -2826,7 +3102,11 @@
 
 (define_insn "tstqi_APSV"
   [(set (cc0)
-        (match_operand:QI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>"))]
+        (compare
+           (match_operand:QI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>")
+           (const_int 0))
+   )
+  ]
   ""
   "cp0.b %0"
   [
@@ -2837,7 +3117,11 @@
 
 (define_expand "tstqi"
   [(set (cc0)
-        (match_operand:QI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>"))]
+        (compare
+          (match_operand:QI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>")
+          (const_int 0))
+   )
+  ]
   ""
   "
 {
@@ -2859,7 +3143,11 @@
 
 (define_insn "tsthi_DATA"
   [(set (cc0)
-        (match_operand:HI 0 "pic30_near_mode2_operand" "U,r,R<>"))]
+        (compare
+          (match_operand:HI 0 "pic30_near_mode2_operand" "U,r,R<>")
+          (const_int 0))
+   )
+  ]
   ""
   "cp0 %0"
   [
@@ -2870,7 +3158,11 @@
 
 (define_insn "tsthi_APSV"
   [(set (cc0)
-        (match_operand:HI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>"))]
+        (compare
+          (match_operand:HI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>")
+          (const_int 0))
+   )
+  ]
   ""
   "cp0 %0"
   [
@@ -2881,7 +3173,11 @@
 
 (define_expand "tsthi"
   [(set (cc0)
-        (match_operand:HI 0 "pic30_near_mode2_APSV_operand" "U,r,R<>"))]
+        (compare
+          (match_operand:HI 0 "pic30_near_mode2_operand" "U,r,R<>")
+          (const_int 0))
+   )
+  ]
   ""
 "
 {
@@ -3005,7 +3301,7 @@
               break;
      case 1:  /* op0 is memory, take its address */
               /* literal <= 10 bits */
-              if (pic30_T_constraint(operands[0]) ||
+              if (pic30_T_constraint(operands[0],VOIDmode) ||
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
                 op0 = \"[%4++]\";
@@ -3037,7 +3333,7 @@
               break;
      case 2:  /* op1 is memory, take its address */
               /* literal <= 10 bits */
-              if (pic30_T_constraint(operands[1]) ||
+              if (pic30_T_constraint(operands[1],VOIDmode) ||
                   pic30_U_constraint(operands[1],VOIDmode)) {
                 c += sprintf(c,\"mov #%%1,%%4\;\");
                 op1 = \"[%4++]\";
@@ -3068,7 +3364,7 @@
               restore_with_sub_0 = \"%r0\";
               break;
      case 6:  /* op0 and op1 are memory, take their addresses */
-              if (pic30_T_constraint(operands[0]) || 
+              if (pic30_T_constraint(operands[0],VOIDmode) || 
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
                 op0 = \"[%4++]\";
@@ -3096,7 +3392,7 @@
               } else {
                 gcc_assert(0);
               }
-              if (pic30_T_constraint(operands[1]) ||
+              if (pic30_T_constraint(operands[1],VOIDmode) ||
                   pic30_U_constraint(operands[1],VOIDmode)) {
                 c += sprintf(c,\"mov #%%1,%%5\;\");
                 op1 = \"[%5++]\";
@@ -3134,7 +3430,7 @@
               break;
      case 4:  /* op0 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
-              if (pic30_T_constraint(operands[0]) ||
+              if (pic30_T_constraint(operands[0],VOIDmode) ||
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
                 op0 = \"[%4++]\";
@@ -3162,7 +3458,7 @@
               } else {
                 gcc_assert(0);
               }
-              if (pic30_T_constraint(operands[2]) ||
+              if (pic30_T_constraint(operands[2],VOIDmode) ||
                   pic30_U_constraint(operands[2],VOIDmode)) {
                 c += sprintf(c,\"mov #%%2,%%5\;\");
               } else {
@@ -3173,7 +3469,7 @@
               break;
      case 5:  /* op1 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
-              if (pic30_T_constraint(operands[1]) ||
+              if (pic30_T_constraint(operands[1],VOIDmode) ||
                   pic30_U_constraint(operands[1],VOIDmode)) {
                 c += sprintf(c,\"mov #%%1,%%4\;\");
                 op1 = \"[%4++]\";
@@ -3202,7 +3498,7 @@
                 gcc_assert(0);
               }
               restore_with_sub_0 = \"%r0\";
-              if (pic30_T_constraint(operands[2]) ||
+              if (pic30_T_constraint(operands[2],VOIDmode) ||
                   pic30_U_constraint(operands[2],VOIDmode)) {
                 c += sprintf(c,\"mov #%%2,%%5\;\");
               } else {
@@ -3299,6 +3595,7 @@
      char *restore_with_sub_0=0;
      char *restore_w14=0;
      char *sub_value = 0;  /* != 0 => use register */
+     unsigned char byte;
      int repeat_repeat;
      int repeat_count;
      char *set_instr = \"mov\";
@@ -3315,8 +3612,10 @@
          which_alternative -= 4;
          if (INTVAL(operands[3]) != 1) {
            /* repeat bytes */
-           c += sprintf(c,\"mov #%ld,%%6\;\", 
-                        (INTVAL(operands[2]) << 8) + INTVAL(operands[2]));
+           /* first convert char to unsigned char */
+           /* since we are doing bit operations */
+           byte = INTVAL(operands[2]) & 0xFF;
+           c += sprintf(c,\"mov #%ld,%%6\;\", (byte << 8) + byte);
          } else {
            c += sprintf(c,\"mov #%ld,%%6\;\", INTVAL(operands[2]));
          }
@@ -3345,7 +3644,7 @@
               break;
      case 1:  /* op0 is memory, take its address */
               /* literal <= 10 bits */
-              if (pic30_T_constraint(operands[0]) ||
+              if (pic30_T_constraint(operands[0],VOIDmode) ||
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
                 op0 = \"[%4++]\";
@@ -3386,7 +3685,7 @@
               break;
      case 3:  /* op0 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
-              if (pic30_T_constraint(operands[0]) ||
+              if (pic30_T_constraint(operands[0],VOIDmode) ||
                   pic30_U_constraint(operands[0],VOIDmode)) {
                 c += sprintf(c,\"mov #%%0,%%4\;\");
                 op0 = \"[%4++]\";
@@ -3537,7 +3836,7 @@
 
 (define_insn "cmpqi3_sfr0"
   [(set (cc0)
-        (compare:QI (match_operand:QI 0 "pic30_reg_or_near_operand" "U,r")
+        (compare (match_operand:QI 0 "pic30_reg_or_near_operand" "U,r")
                     (match_operand:QI 1 "pic30_wreg_operand" "a,r")))]
   ""
   "@
@@ -3554,7 +3853,7 @@
 ;
 (define_insn "cmpqi3_2sfr"
   [(set (cc0)
-        (compare:QI 
+        (compare 
            (match_operand:QI 0 "pic30_wreg_or_near_operand" "?r,U, U,  r")
            (match_operand:QI 1 "pic30_wreg_or_near_operand" "U, a, ?r, r")))
    (clobber (match_scratch:HI 2 "=r,X,r,X"))]
@@ -3673,12 +3972,22 @@
 
 (define_insn "cmphi_sfr0"
   [(set (cc0)
-        (compare:HI (match_operand:HI 0 "pic30_reg_or_near_operand" "U,r")
+        (compare (match_operand:HI 0 "pic30_reg_or_near_operand" "U,r")
                     (match_operand:HI 1 "pic30_register_operand" "a,r")))]
   ""
   "@
    cp %0
    sub %0,%1,[w15]"
+  [(set_attr "cc" "set")])
+
+;        (compare (match_operand:HI 0 "pic30_reg_or_near_operand" "Ur")
+
+(define_insn "cmpzhi_sfr0"
+  [(set (cc0)
+        (compare (match_operand:HI 0 "pic30_mode2_or_near_operand" "R<>Ur")
+                    (const_int 0)))]
+  ""
+  "cp0 %0"
   [(set_attr "cc" "set")])
 
 (define_insn "cmphi_DATA"
@@ -3749,7 +4058,7 @@
 
 (define_insn "*cmpp16apasv_sfr0"
   [(set (cc0)
-        (compare:P16APSV
+        (compare
           (match_operand:P16APSV 0 "pic30_reg_or_near_operand" "U,r")
           (match_operand:P16APSV 1 "pic30_register_operand" "a,r")))]
   ""
@@ -4102,7 +4411,7 @@
 (define_insn "zero_extendqihi2_DATA"
   [(set (match_operand:HI    0 "pic30_register_operand" "=r")
         (zero_extend:HI 
-           (match_operand:QI 1 "pic30_mode2_operand"     "r")))
+           (match_operand:QI 1 "pic30_mode2_operand"     "rR<>")))
   ]
   ""
   "ze %1,%0"
@@ -4115,7 +4424,7 @@
 (define_insn "zero_extendqihi2_APSV"
   [(set (match_operand:HI   0 "pic30_register_operand"  "=r")
         (zero_extend:HI 
-          (match_operand:QI 1 "pic30_mode2_APSV_operand" "r")))]
+          (match_operand:QI 1 "pic30_mode2_APSV_operand" "rR<>")))]
   ""
   "ze %1,%0"
   [
@@ -4136,10 +4445,12 @@
   else {
     rtx from = operands[1];
 
+#if 0
     if (!pic30_register_operand(from, QImode)) {
       from = gen_reg_rtx(QImode);
       emit_move_insn(from, operands[1]);
     }
+#endif
     emit(gen_zero_extendqihi2_APSV(operands[0],from));
   }
   DONE;
@@ -4148,10 +4459,10 @@
 (define_insn "zero_extendqisi2"
   [(set (match_operand:SI   0 "pic30_register_operand" "=r")
         (zero_extend:SI 
-          (match_operand:QI 1 "pic30_register_operand" " r")))
+          (match_operand:QI 1 "pic30_mode2_operand" " rR<>")))
   ]
   ""
-  "ze %1,%0\;mov #0,%d0"
+  "ze %1,%0\;clr %d0"
   [
     (set_attr "cc" "math")
     (set_attr "type" "def")
@@ -4161,10 +4472,10 @@
 (define_insn "zero_extendqidi2"
   [(set (match_operand:DI   0 "pic30_register_operand" "=r")
         (zero_extend:DI 
-          (match_operand:QI 1 "pic30_register_operand" " r")))
+          (match_operand:QI 1 "pic30_register_operand" " r<>R")))
   ]
   ""
-  "ze %1,%0\;mov #0,%d0\;mul.uu %t0,#0,%t0"
+  "ze %1,%0\;clr %d0\;mul.uu %t0,#0,%t0"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4203,7 +4514,7 @@
 (define_insn "zero_extendhip32eds2"
   [(set (match_operand:P32EDS 0 "pic30_register_operand"      "=r,r")
         (zero_extend:P32EDS 
-          (match_operand:HI 1 "pic30_reg_or_symbolic_address" "r ,q")))
+          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " r,q")))
   ]
   ""
   "@
@@ -4217,7 +4528,7 @@
 (define_insn "zero_extendhip32peds2"
   [(set (match_operand:P32PEDS 0 "pic30_register_operand"     "=r,r")
         (zero_extend:P32PEDS
-          (match_operand:HI 1 "pic30_reg_or_symbolic_address" "r ,q")))
+          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " r,q")))
   ]
   ""
   "@
@@ -4231,7 +4542,7 @@
 (define_insn "zero_extendsip32eds2"
   [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r,r")
         (zero_extend:P32EDS
-          (match_operand:SI 1 "pic30_register_operand"   "r,0")))
+          (match_operand:SI 1 "pic30_register_operand"      "r,0")))
   ]
   ""
   "@
@@ -4243,9 +4554,9 @@
 )
 
 (define_insn "zero_extendsip32peds2"
-  [(set (match_operand:P32PEDS 0 "pic30_register_operand"   "=r")
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r")
         (zero_extend:P32PEDS
-          (match_operand:SI 1 "pic30_register_operand"   "r")))
+          (match_operand:SI 1 "pic30_register_operand"     "r")))
   ]
   ""
   "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
@@ -4255,9 +4566,9 @@
 )
 
 (define_insn "extendsip32eds2"
-  [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r,r")
+  [(set (match_operand:P32EDS 0 "pic30_register_operand" "=r,r")
         (sign_extend:P32EDS
-          (match_operand:SI 1 "pic30_register_operand"   "r,0")))
+          (match_operand:SI 1 "pic30_register_operand"    "r,0")))
   ]
   ""
   "@
@@ -4269,9 +4580,9 @@
 )
 
 (define_insn "extendsip32peds2"
-  [(set (match_operand:P32PEDS 0 "pic30_register_operand"   "=r")
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r")
         (sign_extend:P32PEDS
-          (match_operand:SI 1 "pic30_register_operand"   "r")))
+          (match_operand:SI 1 "pic30_register_operand"     "r")))
   ]
   ""
   "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
@@ -4292,7 +4603,7 @@
 
      if (REGNO(operands[0]) == REGNO(operands[1]))
      {
-       return \"mov #0,%d0\";
+       return \"clr %d0\";
      }
      else
      {
@@ -4309,32 +4620,6 @@
   ]
 )
 
-(define_insn "zero_extendhidi2"
-  [(set (match_operand:DI   0 "pic30_register_operand" "=r")
-        (zero_extend:DI 
-          (match_operand:HI 1 "pic30_register_operand" " r")))
-  ]
-  ""
-  "*
-   {
-     if (REGNO(operands[0]) == REGNO(operands[1]))
-     {
-       return \"mov #0,%d0\;\"
-              \"mov #0,%t0\;\"
-              \"mov #0,%q0\";
-     } else {
-       return \"mov %1,%0\;\"
-              \"mov #0,%d0\;\"
-              \"mov #0,%t0\;\"
-              \"mov #0,%q0\";
-     }
-   }"
-  [
-   (set_attr "cc" "change0")
-   (set_attr "type" "def")
-  ]
-)
-
 ;;
 ;; nop extentsions because thse modes are the same size
 ;;
@@ -4343,7 +4628,7 @@
 (define_insn "zero_extendp16apsvhi2"
   [(set (match_operand:HI       0 "register_operand" "=r")
         (zero_extend:HI 
-          (match_operand:P16APSV 1 "register_operand" " 0")))]
+          (match_operand:P16APSV 1 "register_operand" "0")))]
   ""
   "; nop %1,%0"
 )
@@ -4462,9 +4747,9 @@
 }")
 
 (define_insn "extendqisi2"
-  [(set (match_operand:SI   0 "pic30_register_operand" "=r")
+  [(set (match_operand:SI   0 "pic30_register_operand" "=r,r,r")
         (sign_extend:SI 
-          (match_operand:QI 1 "pic30_register_operand"  "r")))
+          (match_operand:QI 1 "pic30_mode2_operand"  "r,R,<>")))
   ]
   ""
   "se %1,%0\;asr %0,#15,%d0"
@@ -4477,10 +4762,10 @@
 (define_insn "extendqidi2"
   [(set (match_operand:DI   0 "pic30_register_operand" "=r")
         (sign_extend:DI 
-          (match_operand:QI 1 "pic30_register_operand" " r")))
+          (match_operand:QI 1 "pic30_mode2_operand" " rR<>")))
   ]
   ""
-  "se %1,%0\;asr %0,#15,%d0\;mov %d0,%t0\;mov %t0,%q0"
+  "se %1,%0\;asr %0,#15,%d0\;mul.su %d0,#1,%t0"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4488,8 +4773,11 @@
 )
 
 (define_insn "extendhisi2"
-  [(set (match_operand:SI 0 "pic30_register_operand"                "=r")
-        (sign_extend:SI (match_operand:HI 1 "pic30_register_operand" "r")) )]
+  [(set (match_operand:SI 0 "pic30_register_operand"   "=r")
+        (sign_extend:SI 
+           (match_operand:HI 1 "pic30_register_operand" "r")) 
+   )
+  ]
   ""
   "*
 {
@@ -4620,12 +4908,45 @@
      switch (which_alternative) {
        case 0:
          return \"asr %0,#15,%d0\;\"
+                \"mul.su %d0,#1,%t0\";
+#if 0
                 \"mov %d0,%t0\;\"
                 \"mov %t0,%q0\";
+#endif
        default:
+#if 0
          return \"mov %1,%0\;\"
                 \"asr %0,#15,%d0\;\"
                 \"mov %d0,%t0\;\"
+                \"mov %t0,%q0\";
+#else
+         return \"mul.su %1,#1,%0\;\"
+                \"mul.su %d0,#1,%t0\;\";
+#endif
+     }
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendsidi2"
+  [(set (match_operand:DI 0 "pic30_register_operand"    "=r,r")
+        (sign_extend:DI 
+            (match_operand:SI 1 "pic30_register_operand" "0,r")) 
+   )
+  ]
+  ""
+  "*
+   {
+     switch (which_alternative) {
+       case 0:
+         return \"asr %d0,#15,%t0\;\"
+                \"mov %t0,%q0\";
+       default:
+         return \"mov.d %1,%0\;\"
+                \"asr %d0,#15,%t0\;\"
                 \"mov %t0,%q0\";
      }
    }"
@@ -4634,6 +4955,53 @@
    (set_attr "type" "def")
   ]
 )
+
+(define_insn "zero_extendhidi2"
+  [(set (match_operand:DI 0 "pic30_register_operand"                "=r,r")
+        (zero_extend:DI 
+           (match_operand:HI 1 "pic30_register_operand"              "0,r"))
+   )
+  ]
+  ""
+  "*
+   {
+     switch (which_alternative) {
+       case 0:
+         return \"clr %d0\;mul.uu %t0,#0,%t0\";
+       default:
+         return \"mul.uu %1,#1,%0\;\"
+                \"mul.uu %t0,#0,%t0\";
+     }
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "zero_extendsidi2"
+  [(set (match_operand:DI 0 "pic30_register_operand"  "=r,r")
+        (zero_extend:DI 
+            (match_operand:SI 1 "pic30_mode2_operand"  "0,rR<>")) 
+   )
+  ]
+  ""
+  "*
+   {
+     switch (which_alternative) {
+       case 0:
+         return \"mul.uu %t0,#0,%t0\";
+       case 1:
+         return \"mov.d %1,%0\;\"
+                \"mul.uu %t0,#0,%t0\";
+     }
+   }"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Move instructions
@@ -5106,7 +5474,7 @@
 (define_insn "movqi_address"
   [(set (match_operand:QI 0 "pic30_register_operand"              "=r")
         (subreg:QI
-          (match_operand:HI 1 "pic30_symbolic_address_operand"    " g") 0))
+          (match_operand:HI 1 "pic30_symbolic_address_operand"    " q") 0))
   ]
   ""
   "mov #%1,%0"
@@ -5118,7 +5486,7 @@
 
 (define_insn "movhi_address"
   [(set (match_operand:HI 0 "pic30_register_operand"         "=r")
-        (match_operand:HI 1 "pic30_symbolic_address_operand" " g"))
+        (match_operand:HI 1 "pic30_symbolic_address_operand" " q"))
   ]
   ""
   "*
@@ -5171,7 +5539,7 @@
 
 (define_insn "movP16APSV_address"
   [(set (match_operand:P16APSV 0 "pic30_register_operand"         "=r")
-        (match_operand:P16APSV 1 "pic30_symbolic_address_operand" " g"))]
+        (match_operand:P16APSV 1 "pic30_symbolic_address_operand" " q"))]
   ""
   "*
 { rtx sym;
@@ -5279,7 +5647,7 @@
 (define_insn "tbladdress"
   [(set (match_operand:SI 0 "pic30_register_operand"          "=r")
         (unspec:SI [
-          (match_operand:HI 1 "pic30_symbolic_address_operand" "g")
+          (match_operand:HI 1 "pic30_symbolic_address_operand" "q")
          ] UNSPECV_TBLADDRESS))
   ]
   ""
@@ -5293,7 +5661,7 @@
 (define_expand "tblpage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (tblpage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "g")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
 
@@ -5327,7 +5695,7 @@
 (define_expand "edspage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (edspage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "g")
+           (match_operand 1 "pic30_symbolic_address_operand" "q")
            (match_operand 2 "immediate_operand" "i")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
@@ -5343,7 +5711,7 @@
 (define_insn "movpag"
   [(set (reg:HI PSVPAG)
         (edspage:HI
-           (match_operand 0 "pic30_reg_or_symbolic_address" "r,g")
+           (match_operand 0 "pic30_reg_or_symbolic_address" "r,q")
            (match_operand 1 "immediate_operand"             "i,i")))]
   "pic30_ecore_target()"
   "*
@@ -5396,9 +5764,9 @@
 )
 
 (define_expand "edsoffset"
-  [(set (match_operand:HI 0 "pic30_register_operand"              "=r")
+  [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (edsoffset:HI
-           (match_operand 1 "pic30_symbolic_address_operand" "g")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
 
@@ -5431,7 +5799,7 @@
 (define_insn "tbloffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (tbloffset:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "g")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
   ""
   "mov #tbloffset(%1),%0"
   [
@@ -5443,7 +5811,7 @@
 (define_expand "psvpage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (psvpage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "g")))
+           (match_operand 1 "pic30_symbolic_address_operand" "q")))
   ]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
@@ -5477,7 +5845,7 @@
 (define_insn "psvoffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (psvoffset:HI  
-           (match_operand 1 "pic30_symbolic_address_operand" "g")))
+           (match_operand 1 "pic30_symbolic_address_operand" "q")))
   ]
   ""
   "mov #psvoffset(%1),%0"
@@ -5490,7 +5858,7 @@
 (define_insn "dmaoffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (dmaoffset:HI 
-          (match_operand  1 "pic30_symbolic_address_operand" "g")))
+          (match_operand  1 "pic30_symbolic_address_operand" "q")))
   ]
   ""
   "mov #dmaoffset(%1),%0"
@@ -5503,10 +5871,52 @@
 (define_insn "dmapage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (dmapage:HI 
-          (match_operand  1 "pic30_symbolic_address_operand" "g")))
+          (match_operand  1 "pic30_symbolic_address_operand" "q")))
   ]
   ""
   "mov #dmapage(%1),%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addr_low"
+  [(set (match_operand:HI 0 "pic30_register_operand"       "=r,r")
+        (addr_low:HI
+           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+  ""
+  "@
+   mov #addr_lo(%1),%0
+   mov %1,%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addr_high"
+  [(set (match_operand:HI 0 "pic30_register_operand"       "=r,r")
+        (addr_high:HI
+           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+  ""
+  "@
+   mov #addr_hi(%1),%0
+   mov %d1,%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addr_long"
+  [(set (match_operand:SI 0 "pic30_register_operand"       "=r,r")
+        (addr_long:SI
+           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+  ""
+  "@
+   mov #addr_lo(%1),%0\;mov #addr_hi(%1),%d0
+   mov %1,%0\;clr %d0"
   [
     (set_attr "cc" "change0")
     (set_attr "type" "def")
@@ -5891,7 +6301,7 @@
 (define_expand "movP24PROG_address"
   [(set 
      (match_operand:P24PROG 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-     (match_operand:P24PROG 1 "pic30_symbolic_address_operand" " g,g,g ,g"))
+     (match_operand:P24PROG 1 "pic30_symbolic_address_operand" " q,q,q ,q"))
   ]
   ""
   "
@@ -5922,7 +6332,7 @@
 ;
 (define_insn_and_split "movP24PSV_address"
   [(set (match_operand:P24PSV 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P24PSV 1 "pic30_symbolic_address_operand" " g,g,g,g")
+        (match_operand:P24PSV 1 "pic30_symbolic_address_operand" " q,q,q,q")
    )
    (clobber (match_scratch:HI 2                                  "=X,&r,&r,&r"))]
   ""
@@ -5950,7 +6360,7 @@
 ;
 (define_insn "movP16PMP_address"
   [(set (match_operand:P16PMP 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P16PMP 1 "pic30_symbolic_address_operand" " g,g,g ,g"))
+        (match_operand:P16PMP 1 "pic30_symbolic_address_operand" " q,q,q ,q"))
    (clobber (match_scratch:HI 2                                  "=X,&r,&r,&r"))
   ]
   ""
@@ -6068,7 +6478,7 @@
 
 (define_expand "movP32EDS_address"
   [(set (match_operand:P32EDS 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P32EDS 1 "pic30_symbolic_address_operand" " g,g,g,g")
+        (match_operand:P32EDS 1 "pic30_symbolic_address_operand" " q,q,q ,q")
    )
   ]
   ""
@@ -6100,7 +6510,7 @@
 
 (define_expand "movP32PEDS_address"
   [(set (match_operand:P32PEDS 0 "pic30_move_operand"            "=r,R,<>,QSTU")
-        (match_operand:P32PEDS 1 "pic30_symbolic_address_operand" " g,g,g,g")
+        (match_operand:P32PEDS 1 "pic30_symbolic_address_operand" "q,q,q, q")
    )
   ]
   ""
@@ -6123,7 +6533,7 @@
 
 (define_insn "movP32DF_address"
   [(set (match_operand:P32DF 0 "pic30_move_operand"             "=r")
-        (match_operand:P32DF 1 "pic30_symbolic_address_operand" "g")
+        (match_operand:P32DF 1 "pic30_symbolic_address_operand"  "q")
    )
   ]
   ""
@@ -6135,7 +6545,7 @@
 
 (define_expand "movP32EXT_address"
   [(set (match_operand:P32EXT 0 "pic30_move_operand"             "=rR<>QSTU")
-        (match_operand:P32EXT 1 "pic30_symbolic_address_operand" " g"))]
+        (match_operand:P32EXT 1 "pic30_symbolic_address_operand" " q"))]
   ""
   "{
      if (pic30_address_of_external(operands[0],operands[1])) {
@@ -6347,7 +6757,7 @@
   ""
   "
   {
-    if (pic30_emit_move_sequence(operands, GET_MODE(operand1))) DONE;
+    if (pic30_emit_move_sequence(operands, P32PEDSmode)) DONE;
   }"
 )
 
@@ -6402,12 +6812,46 @@
    ]
 )
 
+(define_insn "set_unpsv"
+   [(set (reg:HI PSVPAG)
+         (subreg:HI
+            (match_operand:P32PEDS 0 "pic30_register_operand" "r") 2))]
+   ""
+   "*
+    {
+      if (pic30_ecore_target()) return \"mov %d0,_DSRPAG\;nop\";
+      if (pic30_eds_target()) return \"mov %d0,_DSRPAG\";
+      return \"mov %d0,_PSVPAG\";
+    }"
+   [
+     (set_attr "type" "etc")
+   ]
+)
+
+(define_insn "set_unpsv2"
+   [(set (reg:HI PSVPAG)
+         (subreg:HI
+            (plus:P32EDS
+               (match_operand:P32PEDS 0 "pic30_register_operand" "r")
+               (match_operand:P32PEDS 1 "immediate_operand"      "i")) 2))]
+   ""
+   "*
+    {
+      if (pic30_ecore_target()) return \"mov %d0,_DSRPAG\;nop\";
+      if (pic30_eds_target()) return \"mov %d0,_DSRPAG\";
+      return \"mov %d0,_PSVPAG\";
+    }"
+   [
+     (set_attr "type" "etc")
+   ]
+)
+
 (define_expand "set_psv"
   [(set (reg:HI PSVPAG)
         (match_operand:HI 0 "pic30_register_operand" "r"))]
   ""
   "
-   if (target_flags & TARGET_TRACK_PSVPAG) {
+   if (TARGET_TRACK_PSVPAG) {
      emit_insn(
        gen_set_nvpsv(operand0)
      );
@@ -6426,7 +6870,7 @@
            [(match_operand:HI 0 "pic30_register_operand" "r")] 
            UNSPECV_SETDSW))]
    "pic30_eds_target()"
-   "mov %0,_DSWPAG";
+   "mov %0,_DSWPAG"
    [
      (set_attr "type" "etc")
    ]
@@ -6448,7 +6892,7 @@
          (match_operand:HI 0 "pic30_register_operand" "r"))]
    "pic30_eds_target()"
    "
-   if (target_flags & TARGET_TRACK_PSVPAG) {
+   if (TARGET_TRACK_PSVPAG) {
      emit_insn(
        gen_set_nvdsw(operand0)
      );
@@ -8830,7 +9274,7 @@
   "*
    {
      char *results[] = { \"mov.d %1,%I0\;mov.d %t1,%D0\",
-                         \"mov %I1,%IO\;mov %I1,%IO\;mov %I1,%IO\;mov %I1,%IO\" };
+                         \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\" };
 
      return results[which_alternative];
   }"
@@ -8914,7 +9358,7 @@
   "*
    {
      char *results[] = { \"mov.d %1,%I0\;mov.d %t1,%D0\",
-                         \"mov %I1,%IO\;mov %I1,%IO\;mov %I1,%IO\;mov %I1,%IO\" };
+                         \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\" };
 
      return results[which_alternative];
    }"
@@ -8945,7 +9389,7 @@
 ; PEDSread
 
 (define_insn "P32PEDSread_qi"
-  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R<>")
+  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R")
         (unspec_volatile:QI
           [(match_operand:QI 1 "pic30_R_operand"   "R,R")
            (reg:HI PSVPAG)]
@@ -8964,6 +9408,22 @@
   [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R<>")
         (unspec_volatile:HI
           [(match_operand:HI 1 "pic30_R_operand"   "R,R")
+           (reg:HI PSVPAG)]
+          UNSPECV_PEDSRD))
+  ]
+  ""
+  "@
+   mov %1,%0
+   mov %1,%0"
+  [
+    (set_attr "type" "defuse,use")
+  ]
+)
+
+(define_insn "P32PEDSuread_HI"
+  [(set (match_operand:HI 0 "pic30_mode2_operand"     "=rR<>,r")
+        (unspec_volatile:HI
+          [(match_operand 1 "pic30_unified_mode2k_operand"  "R<>,Q")
            (reg:HI PSVPAG)]
           UNSPECV_PEDSRD))
   ]
@@ -9108,6 +9568,23 @@
   ]
 )
 
+(define_insn "P32PEDSuread_P32PEDS"
+  [(set (match_operand:P32PEDS 0 "pic30_mode2_operand"     "=&r,R,&r")
+        (unspec_volatile:P32PEDS
+          [(match_operand 1 "pic30_unified_mode2k_operand"  " R,R, Q")
+           (reg:HI PSVPAG)]
+          UNSPECV_PEDSRD))
+  ]
+  ""
+  "@
+   mov %I1,%0\;mov %D1,%d0
+   mov %I1,%I0\;mov %D1,%D0
+   mov %1,%0\;mov %Q1,%d0"
+  [
+    (set_attr "type" "defuse,use,defuse")
+  ]
+)
+
 (define_insn "P32PEDSread_P32EXT"
   [(set (match_operand:P32EXT 0 "pic30_mode2_operand" "=&r,R")
         (unspec_volatile:P32EXT
@@ -9215,6 +9692,22 @@
   ]
 )
 
+(define_insn "P32PEDSuwrite_HI"
+  [(set (match_operand:HI 0 "pic30_unified_mode2k_operand"  "=R<>, Q")
+        (unspec_volatile:HI
+          [(match_operand:HI 1 "pic30_mode2_operand"        " rR<>,r")
+           (reg:HI DSWPAG)]
+          UNSPECV_PEDSWT))
+  ]
+  ""
+  "@
+   mov %1,%0
+   mov %1,%0"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
 ; P32PEDS does not cross a page boundary
 
 (define_insn "P32PEDSwrite_si"
@@ -9239,8 +9732,6 @@
           [(match_operand:SF 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
@@ -9257,8 +9748,6 @@
           [(match_operand:P24PROG 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
@@ -9275,8 +9764,6 @@
           [(match_operand:P24PSV 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
@@ -9293,13 +9780,46 @@
           [(match_operand:P32EDS 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
    mov.d %1,%0
    mov %I1,%I0\;mov %D1,%D0"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
+(define_insn "P32PEDSuwrite_P32EDS"
+  [(set (match_operand:P32EDS 0 "pic30_unified_mode2k_operand" "=R,R,Q")
+        (unspec_volatile:P32EDS
+          [(match_operand:P32EDS 1 "pic30_mode2_operand"        " r,R,r")
+           (reg:HI DSWPAG)]
+          UNSPECV_PEDSWT))
+  ]
+  ""
+  "@
+   mov.d %1,%0
+   mov %I1,%I0\;mov %D1,%D0
+   mov %1,%0\;mov %d1,%Q0"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
+
+(define_insn "P32PEDSuwrite_P32PEDS"
+  [(set (match_operand:P32PEDS 0 "pic30_unified_mode2k_operand" "=R,R,Q")
+        (unspec_volatile:P32PEDS
+          [(match_operand:P32PEDS 1 "pic30_mode2_operand"        "r,R,r")
+           (reg:HI DSWPAG)]
+          UNSPECV_PEDSWT))
+  ]
+  ""
+  "@
+   mov.d %1,%0
+   mov %I1,%I0\;mov %D1,%D0
+   mov %1,%0\;mov %d1,%Q0"
   [
     (set_attr "type" "use")
   ]
@@ -9311,8 +9831,6 @@
           [(match_operand:P32PEDS 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
@@ -9329,8 +9847,6 @@
           [(match_operand:P32EXT 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
-   (clobber (reg:HI DSWPAG))
-   (clobber (match_dup 1))
   ]
   ""
   "@
@@ -9450,64 +9966,73 @@
 ;  Paged arithmetic doesn't cross a page boundary, add low part only
 ;
 
-; (define_insn "addp32peds3"
-;   [(set (match_operand: P32PEDS   0 "pic30_register_operand" "=r,r,r ,r,r,r")
-;         (plus: P32PEDS
-;           (match_operand:P32PEDS  1 "pic30_register_operand" "%r,0,r ,r,0,r")
-;           (match_operand:P32PEDS  2 "pic30_rR_or_JN_operand" " P,J,JM,N,M,rR")))]
-;   ""
-;   "@
-;    add %1,#%2,%0
-;    add #%2,%0
-;    mov #%2,%0\;add %1,%0,%0
-;    sub %1,#%J2,%0
-;    sub #%J2,%0
-;    add %1,%2,%0"
-; )
+;(define_expand "addp32peds3"
+;  [(set (match_operand: P32PEDS   0 "pic30_register_operand"   "=r,r,r ,r,r,r")
+;        (plus: P32PEDS
+;          (match_operand:P32PEDS  1 "pic30_register_operand"   "%r,0,r ,r,0,r")
+;          (match_operand:P32PEDS  2 "pic30_rR_or_JMNP_operand" " P,J,JM,N,M,rR"))
+;   )]
+;  ""
+;  "
+;{
+;   rtx op0_low = gen_rtx_SUBREG(HImode, operands[0],0);
+;   rtx op1_low = gen_rtx_SUBREG(HImode, operands[1],0);
+;   rtx op2_low;
+;   rtx op0_high = gen_rtx_SUBREG(HImode, operands[0],2);
+;   rtx op1_high = gen_rtx_SUBREG(HImode, operands[1],2);
+;   rtx op2_high;
+;
+;   if (pic30_R_operand(operands[2], GET_MODE(operands[2]))) {
+;     rtx temp = gen_reg_rtx(P32PEDSmode);
+;
+;     emit_move_insn(temp,operands[2]);
+;     op2_low = gen_rtx_SUBREG(HImode, temp, 0);
+;     op2_high = gen_rtx_SUBREG(HImode, temp, 2);
+;   } else if (pic30_JN_operand(operands[2], VOIDmode)) {
+;     int value = INTVAL(operands[2]);
+;     int sign = (value < 0 ? -1 : 1);
+;
+;     value *= sign;
+;
+;     op2_low = gen_rtx_CONST_INT(HImode, (value & 0xFFFF)*sign);
+;     op2_high = gen_rtx_CONST_INT(HImode, (value >> 16)*sign);
+;   } else {
+;     op2_low = gen_rtx_SUBREG(HImode, operands[2],0);
+;     op2_high = gen_rtx_SUBREG(HImode, operands[2],2);
+;   }
+;
+;   emit(
+;     gen_addhi3(op0_low, op1_low, op2_low)
+;   );
+;   emit(
+;     gen_addhi3(op0_high, op1_high, op2_high)
+;   );
+;   DONE;
+;}")
 
-(define_expand "addp32peds3"
-  [(set (match_operand: P32PEDS   0 "pic30_register_operand" "=r,r,r ,r,r,r")
+(define_insn "addp32peds3"
+  [(set (match_operand: P32PEDS  0 "pic30_register_operand"   "=r,r,r,r,r,r,r, r,r")
         (plus: P32PEDS
-          (match_operand:P32PEDS  1 "pic30_register_operand" "%r,0,r ,r,0,r")
-          (match_operand:P32PEDS  2 "pic30_rR_or_JN_operand" " P,J,JM,N,M,rR"))
+          (match_operand:P32PEDS 1 "pic30_register_operand"   "%0,r,0,0,r,0,0, r,r")
+          (match_operand:P32PEDS 2 "pic30_rR_or_JMNP_operand" " P,P,J,N,N,M,Rr,r,R")
+        )
    )]
   ""
-  "
-{
-   rtx op0_low = gen_rtx_SUBREG(HImode, operands[0],0);
-   rtx op1_low = gen_rtx_SUBREG(HImode, operands[1],0);
-   rtx op2_low;
-   rtx op0_high = gen_rtx_SUBREG(HImode, operands[0],2);
-   rtx op1_high = gen_rtx_SUBREG(HImode, operands[1],2);
-   rtx op2_high;
+  "@
+   add %1,#%2,%0
+   add %1,#%2,%0\;mov %d1,%d0
+   add #%2,%0
+   sub %1,#%J2,%0
+   sub %1,#%J2,%0\;mov %d1,%d0
+   sub #%J2,%0
+   add %1,%2,%0
+   add %1,%2,%0\;mov %d1,%d0
+   add %1,%I2,%0\;mov %D2,%d0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
 
-   if (pic30_R_operand(operands[2], GET_MODE(operands[2]))) {
-     rtx temp = gen_reg_rtx(P32PEDSmode);
-
-     emit_move_insn(temp,operands[2]);
-     op2_low = gen_rtx_SUBREG(HImode, temp, 0);
-     op2_high = gen_rtx_SUBREG(HImode, temp, 2);
-   } else if (pic30_JN_operand(operands[2], VOIDmode)) {
-     int value = INTVAL(operands[2]);
-     int sign = (value < 0 ? -1 : 1);
-
-     value *= sign;
-
-     op2_low = gen_rtx_CONST_INT(HImode, (value & 0xFFFF)*sign);
-     op2_high = gen_rtx_CONST_INT(HImode, (value >> 16)*sign);
-   } else {
-     op2_low = gen_rtx_SUBREG(HImode, operands[2],0);
-     op2_high = gen_rtx_SUBREG(HImode, operands[2],2);
-   }
-
-   emit(
-     gen_addhi3(op0_low, op1_low, op2_low)
-   );
-   emit(
-     gen_addhi3(op0_high, op1_high, op2_high)
-   );
-   DONE;
-}")
 
 (define_insn "addp24prog3_DATA"
   [(set (match_operand:P24PROG    0 
@@ -9729,7 +10254,7 @@
   rtx from = operands[1];
   rtx to = operands[0];
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9785,7 +10310,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9812,7 +10337,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9839,7 +10364,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9867,7 +10392,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9894,7 +10419,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9921,7 +10446,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9948,7 +10473,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -9975,7 +10500,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -10002,7 +10527,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -10029,7 +10554,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -10056,7 +10581,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -10083,7 +10608,7 @@
 { rtx sfr;
   rtx psv_page;
 
-  if (target_flags & TARGET_TRACK_PSVPAG) {
+  if (TARGET_TRACK_PSVPAG) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
     emit_insn(
@@ -13557,6 +14082,68 @@
    DONE;
 }")
 
+;(define_insn "P32PEDSumovoffset"
+;  [(set (match_operand:HI         0 "pic30_register_operand" "=r")
+;        (uoffset_lo:HI
+;           (match_operand:P32PEDS 1 "pic30_register_operand" "r")))]
+;  ""
+;  "*
+;   if (REGNO(operands[1]) != REGNO(operands[0])) return \"mov %1,%0\";
+;   else return \"; nop\";
+;  "
+;)
+   
+;(define_insn "P32PEDSumovpage"
+;  [(set (match_operand:HI         0 "pic30_register_operand" "=r")
+;        (uoffset_hi:HI
+;           (match_operand:P32PEDS 1 "pic30_register_operand" "r")))]
+;  ""
+;  "mov %d1,%0"
+;)
+
+(define_insn "P32PEDSumovoffset"
+  [(set (match_operand:HI         0 "pic30_register_operand" "=r")
+        (subreg:HI
+           (match_operand:P32PEDS 1 "pic30_register_operand" " r") 0))]
+  ""
+  "*
+   if (REGNO(operands[1]) != REGNO(operands[0])) return \"mov %1,%0\";
+   else return \"; nop\";
+  "
+)
+
+(define_insn "P32PEDSumovoffset2"
+  [(set (match_operand:HI           0 "pic30_register_operand"   "=r,&r")
+        (subreg:HI
+           (plus:P32PEDS
+             (match_operand:P32PEDS 1 "pic30_register_operand"   " 0,r")
+             (match_operand         2 "immediate_operand"  " J,i")) 0))]
+  ""
+  "@
+   add #%2,%0
+   mov #%2,%0\;add %0,%1,%0"
+)
+
+
+(define_insn "P32PEDSumovpage"
+  [(set (match_operand:HI         0 "pic30_register_operand" "=r")
+	(subreg:HI
+           (match_operand:P32PEDS 1 "pic30_register_operand" " r") 2))]
+  ""
+  "mov %d1,%0"
+)
+
+(define_insn "P32PEDSumovpage2"
+  [(set (match_operand:HI           0 "pic30_register_operand"   "=r")
+        (subreg:HI
+           (plus:P32PEDS
+             (match_operand:P32PEDS 1 "pic30_register_operand"   " r")
+             (match_operand         2 "immediate_operand"  " i")) 2))]
+  ""
+  "mov %d1,%0"
+)
+
+
 (define_expand "P32PEDSrd"
    [(set (match_operand 0 "pic30_move_operand"       "=rR")
          (match_operand 1 "pic30_mem_peds_operand"   " RQST"))]
@@ -13570,6 +14157,7 @@
    rtx offset = gen_reg_rtx(HImode);
    rtx (*fn)(rtx, rtx);
    int psv_set=0;
+   int no_copy = 0;
 
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
@@ -13614,15 +14202,48 @@
      );
    }
    if (pic30_R_constraint_strict(op1,0)) {
-     emit_insn(
-       gen_movP32PEDS_gen(op2, XEXP(op1,0))              /* copy pointer */
-     );
+     switch (GET_MODE(op0)) {
+       case HImode:
+         no_copy = 1;
+         op2 = XEXP(op1,0);
+         fn = gen_P32PEDSuread_HI;
+         break;
+       case P32PEDSmode:
+         no_copy = 1;
+         op2 = XEXP(op1,0);
+         fn = gen_P32PEDSuread_P32PEDS;
+         break;
+       default:
+         emit_insn(
+           gen_movP32PEDS_gen(op2, XEXP(op1,0))              /* copy pointer */
+         );
+         break;
+     }
    } else if (pic30_Q_constraint(op1) || pic30_S_constraint(op1)) {
      rtx inner = XEXP(operands[1],0);
 
-     emit_insn(
-       gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
-     );
+     if (pic30_Q_constraint(op1)) { 
+       switch (GET_MODE(op0)) {
+         case HImode:
+           no_copy = 1;
+           op2 = XEXP(op1,0);
+           fn = gen_P32PEDSuread_HI;
+           break;
+         case P32PEDSmode:
+           no_copy = 1;
+           op2 = XEXP(op1,0);
+           fn = gen_P32PEDSuread_P32PEDS;
+           break;
+         default:
+           emit_insn(
+             gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
+           );
+       }
+     } else {
+       emit_insn(
+         gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
+       );
+     }
    } else {
      if (pic30_ecore_target()) {
        char *t = pic30_section_base(XEXP(op1,0),0,0);
@@ -13640,14 +14261,41 @@
      }
    }
    if (!psv_set) {
-     emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
-     emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
-     emit_insn(
-       gen_set_psv(page)                                  /* set PSVPAG */
-     );
+     if (!TARGET_EDS) {
+       emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
+       emit_insn(
+         gen_set_psv(page)                                  /* set PSVPAG */
+       );
+       emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
+       offset = gen_rtx_MEM(GET_MODE(op1),offset);
+     } else {
+       if (no_copy) {
+         if (GET_CODE(op2) == PLUS) {
+           emit_insn(
+             gen_set_unpsv(XEXP(op2,0))                       /* set PSVPAG */
+           );
+         } else {
+           emit_insn(
+             gen_set_unpsv(op2)                               /* set PSVPAG */
+           );
+         }
+         offset = operands[1];
+       } else {
+         emit_insn(
+           gen_P32PEDSumovpage(page,op2)
+         );
+         emit_insn(
+           gen_set_psv(page)                                  /* set PSVPAG */
+         );
+         emit_insn(
+           gen_P32PEDSumovoffset(offset,op2)
+         );
+         offset = gen_rtx_MEM(GET_MODE(op1),offset);
+       }
+     }
    }
    emit_insn(
-     fn(op0, gen_rtx_MEM(GET_MODE(op1),offset))         /* read value */
+     fn(op0, offset)                                         /* read value */
    );
    if (op0 != operand0) {
      emit_move_insn(operand0, op0);
@@ -13797,9 +14445,21 @@
          gen_copy_dsw(op3)                              /* preserve PSVPAG */
        );
      }
-     emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
+     if (!TARGET_EDS) {
+       emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
+     } else {
+       emit(
+         gen_P32PEDSumovpage(page, op2)
+       );
+     }
    }
-   emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
+   if (!TARGET_EDS) {
+     emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
+   } else {
+     emit(
+       gen_P32PEDSumovoffset(offset,op2)
+     );
+   }
    if (eds_target) {
      emit_insn(
        gen_set_dsw(page)                                /* set PSVPAG */
@@ -13831,6 +14491,7 @@
    rtx offset = gen_reg_rtx(HImode);
    rtx (*fn)(rtx, rtx);
    int eds_target = pic30_eds_target();
+   int copy = 1;
 
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
@@ -13879,13 +14540,48 @@
    } else if (pic30_Q_constraint(op0) || pic30_S_constraint(op0)) {
      rtx inner = XEXP(operands[0],0);
 
-     emit_insn(
-       gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
-
-     );
+     if (pic30_Q_constraint(op0)) {
+       switch (GET_MODE(op1)) {
+         case HImode:
+           op2 = XEXP(op0,0);
+           fn = gen_P32PEDSuwrite_HI;
+           break;
+         case P32EDSmode:
+           op2 = XEXP(op0,0);
+           fn = gen_P32PEDSuwrite_P32EDS;
+           break;
+         case P32PEDSmode:
+           op2 = XEXP(op0,0);
+           fn = gen_P32PEDSuwrite_P32PEDS;
+           break;
+         default:
+           emit_insn(
+             gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
+           );
+       }
+     } else {
+       emit_insn(
+         gen_addp32peds3(op2, XEXP(inner,0), XEXP(inner,1))
+       );
+     }
    } else {
+#if 0
      emit_insn(
        gen_movP32PEDS_address(op2, XEXP(op0,0))         /* create pointer */
+     );
+#endif
+     copy = 0;
+     char *t = pic30_section_base(XEXP(op0,0),0,0);
+     emit_insn(
+       gen_movEDS_address_offset(
+         offset, 
+         GEN_INT((HOST_WIDE_INT)t))
+     );
+     t = pic30_section_base(XEXP(op0,0),1,0);
+     emit_insn(
+       gen_movEDS_address_page(
+         page,
+         GEN_INT((HOST_WIDE_INT)t), GEN_INT(0))
      );
    }
    if (eds_target) {
@@ -13894,13 +14590,29 @@
          gen_copy_dsw(op3)                              /* preserve PSVPAG */
        );
      }
-     emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
+     if (copy) {
+       if (!TARGET_EDS) {
+         emit_move_insn(page, gen_rtx_SUBREG(HImode,op2,2));
+       } else {
+         emit(
+           gen_P32PEDSumovpage(page, op2)
+         );
+       }
+     }
    }
-   emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
    if (eds_target) {
      emit_insn(
        gen_set_dsw(page)                                /* set PSVPAG */
      );
+   }
+   if (copy) {
+     if (!TARGET_EDS) {
+       emit_move_insn(offset, gen_rtx_SUBREG(HImode,op2,0));
+     } else {
+       emit(
+         gen_P32PEDSumovoffset(offset,op2)
+       );
+     }
    }
    emit_insn(
      fn(gen_rtx_MEM(GET_MODE(op0),offset), op1)         /* write value */
@@ -13915,10 +14627,1005 @@
    DONE;
 }")
 
+;; unified 
+
+;; will probably want to convert this to an expand...
+;(define_insn "umovpagr"
+;  [(set (reg:HI PSVPAG)
+;        (uoffset_hi: HI
+;           (match_operand:SI 0 "pic30_reg_or_symbolic_address_or_immediate"  "r,q,i")))]
+;  ""
+;  "*
+;   {
+;      if (which_alternative == 1) {
+;        char *t = pic30_section_base(operands[0],1,0);
+;        static char result[80];
+;
+;        sprintf(result,\"movpag #unified_hi(%s),DSRPAG\", t);
+;        return result;
+;      } else if (which_alternative == 2) {
+;        return \"movpag #%0,DSRPAG\";
+;      } else {
+;        return \"movpag %d0,DSRPAG\";
+;      }
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+
+(define_insn "umovpagr"
+  [(set (reg:HI PSVPAG)
+        (uoffset_hi: HI
+           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
+  ""
+  "*
+   {  rtx inner = XEXP(operands[0],0);
+      static char result[256];
+      char *f = result;
+
+      if (which_alternative == 2) {
+        char *t = pic30_section_base(inner,1,0);
+
+        sprintf(result,\"movpag #unified_hi(%s),DSRPAG\", t);
+      } else {
+        if (which_alternative == 1) {
+          gcc_assert(GET_CODE(inner) == PLUS);
+          inner = XEXP(inner,0);
+        }
+        if (((REGNO(inner) == FP_REGNO) &&
+              pic30_frame_pointer_required()) ||
+            (REGNO(inner) == SP_REGNO)) {
+          /* OFFSET doesn't need unpacking, but we need to set page to 1
+              on some devices -
+              ecore devices allow the stack to be in page 1, others do not */
+          if (pic30_ecore_target()) {
+            f += sprintf(f, \"movpag #1,DSRPAG\");
+          }
+        } if (which_alternative == 1) {
+          /* if these aren't paged then we need to add the offset into
+             register value to check for a page overflow  - though
+             I hope we only generate this kind of pattern for stack offsets */
+          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
+        } else {
+          /* a real register pair */
+          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
+        }
+      }
+      return result;
+   }"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "umovpagw"
+  [(set (reg:HI DSWPAG)
+        (uoffset_hi: HI
+           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
+  ""
+  "*
+   {  rtx inner = XEXP(operands[0],0);
+      static char result[256];
+      char *f = result;
+
+      /* non eds/ecore devices don't support this */
+      gcc_assert(pic30_eds_target() || (!pic30_ecore_target()));
+ 
+      if (which_alternative == 2) {
+        char *t = pic30_section_base(inner,1,0);
+
+        sprintf(result,\"movpag #unified_hi(%s),DSWPAG\", t);
+      } else {
+        if (which_alternative == 1) {
+          gcc_assert(GET_CODE(inner) == PLUS);
+          inner = XEXP(inner,0);
+        }
+        if (((REGNO(inner) == FP_REGNO) &&
+              pic30_frame_pointer_required()) ||
+            (REGNO(inner) == SP_REGNO)) {
+          /* OFFSET doesn't need unpacking, but we need to set page to 1
+              on some devices -
+              ecore devices allow the stack to be in page 1, others do not */
+          if (pic30_ecore_target()) {
+            f += sprintf(f, \"movpag #1,DSWPAG\");
+          }
+        } if (which_alternative == 1) {
+          /* if these aren't paged then we need to add the offset into
+             register value to check for a page overflow  - though
+             I hope we only generate this kind of pattern for stack offsets */
+          f += sprintf(f, \"movpag %s,DSWPAG\", reg_names[REGNO(inner)+1]);
+        } else { 
+          /* a real register pair */
+          f += sprintf(f, \"movpag %s,DSRWAG\", reg_names[REGNO(inner)+1]);
+        }
+      }
+      return result;
+   }"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "etc")
+  ]
+)
+
+;(define_insn "umovpagw"
+;  [(set (reg:HI DSWPAG)
+;        (uoffset_hi: HI
+;           (match_operand:SI 0 "pic30_reg_or_symbolic_address_or_immediate"  "r,q,i")))]
+;  ""
+;  "*
+;   {
+;      if (which_alternative == 1) {
+;        char *t = pic30_section_base(operands[0],1,0);
+;        static char result[80];
+;
+;        sprintf(result,\"movpag #unified_hi(%s),DSWPAG\", t);
+;        return result;
+;      } else if (which_alternative == 2) {
+;        return \"movpag #%0,DSWPAG\";
+;      } else {
+;        return \"movpag %d0,DSWPAG\";
+;      }
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+
+(define_insn "usetpagr"
+  [(set (reg:HI PSVPAG)
+        (uoffset_hi: HI
+           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
+   (clobber (match_scratch:HI 1                 "=X,r,r"))
+  ]
+  ""
+  "*
+   {  char *page;
+      static char result[80];
+      rtx inner = XEXP(operands[0],0);
+      char *f = result;
+
+      result[0] = 0;
+      if (pic30_eds_target()) 
+        page = \"_DSRPAG\";
+      else page = \"_PSVPAG\";
+      if (which_alternative == 2) {
+        char *t = pic30_section_base(inner,1,0);
+
+        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,%s\", t, page);
+      } else {
+        if (which_alternative == 1) {
+          gcc_assert(GET_CODE(inner) == PLUS);
+          inner = XEXP(inner,0);
+        }
+        if (((REGNO(inner) == FP_REGNO) &&
+              pic30_frame_pointer_needed_p(get_frame_size())) ||
+            (REGNO(inner) == SP_REGNO)) {
+          /* OFFSET doesn't need unpacking, but we need to set page to 1
+              on some devices -
+              ecore devices allow the stack to be in page 1, others do not */
+          if (pic30_ecore_target()) {
+            f += sprintf(f, \"movpag #1,DSRPAG\;\");
+          }
+        } if (which_alternative == 1) {
+          /* if these aren't paged then we need to add the offset into
+             register value to check for a page overflow  - though
+             I hope we only generate this kind of pattern for stack offsets */
+          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)],page);
+        } else {
+          /* a real register pair */
+          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)+1],page);
+        }
+      }
+      return result;
+   }"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "usetpagw"
+  [(set (reg:HI DSWPAG)
+        (uoffset_hi: HI
+           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
+   (clobber (match_scratch:HI 1                 "=X,r,r"))
+  ]
+  ""
+  "*
+   {  static char result[80];
+      rtx inner = XEXP(operands[0],0);
+      char *f = result;
+
+      if (!pic30_eds_target()) return \"; DSWPAG register not rqd\";
+      if (which_alternative == 2) {
+        char *t = pic30_section_base(inner,1,0);
+
+        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,_DSWPAG\", t);
+      } else {
+        if (which_alternative == 1) {
+          gcc_assert(GET_CODE(inner) == PLUS);
+          inner = XEXP(inner,0);
+        }
+        if (((REGNO(inner) == FP_REGNO) &&
+              pic30_frame_pointer_required()) ||
+            (REGNO(inner) == SP_REGNO)) {
+          /* OFFSET doesn't need unpacking, but we need to set page to 1
+              on some devices -
+              ecore devices allow the stack to be in page 1, others do not */
+          if (pic30_ecore_target()) {
+            f += sprintf(f, \"movpag #1,DSWPAG\");
+          }
+        } if (which_alternative == 1) {
+          /* if these aren't paged then we need to add the offset into
+             register value to check for a page overflow  - though
+             I hope we only generate this kind of pattern for stack offsets */
+          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)]);
+        } else {
+          /* a real register pair */
+          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)+1]);
+        }
+      }
+      return result;
+   }"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "umovoffset"
+  [(set (match_operand:HI 0    "pic30_register_operand"         "=r,r,r")
+        (uoffset_lo: HI
+           (match_operand 1 "pic30_RTU_operand"                  "R,Q,TU")))]
+  ""
+  "*
+   {  rtx inner = XEXP(operands[1],0);
+      static char result[80];
+     
+      switch (which_alternative) {
+        default: gcc_assert(0);
+
+        case 2: {
+          char *t = pic30_section_base(inner,0,0);
+
+          sprintf(result,\"movpag #unified_lo(%s),%%0\", t);
+          return result;
+        } 
+
+        case 1: {
+          rtx base = XEXP(inner,0);
+          rtx offset = XEXP(inner,1);
+          int i;
+         
+          i = INTVAL(offset);
+          if ((i >= 0) && (i < 32)) {
+            sprintf(result,\"add %s,#%d,%%0\", reg_names[REGNO(base)], i);
+          } else if ((i < 0) && (i > -32)) {
+            sprintf(result,\"sub %s,#%d,%%0\", reg_names[REGNO(base)], -i);
+          } else if ((i >= 0) && (i < 512)) {
+            sprintf(result,\"mov %s,%%0\;add #%d,%%0\", 
+                    reg_names[REGNO(base)], i);
+          } else if ((i < 0) && (i > -512)) {
+            sprintf(result,\"mov %s,%%0\;sub #%d,%%0\", 
+                    reg_names[REGNO(base)], -i);
+          } else gcc_assert(0);
+          return result;
+        }
+
+        case 0: return \"mov %r1,%0\";
+      }
+   }"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "uunpack"
+  [(parallel 
+    [(set (match_operand:HI 0 "pic30_register_operand" "+r")
+          (uunpack:HI (match_dup 0)))
+     (set (match_operand:HI 1 "register_operand" "+r")
+          (uunpack:HI (match_dup 1)))
+     (use (match_operand:HI 2 "pic30_register_operand" "r"))]
+  )]
+  ""
+  "*
+   {  
+     char *page = 0;
+     static char result[256];
+     char *f = result;
+
+     if ((pic30_ecore_target()) || (pic30_eds_target())) {
+       if (REGNO(operands[1]) == PSVPAG) page = \"_DSRPAG\";
+       else if (REGNO(operands[1]) == DSWPAG) page = \"_DSWPAG\";
+     } else {
+       if (REGNO(operands[1]) == PSVPAG) page = \"_PSVPAG\";
+     }
+     f += sprintf(f, \"sl %%0,[w15]\;\");  /* shift up bit 15 */
+     f += sprintf(f, \"rlc %s\;\",page);   /* shift into page */
+     f += sprintf(f, \"bsw.z %%0,%%2\"); /* set bit 15 based on !z */
+     return result;
+   }
+  "
+)
+
+(define_expand "set_offset_and_page_SI"
+  [(set (match_operand:HI 0 "pic30_register_operand"           "=r,r")
+        (uoffset_lo: HI
+           (match_operand 1 "pic30_RTU_operand"                 "R,TU")))
+   (set (match_operand:HI 2 "register_operand"                 "=r,r")
+        (uoffset_hi: HI
+           (match_dup 1)))
+  ]
+  "((REGNO(operands[2]) == PSVPAG) || (REGNO(operands[2]) == DSWPAG))"
+  "
+   { /* set the offset and page for the SI address */
+     static char result[256];
+     char *f = result;
+     char *page = 0;
+     rtx fifteen = gen_reg_rtx(HImode);
+     int unpack = 1;
+
+     {
+       if (REGNO(operands[2]) == PSVPAG) {
+         if (pic30_ecore_target()) {
+           emit(
+             gen_umovpagr(operands[1])
+           );
+         } else {
+           emit(
+             gen_usetpagr(operands[1])
+           );
+         }
+       } else if (REGNO(operands[2]) == DSWPAG) {
+         if (pic30_ecore_target()) {
+           emit(
+             gen_umovpagw(operands[1])
+           );
+         } else if (pic30_eds_target()) {
+           emit(
+             gen_usetpagw(operands[1])
+           );
+         } else unpack=0;
+       }
+       emit(
+         gen_umovoffset(operands[0], operands[1])
+       );
+  
+       if (unpack) {
+         emit(
+            gen_movhi_imm(fifteen, GEN_INT(15))
+         );
+         emit(
+            gen_uunpack(operands[0], operands[2], fifteen)
+         );
+       }
+       DONE;
+     }
+   }"
+)
+
+(define_expand "P32rd"
+   [(set (match_operand 0 "pic30_reg_or_R_operand"       "=rR")
+         (match_operand 1 "pic30_mem_eds_operand"    " RQST"))]
+   ""
+   "{
+   rtx op2 = gen_reg_rtx(SImode);
+   rtx op3 = gen_reg_rtx(HImode);
+   rtx op0 = operand0;
+   rtx op1 = operand1;
+   rtx page = gen_reg_rtx(HImode);
+   rtx offset = gen_reg_rtx(HImode);
+   rtx (*fn)(rtx, rtx);
+   int indirect_allowed=1;
+
+   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
+   switch (GET_MODE(op0)) {
+     default:
+                  fprintf(stderr, \"Unknown mode: %s\n\",
+                          mode_name[GET_MODE(op0)]);
+                  FAIL;
+     case QImode: fn = gen_P32PEDSread_qi;
+                  break;
+     case HImode: fn = gen_P32PEDSread_HI;
+                  break;
+     case SImode: fn = gen_P32PEDSread_si;
+                  break;
+     case DImode: fn = gen_P32PEDSread_di;
+                  indirect_allowed=0;
+                  break;
+     case SFmode: fn = gen_P32PEDSread_sf;
+                  break;
+     case DFmode: fn = gen_P32PEDSread_df;
+                  indirect_allowed=0;
+                  break;
+     case P16APSVmode: fn = gen_P32PEDSread_P16APSV;
+                  break;
+     case P24PSVmode: fn = gen_P32PEDSread_P24PSV;
+                  break;
+     case P24PROGmode: fn = gen_P32PEDSread_P24PROG;
+                  break;
+     case P16PMPmode: fn = gen_P32PEDSread_P16PMP;
+                  break;
+     case P32EXTmode: fn = gen_P32PEDSread_P32EXT;
+                  break;
+     case P32EDSmode: fn = gen_P32PEDSread_P32EDS;
+                  break;
+     case P32PEDSmode: fn = gen_P32PEDSread_P32PEDS;
+                  break;
+   }
+   if ((indirect_allowed == 0) && (pic30_R_operand(op0, GET_MODE(op0)))) {
+     op0 = gen_reg_rtx(GET_MODE(op0));
+   } else if (!pic30_reg_or_R_operand(op0, GET_MODE(op0))) {
+     op0 = gen_reg_rtx(GET_MODE(op0));
+   }
+   pic30_managed_psv = 1;
+   if (pic30_R_constraint_strict(op1,0) || pic30_Q_constraint(op1) ||
+       pic30_S_constraint_ecore(op1,1)) {
+     if (GET_CODE(XEXP(op1,0)) == PLUS) {
+       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op1,0),0),
+                    XEXP(XEXP(op1,0),1), op2, 1, OPTAB_DIRECT);
+       op2 = gen_rtx_MEM(GET_MODE(op1),op2);
+     } else {
+#if 0
+       emit_insn(
+           gen_movP32EDS_gen(op2, XEXP(op1,0)) /* copy pointer */
+       );
+#else
+       // op2 = XEXP(op1,0);  // we may not need to create a copy
+       op2 = op1;
+#endif
+     }
+     emit_insn(
+        gen_set_offset_and_page_SI(offset, op2, gen_rtx_REG(HImode, PSVPAG))
+    );
+   } else {
+     /* create pointer */
+     if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
+         pic30_symbolic_address_operand_offset(XEXP(op1,0)) < 1023) {
+       emit_insn(
+         gen_set_offset_and_page_SI(offset, op1, 
+                                    gen_rtx_REG(HImode, PSVPAG))
+       );
+     } else {
+#if 0 
+       rtx reg = XEXP(op1,0);
+
+       if (!REG_P(reg)) {
+         reg = force_reg(SImode, XEXP(op1,0));
+       } 
+#endif
+       emit_insn(
+         gen_set_offset_and_page_SI(offset, op1, gen_rtx_REG(HImode, PSVPAG))
+       );
+     }
+   }
+   emit_insn(
+     fn(op0, gen_rtx_MEM(GET_MODE(op1),offset))         /* read value */
+   );
+   if (op0 != operand0) {
+     emit_move_insn(operand0, op0);
+   }
+   DONE;
+}")
+
+(define_expand "P32wt"
+   [(set (match_operand 0 "pic30_mem_eds_operand"   "=RQ,ST")
+         (match_operand 1 "pic30_move_operand"       " rR,rR"))]
+   ""
+   "{
+   rtx op2 = gen_reg_rtx(SImode);
+   rtx op3 = gen_reg_rtx(HImode);
+   rtx op1 = operand1;
+   rtx op0 = operand0;
+   rtx page = gen_reg_rtx(HImode);
+   rtx offset = gen_reg_rtx(HImode);
+   rtx (*fn)(rtx, rtx);
+   int eds_target = pic30_eds_target();
+
+   if ((GET_CODE(XEXP(op0,0)) == POST_INC) &&
+       (REGNO(XEXP(XEXP(op0,0),0)) == SP_REGNO)) {
+     /* this is a stack write that can only be generated with -munified
+        (which changes the Pmode to P32EDSmode) - change it back to a normal
+        write */
+     switch (GET_MODE(op0)) {
+       default:
+                    fprintf(stderr, \"Unknown mode: %s\n\",
+                            mode_name[GET_MODE(op0)]);
+                    FAIL;
+       case QImode: fn = gen_movqi;
+                    break;
+       case HImode: fn = gen_movhi;
+                    break;
+       case SImode: fn = gen_movsi;
+                    break;
+       case DImode: fn = gen_movdi;
+                    break;
+       case SFmode: fn = gen_movsf;
+                    break;
+       case DFmode: fn = gen_movdf;
+                    break;
+       case P16APSVmode: fn = gen_movp16apsv;
+                    break;
+       case P24PSVmode: fn = gen_movp24psv;
+                    break;
+       case P24PROGmode: fn = gen_movp24prog;
+                    break;
+       case P16PMPmode: fn = gen_movp16pmp;
+                    break;
+       case P32EXTmode: fn = gen_movp32ext;
+                    break;
+       case P32EDSmode: fn = gen_movp32eds;
+                    break;
+       case P32PEDSmode: fn = gen_movp32peds;
+                    break;
+     }
+
+     if (fn(gen_rtx_MEM(GET_MODE(op0),
+                        gen_rtx_POST_INC(HImode,gen_rtx_REG(HImode, SP_REGNO))),
+            op1))
+       DONE;
+     FAIL;
+   }
+   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
+   switch (GET_MODE(op0)) {
+     default:
+                  fprintf(stderr, \"Unknown mode: %s\n\",
+                          mode_name[GET_MODE(op0)]);
+                  FAIL;
+     case QImode: fn = gen_P32PEDSwrite_qi;
+                  break;
+     case HImode: fn = gen_P32PEDSwrite_HI;
+                  break;
+     case SImode: fn = gen_P32PEDSwrite_si;
+                  break;
+     case DImode: fn = gen_P32PEDSwrite_di;
+                  break;
+     case SFmode: fn = gen_P32PEDSwrite_sf;
+                  break;
+     case DFmode: fn = gen_P32PEDSwrite_df;
+                  break;
+     case P16APSVmode: fn = gen_P32PEDSwrite_P16APSV;
+                  break;
+     case P24PSVmode: fn = gen_P32PEDSwrite_P24PSV;
+                  break;
+     case P24PROGmode: fn = gen_P32PEDSwrite_P24PROG;
+                  break;
+     case P16PMPmode: fn = gen_P32PEDSwrite_P16PMP;
+                  break;
+     case P32EXTmode: fn = gen_P32PEDSwrite_P32EXT;
+                  break;
+     case P32EDSmode: fn = gen_P32PEDSwrite_P32EDS;
+                  break;
+     case P32PEDSmode: fn = gen_P32PEDSwrite_P32PEDS;
+                  break;
+   }
+   if (!pic30_mode2_operand(op1, GET_MODE(op1))) {
+     op1 = gen_reg_rtx(GET_MODE(op1));
+     emit_move_insn(op1, operand1);
+   }
+   if (eds_target) {
+     pic30_managed_psv = 1;
+   }
+   if (pic30_R_constraint_strict(op0,0) || pic30_Q_constraint(op0) ||
+       pic30_S_constraint_ecore(op0,1)) {
+     if (GET_CODE(XEXP(op0,0)) == PLUS) {
+       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op0,0),0),
+                    XEXP(XEXP(op0,0),1), op2, 1, OPTAB_DIRECT);
+       op2 = gen_rtx_MEM(GET_MODE(op0),op2);
+     } else {
+#if 0
+       emit_insn(
+         gen_movP32EDS_gen(op2, XEXP(op0,0)) /* copy pointer */
+       );
+#else
+       // op2 = XEXP(op0,0);
+       op2 = op0;
+#endif
+     }
+     emit_insn(
+       gen_set_offset_and_page_SI(offset,op2,gen_rtx_REG(HImode, DSWPAG))
+     );
+   } else {
+     /* create pointer */
+     if (pic30_symbolic_address_operand(XEXP(op0,0),VOIDmode) &&
+         pic30_symbolic_address_operand_offset(XEXP(op0,0)) < 1023) {
+       emit_insn(
+         gen_set_offset_and_page_SI(offset, op0,
+                                    gen_rtx_REG(HImode, DSWPAG))
+       );
+     } else {
+#if 0
+       rtx reg = XEXP(op0,0);
+
+       if (!REG_P(reg)) {
+         reg = force_reg(SImode, XEXP(op0,0));
+       } 
+#endif
+       emit_insn(
+         gen_set_offset_and_page_SI(offset, op0,gen_rtx_REG(HImode, DSWPAG))
+       );
+     }
+   }
+   emit_insn(
+     fn(gen_rtx_MEM(GET_MODE(op0),offset), op1)         /* write value */
+   );
+   DONE;
+}")
+
+(define_insn "copyfpsi"
+  [(set (match_operand:SI  0 "pic30_register_operand" "=r")
+        (uextend:SI
+          (match_operand:HI 1 "register_operand" "r")))]
+  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || (REGNO(operands[1]) == SP_REGNO)))"
+  "mov %1,%0\;mov #1,%d0"
+)
+  
+(define_insn "fpcopysi"
+  [(set (match_operand:HI   0 "register_operand"      "=r")
+        (utrunc:HI
+          (match_operand:SI 1 "pic30_register_operand" "r")))]
+  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || (REGNO(operands[0]) == SP_REGNO)))"
+  "mov %1,%0"
+)
+
+;; if unified is SImode
+  
+(define_insn "movqisi"
+  [(set (match_operand:QI 0 "pic30_unified_move2_operand" "=r,RSQ")
+        (match_operand:QI 1 "pic30_register_operand"       "r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.b %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSWPAG\;mov.b %1,%0\";
+   } else {
+     return \"mov.b %1,%0\";
+   }
+  "
+)
+
+(define_insn "movqisi2"
+  [(set (match_operand:QI 0 "pic30_register_operand"      "=r,r")
+        (match_operand:QI 1 "pic30_unified_move2_operand"  "r,RSQ")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.b %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSRPAG\;mov.b %1,%0\";
+   } else {
+     return \"mov.b %1,%0\";
+   }
+  "
+)
+
+(define_insn "movhisi"
+  [(set (match_operand:HI 0 "pic30_unified_move2_operand" "=r,R<>SQ")
+        (match_operand:HI 1 "pic30_register_operand"       "r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSWPAG\;mov %1,%0\";
+   } else {
+     return \"mov %1,%0\";
+   }
+  "
+)
+
+(define_insn "movhisi2"
+  [(set (match_operand:HI 0 "pic30_register_operand"      "=r,r")
+        (match_operand:HI 1 "pic30_unified_move2_operand"  "r,RSQ")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSRPAG\;mov %1,%0\";
+   } else {
+     return \"mov %1,%0\";
+   }
+  "
+)
+
+(define_insn "movsisi"
+  [(set (match_operand:SI 0 "pic30_unified_move2_operand" "=r,R,Q")
+        (match_operand:SI 1 "pic30_register_operand"       "r,r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
+     }
+   }
+  "
+)
+
+(define_insn "movsisi2"
+  [(set (match_operand:SI 0 "pic30_register_operand"      "=r,r,r")
+        (match_operand:SI 1 "pic30_unified_move2_operand"  "r,R,Q")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
+     }
+   }
+  "
+)
+
+;; if unified is P32PEDS
+
+(define_insn "copyfpP32PEDS"
+  [(set (match_operand:P32PEDS  0 "pic30_register_operand" "=r")
+        (uextend:P32PEDS
+          (match_operand:HI 1 "register_operand" "r")))]
+  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || (REGNO(operands[1]) == SP_REGNO)))"
+  "mov %1,%0\;mov #1,%d0"
+)
+  
+(define_insn "fpcopyP32PEDS"
+  [(set (match_operand:HI   0 "register_operand"      "=r")
+        (utrunc:HI
+          (match_operand:P32PEDS 1 "pic30_register_operand" "r")))]
+  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || (REGNO(operands[0]) == SP_REGNO)))"
+  "mov %1,%0"
+)
+
+(define_insn "movqiP32PEDS"
+  [(set (match_operand:QI 0 "pic30_unified_move2_operand" "=r,RSQ")
+        (match_operand:QI 1 "pic30_register_operand"       "r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.b %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSWPAG\;mov.b %1,%0\";
+   } else {
+     return \"mov.b %1,%0\";
+   }
+  "
+)
+
+(define_insn "movqiP32PEDS2"
+  [(set (match_operand:QI 0 "pic30_register_operand"      "=r,r")
+        (match_operand:QI 1 "pic30_unified_move2_operand"  "r,RSQ")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.b %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSRPAG\;mov.b %1,%0\";
+   } else {
+     return \"mov.b %1,%0\";
+   }
+  "
+)
+
+(define_insn "movhiP32PEDS"
+  [(set (match_operand:HI 0 "pic30_unified_move2_operand" "=r,RSQ")
+        (match_operand:HI 1 "pic30_register_operand"       "r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSWPAG\;mov %1,%0\";
+   } else {
+     return \"mov %1,%0\";
+   }
+  "
+)
+
+(define_insn "movhiP32PEDS2"
+  [(set (match_operand:HI 0 "pic30_register_operand"      "=r,r")
+        (match_operand:HI 1 "pic30_unified_move2_operand"  "r,RSQ")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     return \"movpag #1,DSRPAG\;mov %1,%0\";
+   } else {
+     return \"mov %1,%0\";
+   }
+  "
+)
+
+(define_insn "movsiP32PEDS"
+  [(set (match_operand:SI 0 "pic30_unified_move2_operand" "=r,R,Q")
+        (match_operand:SI 1 "pic30_register_operand"       "r,r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
+     }
+   }
+  "
+)
+
+(define_insn "movsiP32PEDS2"
+  [(set (match_operand:SI 0 "pic30_register_operand"      "=r,r,r")
+        (match_operand:SI 1 "pic30_unified_move2_operand"  "r,R,Q")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
+     }
+   }
+  "
+)
+
+(define_insn "movP32PEDSP32PEDS"
+  [(set (match_operand:P32PEDS 0 "pic30_unified_move2_operand" "=r,R,Q")
+        (match_operand:P32PEDS 1 "pic30_register_operand"       "r,r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
+     }
+   }
+  "
+)
+
+(define_insn "movsiP32PEDSP32PEDS2"
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand"      "=r,r,r")
+        (match_operand:P32PEDS 1 "pic30_unified_move2_operand"  "r,R,Q")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
+     }
+   }
+  "
+)
+
+(define_insn "movP32EDSP32PEDS"
+  [(set (match_operand:P32EDS 0 "pic30_unified_move2_operand" "=r,R,Q")
+        (match_operand:P32EDS 1 "pic30_register_operand"       "r,r,r"))]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
+     }
+   }
+  "
+)
+
+(define_insn "movsiP32EDSP32PEDS2"
+  [(set (match_operand:P32EDS 0 "pic30_register_operand"      "=r,r,r")
+        (match_operand:P32EDS 1 "pic30_unified_move2_operand"  "r,R,Q")
+  )]
+  "TARGET_EDS"
+  "*
+   if (which_alternative == 0) {
+     return \"mov.d %1,%0\";
+   }
+   if (pic30_ecore_target()) {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+     }
+   } else {
+     switch (which_alternative) {
+       default: gcc_assert(0);
+       case 1: return \"mov.d %1,%0\";
+       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
+     }
+   }
+  "
+)
+
 (define_insn "movhi_P24PROGaddress_low"
-  [(set (match_operand:HI 0 "pic30_register_operand"              "=r")
+  [(set (match_operand:HI 0 "pic30_register_operand"               "=r")
         (subreg:HI
-          (match_operand:P24PROG 1 "pic30_symbolic_address_operand" "g") 0))]
+          (match_operand:P24PROG 1 "pic30_symbolic_address_operand" "q") 0))]
   ""
   "mov #tbloffset(%1),%0"
  [
@@ -13985,8 +15692,12 @@
      if (pic30_symbolic_address_operand(operands[1],P32PEDSmode)) {
        sprintf(buffer,\"mov #edsoffset(%%1),%%0\;mov #edspage(%%1),%%d0\");
      } else {
-       sprintf(buffer,\"mov #%ld,%%0\;mov #%ld,%%d0\",(i & 0x7FFF),
-                      (i & 0xFF8000) >> 15);
+       if (INTVAL(operands[1]) == 0) {
+         sprintf(buffer,\"mul.uu %%0,#0,%%0\");
+       } else {
+         sprintf(buffer,\"mov #%ld,%%0\;mov #%ld,%%d0\",(i & 0x7FFF),
+                         (i & 0xFF8000) >> 15);
+       }
      }
      return buffer;
    }"
@@ -14126,9 +15837,15 @@
 
 (define_insn "movsi_address"
   [(set (match_operand:SI 0 "pic30_register_operand"        "=r")
-        (match_operand:SI 1 "pic30_symbolic_address_operand" "g"))]
+        (match_operand:SI 1 "pic30_symbolic_address_operand" "q"))]
   ""
-  "mov #%z1,%0\;mov #%y1,%d0"
+  "*
+   if (TARGET_EDS) {
+     return \"mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0\";
+   } else {
+     return \"mov #%z1,%0\;mov #%y1,%d0\";
+   }
+  "
   [
    (set_attr "cc" "clobber")
    (set_attr "type" "def")
@@ -14898,8 +16615,6 @@
         return \"cannot generate instructions\";
 }
 ")
-
-
 (define_insn "*movdi_rimm"
   [(set (match_operand:DI 0 "pic30_register_operand" "=r,r")
         (match_operand:DI 1 "immediate_operand" "O,i"))]
@@ -15978,8 +17693,13 @@
   ]
 )
 
+;; There is a potential register class issue here, if we cannot claim WREG
+;;   then this pattern will fail.  But allowing a general reg seems to have
+;;;  a slight negative impact on one particular applicaton - leaving the
+;;   option open for now.  CAW
+
 (define_insn "*addqi3_incdecsfr"
-  [(set (match_operand:QI 0 "pic30_wreg_or_near_operand"  "=U,a")
+  [(set (match_operand:QI 0 "pic30_wreg_or_near_operand"   "=U,a")
         (plus:QI (match_operand:QI 1 "pic30_near_operand" "%0,U")
                  (match_operand:QI 2 "immediate_operand"   "i,i")))]
  "(-2<=INTVAL(operands[2]))&&(INTVAL(operands[2])!=0)&&(INTVAL(operands[2])<=2)"
@@ -15989,18 +17709,23 @@
     case -2: switch (which_alternative) {
                case 0: return \"dec2.b %0\";
                case 1: return \"dec2.b %1,WREG\";
+               /* r,U,i */
+               case 2: return \"mov #%1,%0\;dec2.b [%0],%0\";
              }
     case -1: switch (which_alternative) {
                case 0: return \"dec.b %0\";
                case 1: return \"dec.b %1,WREG\";
+               case 2: return \"mov #%1,%0\;dec.b [%0],%0\";
              }
     case 1: switch (which_alternative) {
                case 0: return \"inc.b %0\";
                case 1: return \"inc.b %1,WREG\";
+               case 2: return \"mov #%1,%0\;inc.b [%0],%0\";
              }
     case 2: switch (which_alternative) {
                case 0: return \"inc2.b %0\";
                case 1: return \"inc2.b %1,WREG\";
+               case 2: return \"mov #%1,%0\;inc2.b [%0],%0\";
              }
     default: gcc_assert(0);
              return \"nop\";
@@ -16357,7 +18082,8 @@
   [(set (match_operand:SI 0 "pic30_register_operand"         "=r")
         (plus:SI 
            (match_operand:SI 1 "pic30_register_operand" "r")
-           (zero_extend:SI (match_operand:HI 2 "pic30_register_operand" "r"))))]
+           (zero_extend:SI 
+              (match_operand:HI 2 "pic30_register_operand" "r"))))]
   ""
   "add %1,%2,%0\;addc %d1,#0,%d0"
   [
@@ -16366,18 +18092,48 @@
   ]
 )
 
-(define_insn "*addhisi3"
-  [(set (match_operand:SI 0 "pic30_register_operand"                       "=r")
+(define_insn "*addhisi3_ze"
+  [(set (match_operand:SI 0 "pic30_mode2_operand"         "=r,>,>,R,R")
         (plus:SI 
-           (zero_extend:SI (match_operand:HI 1 "pic30_register_operand" "r"))
-           (match_operand:SI 2 "pic30_register_operand" "r")))]
+           (zero_extend:SI 
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r,r"))
+           (match_operand:SI 2 "pic30_mode2_operand"       "r,0,>,0,R")))
+   (clobber (match_scratch:HI 3                           "=X,r,r,r,r"))
+  ]
   ""
-  "add %2,%1,%0\;addc %d2,#0,%d0"
+  "@
+   add %1,%2,%0\;addc %d2,#0,%d0
+   clr %3\;add %1,%s2,%0\;addc %3,%s2,%0
+   clr %3\;add %1,%2,%0\;addc %3,%2,%0
+   clr %3\;add %1,%2,%I0\;addc %3,%2,%D0
+   clr %3\;add %1,%I2,%I0\;addc %3,%D2,%D0"
   [
    (set_attr "cc" "math")
    (set_attr "type" "def")
   ]
 )
+
+(define_insn "*addhisi3_se"
+  [(set (match_operand:SI 0 "pic30_mode2_operand"         "=r,>,>,R,R")
+        (plus:SI
+           (sign_extend:SI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r,r"))
+           (match_operand:SI 2 "pic30_mode2_operand"       "r,0,>,0,R")))
+   (clobber (match_scratch:HI 3                           "=r,r,r,r,r"))
+  ]
+  ""
+  "@
+   asr %1,#15,%3\;add %1,%2,%0\;addc %3,%d2,%d0
+   asr %1,#15,%3\;add %1,%s2,%0\;addc %3,%s2,%0
+   asr %1,#15,%3\;add %1,%2,%0\;addc %3,%2,%0
+   asr %1,#15,%3\;add %1,%2,%I0\;addc %3,%2,%D0
+   asr %1,#15,%3\;add %1,%I2,%I0\;addc %3,%D2,%D0"
+  [
+   (set_attr "cc" "math")
+   (set_attr "type" "def")
+  ]
+)
+
 
 (define_insn "*addsi3_imm"
   [(set (match_operand:SI 0 "pic30_register_operand"          "=r,r,r,r")
@@ -16426,12 +18182,12 @@
 )
 
 (define_insn "addsi3_errata_APSV"
- [(set (match_operand:SI 0 "pic30_rR_or_near_operand"        "=r,r,r,&r,r,r,r,R,R,R")
+ [(set (match_operand:SI 0 "pic30_rR_or_near_operand"        "=r,r,r,&r,r,r,r,r,R,R,R")
        (plus:SI 
-         (match_operand:SI 1 "pic30_rR_or_near_APSV_operand" "%r,0,r, R,r,r,0,r,r,r")
-         (match_operand:SI 2 "pic30_rR_or_JN_APSV_operand"    "r,r,0, r,P,N,J,r,0,R")
+         (match_operand:SI 1 "pic30_rR_or_near_APSV_operand" "%r,0,r, R,r,r,0,0,r,r,r")
+         (match_operand:SI 2 "pic30_rR_or_JMNP_APSV_operand"  "r,r,0, r,P,N,J,M,r,0,R")
   ))
-  (clobber (match_scratch:HI 3                         "=X,X,X,&r,X,X,X,X,X,&r")
+  (clobber (match_scratch:HI 3                         "=X,X,X,&r,X,X,X,X,X,X,&r")
   )
  ]
   "(pic30_errata_mask & psv_errata)"
@@ -16445,6 +18201,7 @@
     \"add %1,#%2,%0\;addc %d1,#0,%d0\",
     \"sub %1,#%J2,%0\;subb %d1,#0,%d0\",
     \"add #%2,%0\;addc #%y2,%d0\",
+    \"sub #%J2,%0\;subb #0,%d0\",
     \"add %1,%2,%I0\;addc %d1,%d2,%D0\",
     \"add %1,%2,%0\;addc %d1,%P2,%D0\",
     \"add %1,%I2,%I0\;mov %D2,%3\;addc %d1,%3,%D0\",
@@ -16453,16 +18210,16 @@
   return patterns[which_alternative];
 }"
   [
-    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math")
-    (set_attr "type" "def,def,def,defuse,def,def,def,use,use,use")
+    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math,math")
+    (set_attr "type" "def,def,def,defuse,def,def,def,def,use,use,use")
   ]
 )
 
 (define_insn "addsi3_DATA"
- [(set (match_operand:SI   0 "pic30_rR_or_near_operand" "=r,r,r,&r,r,r,r,R,R,R")
+ [(set (match_operand:SI   0 "pic30_rR_or_near_operand" "=r,r,r,&r,r,r,r,r,R,R,R")
        (plus:SI  
-         (match_operand:SI 1 "pic30_rR_or_near_operand" "%r,0,r, R,r,r,0,r,r,r")
-         (match_operand:SI 2 "pic30_rR_or_JN_operand"    "r,r,0, r,P,N,J,r,0,R")  ))
+         (match_operand:SI 1 "pic30_rR_or_near_operand" "%r,0,r, R,r,r,0,0,r,r,r")
+         (match_operand:SI 2 "pic30_rR_or_JMNP_operand"  "r,r,0, r,P,N,J,M,r,0,R")  ))
  ]
   ""
   "*
@@ -16475,6 +18232,7 @@
     \"add %1,#%2,%0\;addc %d1,#0,%d0\",
     \"sub %1,#%J2,%0\;subb %d1,#0,%d0\",
     \"add #%2,%0\;addc #%y2,%d0\",
+    \"sub #%J2,%0\;subb #0,%d0\",
     \"add %1,%2,%I0\;addc %d1,%d2,%D0\",
     \"add %1,%2,%0\;addc %d1,%P2,%D0\",
     \"add %1,%I2,%I0\;addc %d1,%D2,%D0\",
@@ -16483,16 +18241,16 @@
   return patterns[which_alternative];
 }"
   [
-    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math")
-    (set_attr "type" "def,def,def,defuse,def,def,def,use,use,use")
+    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math,math")
+    (set_attr "type" "def,def,def,defuse,def,def,def,def,use,use,use")
   ]
 )
 
 (define_insn "addsi3_noerrata_APSV"
- [(set (match_operand:SI   0 "pic30_rR_or_near_operand"      "=r,r,r,&r,r,r,r,R,R,R")
+ [(set (match_operand:SI   0 "pic30_rR_or_near_operand"      "=r,r,r,&r,r,r,r,r,R,R,R")
        (plus:SI  
-         (match_operand:SI 1 "pic30_rR_or_near_APSV_operand" "%r,0,r, R,r,r,0,r,r,r")
-         (match_operand:SI 2 "pic30_rR_or_JN_APSV_operand"    "r,r,0, r,P,N,J,r,0,R")  ))
+         (match_operand:SI 1 "pic30_rR_or_near_APSV_operand" "%r,0,r, R,r,r,0,0,r,r,r")
+         (match_operand:SI 2 "pic30_rR_or_JMNP_APSV_operand"  "r,r,0, r,P,N,J,M,r,0,R")  ))
  ]
   "(!(pic30_errata_mask & psv_errata))"
   "*
@@ -16505,6 +18263,7 @@
     \"add %1,#%2,%0\;addc %d1,#0,%d0\",
     \"sub %1,#%J2,%0\;subb %d1,#0,%d0\",
     \"add #%2,%0\;addc #%y2,%d0\",
+    \"sub #%J2,%0\;subb #%0,%d0\",
     \"add %1,%2,%I0\;addc %d1,%d2,%D0\",
     \"add %1,%2,%0\;addc %d1,%P2,%D0\",
     \"add %1,%I2,%I0\;addc %d1,%D2,%D0\",
@@ -16513,8 +18272,8 @@
   return patterns[which_alternative];
 }"
   [
-    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math")
-    (set_attr "type" "def,def,def,defuse,def,def,def,use,use,use")
+    (set_attr "cc" "math,math,math,math,math,math,math,math,math,math,math")
+    (set_attr "type" "def,def,def,defuse,def,def,def,def,use,use,use")
   ]
 )
 
@@ -16522,15 +18281,15 @@
   [(set (match_operand:SI 0 "pic30_rR_or_near_operand" "")
         (plus:SI
           (match_operand:SI 1 "pic30_rR_or_near_APSV_operand" "")
-          (match_operand:SI 2 "pic30_rR_or_JN_APSV_operand" "")))]
+          (match_operand:SI 2 "pic30_rR_or_JMNP_APSV_operand" "")))]
   ""
   "
 { 
   if (pic30_rR_or_near_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_rR_or_JN_APSV_operand(operands[2],GET_MODE(operands[2]))) {
+      pic30_rR_or_JMNP_operand(operands[2],GET_MODE(operands[2]))) {
     emit_insn(gen_addsi3_DATA(operands[0], operands[1], operands[2]));
   } else if (pic30_rR_or_near_APSV_operand(operands[1],GET_MODE(operands[1])) &&
-             pic30_rR_or_JN_APSV_operand(operands[2],GET_MODE(operands[2]))) {
+             pic30_rR_or_JMNP_APSV_operand(operands[2],GET_MODE(operands[2]))) {
     if (pic30_errata_mask & psv_errata) {
       emit_insn(gen_addsi3_errata_APSV(operands[0], operands[1], operands[2]));
     } else {
@@ -17208,18 +18967,932 @@
   ]
 )
 
-(define_insn "adddi3"
-  [(set (match_operand:DI          0 "pic30_register_operand" "=r")
-        (plus:DI (match_operand:DI 1 "pic30_register_operand" "%r")
-                 (match_operand:DI 2 "pic30_register_operand" " r")))]
+(define_insn "*addhidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (sign_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
   ""
-  "add %2,%1,%0\;addc %d2,%d1,%d0\;addc %t2,%t1,%t0\;addc %q2,%q1,%q0"
-  [
-   (set_attr "cc" "math")
-   (set_attr "type" "def")
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %1,#15,%3\;add %1,%2,%0\;addc %3,%d2,%d0\;\"
+                              \"addc %3,%t2,%t0\;addc %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %1,#15,%3\;add %1,%2,%0\;addc %3,%d2,%0\;\"
+                              \"addc %3,%t2,%0\;addc %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %1,#15,%3\;add %1,%s2,%0\;addc %3,%s2,%0\;\"
+                              \"addc %3,%s2,%0\;addc %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %1,#15,%3\;add %1,%2,%0\;addc %3,%2,%0\;\"
+                              \"addc %3,%2,%0\;addc %3,%2,%0\",
+
+     /* r,r,> */          \"asr %1,#15,%3\;add %1,%2,%0\;addc %3,%2,%d0\;\"
+                              \"addc %3,%2,%t0\;addc %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %1,#15,%3\;add %1,%2,%I0\;addc %3,%d2,%I0\;\"
+                              \"addc %3,%t2,%I0\;addc %3,%q2,%s0\",
+
+     /* R,r,0 */          \"asr %1,#15,%3\;add %1,%2,%I0\;addc %3,%2,%I0\;\"
+                              \"addc %3,%2,%I0\;addc %3,%2,%s0\",
+
+     /* R,r,R */          \"asr %1,#15,%3\;add %1,%I2,%I0\;addc %3,%I2,%I0\;\"
+                              \"addc %3,%I2,%I0\;addc %3,%2,%0\",
+
+     /* r,r,R */          \"asr %1,#15,%3\;add %1,%I2,%0\;addc %3,%I2,%d0\;\"
+                              \"addc %3,%I2,%t0\;addc %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
   ]
 )
 
+(define_insn "*addhidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (zero_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"add %1,%2,%0\;addc %d2,#0,%d0\;\"
+                              \"addc %t2,#0,%t0\;addc %q2,#0,%q0\",
+
+     /* >,r,r */          \"add %1,%2,%0\;addc %d2,#0,%0\;\"
+                              \"addc %t2,#0,%0\;addc %q2,#0,%0\",
+
+     /* >,r,0 */          \"clr %3\;add %1,%s2,%0\;addc %3,%s2,%0\;\"
+                              \"addc %3,%s2,%0\;addc %3,%s2,%0\",
+
+     /* >,r,> */          \"clr %3\;add %1,%2,%0\;addc %3,%2,%0\;\"
+                              \"addc %3,%2,%0\;addc %3,%2,%0\",
+
+     /* r,r,> */          \"clr %3\;add %1,%2,%0\;addc %3,%2,%d0\;\"
+                              \"addc %3,%2,%t0\;addc %3,%2,%q0\",
+
+     /* R,r,r */          \"add %1,%2,%I0\;addc %d2,#0,%I0\;\"
+                              \"addc %t2,#0,%I0\;addc %q2,#0,%s0\",
+
+     /* R,r,0 */          \"clr %3\;add %1,%2,%I0\;addc %3,%2,%I0\;\"
+                              \"addc %3,%2,%I0\;addc %3,%2,%s0\",
+
+     /* R,r,R */          \"clr %3\;add %1,%I2,%I0\;addc %3,%I2,%I0\;\"
+                              \"addc %3,%I2,%I0\;addc %3,%2,%0\",
+
+     /* r,r,R */          \"clr %3\;add %1,%I2,%0\;addc %3,%I2,%d0\;\"
+                              \"addc %3,%I2,%t0\;addc %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*addsidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (sign_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r,r,r,r,r,r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>,>,r,0,R,R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d1,#15,%3\;add %1,%2,%0\;addc %d1,%d2,%d0\;\"
+                              \"addc %3,%t2,%t0\;addc %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %d1,#15,%3\;add %1,%2,%0\;addc %d1,%d2,%0\;\"
+                              \"addc %3,%t2,%0\;addc %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %d1,#15,%3\;add %1,%s2,%0\;addc %d1,%s2,%0\;\"
+                              \"addc %3,%s2,%0\;addc %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %d1,#15,%3\;add %1,%2,%0\;addc %d1,%2,%0\;\"
+                              \"addc %3,%2,%0\;addc %3,%2,%0\",
+
+     /* r,r,> */          \"asr %d1,#15,%3\;add %1,%2,%0\;addc %d1,%2,%d0\;\"
+                              \"addc %3,%2,%t0\;addc %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %d1,#15,%3\;add %1,%2,%I0\;addc %d1,%d2,%I0\;\"
+                              \"addc %3,%t2,%I0\;addc %3,%q2,%s0\",
+
+     /* R,r,0 */          \"asr %d1,#15,%3\;add %1,%2,%I0\;addc %d1,%2,%I0\;\"
+                              \"addc %3,%2,%I0\;addc %3,%2,%s0\",
+
+     /* R,r,R */          \"asr %d1,#15,%3\;add %1,%I2,%I0\;addc %d1,%I2,%I0\;\"
+                              \"addc %3,%I2,%I0\;addc %3,%2,%0\",
+
+     /* r,r,R */          \"asr %d1,#15,%3\;add %1,%I2,%0\;addc %d1,%I2,%d0\;\"
+                              \"addc %3,%I2,%t0\;addc %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*addsidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%d0\;\"
+                              \"addc %t2,#0,%t0\;addc %q2,#0,%q0\",
+
+     /* >,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%0\;\"
+                              \"addc %t2,#0,%0\;addc %q2,#0,%0\",
+
+     /* >,r,0 */          \"clr %3\;add %1,%s2,%0\;addc %d1,%s2,%0\;\"
+                              \"addc %3,%s2,%0\;addc %3,%s2,%0\",
+
+     /* >,r,> */          \"clr %3\;add %1,%2,%0\;addc %d1,%2,%0\;\"
+                              \"addc %3,%2,%0\;addc %3,%2,%0\",
+
+     /* r,r,> */          \"clr %3\;add %1,%2,%0\;addc %d1,%2,%d0\;\"
+                              \"addc %3,%2,%t0\;addc %3,%2,%q0\",
+
+     /* R,r,r */          \"add %1,%2,%I0\;addc %d1,%d2,%I0\;\"
+                              \"addc %t2,#0,%I0\;addc %q2,#0,%s0\",
+
+     /* R,r,0 */          \"clr %3\;add %1,%2,%I0\;addc %d1,%2,%I0\;\"
+                              \"addc %3,%2,%I0\;addc %3,%2,%s0\",
+
+     /* R,r,R */          \"clr %3\;add %1,%I2,%I0\;addc %d1,%I2,%I0\;\"
+                              \"addc %3,%I2,%I0\;addc %3,%2,%0\",
+
+     /* r,r,R */          \"clr %3\;add %1,%I2,%0\;addc %d1,%I2,%d0\;\"
+                              \"addc %3,%I2,%t0\;addc %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*adddihi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %2,#15,%3\;add %1,%2,%0\;addc %d1,%3,%d0\;\"
+                              \"addc %t1,%3,%t0\;addc %q1,%3,%q0\",
+
+     /* >,r,r */          \"asr %2,#15,%3\;add %1,%2,%0\;addc %d1,%3,%0\;\"
+                              \"addc %t1,%3,%0\;addc %q1,%3,%0\",
+
+     /* >,0,r */          \"asr %2,#15,%3\;add %2,%s1,%0\;addc %3,%s1,%0\;\"
+                              \"addc %3,%s1,%0\;addc %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %2,#15,%3\;add %2,%1,%0\;addc %3,%1,%0\;\"
+                              \"addc %3,%1,%0\;addc %3,%2,%0\",
+
+     /* r,>,r */          \"asr %2,#15,%3\;add %2,%1,%0\;addc %3,%1,%d0\;\"
+                              \"addc %3,%1,%t0\;addc %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %2,#15,%3\;add %1,%2,%I0\;addc %d1,%3,%I0\;\"
+                              \"addc %t1,%3,%I0\;addc %q1,%3,%s0\",
+
+     /* R,0,r */          \"asr %2,#15,%3\;add %2,%1,%I0\;addc %3,%1,%I0\;\"
+                              \"addc %3,%1,%I0\;addc %3,%1,%s0\",
+
+     /* R,R,r */          \"asr %2,#15,%3\;add %2,%I1,%I0\;addc %3,%I1,%I0\;\"
+                              \"addc %3,%I1,%I0\;addc %3,%1,%0\",
+
+     /* r,R,r */          \"asr %2,#15,%3\;add %2,%I1,%0\;addc %3,%I1,%d0\;\"
+                              \"addc %3,%I1,%t0\;addc %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*adddihi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"add %1,%2,%0\;addc %d1,#0,%d0\;\"
+                              \"addc %t1,#0,%t0\;addc q1,#0,%q0\",
+
+     /* >,r,r */          \"add %1,%2,%0\;addc %d1,#0,%0\;\"
+                              \"addc %t1,#0,%0\;addc %q1,#0,%0\",
+
+     /* >,0,r */          \"clr %3\;add %s1,%2,%0\;addc %3,%s1,%0\;\"
+                              \"addc %3,%s1,%0\;addc %3,%s1,%0\",
+
+     /* >,>,r */          \"clr %3\;add %2,%1,%0\;addc %3,%1,%0\;\"
+                              \"addc %3,%1,%0\;addc %3,%1,%0\",
+
+     /* r,>,r */          \"clr %3\;add %2,%1,%0\;addc %3,%1,%d0\;\"
+                              \"addc %3,%1,%t0\;addc %3,%1,%q0\",
+
+     /* R,r,r */          \"add %1,%2,%I0\;addc %d1,#0,%I0\;\"
+                              \"addc %t1,#0,%I0\;addc %q1,#0,%0\",
+
+     /* R,0,r */          \"clr %3\;add %2,%1,%I0\;addc %3,%1,%I0\;\"
+                              \"addc %3,%1,%I0\;addc %3,%1,%0\",
+
+     /* R,R,r */          \"clr %3\;add %2,%I1,%I0\;addc %3,%I1,%I0\;\"
+                              \"addc %3,%I1,%I0\;addc %3,%1,%0\",
+
+     /* r,R,r */          \"clr %3\;add %2,%I1,%0\;addc %3,%I1,%d0\;\"
+                              \"addc %3,%I1,%t0\;addc %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*adddisi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (match_operand:SI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d2,#15,%3\;add %1,%2,%0\;addc %d1,%d2,%d0\;\"
+                              \"addc %3,%t1,%t0\;addc %3,%q1,%q0\",
+
+     /* >,r,r */          \"asr %d2,#15,%3\;add %1,%2,%0\;addc %d1,%d2,%0\;\"
+                              \"addc %3,%t1,%0\;addc %3,%q1,%0\",
+
+     /* >,0,r */          \"asr %d2,#15,%3\;add %2,%s1,%0\;addc %d2,%s1,%0\;\"
+                              \"addc %3,%s1,%0\;addc %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %d2,#15,%3\;add %2,%1,%0\;addc %d2,%1,%0\;\"
+                              \"addc %3,%1,%0\;addc %3,%1,%0\",
+
+     /* r,>,r */          \"asr %d2,#15,%3\;add %2,%1,%0\;addc %d2,%1,%d0\;\"
+                              \"addc %3,%1,%t0\;addc %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %d2,#15,%3\;add %2,%1,%I0\;addc %d2,%d1,%I0\;\"
+                              \"addc %3,%t1,%I0\;addc %3,%q1,%s0\",
+
+     /* R,0,r */          \"asr %d2,#15,%3\;add %2,%1,%I0\;addc %d2,%1,%I0\;\"
+                              \"addc %3,%1,%I0\;addc %3,%1,%s0\",
+
+     /* R,R,r */          \"asr %d2,#15,%3\;add %2,%I1,%I0\;addc %d2,%I1,%I0\;\"
+                              \"addc %3,%I1,%I0\;addc %3,%1,%0\",
+
+     /* r,R,r */          \"asr %d2,#15,%3\;add %2,%I1,%0\;addc %d2,%I1,%d0\;\"
+                              \"addc %3,%I1,%t0\;addc %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*adddisi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%d0\;\"
+                              \"addc %t1,#0,%t0\;addc %q1,#0,%q0\",
+
+     /* >,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%0\;\"
+                              \"addc %t1,#0,%0\;addc %q1,#0,%0\",
+
+     /* >,0,r */          \"clr %3\;add %2,%s1,%0\;addc %d2,%s1,%0\;\"
+                              \"addc %3,%s1,%0\;addc %3,%s1,%0\",
+
+     /* >,>,r */          \"clr %3\;add %2,%1,%0\;addc %d2,%1,%0\;\"
+                              \"addc %3,%1,%0\;addc %3,%1,%0\",
+
+     /* r,>,r */          \"clr %3\;add %2,%1,%0\;addc %d2,%1,%d0\;\"
+                              \"addc %3,%1,%t0\;addc %3,%1,%q0\",
+
+     /* R,r,r */          \"add %1,%2,%I0\;addc %d1,%d2,%I0\;\"
+                              \"addc %t1,#0,%I0\;addc %q1,#0,%s0\",
+
+     /* R,0,r */          \"clr %3\;add %2,%1,%I0\;addc %d2,%1,%I0\;\"
+                              \"addc %3,%1,%I0\;addc %3,%1,%s0\",
+
+     /* R,R,r */          \"clr %3\;add %2,%I1,%I0\;addc %d2,%I1,%I0\;\"
+                              \"addc %3,%I1,%I0\;addc %3,%1,%0\",
+
+     /* r,R,r */          \"clr %3\;add %2,%I1,%0\;addc %d2,%I1,%d0\;\"
+                              \"addc %3,%I1,%t0\;addc %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+;(define_insn "adddi3"
+;  [(set (match_operand:DI          0 "pic30_register_operand" "=r")
+;        (plus:DI (match_operand:DI 1 "pic30_register_operand" "%r")
+;                 (match_operand:DI 2 "pic30_register_operand" " r")))]
+;  ""
+;  "add %2,%1,%0\;addc %d2,%d1,%d0\;addc %t2,%t1,%t0\;addc %q2,%q1,%q0"
+;  [
+;   (set_attr "cc" "math")
+;   (set_attr "type" "def")
+;  ]
+;)
+
+(define_insn "adddi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%d0\;\"
+                              \"addc %t1,%t2,%t0\;addc %q1,%q2,%q0\",
+
+     /* >,r,r */          \"add %1,%2,%0\;addc %d1,%d2,%0\;\"
+                              \"addc %t1,%t2,%0\;addc %q1,%q2,%0\",
+
+     /* >,r,0 */          \"add %1,%s2,%0\;addc %d1,%s2,%0\;\"
+                              \"addc %t1,%s2,%0\;addc %q1,%s2,%0\",
+
+     /* >,r,> */          \"add %1,%2,%0\;addc %d1,%2,%0\;\"
+                              \"addc %t1,%2,%0\;addc %q1,%2,%0\",
+
+     /* r,r,> */          \"add %1,%2,%0\;addc %d1,%2,%d0\;\"
+                              \"addc %t1,%2,%t0\;addc %q1,%2,%q0\",
+
+     /* R,r,r */          \"add %1,%2,%I0\;addc %d1,%d2,%I0\;\"
+                              \"addc %t1,%t2,%I0\;addc %q1,%q2,%s0\",
+
+     /* R,r,0 */          \"add %1,%2,%I0\;addc %d1,%2,%I0\;\"
+                              \"addc %t1,%2,%I0\;addc %q1,%2,%s0\",
+
+     /* R,r,R */          \"add %1,%I2,%I0\;addc %d1,%I2,%I0\;\"
+                              \"addc %t1,%I2,%I0\;addc %q1,%2,%0\",
+
+     /* r,r,R */          \"add %1,%I2,%0\;addc %d1,%I2,%d0\;\"
+                              \"addc %t1,%I2,%t0\;addc %q1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
 ;;;;;;;;
 ;; float
 ;;;;;;;;
@@ -17662,17 +20335,930 @@
   ]
 )
 
-(define_insn "subdi3"
-  [(set (match_operand:DI 0 "pic30_register_operand"          "=r")
-        (minus:DI (match_operand:DI 1 "pic30_register_operand" "r")
-                  (match_operand:DI 2 "pic30_register_operand" "r")))]
+(define_insn "*subhidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (sign_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
   ""
-  "sub %1,%2,%0\;subb %d1,%d2,%d0\;subb %t1,%t2,%t0\;subb %q1,%q2,%q0"
-  [
-   (set_attr "cc" "math")
-   (set_attr "type" "def")
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %1,#15,%3\;sub %1,%2,%0\;subb %3,%d2,%d0\;\"
+                              \"subb %3,%t2,%t0\;subb %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %1,#15,%3\;sub %1,%2,%0\;subb %3,%d2,%0\;\"
+                              \"subb %3,%t2,%0\;subb %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %1,#15,%3\;sub %1,%s2,%0\;subb %3,%s2,%0\;\"
+                              \"subb %3,%s2,%0\;subb %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %1,#15,%3\;sub %1,%2,%0\;subb %3,%2,%0\;\"
+                              \"subb %3,%2,%0\;subb %3,%2,%0\",
+
+     /* r,r,> */          \"asr %1,#15,%3\;sub %1,%2,%0\;subb %3,%2,%d0\;\"
+                              \"subb %3,%2,%t0\;subb %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %1,#15,%3\;sub %1,%2,%I0\;subb %3,%d2,%I0\;\"
+                              \"subb %3,%t2,%I0\;subb %3,%q2,%0\",
+
+     /* R,r,0 */          \"asr %1,#15,%3\;sub %1,%2,%I0\;subb %3,%2,%I0\;\"
+                              \"subb %3,%2,%I0\;subb %3,%2,%0\",
+
+     /* R,r,R */          \"asr %1,#15,%3\;sub %1,%I2,%I0\;subb %3,%I2,%I0\;\"
+                              \"subb %3,%I2,%I0\;subb %3,%2,%0\",
+
+     /* r,r,R */          \"asr %1,#15,%3\;sub %1,%I2,%0\;subb %3,%I2,%d0\;\"
+                              \"subb %3,%I2,%t0\;subb %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
   ]
 )
+
+(define_insn "*subhidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (zero_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"sub %1,%2,%0\;subbr %d2,#0,%d0\;\"
+                              \"subbr %t2,#0,%t0\;subbr %q2,#0,%q0\",
+
+     /* >,r,r */          \"sub %1,%2,%0\;subbr %d2,#0,%0\;\"
+                              \"subbr %t2,#0,%0\;subbr %q2,#0,%0\",
+
+     /* >,r,0 */          \"clr %3\;sub %1,%s2,%0\;subb %3,%s2,%0\;\"
+                              \"subb %3,%s2,%0\;subb %3,%s2,%0\",
+
+     /* >,r,> */          \"clr %3\;sub %1,%2,%0\;subb %3,%2,%0\;\"
+                              \"subb %3,%2,%0\;subb %3,%2,%0\",
+
+     /* r,r,> */          \"clr %3\;sub %1,%2,%0\;subb %3,%2,%d0\;\"
+                              \"subb %3,%2,%t0\;subb %3,%2,%q0\",
+
+     /* R,r,r */          \"sub %1,%2,%I0\;subbr %d2,#0,%I0\;\"
+                              \"subbr %t2,#0,%I0\;subbr %q2,#0,%0\",
+
+     /* R,r,0 */          \"clr %3\;sub %1,%2,%I0\;subb %3,%2,%I0\;\"
+                              \"subb %3,%2,%I0\;subb %3,%2,%0\",
+
+     /* R,r,R */          \"clr %3\;sub %1,%I2,%I0\;subb %3,%I2,%I0\;\"
+                              \"subb %3,%I2,%I0\;subb %3,%2,%0\",
+
+     /* r,r,R */          \"clr %3\;sub %1,%I2,%0\;subb %3,%I2,%d0\;\"
+                              \"subb %3,%I2,%t0\;subb %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*subsidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (sign_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d1,#15,%3\;sub %1,%2,%0\;subb %d1,%d2,%d0\;\"
+                              \"subb %3,%t2,%t0\;subb %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %d1,#15,%3\;sub %1,%2,%0\;subb %d1,%d2,%0\;\"
+                              \"subb %3,%t2,%0\;subb %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %d1,#15,%3\;sub %1,%s2,%0\;subb %d1,%s2,%0\;\"
+                              \"subb %3,%s2,%0\;subb %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %d1,#15,%3\;sub %1,%2,%0\;subb %d1,%2,%0\;\"
+                              \"subb %3,%2,%0\;subb %3,%2,%0\",
+
+     /* r,r,> */          \"asr %d1,#15,%3\;sub %1,%2,%0\;subb %d1,%2,%d0\;\"
+                              \"subb %3,%2,%t0\;subb %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %d1,#15,%3\;sub %1,%2,%I0\;subb %d1,%d2,%I0\;\"
+                              \"subb %3,%t2,%I0\;subb %3,%q2,%s0\",
+
+     /* R,r,0 */          \"asr %d1,#15,%3\;sub %1,%2,%I0\;subb %d1,%2,%I0\;\"
+                              \"subb %3,%2,%I0\;subb %3,%2,%0\",
+
+     /* R,r,R */          \"asr %d1,#15,%3\;sub %1,%I2,%I0\;subb %d1,%I2,%I0\;\"
+                              \"subb %3,%I2,%I0\;subb %3,%2,%0\",
+
+     /* r,r,R */          \"asr %d1,#15,%3\;sub %1,%I2,%0\;subb %d1,%I2,%d0\;\"
+                              \"subb %3,%I2,%t0\;subb %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }  
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*subsidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%d0\;\"
+                              \"subbr %t2,#0,%t0\;subbr %q2,#0,%q0\",
+
+     /* >,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%0\;\"
+                              \"subbr %t2,#0,%0\;subbr %q2,#0,%0\",
+
+     /* >,r,0 */          \"clr %3\;sub %1,%s2,%0\;subb %d1,%s2,%0\;\"
+                              \"subb %3,%s2,%0\;subb %3,%s2,%0\",
+
+     /* >,r,> */          \"clr %3\;sub %1,%2,%0\;subb %d1,%2,%0\;\"
+                              \"subb %3,%2,%0\;subb %3,%2,%0\",
+
+     /* r,r,> */          \"clr %3\;sub %1,%2,%0\;subb %d1,%2,%d0\;\"
+                              \"subb %3,%2,%t0\;subb %3,%2,%q0\",
+
+     /* R,r,r */          \"sub %1,%2,%I0\;subb %d1,%d2,%I0\;\"
+                              \"subbr %t2,#0,%I0\;subbr %q2,#0,%0\",
+
+     /* R,r,0 */          \"clr %3\;sub %1,%2,%I0\;subb %d1,%2,%I0\;\"
+                              \"subb %3,%2,%I0\;subb %3,%2,%0\",
+
+     /* R,r,R */          \"clr %3\;sub %1,%I2,%I0\;subb %d1,%I2,%I0\;\"
+                              \"subb %3,%I2,%I0\;subb %3,%2,%0\",
+
+     /* r,r,R */          \"clr %3\;sub %1,%I2,%0\;subb %d1,%I2,%d0\;\"
+                              \"subb %3,%I2,%t0\;subb %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+
+(define_insn "*subdihi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %2,#15,%3\;sub %1,%2,%0\;subb %d1,%3,%d0\;\"
+                              \"subb %t1,%3,%t0\;subb %q1,%3,%q0\",
+
+     /* >,r,r */          \"asr %2,#15,%3\;sub %1,%2,%0\;subb %d1,%3,%0\;\"
+                              \"subb %t1,%3,%0\;subb %q1,%3,%0\",
+
+     /* >,0,r */          \"asr %2,#15,%3\;subr %2,%s1,%0\;subbr %3,%s1,%0\;\"
+                              \"subbr %3,%s1,%0\;subbr %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %2,#15,%3\;subr %2,%1,%0\;subbr %3,%1,%0\;\"
+                              \"subbr %3,%1,%0\;subbr %3,%1,%0\",
+
+     /* r,>,r */          \"asr %2,#15,%3\;subr %2,%1,%0\;subbr %3,%1,%d0\;\"
+                              \"subbr %3,%1,%t0\;subbr %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %2,#15,%3\;sub %2,%1,%I0\;subbr %3,%d1,%I0\;\"
+                              \"subbr %3,%t1,%I0\;subbr %3,%q1,%0\",
+
+     /* R,0,r */          \"asr %2,#15,%3\;subr %2,%1,%I0\;subbr %3,%1,%I0\;\"
+                              \"subbr %3,%1,%I0\;subbr %3,%1,%0\",
+
+     /* R,R,r */          \"asr %2,#15,%3\;subr %2,%I1,%I0\;subbr %3,%I1,%I0\;\"
+                              \"subbr %3,%I1,%I0\;subbr %3,%1,%0\",
+
+     /* r,R,r */          \"asr %2,#15,%3\;subr %2,%I1,%0\;subbr %3,%I1,%d0\;\"
+                              \"subbr %3,%I1,%t0\;subbr %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*subdihi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"sub %1,%2,%0\;subb %d1,#0,%d0\;\"
+                            \"subb %t1,#0,%t0\;subb %q1,#0,%q0\",
+
+     /* >,r,r */          \"sub %1,%2,%0\;subb %d1,#0,%0\;\"
+                            \"subb %t1,#0,%0\;subb %q1,#0,%0\",
+
+     /* >,0,r */          \"clr %3\;subr %2,%s1,%0\;subbr %3,%s1,%0\;\"
+                            \"subbr %3,%s1,%0\;subbr %3,%s1,%0\",
+
+     /* >,>,r */          \"clr %3\;subr %2,%1,%0\;subbr %3,%1,%0\;\"
+                            \"subbr %3,%1,%0\;subbr %3,%1,%0\",
+
+     /* r,>,r */          \"clr %3\;subr %2,%1,%0\;subbr %3,%1,%d0\;\"
+                            \"subbr %3,%1,%t0\;subbr %3,%1,%q0\",
+
+     /* R,r,r */          \"sub %1,%2,%I0\;subbr %d1,#0,%I0\;\"
+                            \"subbr %t1,#0,%I0\;subbr %q1,#0,%0\",
+
+     /* R,0,r */          \"clr %3\;subr %2,%1,%I0\;subbr %3,%1,%I0\;\"
+                            \"subbr %3,%1,%I0\;subbr %3,%1,%0\",
+
+     /* R,R,r */          \"clr %3\;subr %2,%I1,%I0\;subbr %3,%I1,%I0\;\"
+                            \"subbr %3,%I1,%I0\;subbr %3,%1,%0\",
+
+     /* r,R,r */          \"clr %3\;subr %2,%I1,%0\;subbr %3,%I1,%d0\;\"
+                              \"subbr %3,%I1,%t0\;subbr %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*subdisi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d2,#15,%3\;sub %1,%2,%0\;subb %d1,%d2,%d0\;\"
+                             \"subb %t1,%3,%t0\;subb %q1,%3,%q0\",
+             
+     /* >,r,r */          \"asr %d2,#15,%3\;sub %1,%2,%0\;subb %d1,%d2,%0\;\"
+                             \"subb %t1,%3,%0\;subb %q1,%3,%0\",
+             
+     /* >,0,r */          \"asr %d2,#15,%3\;subr %2,%s1,%0\;subbr %d2,%s1,%0\;\"
+                             \"subbr %3,%s1,%0\;subbr %3,%s1,%0\",
+             
+     /* >,>,r */          \"asr %d2,#15,%3\;subr %2,%1,%0\;subbr %d2,%1,%0\;\"
+                             \"subbr %3,%1,%0\;subbr %3,%1,%0\",
+             
+     /* r,>,r */          \"asr %d2,#15,%3\;subr %2,%1,%0\;subbr %d2,%1,%d0\;\"
+                             \"subbr %3,%1,%t0\;subbr %3,%1,%q0\",
+             
+     /* R,r,r */          \"asr %d2,#15,%3\;sub %1,%2,%I0\;subb %d1,%d2,%I0\;\"
+                             \"subb %t1,%3,%I0\;subb %q1,%3,%s0\",
+             
+     /* R,0,r */          \"asr %d2,#15,%3\;subr %2,%1,%I0\;subbr %d2,%1,%I0\;\"
+                             \"subbr %3,%1,%I0\;subbr %3,%1,%0\",
+             
+     /* R,R,r */          \"asr %d2,#15,%3\;subr %2,%I1,%I0\;subbr %d2,%I1,%I0\;\"
+                             \"subbr %3,%I1,%I0\;subbr %3,%1,%0\",
+             
+     /* r,R,r */          \"asr %d2,#15,%3\;subr %2,%I1,%0\;subbr %d2,%I1,%d0\;\"
+                              \"subbr %3,%I1,%t0\;subbr %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }  
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*subdisi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%d0\;\"
+                              \"subb %t1,#0,%t0\;subb %q1,#0,%q0\",
+             
+     /* >,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%0\;\"
+                              \"subb %t1,#0,%0\;subb %q1,#0,%s0\",
+             
+     /* >,0,r */          \"clr %3\;subr %2,%s1,%0\;subbr %d2,%s1,%0\;\"
+                              \"subbr %3,%s1,%0\;subbr %3,%s1,%0\",
+             
+     /* >,>,r */          \"clr %3\;subr %2,%1,%0\;subbr %d2,%1,%0\;\"
+                              \"subbr %3,%1,%0\;subbr %3,%1,%0\",
+             
+     /* r,>,r */          \"clr %3\;subr %2,%1,%0\;subbr %d2,%1,%d0\;\"
+                              \"subbr %3,%1,%t0\;subbr %3,%1,%q0\",
+             
+     /* R,r,r */          \"sub %1,%2,%I0\;subb %d1,%d2,%I0\;\"
+                              \"subb %t1,#0,%I0\;subb %q1,#0,%0\",
+             
+     /* R,0,r */          \"clr %3\;subr %2,%1,%I0\;subbr %d2,%1,%I0\;\"
+                              \"subbr %3,%1,%I0\;subbr %3,%1,%0\",
+             
+     /* R,R,r */          \"clr %3\;subr %2,%I1,%I0\;subbr %d2,%I1,%I0\;\"
+                              \"subbr %3,%I1,%I0\;subbr %3,%1,%0\",
+             
+     /* r,R,r */          \"clr %3\;subr %2,%I1,%0\;subbr %d2,%I1,%d0\;\"
+                              \"subbr %3,%I1,%t0\;subbr %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+;(define_insn "subdi3"
+;  [(set (match_operand:DI 0 "pic30_register_operand"          "=r")
+;        (minus:DI (match_operand:DI 1 "pic30_register_operand" "r")
+;                  (match_operand:DI 2 "pic30_register_operand" "r")))]
+;  ""
+;  "sub %1,%2,%0\;subb %d1,%d2,%d0\;subb %t1,%t2,%t0\;subb %q1,%q2,%q0"
+;  [
+;   (set_attr "cc" "math")
+;   (set_attr "type" "def")
+;  ]
+;)
+
+(define_insn "subdi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (minus:DI
+           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%d0\;\"
+                              \"subb %t1,%t2,%t0\;subb %q1,%q2,%q0\",
+
+     /* >,r,r */          \"sub %1,%2,%0\;subb %d1,%d2,%0\;\"
+                              \"subb %t1,%t2,%0\;subb %q1,%q2,%0\",
+
+     /* >,r,0 */          \"sub %1,%s2,%0\;subb %d1,%s2,%0\;\"
+                              \"subb %t1,%s2,%0\;subb %q1,%s2,%0\",
+
+     /* >,r,> */          \"sub %1,%2,%0\;subb %d1,%2,%0\;\"
+                              \"subb %t1,%2,%0\;subb %q1,%2,%0\",
+
+     /* r,r,> */          \"sub %1,%2,%0\;subb %d1,%2,%d0\;\"
+                              \"subb %t1,%2,%t0\;subb %q1,%2,%q0\",
+
+     /* R,r,r */          \"sub %1,%2,%I0\;subb %d1,%d2,%I0\;\"
+                              \"subb %t1,%t2,%I0\;subb %q1,%q2,%0\",
+
+     /* R,r,0 */          \"sub %1,%2,%I0\;subb %d1,%2,%I0\;\"
+                              \"subb %t1,%2,%I0\;subb %q1,%2,%0\",
+
+     /* R,r,R */          \"sub %1,%I2,%I0\;subb %d1,%I2,%I0\;\"
+                              \"subb %t1,%I2,%I0\;subb %q1,%2,%0\",
+
+     /* r,r,R */          \"sub %1,%I2,%0\;subb %d1,%I2,%d0\;\"
+                              \"subb %t1,%I2,%t0\;subb %q1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; multiply instructions
@@ -18063,52 +21649,52 @@
   ]
 )
 
-(define_insn "umulp16apsvsi3_DATA"
-  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
-        (mult:SI 
-          (zero_extend:SI 
-            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
-          (zero_extend:SI 
-            (match_operand:P16APSV 2 "pic30_mode2_operand"    "r,R<>"))))]
-  ""
-  "mul.uu  %1,%2,%0"
-  [
-   (set_attr "cc" "change0")
-   (set_attr "type" "def,defuse")
-  ]
-)
-
-(define_insn "umulp16apsvsi3_APSV"
-  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
-        (mult:SI 
-          (zero_extend:SI 
-            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
-          (zero_extend:SI 
-            (match_operand:P16APSV 2 "pic30_mode2_APSV_operand"    "r,R<>"))))]
-  ""
-  "mul.uu  %1,%2,%0"
-  [
-   (set_attr "cc" "change0")
-   (set_attr "type" "def,defuse")
-  ]
-)
-
-(define_expand "umulp16apsvsi3"
-  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
-        (mult:SI
-          (zero_extend:SI
-            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
-          (zero_extend:SI
-            (match_operand:P16APSV 2 "pic30_mode2_APSV_operand"    "r,R<>"))))]
-  ""
-  "
-{
-  if (pic30_mode2_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_umulp16apsvsi3_DATA(operands[0],operands[1],operands[2]));
-  else
-    emit(gen_umulp16apsvsi3_APSV(operands[0],operands[1],operands[2]));
-  DONE;
-}")
+;(define_insn "umulp16apsvsi3_DATA"
+;  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
+;        (mult:SI 
+;          (zero_extend:SI 
+;            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
+;          (zero_extend:SI 
+;            (match_operand:P16APSV 2 "pic30_mode2_operand"    "r,R<>"))))]
+;  ""
+;  "mul.uu  %1,%2,%0"
+;  [
+;   (set_attr "cc" "change0")
+;   (set_attr "type" "def,defuse")
+;  ]
+;)
+;
+;(define_insn "umulp16apsvsi3_APSV"
+;  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
+;        (mult:SI 
+;          (zero_extend:SI 
+;            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
+;          (zero_extend:SI 
+;            (match_operand:P16APSV 2 "pic30_mode2_APSV_operand"    "r,R<>"))))]
+;  ""
+;  "mul.uu  %1,%2,%0"
+;  [
+;   (set_attr "cc" "change0")
+;   (set_attr "type" "def,defuse")
+;  ]
+;)
+;
+;(define_expand "umulp16apsvsi3"
+;  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
+;        (mult:SI
+;          (zero_extend:SI
+;            (match_operand:P16APSV 1 "pic30_register_operand" "%r,r"))
+;          (zero_extend:SI
+;            (match_operand:P16APSV 2 "pic30_mode2_APSV_operand"    "r,R<>"))))]
+;  ""
+;  "
+;{
+;  if (pic30_mode2_operand(operands[2],GET_MODE(operands[2])))
+;    emit(gen_umulp16apsvsi3_DATA(operands[0],operands[1],operands[2]));
+;  else
+;    emit(gen_umulp16apsvsi3_APSV(operands[0],operands[1],operands[2]));
+;  DONE;
+;}")
 
 (define_insn "*umulp16apsvsi3sfr"
   [(set (match_operand:SI     0 "pic30_register_operand"         "=C,C,&r,r")
@@ -19586,6 +23172,20 @@
   [(set_attr "cc" "set")])
  
           
+(define_insn "newbittstqi"
+  [(set (cc0)
+        (compare
+           (zero_extract (match_operand 0 "pic30_reg_or_near_operand" "r,U")
+		         (const_int 1)
+		         (match_operand 1 "const_int_operand" "i,i"))
+           (const_int 0))
+    )]
+  "(INTVAL(operands[1]) < 8)"
+  "@
+   btst %0,#%1
+   btst.b %0,#%1"
+  [(set_attr "cc" "set")])
+
 (define_insn "*bittstqi"
   [(set (cc0)
         (zero_extract (match_operand:QI 0 "pic30_reg_or_near_operand" "r,U")
@@ -19770,6 +23370,48 @@
            (match_operand:HI 0 "pic30_near_mode2_APSV_operand" "r,R,<>,U")
            (const_int 1)
            (match_operand 1 "const_int_operand"           "i,i,i, i")))]
+  ""
+  "@
+   btst %0,#%1
+   btst %0,#%1
+   btst %0,#%1
+   btst.b %0+%1/8,#%1%%8"
+  [
+   (set_attr "cc" "set")
+   (set_attr "type" "etc,use,use,etc")
+  ]
+)
+
+(define_insn "*newbittsthi_DATA"
+  [(set (cc0) 
+        (compare 
+          (zero_extract
+            (match_operand:HI 0 "pic30_near_mode2_operand" "r,R,<>,U")
+            (const_int 1)
+            (match_operand 1 "const_int_operand"           "i,i,i, i"))
+          (const_int 0))
+   )]
+  ""
+  "@
+   btst %0,#%1
+   btst %0,#%1
+   btst %0,#%1
+   btst.b %0+%1/8,#%1%%8"
+  [
+   (set_attr "cc" "set")
+   (set_attr "type" "etc,use,use,etc")
+  ]
+)
+
+(define_insn "*newbittsthi_APSV"
+  [(set (cc0) 
+        (compare 
+          (zero_extract
+            (match_operand:HI 0 "pic30_near_mode2_APSV_operand" "r,R,<>,U")
+            (const_int 1)
+            (match_operand 1 "const_int_operand"           "i,i,i, i"))
+          (const_int 0))
+   )]
   ""
   "@
    btst %0,#%1
@@ -20487,15 +24129,892 @@
 ;; double integer
 ;;;;;;;;;;;;;;;;;
 
-(define_insn "anddi3"
-  [(set (match_operand:DI 0 "pic30_register_operand"         "=r")
-        (and:DI (match_operand:DI 1 "pic30_register_operand" "%r")
-                (match_operand:DI 2 "pic30_register_operand"  "r")))]
+(define_insn "*andhidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (sign_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
   ""
-  "and %2,%1,%0\;and %d2,%d1,%d0\;and %t2,%t1,%t0\;and %q2,%q1,%q0"
-  [
-   (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %1,#15,%3\;and %1,%2,%0\;and %3,%d2,%d0\;\"
+                              \"and %3,%t2,%t0\;and %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %1,#15,%3\;and %1,%2,%0\;and %3,%d2,%0\;\"
+                              \"and %3,%t2,%0\;and %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %1,#15,%3\;and %1,%s2,%0\;and %3,%s2,%0\;\"
+                              \"and %3,%s2,%0\;and %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %1,#15,%3\;and %1,%2,%0\;and %3,%2,%0\;\"
+                              \"and %3,%2,%0\;and %3,%2,%0\",
+
+     /* r,r,> */          \"asr %1,#15,%3\;and %1,%2,%0\;and %3,%2,%d0\;\"
+                              \"and %3,%2,%t0\;and %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %1,#15,%3\;and %1,%2,%I0\;and %3,%d2,%I0\;\"
+                              \"and %3,%t2,%I0\;and %3,%q2,%s0\",
+
+     /* R,r,0 */          \"asr %1,#15,%3\;and %1,%2,%I0\;and %3,%2,%I0\;\"
+                              \"and %3,%2,%I0\;and %3,%2,%s0\",
+
+     /* R,r,R */          \"asr %1,#15,%3\;and %1,%I2,%I0\;and %3,%I2,%I0\;\"
+                              \"and %3,%I2,%I0\;and %3,%2,%0\",
+
+     /* r,r,R */          \"asr %1,#15,%3\;and %1,%I2,%0\;and %3,%I2,%d0\;\"
+                              \"and %3,%I2,%t0\;and %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*andhidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (zero_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R"))
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"and %1,%2,%0\;clr %d0\;mul.uu %t0,#0,%t0\",
+
+     /* >,r,r */          \"and %1,%2,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* >,r,0 */          \"and %1,%s2,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* >,r,> */          \"and %1,%2,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* r,r,> */          \"and %1,%2,%0\;clr %d0\;mul.uu %t0,#0,%t0\",
+
+     /* R,r,r */          \"and %1,%2,%I0\;clr %I0\;clr %I0\;clr %0\",
+
+     /* R,r,0 */          \"and %1,%2,%I0\;clr %I0\;clr %I0\;clr %I0\",
+
+     /* R,r,R */          \"and %1,%2,%I0\;clr %I0\;clr %I0\;clr %I0\",
+
+     /* r,r,R */          \"and %1,%2,%0\;clr %d0\;mul.uu %t0,#0,%t0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 3:  /* >,r,> */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #6,%r2\");
+              }
+              return szInsns;
+
+     case 4:  /* r,r,> */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #6,%r2\");
+              }
+              return szInsns;
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*andsidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (sign_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d1,#15,%3\;and %1,%2,%0\;and %d1,%d2,%d0\;\"
+                              \"and %3,%t2,%t0\;and %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %d1,#15,%3\;and %1,%2,%0\;and %d1,%d2,%0\;\"
+                              \"and %3,%t2,%0\;and %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %d1,#15,%3\;and %1,%s2,%0\;and %d1,%s2,%0\;\"
+                              \"and %3,%s2,%0\;and %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %d1,#15,%3\;and %1,%2,%0\;and %d1,%2,%0\;\"
+                              \"and %3,%2,%0\;and %3,%2,%0\",
+
+     /* r,r,> */          \"asr %d1,#15,%3\;and %1,%2,%0\;and %d1,%2,%d0\;\"
+                              \"and %3,%2,%t0\;and %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %d1,#15,%3\;and %1,%2,%I0\;and %d1,%d2,%I0\;\"
+                              \"and %3,%t2,%I0\;and %3,%q2,%s0\",
+
+     /* R,r,0 */          \"asr %d1,#15,%3\;and %1,%2,%I0\;and %d1,%2,%I0\;\"
+                              \"and %3,%2,%I0\;and %3,%2,%s0\",
+
+     /* R,r,R */          \"asr %d1,#15,%3\;and %1,%I2,%I0\;and %d1,%I2,%I0\;\"
+                              \"and %3,%I2,%I0\;and %3,%2,%0\",
+
+     /* r,r,R */          \"asr %d1,#15,%3\;and %1,%I2,%0\;and %d1,%I2,%d0\;\"
+                              \"and %3,%I2,%t0\;and %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*andsidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R"))
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"and %1,%2,%0\;and %d1,%d2,%d0\;mul.uu %t0,#0,%t0\",
+
+     /* >,r,r */          \"and %1,%2,%0\;and %d1,%d2,%0\;clr %0\;clr %0\",
+
+     /* >,r,0 */          \"and %1,%s2,%0\;and %d1,%s2,%0\;clr %0\;clr %0\",
+
+     /* >,r,> */          \"and %1,%2,%0\;and %d1,%2,%0\;clr %0\;clr %0\",
+
+     /* r,r,> */          \"and %1,%2,%0\;and %d1,%2,%d0\;mul.uu %t0,#0,%t0\",
+
+     /* R,r,r */          \"and %1,%2,%I0\;and %d1,%d2,%I0\;clr %I0\;clr %0\",
+
+     /* R,r,0 */          \"and %1,%2,%I0\;and %d1,%2,%I0\;clr %I0\;clr %0\",
+
+     /* R,r,R */          \"and %1,%I2,%I0\;and %d1,%D2,%I0\;clr %I0\;clr %0\",
+
+     /* r,r,R */          \"and %1,%I2,%0\;and %d1,%D2,%d0\;mul.uu %t0,#0,%t0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 3:  /* >,r,> */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #4,%r2\");
+              }
+              return szInsns;
+
+     case 4:  /* r,r,> */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #4,%r2\");
+              }
+              return szInsns;
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*anddihi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+    )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %2,#15,%3\;and %1,%2,%0\;and %d1,%3,%d0\;\"
+                              \"and %t1,%3,%t0\;and %q1,%3,%q0\",
+
+     /* >,r,r */          \"asr %2,#15,%3\;and %1,%2,%0\;and %d1,%3,%0\;\"
+                              \"and %t1,%3,%0\;and %q1,%3,%0\",
+
+     /* >,0,r */          \"asr %2,#15,%3\;and %2,%s1,%0\;and %3,%s1,%0\;\"
+                              \"and %3,%s1,%0\;and %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %2,#15,%3\;and %2,%1,%0\;and %3,%1,%0\;\"
+                              \"and %3,%1,%0\;and %3,%1,%0\",
+
+     /* r,>,r */          \"asr %2,#15,%3\;and %2,%1,%0\;and %3,%1,%d0\;\"
+                              \"and %3,%1,%t0\;and %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %2,#15,%3\;and %1,%2,%I0\;and %3,%d1,%I0\;\"
+                              \"and %3,%t1,%I0\;and %3,%q1,%s0\",
+
+     /* R,0,r */          \"asr %2,#15,%3\;and %2,%1,%I0\;and %3,%1,%I0\;\"
+                              \"and %3,%1,%I0\;and %3,%1,%0\",
+
+     /* R,R,r */          \"asr %2,#15,%3\;and %2,%I1,%I0\;and %3,%I1,%I0\;\"
+                              \"and %3,%I1,%I0\;and %3,%1,%0\",
+
+     /* r,R,r */          \"asr %2,#15,%3\;and %2,%I1,%0\;and %3,%I1,%d0\;\"
+                              \"and %3,%I1,%t0\;and %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*anddihi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"and %1,%2,%0\;clr %d0\;mul.uu %t0,#0,%t0\",
+
+     /* >,r,r */          \"and %1,%2,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* >,0,r */          \"and %2,%s1,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* >,>,r */          \"and %2,%1,%0\;clr %0\;clr %0\;clr %0\",
+
+     /* r,>,r */          \"and %2,%1,%0\;clr %d0\;mul.uu %t0,#0,%t0\",
+
+     /* R,r,r */          \"and %1,%2,%I0\;clr %I0\;clr %I0\;clr %0\",
+
+     /* R,0,r */          \"and %2,%1,%I0\;clr %I0\;clr %I0\;clr %0\",
+
+     /* R,R,r */          \"and %2,%1,%I0\;clr %I0\;clr %I0\;clr %0\",
+
+     /* r,R,r */          \"and %2,%1,%0\;clr %d0\;mul.uu %t0,#0,%t0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 3:  /* >,>,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #6,%r1\");
+              }
+              return szInsns;
+
+     case 4:  /* r,>,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #6,%r1\");
+              }
+              return szInsns;
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*anddisi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d2,#15,%3\;and %1,%2,%0\;and %d1,%d2,%d0\;\"
+                              \"and %t1,%3,%t0\;and %q1,%3,%q0\",
+
+     /* >,r,r */          \"asr %d2,#15,%3\;and %1,%2,%0\;and %d1,%d2,%0\;\"
+                              \"and %t2,%3,%0\;and %q1,%3,%0\",
+
+     /* >,0,r */          \"asr %d2,#15,%3\;and %2,%s1,%0\;and %d2,%s1,%0\;\"
+                              \"and %3,%s1,%0\;and %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %d2,#15,%3\;and %2,%1,%0\;and %d2,%1,%0\;\"
+                              \"and %3,%1,%0\;and %3,%1,%0\",
+
+     /* r,>,r */          \"asr %d2,#15,%3\;and %2,%1,%0\;and %d2,%1,%d0\;\"
+                              \"and %3,%1,%t0\;and %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %d2,#15,%3\;and %1,%2,%I0\;and %d1,%d2,%I0\;\"
+                              \"and %t1,%3,%I0\;and %q1,%3,%0\",
+
+     /* R,0,r */          \"asr %d2,#15,%3\;and %2,%1,%I0\;and %d2,%1,%I0\;\"
+                              \"and %3,%1,%I0\;and %3,%1,%0\",
+
+     /* R,R,r */          \"asr %d2,#15,%3\;and %2,%I1,%I0\;and %d2,%I1,%I0\;\"
+                              \"and %2,%I1,%I0\;and %3,%1,%0\",
+
+     /* r,R,r */          \"asr %d2,#15,%3\;and %2,%I1,%0\;and %d2,%I1,%d0\;\"
+                              \"and %3,%I1,%t0\;and %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*anddisi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"and %1,%2,%0\;and %d1,%d2,%d0\;mul.uu %t0,#0,%t0\",
+
+     /* >,r,r */          \"and %1,%2,%0\;and %d1,%d2,%0\;clr %0\;clr %0\",
+
+     /* >,0,r */          \"and %2,%s1,%0\;and %d2,%s1,%0\;clr %0\;clr %0\",
+
+     /* >,>,r */          \"and %2,%1,%0\;and %d2,%1,%0\;clr %0\;clr %0\",
+
+     /* r,>,r */          \"and %2,%1,%0\;and %d2,%1,%d0\;mul.uu %t0,#0,%t0\",
+
+     /* R,r,r */          \"and %1,%2,%I0\;and %d1,%d2,%I0\;clr %I0\;clr %0\",
+
+     /* R,0,r */          \"and %2,%1,%I0\;and %d2,%1,%I0\;clr %I0\;clr %0\",
+
+     /* R,R,r */          \"and %2,%I1,%I0\;and %d2,%D1,%I0\;clr %I0\;clr %0\",
+
+     /* r,R,r */          \"and %2,%I1,%0\;and %d2,%D1,%d0\;mul.uu %t0,#0,%t0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 3:  /* >,>,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #4,%r1\");
+              }
+              return szInsns;
+
+     case 4:  /* r,>,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;add #4,%r1\");
+              }
+              return szInsns;
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "anddi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (and:DI
+           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"and %1,%2,%0\;and %d1,%d2,%d0\;\"
+                              \"and %t1,%t2,%t0\;and %q1,%q2,%q0\",
+
+     /* >,r,r */          \"and %1,%2,%0\;and %d1,%d2,%0\;\"
+                              \"and %t1,%t2,%0\;and %q1,%q2,%0\",
+
+     /* >,r,0 */          \"and %1,%s2,%0\;and %d1,%s2,%0\;\"
+                              \"and %t1,%s2,%0\;and %q1,%s2,%0\",
+
+     /* >,r,> */          \"and %1,%2,%0\;and %d1,%2,%0\;\"
+                              \"and %t1,%2,%0\;and %q1,%2,%0\",
+
+     /* r,r,> */          \"and %1,%2,%0\;and %d1,%2,%d0\;\"
+                              \"and %t1,%2,%t0\;and %q1,%2,%q0\",
+
+     /* R,r,r */          \"and %1,%2,%I0\;and %d1,%d2,%I0\;\"
+                              \"and %t1,%t2,%I0\;and %q1,%q2,%0\",
+
+     /* R,r,0 */          \"and %1,%2,%I0\;and %d1,%2,%I0\;\"
+                              \"and %t1,%2,%I0\;and %q1,%2,%0\",
+
+     /* R,r,R */          \"and %1,%I2,%I0\;and %d1,%I2,%I0\;\"
+                              \"and %t1,%I2,%I0\;and %q1,%2,%0\",
+
+     /* r,r,R */          \"and %1,%I2,%0\;and %d1,%I2,%d0\;\"
+                              \"and %t1,%I2,%t0\;and %q1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
   ]
 )
 
@@ -20908,17 +25427,914 @@
 ;; double integer
 ;;;;;;;;;;;;;;;;;
 
-(define_insn "iordi3"
-  [(set (match_operand:DI 0 "pic30_register_operand"         "=r")
-        (ior:DI (match_operand:DI 1 "pic30_register_operand" "%r")
-                (match_operand:DI 2 "pic30_register_operand"  "r")))]
+(define_insn "*iorhidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (sign_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
   ""
-  "ior %2,%1,%0\;ior %d2,%d1,%d0\;ior %t2,%t1,%t0\;ior %q2,%q1,%q0"
-  [
-   (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %1,#15,%3\;ior %1,%2,%0\;ior %3,%d2,%d0\;\"
+                              \"ior %3,%t2,%t0\;ior %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %1,#15,%3\;ior %1,%2,%0\;ior %3,%d2,%0\;\"
+                              \"ior %3,%t2,%0\;ior %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %1,#15,%3\;ior %1,%s2,%0\;ior %3,%s2,%0\;\"
+                              \"ior %3,%s2,%0\;ior %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %1,#15,%3\;ior %1,%2,%0\;ior %3,%2,%0\;\"
+                              \"ior %3,%2,%0\;ior %3,%2,%0\",
+
+     /* r,r,> */          \"asr %1,#15,%3\;ior %1,%2,%0\;ior %3,%2,%d0\;\"
+                              \"ior %3,%2,%t0\;ior %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %1,#15,%3\;ior %1,%2,%I0\;ior %3,%d2,%I0\;\"
+                              \"ior %3,%t2,%I0\;ior %3,%q2,%0\",
+
+     /* R,r,0 */          \"asr %1,#15,%3\;ior %1,%2,%I0\;ior %3,%2,%I0\;\"
+                              \"ior %3,%2,%I0\;ior %3,%2,%0\",
+
+     /* R,r,R */          \"asr %1,#15,%3\;ior %1,%I2,%I0\;ior %3,%I2,%I0\;\"
+                              \"ior %3,%I2,%I0\;ior %3,%2,%0\",
+
+     /* r,r,R */          \"asr %1,#15,%3\;ior %1,%I2,%0\;ior %3,%I2,%d0\;\"
+                              \"ior %3,%I2,%t0\;ior %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
   ]
 )
+
+(define_insn "*iorhidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (zero_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"ior %1,%2,%0\;mov %d2,%d0\;mov.d %t2,%t0\",
+
+     /* >,r,r */          \"ior %1,%2,%0\;mov %d2,%0\;mov.d %t2,%0\",
+
+     /* >,r,0 */          \"ior %1,%s2,%s0\;add #8,%r0\",
+
+     /* >,r,> */          \"ior %1,%2,%0\;mov %2,%0\;mov %2,%0\;mov %2,%0\",
+
+     /* r,r,> */          \"ior %1,%2,%0\;mov %2,%d0\;mov.d %2,%0\",
+
+     /* R,r,r */          \"ior %1,%2,%0\;mov %d2,%Q0\;mov %t2,%R0\;mov %q0,%S0\",
+
+     /* R,r,0 */          \"ior %1,%2,%0\",
+
+     /* R,r,R */          \"ior %1,%I2,%I0\;mov %I2,%I0\;mov %I2,%I0\;mov %2,%0\",
+
+     /* r,r,R */          \"ior %1,%2,%0\;mov %Q2,%d0\;mov %R2,%t0\;mov %S2,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iorsidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (sign_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d1,#15,%3\;ior %1,%2,%0\;ior %d1,%d2,%d0\;\"
+                              \"ior %3,%t2,%t0\;ior %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %d1,#15,%3\;ior %1,%2,%0\;ior %d1,%d2,%0\;\"
+                              \"ior %3,%t2,%0\;ior %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %d1,#15,%3\;ior %1,%s2,%0\;ior %d1,%s2,%0\;\"
+                              \"ior %3,%s2,%0\;ior %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %d1,#15,%3\;ior %1,%2,%0\;ior %d1,%2,%0\;\"
+                              \"ior %3,%2,%0\;ior %3,%2,%0\",
+
+     /* r,r,> */          \"asr %d1,#15,%3\;ior %1,%2,%0\;ior %d1,%2,%d0\;\"
+                              \"ior %3,%2,%t0\;ior %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %d1,#15,%3\;ior %1,%2,%I0\;ior %d1,%d2,%I0\;\"
+                              \"ior %3,%t2,%I0\;ior %3,%q2,%0\",
+
+     /* R,r,0 */          \"asr %d1,#15,%3\;ior %1,%2,%I0\;ior %d1,%2,%I0\;\"
+                              \"ior %3,%2,%I0\;ior %3,%2,%0\",
+
+     /* R,r,R */          \"asr %d1,#15,%3\;ior %1,%I2,%I0\;ior %d1,%I2,%I0\;\"
+                              \"ior %3,%I2,%I0\;ior %3,%2,%0\",
+
+     /* r,r,R */          \"asr %d1,#15,%3\;ior %1,%I2,%0\;ior %d1,%I2,%d0\;\"
+                              \"ior %3,%I2,%t0\;ior %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iorsidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%d0\;mov.d %t2,%t0\",
+
+     /* >,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%0\;mov.d %t2,%0\",
+
+     /* >,r,0 */          \"ior %1,%s2,%0\;ior %d1,%s2,%0\;add #4,%r0\",
+
+     /* >,r,> */          \"ior %1,%2,%0\;ior %d1,%2,%0\;\"
+                              \"mov %2,%0\; mov %2,%0\",
+
+     /* r,r,> */          \"ior %1,%2,%0\;ior %d1,%2,%d0\;mov.d %2,%t0\",
+
+     /* R,r,r */          \"ior %1,%2,%I0\;ior %d1,%d2,%D0\;mov %t2,%R0\;mov %q2,%S0\",
+
+     /* R,r,0 */          \"ior %1,%2,%I0\;ior %d1,%2,%D0\",
+
+     /* R,r,R */          \"ior %1,%I2,%I0\;ior %d1,%I2,%I0\;mov %I2,%I0\;mov %2,%0\",
+
+     /* r,r,R */          \"ior %1,%I2,%0\;ior %d1,%D2,%d0\;mov %R2,%t0\;mov %S2,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iordihi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %2,#15,%3\;ior %2,%1,%0\;ior %3,%d1,%d0\;\"
+                              \"ior %3,%t1,%t0\;ior %3,%q1,%q0\",
+
+     /* >,r,r */          \"asr %2,#15,%3\;ior %2,%1,%0\;ior %3,%d1,%0\;\"
+                              \"ior %3,%t1,%0\;ior %3,%q1,%0\",
+
+     /* >,0,r */          \"asr %2,#15,%3\;ior %2,%s1,%0\;ior %3,%s1,%0\;\"
+                              \"ior %3,%s1,%0\;ior %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %2,#15,%3\;ior %2,%1,%0\;ior %3,%1,%0\;\"
+                              \"ior %3,%1,%0\;ior %3,%1,%0\",
+
+     /* r,>,r */          \"asr %2,#15,%3\;ior %2,%1,%0\;ior %3,%1,%d0\;\"
+                              \"ior %3,%1,%t0\;ior %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %2,#15,%3\;ior %2,%1,%I0\;ior %3,%d1,%I0\;\"
+                              \"ior %3,%t1,%I0\;ior %3,%q1,%s0\",
+
+     /* R,0,r */          \"asr %2,#15,%3\;ior %2,%1,%I0\;ior %3,%1,%I0\;\"
+                              \"ior %3,%1,%I0\;ior %3,%1,%s0\",
+
+     /* R,R,r */          \"asr %2,#15,%3\;ior %2,%I1,%I0\;ior %3,%I1,%I0\;\"
+                              \"ior %3,%I1,%I0\;ior %3,%1,%0\",
+
+     /* r,R,r */          \"asr %2,#15,%3\;ior %1,%I1,%0\;ior %3,%I1,%d0\;\"
+                              \"ior %3,%I1,%t0\;ior %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iordihi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"ior %1,%2,%0\;mov %d1,%d0\;mov.d %t1,%t0\",
+
+     /* >,r,r */          \"ior %1,%2,%0\;mov %d1,%0\;mov.d %t1,%0\",
+
+     /* >,0,r */          \"ior %2,%s1,%s0\;add #8,%r0\",
+
+     /* >,>,r */          \"ior %2,%s1,%s0\;mov %1,%0\;mov %1,%0\;mov %1,%0\",
+
+     /* r,>,r */          \"ior %2,%1,%0\;mov %1,%d0\;mov.d %1,%t0\",
+
+     /* R,r,r */          \"ior %1,%2,%0\;mov %d1,%Q0\;mov %t1,%R0\;mov %q1,%S0\",
+
+     /* R,0,r */          \"ior %2,%1,%0\",
+
+     /* R,R,r */          \"ior %2,%I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+
+     /* r,R,r */          \"ior %2,%1,%0\;mov %Q1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iordisi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d2,#15,%3\;ior %2,%1,%0\;ior %d2,%d1,%d0\;\"
+                              \"ior %3,%t1,%t0\;ior %3,%q1,%q0\",
+
+     /* >,r,r */          \"asr %d2,#15,%3\;ior %2,%1,%0\;ior %d2,%d1,%0\;\"
+                              \"ior %3,%t1,%0\;ior %3,%q1,%0\",
+
+     /* >,0,r */          \"asr %d2,#15,%3\;ior %2,%s1,%0\;ior %d2,%s1,%0\;\"
+                              \"ior %3,%s1,%0\;ior %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %d2,#15,%3\;ior %2,%1,%0\;ior %d2,%1,%0\;\"
+                              \"ior %3,%1,%0\;ior %3,%1,%0\",
+
+     /* r,>,r */          \"asr %d2,#15,%3\;ior %2,%1,%0\;ior %d2,%1,%d0\;\"
+                              \"ior %3,%1,%t0\;ior %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %d2,#15,%3\;ior %2,%1,%I0\;ior %d2,%d1,%I0\;\"
+                              \"ior %3,%t1,%I0\;ior %3,%q1,%0\",
+
+     /* R,0,r */          \"asr %d2,#15,%3\;ior %2,%1,%I0\;ior %d2,%1,%I0\;\"
+                              \"ior %3,%1,%I0\;ior %3,%1,%0\",
+
+     /* R,R,r */          \"asr %d2,#15,%3\;ior %2,%I1,%I0\;ior %d2,%I1,%I0\;\"
+                              \"ior %3,%I1,%I0\;ior %3,%1,%0\",
+
+     /* r,R,r */          \"asr %d2,#15,%3\;ior %2,%I1,%0\;ior %d1,%I1,%d0\;\"
+                              \"ior %3,%I1,%t0\;ior %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*iordisi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%d0\;mov.d %t1,%t0\",
+
+     /* >,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%0\;mov.d %t1,%0\",
+
+     /* >,0,r */          \"ior %2,%s1,%0\;ior %d2,%s1,%0\;add #4,%r0\",
+
+     /* >,>,r */          \"ior %2,%1,%0\;ior %d2,%1,%0\;\"
+                              \"mov %1,%0\;mov %1,%0\",
+
+     /* r,>,r */          \"ior %2,%1,%0\;ior %d2,%1,%d0\;mov.d %1,%t0\",
+
+     /* R,r,r */          \"ior %2,%1,%I0\;ior %d2,%d1,%D0\;mov %t1,%R0\;mov %q1,%S0\",
+
+     /* R,0,r */          \"ior %2,%1,%I0\;ior %d2,%1,%D0\",
+
+     /* R,R,r */          \"ior %2,%I1,%I0\;ior %d2,%I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+
+     /* r,R,r */          \"ior %2,%I1,%0\;ior %d2,%D1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "iordi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (ior:DI
+           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%d0\;\"
+                              \"ior %t1,%t2,%t0\;ior %q1,%q2,%q0\",
+
+     /* >,r,r */          \"ior %1,%2,%0\;ior %d1,%d2,%0\;\"
+                              \"ior %t1,%t2,%0\;ior %q1,%q2,%0\",
+
+     /* >,r,0 */          \"ior %1,%s2,%0\;ior %d1,%s2,%0\;\"
+                              \"ior %t1,%s2,%0\;ior %q1,%s2,%0\",
+
+     /* >,r,> */          \"ior %1,%2,%0\;ior %d1,%2,%0\;\"
+                              \"ior %t1,%2,%0\;ior %q1,%2,%0\",
+
+     /* r,r,> */          \"ior %1,%2,%0\;ior %d1,%2,%d0\;\"
+                              \"ior %t1,%2,%t0\;ior %q1,%2,%q0\",
+
+     /* R,r,r */          \"ior %1,%2,%I0\;ior %d1,%d2,%I0\;\"
+                              \"ior %t1,%t2,%I0\;ior %q1,%q2,%0\",
+
+     /* R,r,0 */          \"ior %1,%2,%I0\;ior %d1,%2,%I0\;\"
+                              \"ior %t1,%2,%I0\;ior %q1,%2,%0\",
+
+     /* R,r,R */          \"ior %1,%I2,%I0\;ior %d1,%I2,%I0\;\"
+                              \"ior %t1,%I2,%I0\;ior %q1,%2,%0\",
+
+     /* r,r,R */          \"ior %1,%I2,%0\;ior %d1,%I2,%d0\;\"
+                              \"ior %t1,%I2,%t0\;ior %q1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+;(define_insn "iordi3"
+;  [(set (match_operand:DI 0 "pic30_register_operand"         "=r")
+;        (ior:DI (match_operand:DI 1 "pic30_register_operand" "%r")
+;                (match_operand:DI 2 "pic30_register_operand"  "r")))]
+;  ""
+;  "ior %2,%1,%0\;ior %d2,%d1,%d0\;ior %t2,%t1,%t0\;ior %q2,%q1,%q0"
+;  [
+;   (set_attr "cc" "clobber")
+;   (set_attr "type" "def")
+;  ]
+;)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; XOR
@@ -21414,17 +26830,911 @@
 ;; double integer
 ;;;;;;;;;;;;;;;;;
 
-(define_insn "xordi3"
-  [(set (match_operand:DI 0 "pic30_register_operand"         "=r")
-        (xor:DI (match_operand:DI 1 "pic30_register_operand" "%r")
-                (match_operand:DI 2 "pic30_register_operand"  "r")))]
+(define_insn "*xorhidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (sign_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
   ""
-  "xor %2,%1,%0\;xor %d2,%d1,%d0\;xor %t2,%t1,%t0\;xor %q2,%q1,%q0"
-  [
-   (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %1,#15,%3\;xor %1,%2,%0\;xor %3,%d2,%d0\;\"
+                              \"xor %3,%t2,%t0\;xor %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %1,#15,%3\;xor %1,%2,%0\;xor %3,%d2,%0\;\"
+                              \"xor %3,%t2,%0\;xor %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %1,#15,%3\;xor %1,%s2,%0\;xor %3,%s2,%0\;\"
+                              \"xor %3,%s2,%0\;xor %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %1,#15,%3\;xor %1,%2,%0\;xor %3,%2,%0\;\"
+                              \"xor %3,%2,%0\;xor %3,%2,%0\",
+
+     /* r,r,> */          \"asr %1,#15,%3\;xor %1,%2,%0\;xor %3,%2,%d0\;\"
+                              \"xor %3,%2,%t0\;xor %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %1,#15,%3\;xor %1,%2,%I0\;xor %3,%d2,%I0\;\"
+                              \"xor %3,%t2,%I0\;xor %3,%q2,%0\",
+
+     /* R,r,0 */          \"asr %1,#15,%3\;xor %1,%2,%I0\;xor %3,%2,%I0\;\"
+                              \"xor %3,%2,%I0\;xor %3,%2,%0\",
+
+     /* R,r,R */          \"asr %1,#15,%3\;xor %1,%I2,%I0\;xor %3,%I2,%I0\;\"
+                              \"xor %3,%I2,%I0\;xor %3,%2,%0\",
+
+     /* r,r,R */          \"asr %1,#15,%3\;xor %1,%I2,%0\;xor %3,%I2,%d0\;\"
+                              \"xor %3,%I2,%t0\;xor %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
   ]
 )
+
+(define_insn "*xorhidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (zero_extend:DI
+              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"xor %1,%2,%0\;mov %d2,%d0\;mov.d %t2,%t0\",
+
+     /* >,r,r */          \"xor %1,%2,%s0\;mov %d2,%0\;mov.d %t2,%0\",
+
+     /* >,r,0 */          \"xor %1,%s2,%s0\;add #8,%r0\",
+
+     /* >,r,> */          \"xor %1,%2,%0\;mov %2,%0\;mov %2,%0\;mov %2,%0\",
+
+     /* r,r,> */          \"xor %1,%2,%0\;mov %2,%d0\;mov.d %2,%t0\",
+
+     /* R,r,r */          \"xor %1,%2,%0\;mov %d2,%Q0\;mov %t2,%R0\;mov %q2,%S0\",
+
+     /* R,r,0 */          \"xor %1,%2,%0\",
+
+     /* R,r,R */          \"xor %1,%I2,%I0\;mov %I2,%I0\;mov %I2,%I0\;mov %2,%0\",
+
+     /* r,r,R */          \"xor %1,%2,%0\;mov %Q2,%d0\;mov %R2,%t0\;mov %S2,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xorsidi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (sign_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d1,#15,%3\;xor %1,%2,%0\;xor %d1,%d2,%d0\;\"
+                              \"xor %3,%t2,%t0\;xor %3,%q2,%q0\",
+
+     /* >,r,r */          \"asr %d1,#15,%3\;xor %1,%2,%0\;xor %d1,%d2,%0\;\"
+                              \"xor %3,%t2,%0\;xor %3,%q2,%0\",
+
+     /* >,r,0 */          \"asr %d1,#15,%3\;xor %1,%s2,%0\;xor %d1,%s2,%0\;\"
+                              \"xor %3,%s2,%0\;xor %3,%s2,%0\",
+
+     /* >,r,> */          \"asr %d1,#15,%3\;xor %1,%2,%0\;xor %d1,%2,%0\;\"
+                              \"xor %3,%2,%0\;xor %3,%2,%0\",
+
+     /* r,r,> */          \"asr %d1,#15,%3\;xor %1,%2,%0\;xor %d1,%2,%d0\;\"
+                              \"xor %3,%2,%t0\;xor %3,%2,%q0\",
+
+     /* R,r,r */          \"asr %d1,#15,%3\;xor %1,%2,%I0\;xor %d1,%d2,%I0\;\"
+                              \"xor %3,%t2,%I0\;xor %3,%q2,%0\",
+
+     /* R,r,0 */          \"asr %d1,#15,%3\;xor %1,%2,%I0\;xor %d1,%2,%I0\;\"
+                              \"xor %3,%2,%I0\;xor %3,%2,%0\",
+
+     /* R,r,R */          \"asr %d1,#15,%3\;xor %1,%I2,%I0\;xor %d1,%I2,%I0\;\"
+                              \"xor %3,%I2,%I0\;xor %3,%2,%0\",
+
+     /* r,r,R */          \"asr %d1,#15,%3\;xor %1,%I2,%0\;xor %d1,%I2,%d0\;\"
+                              \"xor %3,%I2,%t0\;xor %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xorsidi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%d0\;mov.d %t2,%t0\",
+
+     /* >,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%0\;mov.d %t2,%0\",
+
+     /* >,r,0 */          \"xor %1,%s2,%0\;xor %d1,%s2,%0\;add #4,%0\",
+
+     /* >,r,> */          \"xor %1,%2,%0\;xor %d1,%2,%0\;\"
+                              \"mov %2,%0\;mov %2,%0\",
+
+     /* r,r,> */          \"xor %1,%2,%0\;xor %d1,%2,%d0\;mov.d %2,%t0\",
+
+     /* R,r,r */          \"xor %1,%2,%I0\;xor %d1,%d2,%D0\;mov %t2,%R0\;mov %q2,%S0\",
+
+     /* R,r,0 */          \"xor %1,%2,%I0\;xor %d1,%2,%D0\",
+
+     /* R,r,R */          \"xor %1,%I2,%I0\;xor %d1,%I2,%I0\;mov %I2,%I0\;mov %2,%0\",
+
+     /* r,r,R */          \"xor %1,%I2,%0\;xor %d1,%D2,%d0\;mov %R2,%t0\;mov %S2,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xordihi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %2,#15,%3\;xor %2,%1,%0\;xor %3,%d1,%d0\;\"
+                              \"xor %3,%t1,%t0\;xor %3,%q1,%q0\",
+
+     /* >,r,r */          \"asr %2,#15,%3\;xor %2,%1,%0\;xor %3,%d1,%0\;\"
+                              \"xor %3,%t1,%0\;xor %3,%q1,%0\",
+
+     /* >,0,r */          \"asr %2,#15,%3\;xor %2,%s1,%0\;xor %3,%s1,%0\;\"
+                              \"xor %3,%s1,%0\;xor %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %2,#15,%3\;xor %2,%1,%0\;xor %3,%1,%0\;\"
+                              \"xor %3,%1,%0\;xor %3,%1,%0\",
+
+     /* r,>,r */          \"asr %2,#15,%3\;xor %2,%1,%0\;xor %3,%1,%d0\;\"
+                              \"xor %3,%1,%t0\;xor %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %2,#15,%3\;xor %2,%1,%I0\;xor %3,%d1,%I0\;\"
+                              \"xor %3,%t1,%I0\;xor %3,%q1,%0\",
+
+     /* R,0,r */          \"asr %2,#15,%3\;xor %2,%1,%I0\;xor %3,%1,%I0\;\"
+                              \"xor %3,%1,%I0\;xor %3,%1,%0\",
+
+     /* R,R,r */          \"asr %2,#15,%3\;xor %2,%I1,%I0\;xor %3,%I1,%I0\;\"
+                              \"xor %3,%I1,%I0\;xor %3,%1,%0\",
+
+     /* r,R,r */          \"asr %2,#15,%3\;xor %2,%I1,%0\;xor %3,%I1,%d0\;\"
+                              \"xor %3,%I1,%t0\;xor %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xordihi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:HI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"xor %1,%2,%0\;mov %d1,%d0\;mov.d %t1,%t0\",
+
+     /* >,r,r */          \"xor %1,%2,%0\;mov %d1,%0\;mov.d %t1,%0\",
+
+     /* >,0,r */          \"xor %2,%s1,%s0\;add #8,%r0\",
+
+     /* >,>,r */          \"xor %2,%s1,%s0\;mov %1,%0\;mov %1,%0\;mov %1,%0\",
+
+     /* r,>,r */          \"xor %2,%1,%0\;mov %1,%d0\;mov.d %1,%t0\",
+
+     /* R,r,r */          \"xor %2,%1,%0\;mov %d1,%Q0\;mov %t1,%R0\;mov %q1,%S0\",
+
+     /* R,0,r */          \"xor %2,%1,%0\",
+
+     /* R,R,r */          \"xor %2,%I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+
+     /* r,R,r */          \"xor %2,%1,%0\;mov %Q1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xordisi3_se"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (sign_extend:DI
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  (clobber (match_scratch:HI 3                   "=&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"asr %d2,#15,%3\;xor %2,%1,%0\;xor %d2,%d1,%d0\;\"
+                              \"xor %3,%t1,%t0\;xor %3,%q1,%q0\",
+
+     /* >,r,r */          \"asr %d2,#15,%3\;xor %2,%1,%0\;xor %d2,%d1,%0\;\"
+                              \"xor %3,%t1,%0\;xor %3,%q1,%0\",
+
+     /* >,0,r */          \"asr %d2,#15,%3\;xor %2,%s1,%0\;xor %d2,%s1,%0\;\"
+                              \"xor %3,%s1,%0\;xor %3,%s1,%0\",
+
+     /* >,>,r */          \"asr %d2,#15,%3\;xor %2,%1,%0\;xor %d2,%1,%0\;\"
+                              \"xor %3,%1,%0\;xor %3,%1,%0\",
+
+     /* r,>,r */          \"asr %d2,#15,%3\;xor %2,%1,%0\;xor %d2,%1,%d0\;\"
+                              \"xor %3,%1,%t0\;xor %3,%1,%q0\",
+
+     /* R,r,r */          \"asr %d2,#15,%3\;xor %2,%1,%I0\;xor %d2,%d1,%I0\;\"
+                              \"xor %3,%t1,%I0\;xor %3,%q1,%0\",
+
+     /* R,0,r */          \"asr %d2,#15,%3\;xor %2,%1,%I0\;xor %d2,%1,%I0\;\"
+                              \"xor %3,%1,%I0\;xor %3,%1,%0\",
+
+     /* R,R,r */          \"asr %d2,#15,%3\;xor %2,%I1,%I0\;xor %d2,%I1,%I0\;\"
+                              \"xor %3,%I1,%I0\;xor %3,%1,%0\",
+
+     /* r,R,r */          \"asr %d2,#15,%3\;xor %2,%I1,%0\;xor %d2,%I1,%d0\;\"
+                              \"xor %3,%I1,%t0\;xor %3,%1,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,0,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[1],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+
+     case 8:  /* r,R,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[1],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r1\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "*xordisi3_ze"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (zero_extend:DI
+              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+        )
+   )
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%d0\;mov.d %t1,%t0\",
+
+     /* >,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%0\;mov.d %t1,%0\",
+
+     /* >,0,r */          \"xor %2,%s1,%0\;xor %d2,%s1,%0\;add #4,%r0\",
+
+     /* >,>,r */          \"xor %2,%1,%0\;xor %d2,%1,%0\;\"
+                              \"mov %1,%0\;mov %1,%0\",
+
+     /* r,>,r */          \"xor %2,%1,%0\;xor %d2,%1,%d0\;mov.d %1,%t0\",
+
+     /* R,r,r */          \"xor %2,%1,%I0\;xor %d2,%d1,%D0\;mov %t1,%R0\;mov %q1,%S0\",
+
+     /* R,0,r */          \"xor %2,%1,%I0\;xor %d2,%1,%D0\",
+
+     /* R,R,r */          \"xor %2,%I1,%I0\;xor %d2,%I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+
+     /* r,R,r */          \"xor %2,%I1,%0\;xor %d2,%D1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+#if 0
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+#endif
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+#if 0
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+#endif
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+(define_insn "xordi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (xor:DI
+           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *patterns[] = {
+     /* r,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%d0\;\"
+                              \"xor %t1,%t2,%t0\;xor %q1,%q2,%q0\",
+
+     /* >,r,r */          \"xor %1,%2,%0\;xor %d1,%d2,%0\;\"
+                              \"xor %t1,%t2,%0\;xor %q1,%q2,%0\",
+
+     /* >,r,0 */          \"xor %1,%s2,%0\;xor %d1,%s2,%0\;\"
+                              \"xor %t1,%s2,%0\;xor %q1,%s2,%0\",
+
+     /* >,r,> */          \"xor %1,%s2,%0\;xor %d1,%2,%0\;\"
+                              \"xor %t1,%2,%0\;xor %q1,%2,%0\",
+
+     /* r,r,> */          \"xor %1,%2,%0\;xor %d1,%2,%d0\;\"
+                              \"xor %t1,%2,%t0\;xor %q1,%2,%q0\",
+
+     /* R,r,r */          \"xor %1,%2,%I0\;xor %d1,%d2,%I0\;\"
+                              \"xor %t1,%t2,%I0\;xor %q1,%q2,%0\",
+
+     /* R,r,0 */          \"xor %1,%2,%I0\;xor %d1,%2,%I0\;\"
+                              \"xor %t1,%2,%I0\;xor %q1,%2,%0\",
+
+     /* R,r,R */          \"xor %1,%I2,%I0\;xor %d1,%I2,%I0\;\"
+                              \"xor %t1,%I2,%I0\;xor %q1,%2,%0\",
+
+     /* r,r,R */          \"xor %1,%I2,%0\;xor %d1,%I2,%d0\;\"
+                              \"xor %t1,%I2,%t0\;xor %q1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[160];
+  int regno;
+  rtx x;
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "clobber")
+     (set_attr "type" "def")
+  ]
+)
+
+
+;(define_insn "xordi3"
+;  [(set (match_operand:DI 0 "pic30_register_operand"         "=r")
+;        (xor:DI (match_operand:DI 1 "pic30_register_operand" "%r")
+;                (match_operand:DI 2 "pic30_register_operand"  "r")))]
+;  ""
+;  "xor %2,%1,%0\;xor %d2,%d1,%d0\;xor %t2,%t1,%t0\;xor %q2,%q1,%q0"
+;  [
+;   (set_attr "cc" "clobber")
+;   (set_attr "type" "def")
+;  ]
+;)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; NOT
@@ -24679,14 +30989,26 @@
      }
  
      security = pic30_boot_secure_access(operands[1],&slot,&set_psv);
-     if (set_psv == pic30_set_on_call) {
+     if ((set_psv == pic30_set_nothing) && (TARGET_TRACK_PSVPAG) &&
+         TARGET_CONST_IN_CODE) {
+       set_psv = pic30_set_for_tracking;
+     }
+     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
        sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
        psv_page = gen_reg_rtx(HImode);
-       emit_insn(gen_save_const_psv(psv_page, sfr));
-       emit(gen_set_psv(psv_page));
+       emit(
+         gen_save_const_psv(psv_page, sfr)
+       );
+       emit(
+         gen_set_psv(psv_page)
+       );
      }
-     emit(gen_call_value_helper(operands[0], operands[1], operands[2]));
-     if (set_psv) {
+     emit(
+       set_psv == pic30_set_for_tracking ?
+       gen_call_value_helper_apsv(operands[0], operands[1], operands[2]) :
+       gen_call_value_helper(operands[0], operands[1], operands[2])
+     );
+     if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
        if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                             DECL_ATTRIBUTES(current_function_decl))) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
@@ -24696,10 +31018,16 @@
        } else DONE;
        psv_page = gen_reg_rtx(HImode);
 #if 1
-       emit_insn(gen_save_const_psv(psv_page, sfr));
-       emit(gen_set_psv(psv_page));
+       emit(
+         gen_save_const_psv(psv_page, sfr)
+       );
+       emit(
+         gen_set_psv(psv_page)
+       );
 #else
-       emit_insn(gen_set_const_psv(sfr));
+       emit(
+         gen_set_const_psv(sfr)
+       );
 #endif
      }    
      
@@ -24721,7 +31049,7 @@
 
 (define_insn "save_const_psv"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
-        (match_operand:HI 1 "pic30_symbolic_address_operand" "g"))]
+        (match_operand:HI 1 "pic30_symbolic_address_operand" "q"))]
   ""
   "mov #%1,%0"
 )
@@ -24730,6 +31058,60 @@
   [(set (match_operand 0 "pic30_register_operand"        "=r,r ,r")
         (call (match_operand    1 "memory_operand"  "R,QS,m")
               (match_operand:HI 2 "pic30_general_operand" "")))]
+  ;; Operand 2 not really used for dsPIC30.
+  "(pic30_check_for_conversion(insn))"
+  "*
+   static char szInsn[88];
+   char *security;
+   int slot = 0;
+   int set_psv;
+   char *this_insn = szInsn;
+
+   pic30_clear_fn_list = 1;
+   pic30_valid_call_address_operand(operands[0], Pmode);
+#ifdef __C30_BETA__
+   if (TARGET_ABI_CHECK) {
+    this_insn += sprintf(this_insn,\"call __c30_abi_push\n\t\");
+   }
+#endif
+   switch (which_alternative)
+   {
+     case 0:
+       this_insn += sprintf(this_insn,\"call %s\", reg_names[REGNO(XEXP(operands[1],0))]);
+       break;
+     case 1:
+       /*
+        ** Casts of &(int x) to function ptrs, etc.
+        */
+       error(\"invalid function call\");
+     case 2:
+       security = pic30_boot_secure_access(operands[1],&slot,&set_psv);
+       if (security) {
+         this_insn += sprintf(this_insn, \"%s %s(%d)\",
+                         pic30_near_function_p(operands[1]) ? 
+                           \"rcall\" : \"call\", security,slot);
+       } else 
+         this_insn += sprintf(this_insn, \"%s %%1\",
+                         pic30_near_function_p(operands[1]) ? 
+                           \"rcall\" : \"call\");
+         break;
+      default:
+         gcc_assert(0);
+   }
+#ifdef __C30_BETA__
+   if (TARGET_ABI_CHECK) {
+     this_insn += sprintf(this_insn,\"\n\tcall __c30_abi_pop\");
+   }
+#endif
+   return szInsn ;
+")
+
+(define_insn "call_value_helper_apsv"
+  [(set (match_operand 0 "pic30_register_operand"        "=r,r ,r")
+        (call (match_operand    1 "memory_operand"  "R,QS,m")
+              (match_operand:HI 2 "pic30_general_operand" "")))
+   (use (reg:HI PSVPAG))
+  ]
   ;; Operand 2 not really used for dsPIC30.
   "(pic30_check_for_conversion(insn))"
   "*
@@ -24820,14 +31202,26 @@
      }
 
      security = pic30_boot_secure_access(operands[0],&slot,&set_psv);
-     if (set_psv == pic30_set_on_call) {
+     if ((set_psv == pic30_set_nothing) && (TARGET_TRACK_PSVPAG) &&
+          TARGET_CONST_IN_CODE) {
+       set_psv = pic30_set_for_tracking;
+     }
+     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
        sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
        psv_page = gen_reg_rtx(HImode);
-       emit_insn(gen_save_const_psv(psv_page, sfr));
-       emit(gen_set_psv(psv_page));
+       emit(
+         gen_save_const_psv(psv_page, sfr)
+       );
+       emit(
+         gen_set_psv(psv_page)
+       );
      }
-     emit(gen_call_void_helper(operands[0], operands[1]));
-     if (set_psv) {
+     emit(
+       set_psv == pic30_set_for_tracking ?
+       gen_call_void_helper_apsv(operands[0], operands[1]) :
+       gen_call_void_helper(operands[0], operands[1])
+     );
+     if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
        if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                             DECL_ATTRIBUTES(current_function_decl))) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
@@ -24836,8 +31230,12 @@
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
        } else DONE;
        psv_page = gen_reg_rtx(HImode);
-       emit_insn(gen_save_const_psv(psv_page, sfr));
-       emit(gen_set_psv(psv_page));
+       emit(
+         gen_save_const_psv(psv_page, sfr)
+       );
+       emit(
+         gen_set_psv(psv_page)
+       );
      }    
 
      if (save_variable_list) {
@@ -24907,6 +31305,59 @@
    return szInsn ;
 }")
 
+(define_insn "call_void_helper_apsv"
+  [(call (match_operand:QI 0 "memory_operand" "R,QS,m")
+         (match_operand:HI 1 "pic30_general_operand" ""))
+   (use (reg:HI PSVPAG))
+  ]
+  "(pic30_check_for_conversion(insn))"
+  "*
+{
+   static char szInsn[88];
+   char *security;
+   int slot = 0;
+   char *this_insn = szInsn;
+
+   pic30_clear_fn_list = 1;
+   pic30_valid_call_address_operand(operands[0], Pmode);
+#ifdef __C30_BETA__
+   if (TARGET_ABI_CHECK) {
+    this_insn += sprintf(this_insn,\"call __c30_abi_push\n\t\");
+   }
+#endif
+   switch (which_alternative)
+   {
+     case 0:
+       this_insn += sprintf(this_insn,\"call %s\", reg_names[REGNO(XEXP(operands[0],0))]);
+       break;
+     case 1:
+       /*
+        ** Casts of &(int x) to function ptrs, etc.
+        */
+       error(\"invalid function call\");
+     case 2:
+       security = pic30_boot_secure_access(operands[0],&slot,0);
+       if (security) {
+         this_insn += sprintf(this_insn, \"%s %s(%d)\",
+                         pic30_near_function_p(operands[0]) ? 
+                           \"rcall\" : \"call\",
+                         security, slot);
+       } else
+         this_insn += sprintf(this_insn, \"%s %%0\",
+                         pic30_near_function_p(operands[0]) ? 
+                           \"rcall\" : \"call\");
+         break;
+     default:
+       gcc_assert(0);
+   }
+#ifdef __C30_BETA__
+   if (TARGET_ABI_CHECK) {
+     this_insn += sprintf(this_insn,\"\n\tcall __c30_abi_pop\");
+   }
+#endif
+   return szInsn ;
+}")
+
 ;; Call subroutine with no return value.
 ;; This handles intrinsics, such as bcopy.
 
@@ -24924,9 +31375,9 @@
   struct saved_list *save_list = 0;
   tree save_variable_list;
   if (GET_CODE (operands[0]) == MEM && 
-      !pic30_call_address_operand (XEXP (operands[0], 0), Pmode))
+      !pic30_call_address_operand (XEXP (operands[0], 0), FN_Pmode))
     operands[0] = gen_rtx_MEM (GET_MODE (operands[0]),
-			       force_reg (Pmode, XEXP (operands[0], 0)));
+			       force_reg (FN_Pmode, XEXP (operands[0], 0)));
 
   if ((GET_CODE(operands[0]) == MEM) && 
       (GET_CODE(XEXP(operands[0],0)) == SYMBOL_REF)) {
@@ -24954,14 +31405,26 @@
   }
 
   security = pic30_boot_secure_access(operands[0],&slot,&set_psv);
-  if (set_psv == pic30_set_on_call) {
+  if ((set_psv == pic30_set_nothing) && (TARGET_TRACK_PSVPAG) &&
+       TARGET_CONST_IN_CODE) {
+    set_psv = pic30_set_for_tracking;
+  }
+  if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
     psv_page = gen_reg_rtx(HImode);
-    emit_insn(gen_save_const_psv(psv_page, sfr));
-    emit(gen_set_psv(psv_page));
+    emit(
+      gen_save_const_psv(psv_page, sfr)
+    );
+    emit(
+      gen_set_psv(psv_page)
+    );
   }
-  emit(gen_call_void_helper(operands[0], operands[1]));
-  if (set_psv) {
+  emit(
+    set_psv == pic30_set_for_tracking ?
+    gen_call_void_helper_apsv(operands[0], operands[1]) :
+    gen_call_void_helper(operands[0], operands[1])
+  );
+  if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
     if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                          DECL_ATTRIBUTES(current_function_decl))) {
       sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
@@ -24970,8 +31433,12 @@
       sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
     } else DONE;
     psv_page = gen_reg_rtx(HImode);
-    emit_insn(gen_save_const_psv(psv_page, sfr));
-    emit(gen_set_psv(psv_page));
+    emit(
+      gen_save_const_psv(psv_page, sfr)
+    );
+    emit(
+      gen_set_psv(psv_page)
+    );
   }   
 
   if (save_variable_list) {
@@ -25000,7 +31467,7 @@
     char *insn = szInsn;
 
     pic30_clear_fn_list = 1;
-    pic30_valid_call_address_operand(operands[0], Pmode);
+    pic30_valid_call_address_operand(operands[0], FN_Pmode);
     security = pic30_boot_secure_access(operands[0],&slot,0);
 #ifdef __C30_BETA__
     if (TARGET_ABI_CHECK) {
@@ -25329,6 +31796,28 @@
   ""
   "nop"
   [(set_attr "cc" "unchanged")])
+
+(define_insn "pwrsav"
+  [
+   (unspec_volatile 
+     [(match_operand:HI 0 "immediate_operand" "i")]
+    UNSPECV_PWRSAV)
+  ]
+  ""
+  "pwrsav #%0"
+  [(set_attr "cc" "unchanged")]
+)
+
+(define_insn "clrwdt"
+  [
+   (unspec_volatile
+     [(const_int 0)]
+   UNSPECV_CLRWDT)
+  ]
+  ""
+  "clrwdt"
+  [(set_attr "cc" "unchanged")]
+)
 
 ;
 ;; misc
@@ -25964,9 +32453,9 @@
 ;; mov #addr,r0; mov r0,r1 becomes mov #addr,r1
 
 (define_peephole
-  [(set (match_operand:HI 0 "pic30_register_operand"              "=r")
-        (match_operand:HI 1 "pic30_symbolic_address_operand" "g"))
-   (set (match_operand:HI 2 "pic30_register_operand"              "=r")
+  [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
+        (match_operand:HI 1 "pic30_symbolic_address_operand" "q"))
+   (set (match_operand:HI 2 "pic30_register_operand"        "=r")
         (match_dup 0))]
  "dead_or_set_p(insn, operands[0])"
   "*
@@ -26181,6 +32670,27 @@
 ;;
 ;; Substitute RETLW #k,Wn for MOV #k,Wn; RETURN
 ;;
+(define_peephole
+  [(set (match_operand:QI 0 "pic30_register_operand" "=r")
+        (match_operand:QI 1 "pic30_J_operand"   "J"))
+   (return)
+  ]
+ "pic30_null_epilogue_p(1)"
+ "*
+{
+        pic30_set_function_return(TRUE);
+        if (REGNO(operands[0]) == WR0_REGNO)
+        {
+                return \"retlw #%1,%0\";
+        }
+        else
+        {
+                return \"mov.b #%1,%0\;return\";
+        }
+}"
+  [(set_attr "cc" "clobber")])
+
+
 (define_peephole
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
 	(match_operand:HI 1 "pic30_J_operand"   "J"))
@@ -26577,11 +33087,11 @@
   [(set_attr "cc" "unchanged")])
 
 (define_peephole
-  [(set (match_operand:HI 0 "pic30_register_operand" "=r")
-        (match_operand:HI 1 "pic30_general_operand" "g"))
+  [(set (match_operand:HI 0 "register_operand" "=r")
+        (match_operand:HI 1 "general_operand" "g"))
    (set (match_dup 1)
         (match_dup 0))]
-  "pic30_dead_or_set_p(NEXT_INSN(insn),operands[0])"
+  "dead_or_set_p(insn,operands[0])"
   "; move deleted"
   [(set_attr "cc" "unchanged")])
 
@@ -38275,6 +44785,48 @@
     }"
 )
 
+(define_insn "reload<mode>_imm"
+   [(set (match_operand:AUACC  0 "pic30_accumulator_operand" "= w")
+         (match_operand:AUACC  1 "immediate_operand"         "  i"))
+    (clobber (match_operand:HI 2 "pic30_register_operand"    "=&r"))
+   ]
+   ""
+   "*
+    {
+      int zero = 0;
+
+      zero = (CONST_FIXED_VALUE_LOW(operands[1]) == 0) &&
+             (CONST_FIXED_VALUE_HIGH(operands[1]) == 0);
+      if (REGNO(operands[0]) == A_REGNO) {
+        if (zero) {
+          return \"clr A\";
+        } else {
+          return
+               \"mov #%z1,%2\;\"
+               \"mov %2,ACCAL\;\"
+               \"mov #%y1,%2\;\"
+               \"mov %2,ACCAH\;\"
+               \"mov #%x1,%2\;\"
+               \"mov %2,ACCAU\";
+        }
+      } else if (REGNO(operands[0]) == B_REGNO) {
+        if (zero) {
+          return \"clr B\";
+        } else {
+          return
+               \"mov #%z1,%2\;\"
+               \"mov %2,ACCBL\;\"
+               \"mov #%y1,%2\;\"
+               \"mov %2,ACCBH\;\"
+               \"mov #%x1,%2\;\"
+               \"mov %2,ACCBU\";
+        }
+      } else {
+        gcc_assert(0);
+      }
+    }"
+)
+
 ; NB: like movsi_gen this does not cover all possible versions of move_operand
 ;     ugh
 
@@ -38445,12 +44997,25 @@
       case 4:  /* >,wr */
                if (pic30_accumulator_operand(operands[1],
                                              <MODE>mode)) {
-                 return \"push %m1U\;\"
-                        \"push %m1H\;\"
-                        \"push %m1L\;\"
-                        \"mov [--w15],%0\;\"
-                        \"mov [--W15],%0\;\"
-                        \"mov [--W15],%0\";
+                 rtx reg;
+                 rtx post_inc = XEXP(operands[0],0);
+
+                 reg = XEXP(post_inc,0);
+                 if (REGNO(reg) == WR15_REGNO) {
+                   /* push onto the stack */
+                   return \"push %m1L\;\"
+                          \"push %m1H\;\"
+                          \"push %m1U\";
+                 } else {
+                   /* push the value backward, so we can pop it the right way
+                      round */
+                   return \"push %m1U\;\"
+                          \"push %m1H\;\"
+                          \"push %m1L\;\"
+                          \"mov [--w15],%0\;\"
+                          \"mov [--W15],%0\;\"
+                          \"mov [--W15],%0\";
+                 }
                } else {
                  return \"mov %1,%0\;\"
                         \"mov %d1,%0\;\"
@@ -38465,12 +45030,22 @@
       case 6:  /* wr,< */
                if (pic30_accumulator_operand(operands[0],
                                              <MODE>mode)) {
-                 return \"mov %1,[w15++]\;\"
-                        \"mov %1,[W15++]\;\"
-                        \"mov %1,[W15++]\;\"
-                        \"pop %m0L\;\"
-                        \"pop %m0H\;\"
-                        \"pop %m0U\";
+                 rtx reg;
+                 rtx pre_dec = XEXP(operands[1],0);
+
+                 reg = XEXP(pre_dec,0);
+                 if (REGNO(reg) == WR15_REGNO) {
+                   return \"pop %m0U\;\"
+                          \"pop %m0H\;\"
+                          \"pop %m0L\";
+                 } else {
+                   return \"mov %1,[w15++]\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop %m0L\;\"
+                          \"pop %m0H\;\"
+                          \"pop %m0U\";
+                 }
                } else {
                  return \"mov %1,%t0\;\"
                         \"mov %1,%d0\;\"
@@ -38509,9 +45084,14 @@
     rtx reg = operands[0];
 
     if (!pic30_accum_or_reg_operand(operands[0],<MODE>mode)) {
+      if (reload_in_progress) FAIL;
       reg = gen_reg_rtx(<MODE>mode);
     }
 
+    if (reload_in_progress && 
+        pic30_accumulator_operand(operands[0],<MODE>mode)) {
+      FAIL; 
+    }
     emit(
       gen_mov<mode>_rimm(reg,operands[1])
     );

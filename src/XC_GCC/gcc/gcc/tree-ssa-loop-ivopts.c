@@ -944,9 +944,14 @@ find_bivs (struct ivopts_data *data)
       base = fold_convert (type, base);
       if (step)
 	{
-	  if (POINTER_TYPE_P (type))
+	  if (POINTER_TYPE_P (type)) {
+#ifdef _BUILD_C30_
+            if (TYPE_ADDR_SPACE(TREE_TYPE(type)) != ADDR_SPACE_GENERIC)
+	      step = fold_convert (type, step);
+            else
+#endif
 	    step = fold_convert (sizetype, step);
-	  else
+	  } else
 	    step = fold_convert (type, step);
 	}
 
@@ -2067,8 +2072,13 @@ strip_offset (tree expr, unsigned HOST_WIDE_INT *offset)
 static tree
 generic_type_for (tree type)
 {
-  if (POINTER_TYPE_P (type))
+  if (POINTER_TYPE_P (type)) {
+#ifdef _BUILD_C30_
+    if (TYPE_ADDR_SPACE(TREE_TYPE(type)) != ADDR_SPACE_GENERIC)
+      return type;
+#endif
     return unsigned_type_for (type);
+  }
 
   if (TYPE_UNSIGNED (type))
     return type;
@@ -2394,8 +2404,12 @@ add_iv_value_candidates (struct ivopts_data *data,
      since it is generic enough so that possibly many uses may be based
      on it.  */
   basetype = TREE_TYPE (iv->base);
-  if (POINTER_TYPE_P (basetype))
+  if (POINTER_TYPE_P (basetype)) {
+#ifdef _BUILD_C30_
+    if (TYPE_ADDR_SPACE(TREE_TYPE(basetype)) == ADDR_SPACE_GENERIC)
+#endif
     basetype = sizetype;
+  }
   add_candidate (data, build_int_cst (basetype, 0),
 		 iv->step, true, use);
 
@@ -3987,6 +4001,9 @@ cand_value_at (struct loop *loop, struct iv_cand *cand, gimple at, tree niter,
   tree type = TREE_TYPE (iv->base);
   tree steptype = type;
   if (POINTER_TYPE_P (type))
+#ifdef _BUILD_C30_
+    if (TYPE_ADDR_SPACE(TREE_TYPE(type)) == ADDR_SPACE_GENERIC)
+#endif
     steptype = sizetype;
 
   tree_to_aff_combination (iv->step, steptype, &step);

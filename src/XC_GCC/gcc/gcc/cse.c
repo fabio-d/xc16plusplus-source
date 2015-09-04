@@ -552,6 +552,10 @@ static bitmap cse_ebb_live_in, cse_ebb_live_out;
    already as part of an already processed extended basic block.  */
 static sbitmap cse_visited_basic_blocks;
 
+#ifdef _BUILD_C30_
+int pic30_its_okay_really = 0;
+#endif
+
 static bool fixed_base_plus_p (rtx x);
 static int notreg_cost (rtx, enum rtx_code);
 static int approx_reg_cost_1 (rtx *, void *);
@@ -4933,6 +4937,13 @@ cse_insn (rtx insn)
 
       /* Terminate loop when replacement made.  This must terminate since
          the current contents will be tested and will always be valid.  */
+#if defined(_BUILD_C30_)
+      if ((pic30_its_okay_really == 0) && 
+          (GET_CODE(sets[i].src) == CONST_INT) && 
+          (INTVAL(sets[i].src) == 0))
+         (void)(0); // fprintf(stderr,"skipping cse for %p\n", sets[i].src);
+      else
+#endif
       while (1)
 	{
 	  rtx trial;
@@ -7324,6 +7335,25 @@ rest_of_handle_cse2 (void)
   return 0;
 }
 
+#ifdef _BUILD_C30_
+static bool
+gate_handle_cse3 (void)
+{
+   return 0;
+   return gate_handle_cse2();
+}
+
+static unsigned int
+rest_of_handle_cse3 (void)
+{
+  unsigned int result;
+
+  pic30_its_okay_really = 1;
+  result = rest_of_handle_cse2();
+  pic30_its_okay_really = 0;
+  return result;
+}
+#endif
 
 struct rtl_opt_pass pass_cse2 =
 {
@@ -7407,3 +7437,28 @@ struct rtl_opt_pass pass_cse_after_global_opts =
   TODO_verify_flow                      /* todo_flags_finish */
  }
 };
+
+#ifdef _BUILD_C30_
+struct rtl_opt_pass pass_cse3 =
+{
+ {
+  RTL_PASS,
+  "cse3",                               /* name */
+  gate_handle_cse3,                     /* gate */
+  rest_of_handle_cse3,                  /* execute */
+  NULL,                                 /* sub */
+  NULL,                                 /* next */
+  0,                                    /* static_pass_number */
+  TV_CSE3,                              /* tv_id */
+  0,                                    /* properties_required */
+  0,                                    /* properties_provided */
+  0,                                    /* properties_destroyed */
+  0,                                    /* todo_flags_start */
+  TODO_df_finish | TODO_verify_rtl_sharing |
+  TODO_dump_func |
+  TODO_ggc_collect |
+  TODO_verify_flow                      /* todo_flags_finish */
+ }
+};
+#endif
+

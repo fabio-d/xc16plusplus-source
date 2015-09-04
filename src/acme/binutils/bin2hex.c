@@ -334,7 +334,10 @@ write_section(bfd *abfd, asection *sect, PTR fp) {
 
     /* print section header */
     PCstart = sect->lma;
-    start = (PCstart + offset_address_by) << 1;
+    if (PCstart < 0x800000)
+      start = (PCstart + offset_address_by) << 1;
+    else
+      start = PCstart << 1;
 #if 0
     /* offset un-shifted address instead; this makes it easier to get the
        right offset */

@@ -2201,6 +2201,12 @@ check_mem_read_rtx (rtx *loc, void *data)
 	      else
 		{
 		  if (store_info->rhs
+#ifdef _BUILD_C30_
+                      /* if the modes aren't the same then it may not
+                          *just* be a read and *just* a write, there may
+                          be something implicit in the operation... */
+                      && (GET_MODE(store_info->mem) == GET_MODE(read_info->mem))
+#endif
 		      && offset >= store_info->begin
 		      && offset + width <= store_info->end
 		      && all_positions_needed_p (store_info,
@@ -2265,6 +2271,12 @@ check_mem_read_rtx (rtx *loc, void *data)
 	  /* If this read is just reading back something that we just
 	     stored, rewrite the read.  */
 	  if (store_info->rhs
+#ifdef _BUILD_C30_
+                      /* if the modes aren't the same then it may not
+                          *just* be a read and *just* a write, there may
+                          be something implicit in the operation... */
+              && (GET_MODE(store_info->mem) == GET_MODE(read_info->mem))
+#endif
 	      && store_info->group_id == -1
 	      && store_info->cse_base == base
 	      && width != -1

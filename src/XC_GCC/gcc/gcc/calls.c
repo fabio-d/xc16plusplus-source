@@ -182,7 +182,11 @@ prepare_call_address (tree fndecl, rtx funexp, rtx static_chain_value,
     {
 #ifndef NO_FUNCTION_CSE
       if (optimize && ! flag_no_function_cse)
+#ifdef _BUILD_C30_
+        funexp = force_reg (FN_Pmode, funexp);
+#else 
 	funexp = force_reg (Pmode, funexp);
+#endif
 #endif
     }
 

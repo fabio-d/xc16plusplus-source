@@ -38,6 +38,7 @@
 #define PIC30_IS_16_BIT_UNSIGNED_LITERAL(lit) (((lit) >= 0) && ((lit) < 65536))
 #define PIC30_IS_13_BIT_FILE_REG(lit) (((lit) >= 0) && ((lit) < 8192))
 #define PIC30_IS_BYTE_VALUE_UNSIGNED(lit) (((lit) >= 0) && ((lit) < 256))
+#define PIC30_IS_WID5_LITERAL(lit) (((lit) >= 1) && ((lit) <= 16 ))
 
 /*
 ** relocation types
@@ -106,6 +107,11 @@
 #define R_PIC30_UNSIGNED_10_DMAPAGE    234
 #define R_PIC30_UNSIGNED_10_DMAOFFSET  235
 #define R_PIC30_UNSIGNED_3             236
+#define R_PIC30_UNSIGNED_2             237
+#define R_PIC30_WID5                   238
+#define R_PIC30_SHIFT8_UNSIGNED_8      239
+#define R_PIC30_ADDR_LO                240
+#define R_PIC30_ADDR_HI                241
 
 /*
 ** relocation field descriptions
@@ -330,6 +336,21 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_UNSIGNED_3, 0, 1, 3, FALSE, 0, complain_overflow_unsigned,
          RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 3",
          TRUE, 0x000007, 0x000007, FALSE),
+   HOWTO(R_PIC30_UNSIGNED_2, 0, 1, 2, FALSE, 0, complain_overflow_unsigned,
+         RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 2",
+         TRUE, 0x000003, 0x000003, FALSE),
+   HOWTO(R_PIC30_WID5, 0, 1, 4, FALSE, 0, complain_overflow_unsigned,
+         RELOC_SPECIAL_FN_GENERIC, "WID5",
+         TRUE, 0x00000f, 0x00000f, FALSE),
+   HOWTO(R_PIC30_SHIFT8_UNSIGNED_8, 0, 1, 8, FALSE, 8, complain_overflow_unsigned,
+         RELOC_SPECIAL_FN_GENERIC, "8 SHIFT UNSIGNED 8",
+         TRUE, 0x00ff00, 0x00ff00, FALSE),
+   HOWTO(R_PIC30_ADDR_LO, 0, 1, 16, FALSE, 0, complain_overflow_dont,
+         RELOC_SPECIAL_FN_OPERATORS, "ADDR_LO",
+         TRUE, 0x0000ffff, 0x0000ffff, FALSE),
+   HOWTO(R_PIC30_ADDR_HI, 0, 1, 16, FALSE, 0, complain_overflow_dont,
+         RELOC_SPECIAL_FN_OPERATORS, "ADDR_HI",
+         TRUE, 0x0000ffff, 0x0000ffff, FALSE),
 };
 
 
@@ -385,6 +406,8 @@ pic30_adjustable_against_section (type)
       case R_RELBYTE:
       case R_RELWORD:
       case R_RELLONG:
+      case R_PIC30_ADDR_LO:
+      case R_PIC30_ADDR_HI:
          rc = 0;
          break;
 

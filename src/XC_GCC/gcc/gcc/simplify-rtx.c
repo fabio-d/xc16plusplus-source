@@ -1307,6 +1307,15 @@ simplify_const_unary_operation (enum rtx_code code, enum machine_mode mode,
         case PSVOFFSET:
         case EDSOFFSET:
         case DMAOFFSET:
+        case UOFFSET_HI:
+        case UOFFSET_LO:
+        case UOFFSET:
+        case UTRUNC:
+        case UUNPACK:
+        case UEXTEND:
+        case ADDR_LOW:
+        case ADDR_HIGH:
+        case ADDR_LONG:
 #endif
 	case SQRT:
 	case FLOAT_EXTEND:

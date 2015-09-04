@@ -129,7 +129,13 @@ enum pic30_builtins
    MCHP_BUILTIN_ENABLE_ISR,
    MCHP_BUILTIN_SOFTWARE_BREAK,
    PIC30_BUILTIN_WRITEDATAFLASH,
-   PIC30_BUILTIN_WRITEDATAFLASH_SECURE
+   PIC30_BUILTIN_WRITEDATAFLASH_SECURE,
+   PIC30_BUILTIN_ADDR_LOW,
+   PIC30_BUILTIN_ADDR_HIGH,
+   PIC30_BUILTIN_ADDR,
+   PIC30_BUILTIN_PWRSAV,
+   PIC30_BUILTIN_CLRWDT,
+   PIC30_BUILTIN_STATICASSERT
 };
 
 #define       TARGET_USE_PA   1
@@ -154,7 +160,7 @@ enum pic30_builtins
   %(mchp_cci_cc1_spec) \
   -mresource=%I-../../c30_device.info -omf=" OMF
 
-#define LINK_SPEC   "%{mpartition=*:--partition %*} %{mcpu=*:-p%*} -omf=" OMF
+#define LINK_SPEC   "%{mmemorysummary=*:--memorysummary %*} %{mpartition=*:--partition %*} %{mcpu=*:-p%*} -omf=" OMF
 
 /*
 ** A C string constant that tells the GNU CC driver program how to run any
@@ -335,14 +341,13 @@ extern void pic30_system_include_paths(const char *root, const char *system,
 ** Small data model means that data objects can be
 ** addressed using the short 13-bit direct address.
 */
-#define TARGET_SMALL_AGG   ((target_flags & MASK_LARGE_AGG) == 0)
+extern int TARGET_SMALL_AGG;
 
 /*
 ** Small scalar data model means that scalar objects can be
 ** addressed using the short 13-bit direct address.
 */
-#define TARGET_SMALL_SCALAR   ((target_flags & MASK_LARGE_SCALAR) == 0)
-
+extern int TARGET_SMALL_SCALAR;
 
 /*
 ** Small code model means that calls to functions
@@ -360,6 +365,13 @@ extern void pic30_system_include_paths(const char *root, const char *system,
 
 extern int target_flags;
 
+/*
+ * Override the default optimization options, just before -f flag parsing
+ *   takes effect but after -On parsing.
+ */
+#define OPTIMIZATION_OPTIONS(level, size) \
+   pic30_optimization_options(level,size)
+
 /* 
 ** This macro is similar to TARGET_SWITCHES but defines names of command
 ** options that have values. Its definition is an initializer with a
@@ -372,6 +384,7 @@ extern int target_flags;
 */
 
 extern int pic30_compiler_version;
+extern int pic30_resource_version;
 extern const char *pic30_target_family;
 extern const char *pic30_target_cpu;
 extern const char *pic30_text_scn;
@@ -664,8 +677,8 @@ extern int         pic30_clear_fn_list;
 ** W15 is the stack pointer.
 */
 
-#define FIXED_REGISTERS      \
-{ \
+#define FIXED_REGISTERS                   \
+{                                         \
    /* WREG0 */  0, 0, 0, 0, 0, 0, 0, 0,   \
    /* WREG8 */  0, 0, 0, 0, 0, 0, 0, 1,   \
    /* RCOUNT */ 1, 0, 0, 1, 0, 0, 0, 0,   \
@@ -696,8 +709,8 @@ extern int         pic30_clear_fn_list;
 ** the register allocator gives preference to callee-saved registers.
 */
 
-#define CALL_USED_REGISTERS  \
-{ \
+#define CALL_USED_REGISTERS             \
+{                                       \
  /* WREG0 */  1, 1, 1, 1, 1, 1, 1, 1,   \
  /* WREG8 */  0, 0, 0, 0, 0, 0, 0, 1,   \
  /* RCOUNT */ 1, 0, 0, 1, 0, 0, 0, 0,   \
@@ -717,8 +730,10 @@ extern int         pic30_clear_fn_list;
    parameter access for small functions 
 */
 
+#define ADJUST_REG_ALLOC_ORDER pic30_adjust_reg_alloc_order()
+
 #define REG_ALLOC_ORDER \
-   {  4, 5, 6, 7, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 17, 18 }
+   {  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18 }
 
 /*
 ** Return number of consecutive hard regs needed starting at reg REGNO
@@ -1288,6 +1303,7 @@ enum reg_class
 **
 ** For the dsPIC,
 ** Q: memory operand consisting of a base plus displacement.
+** q: memory operand that fits pic30_symbolic_address_operand
 ** R: memory operand consisting of a base only.
 ** S: memory operand consisting of a base plus index.
 ** T: memory operand consisting of a direct address (far).
@@ -1299,7 +1315,7 @@ enum reg_class
     : ((C) == 'q') ? (pic30_q_constraint(OP)) \
     : ((C) == 'R') ? (pic30_R_constraint(OP)) \
     : ((C) == 'S') ? (pic30_S_constraint(OP)) \
-    : ((C) == 'T') ? (pic30_T_constraint(OP)) \
+    : ((C) == 'T') ? (pic30_T_constraint(OP,VOIDmode)) \
     : ((C) == 'U') ? (pic30_U_constraint(OP,VOIDmode)) \
     : 0 )
 
@@ -1899,11 +1915,15 @@ typedef struct pic30_args
 */
 #define POINTER_SIZE      (TARGET_EDS ? 32 : 16)
 
-#define Pmode (TARGET_EDS ? P32EDSmode : HImode )
+#define Pmode (TARGET_EDS ? P32PEDSmode : HImode )
 #if 1
 #define STACK_Pmode HImode
+#define FN_Pmode HImode
+#define TARGET_CONSTANT_PMODE (TARGET_TRACK_PSVPAG ? P16APSVmode : Pmode)
 #endif
+#if 0
 #define TARGET_CONSTANT_PMODE P16APSVmode
+#endif
 
 
 /*
@@ -2782,7 +2802,8 @@ enum pic30_address_space {
 enum pic30_set_psv_results {
   pic30_set_nothing,
   pic30_set_on_call,
-  pic30_set_on_return
+  pic30_set_on_return,
+  pic30_set_for_tracking,
 };
 
 
@@ -2943,6 +2964,7 @@ struct pic30_mem_info_ {
   int ram[2];        /* [0] -> main ram,      [1] -> aux ram */
   int eeprom[2];     /* [0] -> eeprom size,   [1] -> unused */
   int dataflash[2];  /* [0] -> size in bytes, [1] -> page number */
+  int sfr[2];        /* [0] -> end of SFR space, [1] -> unused */
 };
 
 extern struct pic30_mem_info_ pic30_mem_info;

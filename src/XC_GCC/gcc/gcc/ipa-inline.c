@@ -204,7 +204,15 @@ cgraph_estimate_size_after_inlining (int times, struct cgraph_node *to,
 				     struct cgraph_node *what)
 {
   int size = (what->global.size - inline_summary (what)->size_inlining_benefit) * times + to->global.size;
+#ifdef _BUILD_C30_
+  /* we now include the cost of the call into the size_inlining benefit; which
+      means it *is* possible for the "size" to be negative after inlining
+      (consider calling a naively stupid empty function - benefit is removing
+      the call). */
+  if (size < 0) size = 0;
+#else
   gcc_assert (size >= 0);
+#endif
   return size;
 }
 
@@ -1943,6 +1951,13 @@ estimate_function_body_sizes (struct cgraph_node *node)
         time_inlining_benefit += cost;
         size_inlining_benefit += cost;
       }
+#ifdef _BUILD_C30_
+  /* we don't seem to be approximating the cost of the call here either -
+     removing the call is surely a benefit? */
+  time_inlining_benefit++;
+  size_inlining_benefit++;
+#endif
+
   if (time_inlining_benefit > MAX_TIME)
     time_inlining_benefit = MAX_TIME;
   if (time > MAX_TIME)

@@ -127,7 +127,7 @@ bfd_boolean pic30_has_stack_option = 0;
 unsigned int pic30_stack_size = 16;
 bfd_boolean pic30_has_stackguard_option = 0;
 unsigned int pic30_stackguard_size = 16;
-bfd_boolean pic30_has_heap_option = 0;
+bfd_boolean pic30_has_heap_option = 1;
 bfd_boolean pic30_heap_required = 0;
 unsigned int pic30_heap_size = 0;
 bfd_boolean pic30_smart_io = TRUE;
@@ -156,7 +156,8 @@ bfd_boolean pic30_has_fill_option = 0;
 bfd_boolean pic30_local_stack = TRUE;
 bfd_boolean pic30_psv_override = 0;
 bfd_boolean pic30_partition_flash = 0;
-bfd_boolean pic30_ide_dashboard = 0;
+bfd_boolean pic30_memory_summary = 0;
+bfd_boolean pic30_isa_v4 = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -176,6 +177,8 @@ bfd_vma dma_base = 0;
 bfd_boolean dma_base_defined = FALSE;
 bfd_vma dma_end = 0;
 bfd_boolean dma_end_defined = FALSE;
+
+char * memory_summary_arg;
 
 /* External function prototypes */
 extern struct bfd_hash_entry *pic30_undefsym_newfunc
@@ -1498,6 +1501,128 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          SRC_MASK(0x000007),            /* src_mask */
          0x000007,                      /* dst_mask */
          FALSE),
+ /* 2-bit immediate */
+   HOWTO(R_PIC30_UNSIGNED_2,           /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         2,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_unsigned,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_GENERIC,      /* special_function */
+         "UNSIGNED 2",                 /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x000003),            /* src_mask */
+         0x000003,                      /* dst_mask */
+         FALSE),
+ /* Wid5 */
+   HOWTO(R_PIC30_WID5,           /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         4,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_unsigned,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_GENERIC,      /* special_function */
+         "WID5",                 /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0000f0),            /* src_mask */
+         0x0000f0,                      /* dst_mask */
+         FALSE),
+ /* unsigned 8-bit 8 shift*/
+   HOWTO(R_PIC30_SHIFT8_UNSIGNED_8,            /* type */
+         0,                             /* rightshift */
+         0,                             /* size (0=byte, 1=short, 2=long) */
+         8,                             /* bitsize */
+         FALSE,                         /* pc_relative? */
+         8,                             /* bitpos */
+         complain_overflow_unsigned,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_GENERIC,      /* special_function */
+         "SHIFT 8 UNSIGNED 8",                  /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x00ff00),            /* src_mask */
+         0x00ff00,                      /* dst_mask */
+         FALSE),
+  HOWTO(R_PIC30_ADDR_LO,              /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "ADDR_LO",                   /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0000ffff),          /* src_mask */
+         0x0000ffff,                    /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_ADDR_HI,              /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_bitfield,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "ADDR_HI",                   /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0000ffff),          /* src_mask */
+         0x0000ffff,                    /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_P_ADDR_LO,            /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_P_OPERATORS,  /* special_function */
+         "P-ADDR_LO",                 /* name */
+         TRUE,                          /* partial_inplace? */
+         SRC_MASK(0x0000ffff),          /* src_mask */
+         0x0000ffff,                    /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_WORD_ADDR_LO,         /* type */
+         0,                             /* rightshift */
+         2,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "WORD - ADDR_LO",            /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_P_ADDR_HI,              /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_bitfield,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_P_OPERATORS,  /* special_function */
+         "P-ADDR_HI",                   /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0000ffff),          /* src_mask */
+         0x0000ffff,                    /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  /* word table page */
+  HOWTO(R_PIC30_WORD_ADDR_HI,           /* type */
+         0,                             /* rightshift */
+         2,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_bitfield,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "WORD - ADDR_HI",              /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+
 };
 
 /* A mapping from BFD reloc types to PIC30 ELF reloc types.  */
@@ -1595,6 +1720,15 @@ static const struct elf_reloc_map pic30_reloc_map[] =
   { BFD_RELOC_PIC30_WORD_PACKED_HI,         R_PIC30_WORD_PACKED_HI },
   { BFD_RELOC_PIC30_WORD_PACKED_LO,         R_PIC30_WORD_PACKED_LO },
   { BFD_RELOC_PIC30_UNSIGNED_3,             R_PIC30_UNSIGNED_3 },
+  { BFD_RELOC_PIC30_UNSIGNED_2,             R_PIC30_UNSIGNED_2 },
+  { BFD_RELOC_PIC30_WID5,                   R_PIC30_WID5 },
+  { BFD_RELOC_PIC30_SHIFT8_UNSIGNED_8,      R_PIC30_SHIFT8_UNSIGNED_8 },
+  { BFD_RELOC_PIC30_ADDR_LO,                R_PIC30_ADDR_LO },
+  { BFD_RELOC_PIC30_ADDR_HI,                R_PIC30_ADDR_HI },
+  { BFD_RELOC_PIC30_P_ADDR_LO,              R_PIC30_P_ADDR_LO },
+  { BFD_RELOC_PIC30_P_ADDR_HI,              R_PIC30_P_ADDR_HI },
+  { BFD_RELOC_PIC30_WORD_ADDR_LO,           R_PIC30_WORD_ADDR_LO },
+  { BFD_RELOC_PIC30_WORD_ADDR_HI,           R_PIC30_WORD_ADDR_HI },
 };
 
 /* Given a BFD reloc type, return a howto structure.  */
@@ -2010,6 +2144,12 @@ pic30_adjustable_against_section (type)
    case R_PIC30_UNSIGNED_10_ACCESS:
    case R_PIC30_WORD_PACKED_HI:
    case R_PIC30_WORD_PACKED_LO:
+   case R_PIC30_ADDR_LO:
+   case R_PIC30_ADDR_HI:
+   case R_PIC30_P_ADDR_LO:
+   case R_PIC30_P_ADDR_HI:
+   case R_PIC30_WORD_ADDR_LO:
+   case R_PIC30_WORD_ADDR_HI:
          rc = 0;
          break;
 
@@ -3470,6 +3610,8 @@ operator_is_instruction (unsigned int reloc) {
     case R_PIC30_UNSIGNED_10_EDSPAGE:
     case R_PIC30_UNSIGNED_10_EDSOFFSET:
     case R_PIC30_UNSIGNED_10_HANDLE:
+    case R_PIC30_WORD_ADDR_LO:
+    case R_PIC30_WORD_ADDR_HI:
       return TRUE;
     default:
       return FALSE;
@@ -3576,6 +3718,10 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
         case R_PIC30_EDSOFFSET:
         case R_PIC30_WORD_EDSOFFSET:
         case R_PIC30_UNSIGNED_10_EDSOFFSET:
+        case R_PIC30_ADDR_LO:
+        case R_PIC30_ADDR_HI:
+        case R_PIC30_WORD_ADDR_LO:
+        case R_PIC30_WORD_ADDR_HI:
           /*
           ** Allow targets in any data or code section,
           ** but not external memory, or absolute sections.
@@ -3757,6 +3903,14 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
        case R_PIC30_WORD_PACKED_LO:
           relocation &= 0xFFFF;
           break;  
+        case R_PIC30_ADDR_LO:
+        case R_PIC30_WORD_ADDR_LO:
+          relocation &= 0xFFFF;
+          break;
+        case R_PIC30_ADDR_HI:
+        case R_PIC30_WORD_ADDR_HI:
+          relocation = (relocation >> 16);
+          break;
         case R_PIC30_PSVPTR:
         case R_PIC30_L_PSVPTR:
         case R_PIC30_WORD_PSVPTR:
@@ -3891,6 +4045,8 @@ pic30_elf32_perform_p_operators (abfd, reloc_entry, symbol, data,
         {
         case R_PIC30_P_EDSPAGE:
         case R_PIC30_P_EDSOFFSET:
+        case R_PIC30_P_ADDR_LO:
+        case R_PIC30_P_ADDR_HI:
           /*
           ** Allow targets in any data or code section,
           ** but not external memory or absolute sections.
@@ -4025,6 +4181,12 @@ pic30_elf32_perform_p_operators (abfd, reloc_entry, symbol, data,
             {} /* use true address */
           else
             relocation = PIC30_EDSOFFSET (relocation);
+          break;
+        case R_PIC30_P_ADDR_LO:
+          relocation &= 0xFFFF;
+          break;
+        case R_PIC30_P_ADDR_HI:
+          relocation = (relocation >> 16);
           break;
         case R_PIC30_P_PSVPTR:
           RETURN_ERROR("%s(%s) is obsolete. Please re-build this file.")

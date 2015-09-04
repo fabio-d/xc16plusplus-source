@@ -74,11 +74,12 @@ struct resource_introduction_block *read_device_rib(const char *name,
                                  strlen(device)+strlen(".info")+1,1);
     match = (char *)xcalloc(80,1);
     strcpy(device_buf, name);
-#ifdef TARGET_IS_PIC32MX
+#if defined(TARGET_IS_PIC32MX) || defined(_BUILD_C32_)
     match = strstr(device_buf,"xc32_device.info");
 #else
     match = strstr(device_buf,"c30_device.info");
 #endif
+
     strcpy(match, "device_files/");
     { 
       char * temp, * place;

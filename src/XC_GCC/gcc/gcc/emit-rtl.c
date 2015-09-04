@@ -5801,7 +5801,11 @@ init_emit_once (void)
 	double_mode = mode;
     }
 
+#if _BUILD_C30_
+  ptr_mode = Pmode;
+#else
   ptr_mode = mode_for_size (POINTER_SIZE, GET_MODE_CLASS (Pmode), 0);
+#endif
 
 #ifdef INIT_EXPANDERS
   /* This is to initialize {init|mark|free}_machine_status before the first

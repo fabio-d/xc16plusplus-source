@@ -54,10 +54,6 @@ Mask(LARGE_CODE)
 
 Mask(CONST_IN_DATA)
 
-Mask(LARGE_AGG)
-
-Mask(LARGE_SCALAR)
-
 Mask(PA)
 
 Mask(NO_ISRW)
@@ -73,8 +69,6 @@ Mask(CONST_IN_AUXCODE)
 Mask(AUX_FLASH)
 
 Mask(EDS)
-
-Mask(TRACK_PSVPAG)
 
 Mask(NCHAR)
 
@@ -100,27 +94,27 @@ Use CCI keywords
 
 ; ugh have to cheat for these two
 msmall-data
-Target RejectNegative InverseMask(LARGE_SCALAR|MASK_LARGE_AGG) MaskExists
+Target RejectNegative Var(TARGET_SMALL_DATA,1) VarExists
 Use small data model
 
 mlarge-data
-Target RejectNegative Mask(LARGE_SCALAR|MASK_LARGE_AGG) MaskExists
+Target RejectNegative Var(TARGET_SMALL_DATA,-1) VarExists
 Use large data model
 
 msmall-scalar
-Target RejectNegative InverseMask(LARGE_SCALAR) MaskExists
+Target RejectNegative Var(TARGET_SMALL_SCALAR,1) VarExists
 Use small scalar data model
 
 mlarge-scalar
-Target RejectNegative Mask(LARGE_SCALAR) MaskExists
+Target RejectNegative Var(TARGET_SMALL_SCALAR,-1) VarExists
 Use large scalar data model
 
 msmall-aggregate
-Target RejectNegative InverseMask(LARGE_AGG) MaskExists
+Target RejectNegative Var(TARGET_SMALL_AGG,1) VarExists
 Use small aggregate data model
 
 mlarge-aggregate
-Target RejectNegative Mask(LARGE_AGG) MaskExists
+Target RejectNegative Var(TARGET_SMALL_AGG,-1) VarExists
 Use large aggregate data model
 
 msmall-code
@@ -168,7 +162,7 @@ Target Mask(SKIP_DOT_FILE) MaskExists
 Disable placing file directive in assembly output
 
 munified
-Target Mask(EDS) MaskExists
+Target Mask(EDS) MaskExists Undocumented
 Use unified data model
 
 mnear-chars
@@ -183,9 +177,9 @@ mlarge-arrays
 Target Mask(BIG) MaskExists
 Allow arrays larger than 32K
 
-mtrack
-Target Mask(TRACK_PSVPAG) MaskExists
-Track auto psv page
+moptimize-page-setting
+Target Var(TARGET_TRACK_PSVPAG) VarExists
+Attempt to optimize redundant PSVPAG, DSRPAG and DSWPAG changes
 
 mdebug
 Target Mask(TRACE_ALL_ADDR) MaskExists Undocumented
@@ -215,6 +209,9 @@ Enable fixed point support
 fnofallback
 Target RejectNegative Var(pic30_nofallback)
 Do not fall back to free licesnse when license not available
+
+mnew-model
+Target RejectNegative Var(pic30_newmodel) Undocumented
 
 ;
 ; **************************** CAUTION
@@ -268,3 +265,10 @@ Enable support for importing external code from another vendor
 
 mpartition=
 Target Joined Var(pic30_partition) Undocumented
+
+mmemorysummary=
+Target Joined Var(pic30_memorysummary) Undocumented
+
+mcvt=
+Target Joined Var(pic30_cvt) Undocumented
+

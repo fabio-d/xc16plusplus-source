@@ -6801,6 +6801,9 @@ build_pointer_type (tree to_type)
   addr_space_t as = to_type == error_mark_node? ADDR_SPACE_GENERIC
 					      : TYPE_ADDR_SPACE (to_type);
   enum machine_mode pointer_mode = targetm.addr_space.pointer_mode (as);
+#ifdef _BUILD_C30_
+  if (TREE_CODE(to_type) == FUNCTION_TYPE) pointer_mode = FN_Pmode;
+#endif
   return build_pointer_type_for_mode (to_type, pointer_mode, false);
 }
 

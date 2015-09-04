@@ -7123,8 +7123,16 @@ expand_expr_addr_expr (tree exp, rtx target, enum machine_mode tmode,
 #endif
 
       as = TYPE_ADDR_SPACE (Tau) ;
-      address_mode = targetm.addr_space.address_mode (as);
-      pointer_mode = targetm.addr_space.pointer_mode (as);
+#ifdef _BUILD_C30_
+      if (TREE_CODE(Tau) == FUNCTION_TYPE) {
+        address_mode = FN_Pmode;
+        pointer_mode = FN_Pmode;
+      } else
+#endif
+      {
+        address_mode = targetm.addr_space.address_mode (as);
+        pointer_mode = targetm.addr_space.pointer_mode (as);
+      }
     }
 
   /* We can get called with some Weird Things if the user does silliness
@@ -7779,7 +7787,7 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 		  expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1,
 				   EXPAND_NORMAL);
 		  temp = expand_widening_mult (mode, op0, op1, target,
-					       unsignedp, this_optab);
+					       zextend_p, this_optab);
 		  return REDUCE_BIT_FIELD (temp);
 		}
 #endif
@@ -7792,7 +7800,7 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 		  expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1,
 				   EXPAND_NORMAL);
 		  temp = expand_widening_mult (mode, op0, op1, target,
-					       unsignedp, this_optab);
+					       zextend_p, this_optab);
 		  return REDUCE_BIT_FIELD (temp);
 		}
 #endif

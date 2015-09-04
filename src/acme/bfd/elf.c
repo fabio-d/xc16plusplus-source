@@ -917,6 +917,35 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
     newsect->flags &= ~SEC_DATA;
     PIC30_SET_NOLOAD_ATTR(newsect);
   }
+
+  /* load symbols now */
+  syms = slurp_symtab (abfd);
+
+  {
+    char *ext_attr_prefix = "__ext_attr_";
+    asymbol **current = syms;
+    const char *sym_name;
+    long count;
+
+    for (count = 0; count < symcount; count++) {
+
+      if (*current) {
+        sym_name = bfd_asymbol_name(*current);
+
+        if (strstr(sym_name, ext_attr_prefix)) {
+          asection *s;
+          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          bfd_vma attr = bfd_asymbol_value(*current);
+
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              if ((attr & STYP_PACKEDFLASH) && (s->flags & SEC_DATA))
+                s->flags &= ~SEC_DATA;
+        }
+        current++;
+      }
+   }
+  }
   
 #endif
   if (hdr->sh_flags & SHF_NOLOAD)  /* do this last */
@@ -5640,12 +5669,14 @@ swap_out_syms (abfd, sttp, relocatable_p)
       flagword flags = syms[idx]->flags;
       int type;
 
+#ifndef PIC30
       if ((flags & (BSF_SECTION_SYM | BSF_GLOBAL)) == BSF_SECTION_SYM)
 	{
 	  /* Local section symbols have no name.  */
 	  sym.st_name = 0;
 	}
       else
+#endif
 	{
 	  sym.st_name = (unsigned long) _bfd_stringtab_add (stt,
 							    syms[idx]->name,

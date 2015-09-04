@@ -1640,6 +1640,13 @@ c_parser_declspecs (c_parser *parser, struct c_declspecs *specs,
 	}
     }
  out: ;
+#if defined(_BUILD_C30_) && 0
+    if (TARGET_EDS) {
+      if (ADDR_SPACE_GENERIC_P (specs->address_space)) {
+         specs->address_space = pic30_space_eds;
+      }
+    }
+#endif
 }
 
 /* Parse an enum specifier (C90 6.5.2.2, C99 6.7.2.2).

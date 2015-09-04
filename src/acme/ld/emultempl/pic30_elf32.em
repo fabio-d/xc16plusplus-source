@@ -122,6 +122,7 @@ extern bfd_vma pic30_codeguard_setting_address(void *s);
 extern int pic30_add_selected_codeguard_option(void *);
 extern void pic30_dump_selected_codeguard_options(FILE *);
 extern char * pic30_unique_selected_configword_names(void);
+extern int pic30_have_CG_settings(void);
 extern int pic30_decode_CG_settings(char *, unsigned short, int);
 extern unsigned short pic30_encode_CG_settings(char *);
 extern void pic30_set_extended_attributes(asection *,
@@ -355,8 +356,8 @@ static void pic30_create_unused_program_sections
 static void pic30_create_unused_auxflash_sections
   PARAMS ((struct pic30_fill_option *));
 
-static void bfd_pic30_ide_dashboard_memory_report
-  PARAMS ((void));
+static void bfd_pic30_memory_summary
+  PARAMS ((char *));
 
 int fill_section_count = 0;
 unsigned int enable_fixed = 0;
@@ -3190,9 +3191,11 @@ get_aivt_address ()
               aivt_address = ~(aivt_address);
               aivt_address &= aivtloc_mask;
               fbslim_address = aivt_address * 1024;
-              if ((fbslim_address < program_base_address()) ||
-                  (fbslim_address >= program_end_address()))
-                einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));             
+              if (((fbslim_address < program_base_address()) ||
+                   (fbslim_address >= program_end_address())) &&
+                  (fbslim_address != 0)) /* If BSLIM[12:0] is set to all ‘1’s
+                                            Active Boot Segment size is zero.*/ 
+                einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));
               aivt_address -= 1;
               aivt_address *= 1024;
               /* CAW - this should be recorded in the resource information? */
@@ -3209,13 +3212,15 @@ get_aivt_address ()
 
     if ((fbslim_address < program_base_address()) ||
         (fbslim_address >= program_end_address()))
-      aivt_enabled = FALSE;
+      { 
+        pic30_has_user_boot = FALSE;
+        pic30_boot_flash_size = 0;
+        aivt_enabled = FALSE;
+      }
     else 
       /* CAW - Also, this defines the boot sector boundary */
-      {  extern bfd_boolean pic30_has_user_boot;
-         extern unsigned int pic30_boot_flash_size;
-
-         pic30_has_user_boot = 1;
+      {  
+         pic30_has_user_boot = TRUE;
          pic30_boot_flash_size =  fbslim_address - program_base_address();
       }
 
@@ -5504,6 +5509,7 @@ gld${EMULATION_NAME}_after_open()
   if (pic30_debug)
     printf("\nLooking for CodeGuard settings in object code:\n");
 
+  if (pic30_have_CG_settings()) 
   {
     LANG_FOR_EACH_INPUT_STATEMENT (is) {
 
@@ -6382,8 +6388,8 @@ gld${EMULATION_NAME}_finish()
   if (pic30_report_mem)
     bfd_pic30_report_memory_usage (stdout);
 
-  if (pic30_ide_dashboard) 
-     bfd_pic30_ide_dashboard_memory_report();
+  if (pic30_memory_summary) 
+     bfd_pic30_memory_summary(memory_summary_arg);
 
 } /* static void gld${EMULATION_NAME}_finish ()*/
 

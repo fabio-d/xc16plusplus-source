@@ -15,3 +15,15 @@ DEF_RTL_EXPR(PSVOFFSET, "psvoffset", "e", RTX_UNARY)
 DEF_RTL_EXPR(EDSOFFSET, "edsoffset", "e", RTX_UNARY)
 DEF_RTL_EXPR(DMAOFFSET, "dmaoffset", "e", RTX_UNARY)
 DEF_RTL_EXPR(TBLOFFSET, "tbloffset", "e", RTX_UNARY)
+
+DEF_RTL_EXPR(ADDR_LOW, "addr_low", "e", RTX_UNARY)
+DEF_RTL_EXPR(ADDR_HIGH, "addr_high", "e", RTX_UNARY)
+DEF_RTL_EXPR(ADDR_LONG, "addr_long", "e", RTX_UNARY)
+
+DEF_RTL_EXPR(UOFFSET, "uoffset", "ee", RTX_UNARY)
+DEF_RTL_EXPR(UOFFSET_LO, "uoffset_lo", "e", RTX_UNARY)
+DEF_RTL_EXPR(UOFFSET_HI, "uoffset_hi", "e", RTX_UNARY)
+DEF_RTL_EXPR(UUNPACK, "uunpack", "e", RTX_UNARY)
+DEF_RTL_EXPR(UEXTEND, "uextend", "e", RTX_UNARY)
+DEF_RTL_EXPR(UTRUNC, "utrunc", "e", RTX_UNARY)
+

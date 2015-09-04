@@ -1548,15 +1548,25 @@ make_decl_rtl (tree decl)
 #ifdef _BUILD_C30_
           tree type = TREE_TYPE(decl);
   
+          if (TREE_CODE(type) == FUNCTION_TYPE) {
+            address_mode = HImode;
+          } else if (TARGET_EDS) {
+            address_mode = pic30_unified_mode(decl);
+          } else if (TREE_READONLY(type)) {
+            address_mode = TARGET_CONSTANT_PMODE;
+          } 
+
           if (TREE_CODE(type) == ARRAY_TYPE) {
             /* can't nominate the address space of an array directly,  */
             /* but the inner type will define this  (CW)               */
             as = TYPE_ADDR_SPACE (TREE_TYPE(type));
           } else as = TYPE_ADDR_SPACE(type);
+          if (as != ADDR_SPACE_GENERIC) 
+	    address_mode = targetm.addr_space.address_mode (as);
 #else
 	  addr_space_t as = TYPE_ADDR_SPACE (TREE_TYPE (decl));
-#endif
 	  address_mode = targetm.addr_space.address_mode (as);
+#endif
 	}
       x = gen_rtx_SYMBOL_REF (address_mode, name);
     }
