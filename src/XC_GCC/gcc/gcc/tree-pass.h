@@ -628,6 +628,7 @@ extern struct rtl_opt_pass pass_validate_dsp_instructions;
 extern struct rtl_opt_pass pass_merge_accumulators;
 extern struct rtl_opt_pass pass_track_sfrs;
 extern struct rtl_opt_pass pass_RAW_count;
+extern struct rtl_opt_pass pass_cse3;
 #endif
 
 #endif /* GCC_TREE_PASS_H */

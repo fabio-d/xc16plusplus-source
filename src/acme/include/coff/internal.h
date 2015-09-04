@@ -825,4 +825,13 @@ struct internal_reloc
 #define R_PIC30_WORD_PACKED_HI         240
 #define R_PIC30_WORD_PACKED_LO         241
 #define R_PIC30_UNSIGNED_3             242
+#define R_PIC30_UNSIGNED_2             243
+#define R_PIC30_WID5                   244
+#define R_PIC30_SHIFT8_UNSIGNED_8      245
+#define R_PIC30_ADDR_LO                246
+#define R_PIC30_ADDR_HI                247
+#define R_PIC30_P_ADDR_LO              248
+#define R_PIC30_P_ADDR_HI              249
+#define R_PIC30_WORD_ADDR_LO           250
+#define R_PIC30_WORD_ADDR_HI           251
 #endif /* GNU_COFF_INTERNAL_H */

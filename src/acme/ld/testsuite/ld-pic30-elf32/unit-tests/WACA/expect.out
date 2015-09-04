@@ -1,0 +1,72 @@
+MPLAB XC16 ASSEMBLY Listing:  t1.s 			page 1
+
+
+   1              	.global __reset
+   2              	
+   3              		.text
+   4              	__reset:
+   5              	
+   6              	;;LDSLV
+   7 000000  17 24 03 		ldslv [w7], [w8++], #2
+   8 000002  37 34 03 	        ldslv [w7++], [w8++], #3
+   9              	
+  10              	;;VFSLV
+  11              	
+  12 000004  17 A4 03 	        vfslv [w7], [w8++], #2
+  13 000006  37 B4 03 	        vfslv [w7++], [w8++], #3
+  14              	
+  15              	;;BFINS
+  16 000008  C7 06 0A 	        bfins #7, #6, w6, [w4++]
+  16         34 00 00 
+  17 00000c  C7 26 0A 	        bfins #7, #6, w6, __data
+  17         00 00 00 
+  18 000010  C7 40 0A 	        bfins #7, #6, #255, w6 
+  18         06 FF 00 
+  19              	
+  20              	;;BFEXT
+  21 000014  C7 83 0A 	        bfext #7, #6, [--W7], w3
+  21         47 00 00 
+  22 000018  C7 A3 0A 	        bfext #7, #6, __data, w3
+  22         00 00 00 
+  23              	
+  24              	;;LACD
+  25 00001c  06 80 DB 	        lac.d w6, B
+  26 00001e  06 07 DB 	        lac.d w6, #-2, A
+  27              	
+  28              	;;SACD
+  29 000020  02 00 DC 	        sac.d A, w2
+  30 000022  42 02 DC 	        sac.d A, #4, [--w2]
+  31              	
+  32              	;;FLIM
+  33 000024  15 30 E4 	        flim w6, [w5]
+  34 000026  95 33 E4 	        flim w6, [w5], w7
+  35 000028  95 B3 E5 	        flim.v w6, [w5], w7
+  36              	
+  37              	;;DIV
+  38 00002a  26 10 D9 	        divf2 w2, w6
+  39 00002c  67 3B D8 		div2.sd w6, w7
+  40 00002e  A7 02 D8 		div2.sw w5, w7
+  41 000030  67 BB D8 		div2.ud w6, w7
+  42 000032  A7 82 D8 		div2.uw w5, w7
+  43              	
+  44              	;;MINAB
+  45 000034  00 20 CE 	        min A
+  46 000036  08 30 CE 	        min A, w8
+  47 000038  08 38 CE 		min.v A, w8
+  48              	
+  49              	;;MAXAB
+  50 00003a  00 80 CE 	        max B
+  51 00003c  07 90 CE 		max B, w7
+  52 00003e  07 98 CE 	        max.v B, w7
+MPLAB XC16 ASSEMBLY Listing:  t1.s 			page 2
+
+
+  53              	
+  54              	;;NORMACW
+  55 000040  38 60 CE 	        norm A, [w8++]
+  56              	
+  57              	
+  58              		.data
+  59                 	__data:
+  60 0000 FF FF       		.word 0xFFFF
+  61                 	

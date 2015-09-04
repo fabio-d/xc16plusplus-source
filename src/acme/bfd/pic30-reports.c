@@ -30,6 +30,8 @@
 
 /*****************************************************************************/
 
+extern char *pic30_resource_version;
+
 int indent_fprintf(FILE *stream, char *format, ...) {
   int indent_level=0;
   static char buffer[] = "%12345s";
@@ -317,6 +319,8 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   /* build an ordered list of output sections */
   pic30_init_section_list(&pic30_section_list);
   bfd_map_over_sections(output_bfd, &pic30_build_section_list, NULL);
+
+  fprintf(fp,"\n\nxc16-ld %s", pic30_resource_version); 
 
   region = region_lookup("program");
   /* print code header */
@@ -634,20 +638,19 @@ pic30_report_external_symbols (FILE *fp) {
 } /* static void bfd_pic30_report_external_symbols */
 
 /**
-**  bfd_pic30_ide_dashboard_memory_report
+**  bfd_pic30_memory_summary
 **
 **/
 static void
-bfd_pic30_ide_dashboard_memory_report () {
-  lang_memory_region_type *region;
-  struct pic30_section *s;
-  int i;
+bfd_pic30_memory_summary (char *arg) {
   
-  FILE *memoryFile;
-  memoryFile = fopen("memory.xml", "w");
+  FILE *memory_summary_File;
+  memory_summary_File = fopen(arg, "w");
 
-  if (memoryFile == NULL)
-    fprintf(stderr,"Could not open memory.xml.\n");
+  if (memory_summary_File == NULL) {
+    fprintf(stderr,"Warning: Could not open %s.\n", arg);
+    return;
+  }
 
   else {
     lang_memory_region_type *region;
@@ -661,17 +664,17 @@ bfd_pic30_ide_dashboard_memory_report () {
     pic30_init_section_list(&pic30_section_list);
     bfd_map_over_sections(output_bfd, &pic30_build_section_list, NULL);
 
-    fprintf(memoryFile, "%s", header);
-    fprintf(memoryFile, "%s", end_header);
+    fprintf(memory_summary_File, "%s", header);
+    fprintf(memory_summary_File, "%s", end_header);
 
-    indent_fprintf(memoryFile, "<project>\n");
-    indent_fprintf(memoryFile, "<executable name=\"%s\">\n", output_bfd->filename);
+    indent_fprintf(memory_summary_File, "<project>\n");
+    indent_fprintf(memory_summary_File, "<executable name=\"%s\">\n", output_bfd->filename);
 
        bfd_size_type length = 0;
        bfd_size_type used = 0;
        bfd_size_type free = 0;
 
-       indent_fprintf(memoryFile, "<memory name=\"data\">\n");
+       indent_fprintf(memory_summary_File, "<memory name=\"data\">\n");
        region = region_lookup("data");
 
        length = region->length;
@@ -682,18 +685,18 @@ bfd_pic30_ide_dashboard_memory_report () {
 
        free = length - used;
 
-       indent_fprintf(memoryFile,"<units>%s</units>\n", units);
-       indent_fprintf(memoryFile,"<length>%d</length>\n", length);
-       indent_fprintf(memoryFile,"<used>%d</used>\n", used);
-       indent_fprintf(memoryFile,"<free>%d</free>\n",free);
+       indent_fprintf(memory_summary_File,"<units>%s</units>\n", units);
+       indent_fprintf(memory_summary_File,"<length>%d</length>\n", length);
+       indent_fprintf(memory_summary_File,"<used>%d</used>\n", used);
+       indent_fprintf(memory_summary_File,"<free>%d</free>\n",free);
 
-       indent_fprintf(memoryFile,"</memory>\n");
+       indent_fprintf(memory_summary_File,"</memory>\n");
 
        length = 0;
        used = 0;
        free = 0;
        
-       indent_fprintf(memoryFile, "<memory name=\"program\">\n");
+       indent_fprintf(memory_summary_File, "<memory name=\"program\">\n");
        region = region_lookup("program");
             
        length = ((region->length / 2 ) * 3);
@@ -704,17 +707,17 @@ bfd_pic30_ide_dashboard_memory_report () {
 
        free = length - used;
 
-       indent_fprintf(memoryFile,"<units>%s</units>\n", units);
-       indent_fprintf(memoryFile,"<length>%d</length>\n", length);
-       indent_fprintf(memoryFile,"<used>%d</used>\n", used);
-       indent_fprintf(memoryFile,"<free>%d</free>\n",free);
+       indent_fprintf(memory_summary_File,"<units>%s</units>\n", units);
+       indent_fprintf(memory_summary_File,"<length>%d</length>\n", length);
+       indent_fprintf(memory_summary_File,"<used>%d</used>\n", used);
+       indent_fprintf(memory_summary_File,"<free>%d</free>\n",free);
 
-       indent_fprintf(memoryFile,"</memory>\n");
+       indent_fprintf(memory_summary_File,"</memory>\n");
 
-    indent_fprintf(memoryFile, "</executable>\n");
-    indent_fprintf(memoryFile, "</project>\n");
+    indent_fprintf(memory_summary_File, "</executable>\n");
+    indent_fprintf(memory_summary_File, "</project>\n");
 
-    fclose(memoryFile);
+    fclose(memory_summary_File);
   }
 
 }

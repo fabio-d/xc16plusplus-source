@@ -188,6 +188,8 @@
 #define F_ECORE                      (1 << 7)
 #define F_FCORE                      (1 << 8)
 #define F_DUALPARTITION              (1 << 9)
+#define F_ISAV4                      (1 << 10)
+#define F_CONTEXTS                   (1 << 11)
 
 /******************************************************************************
  *
@@ -439,6 +441,14 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define CPWBLT_B_INSN 0xE68400
 #define CPWBNE_W_INSN 0xE70000
 #define CPWBNE_B_INSN 0xE70400
+#define BFINS_INSN    0x0A0000
+#define BFINSF_INSN   0x0A2000
+#define BFINSL_INSN   0x0A4000
+#define BFEXT_INSN    0x0A8000
+#define BFEXTF_INSN   0x0AA000
+#define DIVSW2_INSN   0xD80020
+#define DIVUW2_INSN   0xD88020
+#define DIVXW2_MASK   0xFF8060
 
 /******************************************************************************/
 
@@ -505,6 +515,17 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define BCLRF_W          OP_BCLRF_B,    1, { 0xA90000 }, 0x000000
 #define BCLRF_B          OP_BCLRF_B,    1, { 0xA90000 }, 0xFF0000
 #define BCLR_B           OP_BCLR_B,     1, { 0xA10400 }, 0xFF0F80
+
+#define BFCLR            OP_BFCLR,      1, { 0x0B8000 }, 0xFF8000
+
+#define BFEXT            OP_BFEXT,      2, { BFEXT_INSN, 0x000000 }, 0xFFE000
+#define BFEXTF           OP_BFEXTF,     2, { BFEXTF_INSN, 0x000000 }, 0xFFE000
+
+#define BFINS            OP_BFINS,      2, { BFINS_INSN, 0x000000 }, 0xFFE000
+#define BFINSF           OP_BFINSF,     2, { BFINSF_INSN, 0x000000 }, 0xFFE000
+#define BFINSL           OP_BFINSL,     2, { BFINSL_INSN, 0x000000 }, 0xFFE000
+
+#define BFSET            OP_BFSET,      1, { 0x0B0000 }, 0xFF8000
 
 #define BOOTSWP          OP_BOOTSWP,    1, { 0xFE2000 }, 0xFFFFFF
 
@@ -664,13 +685,21 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 
 #define DISI             OP_DISI,       1, { 0xFC0000 }, 0xFFC000
 
-#define DIVF             OP_DIVF,       1, { 0xD90000 }, 0xFF87F0
+#define DIVF             OP_DIVF,       1, { 0xD90000 }, 0xFF0020
 
-#define DIVS_W           OP_DIVS_W,     1, { 0xD80000 }, 0xFFF870
-#define DIVS_D           OP_DIVS_D,     1, { 0xD80040 }, 0xFF8070
+#define DIVF2            OP_DIVF2,      1, { 0xD90020 }, 0xFF0020
 
-#define DIVU_W           OP_DIVU_W,     1, { 0xD88000 }, 0xFFF870
-#define DIVU_D           OP_DIVU_D,     1, { 0xD88040 }, 0xFF8070
+#define DIVS_W           OP_DIVS_W,     1, { 0xD80000 }, 0xFF8060
+#define DIVS_D           OP_DIVS_D,     1, { 0xD80040 }, 0xFF8060
+
+#define DIVSW2           OP_DIVSW2,     1, { DIVSW2_INSN }, DIVXW2_MASK
+#define DIVSD2           OP_DIVSD2,     1, { 0xD80060 }, 0xFF8060
+
+#define DIVU_W           OP_DIVU_W,     1, { 0xD88000 }, 0xFF8060
+#define DIVU_D           OP_DIVU_D,     1, { 0xD88040 }, 0xFF8060
+
+#define DIVUW2           OP_DIVUW2,     1, { DIVUW2_INSN }, DIVXW2_MASK
+#define DIVUD2           OP_DIVUD2,     1, { 0xD88060 }, 0xFF8060
 
 #define DOW              OP_DOW,        2, { DOW_INSN, 0x000000 }, 0xFF80F0
 #define DO               OP_DO,         2, { DO_INSN,  0x000000 }, 0xFFC000
@@ -682,16 +711,20 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 
 #define EXCH             OP_EXCH,       1, { 0xFD0000 }, 0xFFF870
 
-#define FBCL             OP_FBCL,       1, { 0xDF0000 }, 0xFFF800
+#define FBCL             OP_FBCL,       1, { 0xDF0000 }, 0xFF1000
 
 #define FF1L             OP_FF1L,       1, { 0xCF8000 }, 0xFFF800
 
 #define FF1R             OP_FF1R,       1, { 0xCF0000 }, 0xFFF800
 
-#define GOTOW            OP_GOTOW,      1, { 0x014000 },           0xFFFFF0
-#define GOTO             OP_GOTO,       2, { GOTO_INSN, 0x000000 }, 0xFF0000
-#define GOTOWE           OP_GOTOW,      1, { 0x010400 },           0xFF8600
-#define GOTOW_L          OP_GOTOW,     1, { 0x018400 },           0xFF8600
+#define FLIM             OP_FLIM,       1, { 0xE40000 }, 0xFE0000
+#define FLIMW            OP_FLIMW,      1, { 0xE40000 }, 0xFE0000
+#define FLIMWV           OP_FLIMWV,     1, { 0xE58000 }, 0xFF8000
+
+#define GOTOW            OP_GOTOW,      1, { 0x014000 }, 0xFFFFF0
+#define GOTO             OP_GOTO,       2, { GOTO_INSN,  0x000000 }, 0xFF0000
+#define GOTOWE           OP_GOTOW,      1, { 0x010400 }, 0xFF8600
+#define GOTOW_L          OP_GOTOW,      1, { 0x018400 }, 0xFF8600
 
 #define INCFF_B          OP_INCFF_B,    1, { 0xEC6000 }, 0xFFE000
 #define INCFW_B          OP_INCFW_B,    1, { 0xEC4000 }, 0xFFE000
@@ -723,6 +756,11 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define LAC_PS           OP_LAC_PS,     1, { 0xCA0000 }, 0xFF0000
 #define LAC              OP_LAC,        1, { 0xCA0000 }, 0xFF0780
 
+#define LACD_PS          OP_LACD_PS,    1, { 0xDB0000 }, 0xFF0000
+#define LACD             OP_LACD,       1, { 0xDB0000 }, 0xFF0780
+
+#define LDSLV            OP_LDSLV,      1, { 0x030010 }, 0xFF8050
+
 #define LNK              OP_LNK,        1, { 0xFA0000 }, 0xFFC000
 
 #define LSRFF_B          OP_LSRFF_B,    1, { 0xD56000 }, 0xFFE000
@@ -734,6 +772,14 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define LSR_W            OP_LSR_W,      1, { 0xD10000 }, 0xFFC000
 #define LSRW_W           OP_LSRW_W,     1, { 0xDE0000 }, 0xFF8070
 #define LSRK_W           OP_LSRK_W,     1, { 0xDE0040 }, 0xFF8070
+
+#define MAXAB            OP_MAXAB,      1, { 0xCE0000 }, 0xFF6000
+#define MAXABW           OP_MAXABW,     1, { 0xCE1000 }, 0xFF7800
+#define MAXABWV          OP_MAXABWV,    1, { 0xCE1800 }, 0xFF7800
+
+#define MINAB            OP_MINAB,      1, { 0xCE2000 }, 0xFF6000
+#define MINABW           OP_MINABW,     1, { 0xCE3000 }, 0xFF7800
+#define MINABWV          OP_MINABWV,    1, { 0xCE3800 }, 0xFF7800
 
 #define MPY_A            OP_MPY_A,      1, { 0xC00113 }, 0xF87FFF
 #define MPY_X            OP_MPY_X,      1, { 0xC00013 }, 0xF84C3F
@@ -852,6 +898,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define NOP              OP_NOP,        1, { 0x000000 }, 0xFF0000
 #define NOPR             OP_NOPR,       1, { 0xFF0000 }, 0xFF0000
 
+#define NORMACW          OP_NORMACW,    1, { 0xCE6000 }, 0xFF6000
+
 #define POP_W            OP_POP_W,      1, { 0x78004F }, 0xFFC07F
 #define POPF             OP_POPF,       1, { 0xF90000 }, 0xFF0000
 
@@ -921,6 +969,9 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define SAC_PS          OP_SAC_PS,     1, { 0xCC0000 }, 0xFF0000
 #define SAC             OP_SAC,        1, { 0xCC0000 }, 0xFF0780
 
+#define SACD_PS         OP_SACD_PS,    1, { 0xDC0000 }, 0xFF0000
+#define SACD            OP_SACD,       1, { 0xDC0000 }, 0xFF0780
+
 #define SAC_R_PS        OP_SAC_R_PS,   1, { 0xCD0000 }, 0xFF0000
 #define SAC_R           OP_SAC_R,      1, { 0xCD0000 }, 0xFF0780
 
@@ -934,8 +985,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define SET_W           OP_SET_W,      1, { 0xEB8000 }, 0xFFC07F
 #define SETF_W          OP_SETF_W,     1, { 0xEFA000 }, 0xFFE000
 
-#define SFTACW          OP_SFTACW,     1, { 0xC80000 }, 0xFF7FF0
-#define SFTACK          OP_SFTACK,     1, { 0xC80040 }, 0xFF7FC0
+#define SFTACW          OP_SFTACW,     1, { 0xC80000 }, 0xFF0040
+#define SFTACK          OP_SFTACK,     1, { 0xC80040 }, 0xFF0040
 
 #define SLFF_B          OP_SLFF_B,     1, { 0xD46000 }, 0xFFE000
 #define SLFW_B          OP_SLFW_B,     1, { 0xD44000 }, 0xFFE000
@@ -1008,6 +1059,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define TBLWTL_W        OP_TBLWTL_W,   1, { 0xBB0000 }, 0xFFC000
 
 #define ULNK            OP_ULNK,       1, { 0xFA8000 }, 0xFFFFFF
+
+#define VFSLV           OP_VFSLV,      1, { 0x038010 }, 0xFF8050
 
 #define XORWFF_B        OP_XORWFF_B,   1, { 0xB6E000 }, 0xFFE000
 #define XORWFW_B        OP_XORWFW_B,   1, { 0xB6C000 }, 0xFFE000

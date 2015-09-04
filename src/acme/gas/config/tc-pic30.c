@@ -109,6 +109,7 @@ void pic30_relax_call PARAMS ((fragS *));
 void pic30_prepare_relax_scan PARAMS ((fragS *, unsigned long,
                                        long *, relax_substateT,
                                        PTR));
+void pic30_create_bf_insn PARAMS ((struct pic30_opcode *, expressionS []));
 
 /******************************************************************************
  * ENUMERATED TYPES
@@ -285,6 +286,7 @@ static struct section_stack *section_stack;
 #define PIC30_RELAX                (PIC30_BASE_OPTION + 1)
 #define PIC30_CPU                  (PIC30_BASE_OPTION + 2)
 #define PIC30_PARTITION            (PIC30_BASE_OPTION + 3)
+#define PIC30_ISAV4                (PIC30_BASE_OPTION + 4)
 
 /* Number of littlenums required to hold an extended precision number */
 #define MAX_LITTLENUMS 6
@@ -313,6 +315,7 @@ struct option md_longopts[] =
    { "cpu",          required_argument, NULL, PIC30_CPU       },
    { "g",            no_argument,       NULL, 'g'             },
    { "partition",    no_argument,       NULL, PIC30_PARTITION },
+   { "isa",          required_argument,  NULL, PIC30_ISAV4     },
    { NULL,           no_argument,       NULL, 0               }
 };
 
@@ -4297,6 +4300,11 @@ md_parse_option (option, argument)
          pic30_partition_flash = TRUE;
          break;
 
+      case PIC30_ISAV4:
+         if (strcmp(argument, "v4") == 0)
+           pic30_isa_v4 = TRUE;
+           break;
+
       default :
          rc = 0;
          break;
@@ -4366,6 +4374,7 @@ md_begin (void)
    int symbol_count = 0;
    int is_ecore = pic30_is_ecore_machine(global_PROCESSOR);
    int is_dualpartition = pic30_is_dualpartition_machine(global_PROCESSOR);
+   int is_contexts = pic30_is_contexts_machine(global_PROCESSOR);
 
    if (flag_debug)
       printf ("--> md_begin::begin\n");
@@ -4386,8 +4395,12 @@ md_begin (void)
       add_me |= ((opcode->flags & F_FCORE) && (!is_ecore));
       add_me |= (((opcode->flags & F_ECORE) == 0) && 
 		 ((opcode->flags & F_FCORE) == 0));
-      if ((opcode->flags & F_DUALPARTITION) && !is_dualpartition) {
-        /* don't add a dualpartition instruction if we have onle partition */
+      if (((opcode->flags & F_DUALPARTITION) && !is_dualpartition) ||
+          ((opcode->flags & F_ISAV4) && !pic30_isa_v4) ||
+          ((opcode->flags & F_CONTEXTS) && !is_contexts)) {
+        /* don't add a dualpartition instruction if we have one partition */
+        /* don't add ISA v4 insn if --isa=v4 is not used */
+        /* don't add  contexts insn if the device does not have contexts */
         add_me = 0;
       }
       if ((strcmp (opcode->name, previous_name) != 0) && add_me)
@@ -4798,6 +4811,14 @@ print_expression (expressionP)
 
       case PIC30_PACKED_LO_FOUND:
          fprintf (stdout, "packed_lo (");
+         break;
+
+      case PIC30_ADDR_LO_FOUND:
+         fprintf (stdout, "addr_lo (");
+         break;
+
+      case PIC30_ADDR_HI_FOUND:
+         fprintf (stdout, "addr_hi (");
          break;
 
       default:
@@ -6042,6 +6063,8 @@ pic30_cons_fix_new (frag, where, nbytes, exp)
                (exp->X_md.modifier == PIC30_SECURE_FOUND) ? "secure" :
                (exp->X_md.modifier == PIC30_EDSPAGE_FOUND) ? "edspage" :
                (exp->X_md.modifier == PIC30_EDSOFFSET_FOUND) ? "edsoffset" :
+               (exp->X_md.modifier == PIC30_ADDR_LO_FOUND) ? "addr_lo" :
+               (exp->X_md.modifier == PIC30_ADDR_HI_FOUND) ? "addr_hi" :
                "none");
    } /* if (flag_debug) */
 
@@ -6066,6 +6089,8 @@ pic30_cons_fix_new (frag, where, nbytes, exp)
                (exp->X_md.modifier == PIC30_DMAPAGE_FOUND) ? "dmapage" :
                (exp->X_md.modifier == PIC30_DMAOFFSET_FOUND) ? "dmaoffset" :
                (exp->X_md.modifier == PIC30_HANDLE_FOUND) ? "handle" :
+               (exp->X_md.modifier == PIC30_ADDR_LO_FOUND) ? "addr_lo" :
+               (exp->X_md.modifier == PIC30_ADDR_HI_FOUND) ? "addr_hi" :
                "paddr");
 
             /* Make it act as a .pword or a .word directive */
@@ -6174,6 +6199,14 @@ pic30_cons_fix_new (frag, where, nbytes, exp)
                                               : BFD_RELOC_PIC30_EDSOFFSET);
             break;
 
+         case PIC30_ADDR_LO_FOUND:
+            type = (global_p_directive_active ? BFD_RELOC_PIC30_P_ADDR_LO
+                                              : BFD_RELOC_PIC30_ADDR_LO);
+            break;      
+         case PIC30_ADDR_HI_FOUND:
+            type = (global_p_directive_active ? BFD_RELOC_PIC30_P_ADDR_HI
+                                              : BFD_RELOC_PIC30_ADDR_HI);
+            break;
          default:
             break;
       } /* switch (exp->X_md.modifier) */
@@ -6841,6 +6874,8 @@ pic30_expr (expr_to_populate, data_allocation)
    PARSE_OPERATOR("edsoffset", PIC30_EDSOFFSET_FOUND);
    PARSE_OPERATOR("packed_hi", PIC30_PACKED_HI_FOUND);
    PARSE_OPERATOR("packed_lo", PIC30_PACKED_LO_FOUND);
+   PARSE_OPERATOR("addr_lo", PIC30_ADDR_LO_FOUND);
+   PARSE_OPERATOR("addr_hi", PIC30_ADDR_HI_FOUND);
 
    /* Reset comma */
    if (comma_location)
@@ -6892,7 +6927,11 @@ pic30_expr (expr_to_populate, data_allocation)
                  (expr_to_populate->X_md.modifier ==
                   PIC30_DMAPAGE_FOUND) ? "dmapage" :
                  (expr_to_populate->X_md.modifier ==
-                  PIC30_DMAOFFSET_FOUND) ? "dmaoffset" : "handle");
+                  PIC30_DMAOFFSET_FOUND) ? "dmaoffset" : 
+                 (expr_to_populate->X_md.modifier ==
+                  PIC30_ADDR_LO_FOUND) ? "addr_lo" : 
+                 (expr_to_populate->X_md.modifier ==
+                  PIC30_ADDR_HI_FOUND) ? "addr_hi" : "handle");
       } /* else if (!data_allocation) */
 
       if ((expr_to_populate->X_md.modifier == PIC30_PADDR_FOUND) &&
@@ -7927,6 +7966,14 @@ pic30_create_2word_insn (opcode, operands)
          pic30_create_goto_insn (opcode, operands);
          break;
 
+      case BFINS_INSN:
+      case BFINSF_INSN:
+      case BFINSL_INSN:
+      case BFEXT_INSN:
+      case BFEXTF_INSN:
+         pic30_create_bf_insn(opcode, operands);
+         break;
+
       default:
          BAD_CASE (insn_word1);
          break;
@@ -8095,6 +8142,14 @@ pic30_create_insn (opcode, operands, operand_count)
 
                      case PIC30_PSVPTR_FOUND:
                         value = PIC30_PSVPTR (value);
+                        break;
+
+                     case PIC30_ADDR_LO_FOUND:
+                        value = (value & 0xFFFF);
+                        break;
+
+                     case PIC30_ADDR_HI_FOUND:
+                        value = (value >> 16);
                         break;
 
                      default:
@@ -8331,7 +8386,36 @@ pic30_create_insn (opcode, operands, operand_count)
                                            2, &(operands[i]), FALSE,
                                            BFD_RELOC_PIC30_WORD_PACKED_LO);
                     } /* else if (PIC30_PACKED_LO_FOUND) */
+                  else if (operands[i].X_md.modifier == PIC30_ADDR_LO_FOUND)
+                    {
+                      if (flag_debug)
+                        fprintf (stdout, "    pic30_create_insn::ADDR_LO\n");
 
+                      if (reloc.value != BFD_RELOC_PIC30_WORD ) {
+                        as_bad (_("%s%s"), "ADDR_LO", err_str);
+                        break;
+                      }
+                      else
+                        fix = fix_new_exp (frag_now,
+                                           output_frag - frag_now->fr_literal,
+                                           2, &(operands[i]), FALSE,
+                                           BFD_RELOC_PIC30_WORD_ADDR_LO);
+                    } /* else if (PIC30_ADDR_LO_FOUND) */
+                 else if (operands[i].X_md.modifier == PIC30_ADDR_HI_FOUND)
+                    {
+                      if (flag_debug)
+                        fprintf (stdout, "    pic30_create_insn::ADDR_HI\n");
+
+                      if (reloc.value != BFD_RELOC_PIC30_WORD ) {
+                        as_bad (_("%s%s"), "ADDR_HI", err_str);
+                        break;
+                      }
+                      else
+                        fix = fix_new_exp (frag_now,
+                                           output_frag - frag_now->fr_literal,
+                                           2, &(operands[i]), FALSE,
+                                           BFD_RELOC_PIC30_WORD_ADDR_HI);
+                    } /* else if (PIC30_ADDR_LO_FOUND) */
                   else
                   {
                      fix = fix_new_exp (frag_now,
@@ -9813,4 +9897,142 @@ md_section_align (segment, size)
 } /* valueT md_section_align(segT, valueT) */
 
 /******************************************************************************/
+void
+pic30_create_bf_insn (opcode, operands)
+   struct pic30_opcode * opcode;
+   expressionS operands[];
+/******************************************************************************
+ *
+ *   This function is called to encode bfins instruction.
+ *
+ *****************************************************************************/
+{
+   unsigned short i;
 
+   if (flag_debug)
+      printf ("--> pic30_create_do_insn::begin\n");
+
+   /* keep globals current */
+   global_current_location += PIC30_SIZE_OF_PROGRAM_WORD;
+   global_p_directive_active = FALSE;
+   
+
+   char * output_frag1 = frag_more (PIC30_SIZE_OF_PROGRAM_WORD);
+   char * output_frag2 = frag_more (PIC30_SIZE_OF_PROGRAM_WORD);
+
+   unsigned int insn_word1 = opcode->opcode[0];
+   unsigned int insn_word2 = opcode->opcode[1];
+   unsigned int insn = insn_word1;
+
+  for (i = 0; i < opcode->number_of_operands; i++)
+   {  
+      const struct pic30_operand * opnd =
+         &(pic30_operands[opcode->operands[i]]);
+      const struct relocation_info reloc =
+         pic30_relocation_info[opnd->relocation];
+
+      if ((((opcode->opcode[0] == BFINS_INSN) ||
+          (opcode->opcode[0] == BFINSF_INSN)) && (i == 3)) ||
+          (((opcode->opcode[0] == BFINSL_INSN) ||
+            (opcode->opcode[0] == BFEXT_INSN) ||
+            (opcode->opcode[0] == BFEXTF_INSN)) && (i == 2)))
+        {
+         insn_word1 = insn;
+         insn = insn_word2;
+        }
+
+      switch (operands[i].X_op)
+      {
+         case O_register:
+         case O_constant:
+         {  
+           if (i == 1) {
+             operands[i].X_add_number = operands[0].X_add_number +
+                                        operands[i].X_add_number - 1;
+             if (operands[i].X_add_number > 15)
+               as_bad (_("Please refer to bfins instruction description "
+                         "to provide correct operand values.\n"));
+           }       
+           if (((opcode->opcode[0] == BFEXT_INSN) ||
+               (opcode->opcode[0] == BFEXTF_INSN)) && (i == 3))
+             insn = insn_word1;
+        
+           insn = PIC30_ADD_OPERAND (insn, operands[i].X_add_number,
+                                     opnd->bits, opnd->shift);
+
+           if ((opcode->opcode[0] == BFINS_INSN) ||
+               (opcode->opcode[0] == BFINSF_INSN)) {
+             if (i == 2)
+               md_number_to_chars (output_frag1, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+             else if (i == 3)
+               md_number_to_chars (output_frag2, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+           }
+           else if (opcode->opcode[0] == BFINSL_INSN) {
+             if (i == 1)
+               md_number_to_chars (output_frag1, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+             else if (i == 3)
+               md_number_to_chars (output_frag2, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+           }
+           else if ((opcode->opcode[0] == BFEXT_INSN) ||
+               (opcode->opcode[0] == BFEXTF_INSN)) {
+             if (i == 3)
+               md_number_to_chars (output_frag1, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+             else if (i == 2)
+               md_number_to_chars (output_frag2, insn,
+                                 PIC30_SIZE_OF_PROGRAM_WORD);
+           }            
+           break;  
+        }
+
+        default:
+         {
+            struct pic30_operand_value operand_value;
+
+            if (pic30_populate_operand_value (&(operands[i]),
+                &operand_value,opnd->type))
+            {
+              /*
+              ** the operand can be calculated now
+              */
+              if (opnd->insert)
+              {
+                char * error_msg = (char *) NULL;
+
+                insn = (*opnd->insert)(insn, opcode->flags,
+                                            opnd, &operand_value,
+                                            &error_msg);
+
+                if (error_msg != (char *) NULL)
+                {
+                  as_fatal (error_msg);
+                  free (error_msg);
+                } /* if (error_msg != (char *) NULL) */
+              } /* if (opnd->insert) */
+           }
+           else
+           {
+             if (operands[i].X_op != O_W_REG)
+              {
+               /* operand refers to a symbol */
+               fixS * fix;
+               fix = fix_new_exp (frag_now,
+                                  output_frag2 - frag_now->fr_literal,
+                                  reloc.fix_size, &(operands[i]),
+                                  reloc.pc_relative, reloc.value);
+             }
+
+          }
+        
+         md_number_to_chars (output_frag2, insn,
+                             PIC30_SIZE_OF_PROGRAM_WORD);
+         break;
+       }
+    }
+  }
+}
+/******************************************************************************/

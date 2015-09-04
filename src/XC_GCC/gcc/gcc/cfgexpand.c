@@ -3835,7 +3835,9 @@ gimple_expand_cfg (void)
   /* Mark arrays indexed with non-constant indices with TREE_ADDRESSABLE.  */
   discover_nonconstant_array_refs ();
 
+#ifndef _BUILD_C30_
   targetm.expand_to_rtl_hook ();
+#endif
   crtl->stack_alignment_needed = STACK_BOUNDARY;
   crtl->max_used_stack_slot_alignment = STACK_BOUNDARY;
   crtl->stack_alignment_estimated = 0;
@@ -3860,6 +3862,9 @@ gimple_expand_cfg (void)
 
   /* Set up parameters and prepare for return, for the function.  */
   expand_function_start (current_function_decl);
+#ifdef _BUILD_C30_
+  targetm.expand_to_rtl_hook ();
+#endif
 
   /* Now that we also have the parameter RTXs, copy them over to our
      partitions.  */

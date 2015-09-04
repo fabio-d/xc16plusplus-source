@@ -656,8 +656,9 @@ pic30_parse_args (argc, argv)
     case PARTITION_FLASH:
       pic30_partition_flash = TRUE;
       break;
-    case IDE_DASHBOARD:
-      pic30_ide_dashboard = TRUE;
+    case MEMORY_SUMMARY:
+      pic30_memory_summary = TRUE;
+      memory_summary_arg = optarg;
       break;
     }
     

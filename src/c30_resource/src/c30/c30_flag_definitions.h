@@ -91,6 +91,7 @@
 #define MEM_IS_AIVT_ENABLED 1 << 13 /* identifies fuse location + bit to check
                                          validity of floating AIVT */
 #define MEM_AIVT_LOCATION   1 << 14 /* identifies fuse location for AIVT */
+#define MEM_SFR             1 << 15 /* length of the SFR */
 
 /*
 ** Values that identify record types - bits [28-31]
@@ -260,7 +261,8 @@
                                  "generic" DIR_SEPARATOR_STR \
                                  "gld"
 #define MPLABC30_ERRATA_COMMON_LIB_PATH ".." DIR_SEPARATOR_STR \
-                                 "errata-lib" PATH_SEPARATOR_STR \
+                                 "lib" DIR_SEPARATOR_STR "errata" \
+                                 PATH_SEPARATOR_STR \
                                  ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "generic" DIR_SEPARATOR_STR \

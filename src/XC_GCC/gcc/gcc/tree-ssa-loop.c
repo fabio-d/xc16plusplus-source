@@ -485,7 +485,11 @@ tree_complete_unroll (void)
 static bool
 gate_tree_complete_unroll (void)
 {
-  return true;
+#ifdef _BUILD_C30_
+  return !optimize_size;
+#else
+  return 1;
+#endif
 }
 
 struct gimple_opt_pass pass_complete_unroll =
@@ -532,7 +536,11 @@ tree_complete_unroll_inner (void)
 static bool
 gate_tree_complete_unroll_inner (void)
 {
-  return optimize >= 2;
+#ifdef _BUILD_C30_
+  return (optimize >= 2) && (!optimize_size);
+#else
+  return (optimize >= 2);
+#endif
 }
 
 struct gimple_opt_pass pass_complete_unrolli =

@@ -4828,6 +4828,9 @@ grokdeclarator (const struct c_declarator *declarator,
   const char *errmsg;
   tree expr_dummy;
   bool expr_const_operands_dummy;
+#ifdef _BUILD_C30_
+  addr_space_t target_force_address_space = 0;
+#endif
 
   if (expr == NULL)
     expr = &expr_dummy;
@@ -4957,6 +4960,64 @@ grokdeclarator (const struct c_declarator *declarator,
   as1 = declspecs->address_space;
   as2 = TYPE_ADDR_SPACE (element_type);
   address_space = ADDR_SPACE_GENERIC_P (as1)? as2 : as1;
+
+#if defined(_BUILD_C30_)  
+  if ((TARGET_EDS) && (Pmode == P32PEDSmode)) {
+    tree ptr_type;
+    /* normal declarations that are not in an odd storage class should
+       be defined as if:
+
+       __eds__ Tau foo;
+    */
+    if (name && strncmp(name->identifier.id.str, "positions", 9) == 0) {
+       fprintf(stderr,"fubar\n");
+    }
+    if (lookup_attribute("sfr", *decl_attrs) ||
+        lookup_attribute("__sfr__", *decl_attrs) ||
+        lookup_attribute("near", *decl_attrs) ||
+        lookup_attribute("__near__", *decl_attrs)) {
+    } else if ((decl_context == NORMAL) && (declarator->kind != cdk_function)) {
+      switch (storage_class) {
+        case csc_static:  /* FALLSTHROUGH */
+          if (declspecs->const_p == 0) {
+            if (TARGET_SMALL_AGG) break;
+            if (TARGET_SMALL_SCALAR) {
+              if (!((TREE_TYPE(type) == ARRAY_TYPE) ||
+                   (TREE_TYPE(type) == RECORD_TYPE) ||
+                   (TREE_TYPE(type) == UNION_TYPE))) break;
+            }
+          }
+          /* FALLSTHROUGH */
+        case csc_none:    /* FALLSTHROUGH */
+        case csc_extern:  /* FALLSTHROUGH */
+          if (ADDR_SPACE_GENERIC_P (address_space)) {
+            address_space = pic30_space_eds;
+          }
+          break;
+        default: break;
+      }
+    } 
+    if (declarator->kind == cdk_pointer) {
+      /* we think we have to force pointers to be eds address spaces */ 
+      if (ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(type))) {
+         address_space = pic30_space_eds;
+         target_force_address_space = address_space;
+      }
+    }
+
+    /* pointer types should have the pointer portion qualified, as if:
+
+       Tau * __eds__ foo;
+    */
+    ptr_type = type;
+    while (TREE_CODE(ptr_type) == POINTER_TYPE) {
+      if (ADDR_SPACE_GENERIC_P(ptr_type)) {
+        TYPE_ADDR_SPACE(ptr_type) == pic30_space_eds;
+      }
+      ptr_type = TREE_TYPE(ptr_type);
+    }
+  }
+#endif
 
   if (pedantic && !flag_isoc99)
     {
@@ -5395,6 +5456,12 @@ grokdeclarator (const struct c_declarator *declarator,
 	       below.  */
 	      {
 		addr_space_t as = DECODE_QUAL_ADDR_SPACE (type_quals);
+#ifdef _BUILD_C30_
+		if (!ADDR_SPACE_GENERIC_P (target_force_address_space) && 
+                    target_force_address_space != TYPE_ADDR_SPACE (type))
+		  type = build_qualified_type (type,
+					       ENCODE_QUAL_ADDR_SPACE (target_force_address_space));
+#endif
 		if (!ADDR_SPACE_GENERIC_P (as) && as != TYPE_ADDR_SPACE (type))
 		  type = build_qualified_type (type,
 					       ENCODE_QUAL_ADDR_SPACE (as));
@@ -5552,6 +5619,13 @@ grokdeclarator (const struct c_declarator *declarator,
 		&& type_quals)
 	      pedwarn (loc, OPT_pedantic,
 		       "ISO C forbids qualified function types");
+
+#ifdef _BUILD_C30_
+            if (!ADDR_SPACE_GENERIC_P (target_force_address_space) && 
+                    target_force_address_space != TYPE_ADDR_SPACE (type))
+		  type = build_qualified_type (type,
+					       ENCODE_QUAL_ADDR_SPACE (target_force_address_space));
+#endif
 	    if (type_quals)
 	      type = c_build_qualified_type (type, type_quals);
 	    size_varies = false;
@@ -5955,6 +6029,7 @@ grokdeclarator (const struct c_declarator *declarator,
 	/* An uninitialized decl with `extern' is a reference.  */
 	int extern_ref = !initialized && storage_class == csc_extern;
 
+        volatile tree old_type = type;
 	type = c_build_qualified_type (type, type_quals);
 
 	/* C99 6.2.2p7: It is invalid (compile-time undefined

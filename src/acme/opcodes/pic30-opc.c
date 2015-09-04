@@ -90,6 +90,12 @@ unsigned char pic30_match_byte_8bit_lit PARAMS
    ((const struct pic30_operand_value * check));
 unsigned char pic30_match_unsigned_3bit_lit PARAMS
    ((const struct pic30_operand_value * check));
+unsigned char pic30_match_unsigned_2bit_lit PARAMS
+   ((const struct pic30_operand_value * check));
+unsigned char pic30_match_wid5_lit PARAMS
+   ((const struct pic30_operand_value * check));
+unsigned char pic30_match_dividend16_reg_2 PARAMS
+   ((const struct pic30_operand_value * check));
 
 unsigned long pic30_insert_34bit_lit PARAMS ((unsigned long insn,
    unsigned long flags,
@@ -97,6 +103,16 @@ unsigned long pic30_insert_34bit_lit PARAMS ((unsigned long insn,
    const struct pic30_operand_value * operand_value,
    char **error_msg));
 unsigned long pic30_insert_dividend_reg PARAMS ((unsigned long insn,
+   unsigned long flags,
+   const struct pic30_operand * opnd,
+   const struct pic30_operand_value * operand_value,
+   char **error_msg));
+unsigned long pic30_insert_dividend16_reg_2 PARAMS ((unsigned long insn,
+   unsigned long flags,
+   const struct pic30_operand * opnd,
+   const struct pic30_operand_value * operand_value,
+   char **error_msg));
+unsigned long pic30_insert_divf2_dividend_reg PARAMS ((unsigned long insn,
    unsigned long flags,
    const struct pic30_operand * opnd,
    const struct pic30_operand_value * operand_value,
@@ -463,7 +479,17 @@ const struct relocation_info pic30_relocation_info[] =
    { BFD_RELOC_PIC30_PCREL_BRANCH_SLIT6, TRUE, 1, NULL },
 #define PIC30_RELOC_INFO_UNSIGNED_3                                (26)
    { BFD_RELOC_PIC30_UNSIGNED_3, FALSE, 1, pic30_match_unsigned_3bit_lit },
-
+#define PIC30_RELOC_INFO_UNSIGNED_2                                (27)
+   { BFD_RELOC_PIC30_UNSIGNED_2, FALSE, 1, pic30_match_unsigned_2bit_lit },
+#define PIC30_RELOC_INFO_WID5                                 (28)
+   { BFD_RELOC_PIC30_WID5, FALSE, 1, pic30_match_wid5_lit },
+#define PIC30_RELOC_INFO_SHIFT8_UNSIGNED_8                    (29)
+   {
+        BFD_RELOC_PIC30_SHIFT8_UNSIGNED_8,            /* value */
+        FALSE,                                  /* PC relative ? */
+        1,                                      /* fix size (?) */
+        pic30_match_byte_8bit_lit                   /* is_match() */
+   },
 };
 
 /******************************************************************************
@@ -592,7 +618,7 @@ const struct pic30_operand pic30_operands[] =
 	PIC30_RELOC_INFO_NONE,		/* default relocation type */
 	0,				/* is_match() */
         0,                              /* info_string */
-	0,				/* insert() */
+	0,                              /* insert() */
 	0				/* extract() */
    },
 
@@ -1019,13 +1045,82 @@ const struct pic30_operand pic30_operands[] =
         0,                              /* # of bits to shift for alignment */
         OPND_VALUE,                     /* operand type */
         TRUE,                           /* immediate operand ? */
-        PIC30_RELOC_INFO_UNSIGNED_15,   /* default relocation type */
+        PIC30_RELOC_INFO_UNSIGNED_3,   /* default relocation type */
         pic30_match_unsigned_3bit_lit, /* is_match() */
         "Operand must be between 0 and 4, inclusive.",
         0,                              /* insert() */
         0                               /* extract() */
    },
- 
+
+#define LITERAL_2BIT                   (PIC30_BASE_OPERAND + 60)
+   {
+        2,                             /* # of bits in operand */
+        12,                              /* # of bits to shift for alignment */
+        OPND_VALUE,                     /* operand type */
+        TRUE,                           /* immediate operand ? */
+        PIC30_RELOC_INFO_UNSIGNED_2,   /* default relocation type */
+        pic30_match_unsigned_2bit_lit, /* is_match() */
+        "Operand must be between 0 and 3, inclusive.",
+        0,                              /* insert() */
+        0                               /* extract() */
+   },
+
+#define H_DST_REG_0SHIFT                       (PIC30_BASE_OPERAND + 61)
+   { 4, 0, OPND_G_OR_H, FALSE, PIC30_RELOC_INFO_NONE,
+     0, 0, pic30_insert_h_dst_reg, pic30_extract_h_dst_reg },
+
+#define IND_DST_REG_POST_INC                         (PIC30_BASE_OPERAND + 62)
+   { 4, 7, OPND_REGISTER_POST_INCREMENT, FALSE, PIC30_RELOC_INFO_NONE, 0, 0, 0, 0 }, 
+
+#define SRC_REG                         (PIC30_BASE_OPERAND + 63)
+   { 4, 8, OPND_REGISTER_DIRECT, FALSE, PIC30_RELOC_INFO_NONE, 0, 0, 0, 0 },
+
+#define WID5                            (PIC30_BASE_OPERAND + 64)
+   {4, 4, OPND_VALUE, TRUE, PIC30_RELOC_INFO_WID5, pic30_match_wid5_lit,
+    "operand must be between 0 and 16, inclusive.", 0, 0},
+
+#define LITERAL_8BIT                   (PIC30_BASE_OPERAND + 65)
+   {
+        8,                             /* # of bits in operand */
+        8,                              /* # of bits to shift for alignment */
+        OPND_VALUE,                     /* operand type */
+        TRUE,                           /* immediate operand ? */
+        PIC30_RELOC_INFO_SHIFT8_UNSIGNED_8,   /* default relocation type */
+        pic30_match_byte_8bit_lit,          /* is_match() */
+        "Operand must be between 0 and 255, inclusive.",
+        0,                              /* insert() */
+        0                               /* extract() */
+   },
+
+#define BASE_REG_EVEN                        (PIC30_BASE_OPERAND + 66)
+   { 4, 11, OPND_REGISTER_DIRECT, FALSE, PIC30_RELOC_INFO_NONE,
+     pic30_match_even, "Register # must be even.", 0, 0 },
+
+#define DIVIDEND_REG                  (PIC30_BASE_OPERAND + 67)
+   {
+        4,                              /* # of bits in operand */
+        11,                             /* # of bits to shift for alignment */
+        OPND_REGISTER_DIRECT,           /* operand type */
+        FALSE,                          /* immediate operand ? */
+        PIC30_RELOC_INFO_NONE,          /* default relocation type */
+        pic30_match_div_src_reg,        /* is_match() */
+        "Register # must be between 1 and 15, inclusive.",
+        pic30_insert_divf2_dividend_reg,      /* insert() */
+        0                               /* extract() */
+   },
+#define DIVIDEND16_REG_2                (PIC30_BASE_OPERAND + 68)
+   {
+        4,                              /* # of bits in operand */
+        7,                              /* # of bits to shift for alignment */
+        OPND_REGISTER_DIRECT,           /* operand type */
+        FALSE,                          /* immediate operand ? */
+        PIC30_RELOC_INFO_NONE,          /* default relocation type */
+        pic30_match_dividend16_reg_2,     /* is_match() */
+        "Register # must be between 0 and 14, inclusive.",  /* info_string */
+        pic30_insert_dividend16_reg_2,      /* insert() */
+        0                               /* extract() */
+   },
+
 };
 const int pic30_num_operands =
    (sizeof(pic30_operands) / sizeof(struct pic30_operand));
@@ -1216,6 +1311,24 @@ const struct pic30_opcode pic30_opcodes[] =
    { "bclr.b",    BCLR_B,     2, { P_SRC_REG,
                                    BYTE_BIT_SELECT_NIBBLE }, F_NONE },
    { "bootswp" ,  BOOTSWP,    0, { 0 /* OPERANDS */ }, F_DUALPARTITION },
+
+   /***************************************************************************
+    * BFEXT
+    ***************************************************************************/
+   { "bfext",     BFEXT,      4, { SHIFT_LITERAL, WID5, P_SRC_REG, SRC_REG }, 
+                                            F_IS_DSP_INSN | F_ISAV4 },
+   { "bfext",     BFEXTF,     4, { SHIFT_LITERAL, WID5, FILE_REG_WORD, SRC_REG },
+                                            F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * BFINS
+    ***************************************************************************/
+   { "bfins",      BFINS,      4, { SHIFT_LITERAL, WID5, SRC_REG, P_SRC_REG },
+                                            F_IS_DSP_INSN | F_ISAV4 },
+   { "bfins",      BFINSF,     4, { SHIFT_LITERAL, WID5, SRC_REG,
+                                    FILE_REG_WORD }, F_IS_DSP_INSN | F_ISAV4 },
+   { "bfins",      BFINSL,     4, { SHIFT_LITERAL, WID5, LITERAL_8BIT,
+                                    P_SRC_REG }, F_IS_DSP_INSN | F_ISAV4 },   
 
    /***************************************************************************
     * BRA
@@ -1557,8 +1670,8 @@ const struct pic30_opcode pic30_opcodes[] =
    /***************************************************************************
     * CTXTSWP
     ***************************************************************************/
-   { "ctxtswp", CTXTSWPL, 1, {LITERAL_3BIT}, F_ECORE},
-   { "ctxtswp", CTXTSWPW, 1, {REG}, F_ECORE},
+   { "ctxtswp", CTXTSWPL, 1, {LITERAL_3BIT}, F_CONTEXTS},
+   { "ctxtswp", CTXTSWPW, 1, {REG}, F_CONTEXTS},
 
    /***************************************************************************
     * DAW
@@ -1622,6 +1735,12 @@ const struct pic30_opcode pic30_opcodes[] =
    { "divf",      DIVF,       2, { DIVIDENDFR_REG, DIVISOR_REG }, F_IS_DSP_INSN },
 
    /***************************************************************************
+   ** DIVF2 Wm,Wn        Fractional divide: Wm:(Wm-1)/Wn -> W(m-1), Rem -> Wm
+   ****************************************************************************/
+   { "divf2",      DIVF2,       2, { DIVIDEND_REG, REG },
+                                     F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
     * DIVS Wm,Wn	Signed integer divide: Wm/Wn -> W0, Rem -> W1
     ***************************************************************************/
    { "div.sd",    DIVS_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, F_NONE},
@@ -1629,11 +1748,31 @@ const struct pic30_opcode pic30_opcodes[] =
    { "div.s",     DIVS_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
 
    /***************************************************************************
+    DIVS2 Wm,Wn      Signed integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
+    ***************************************************************************/
+   { "div2.sd",    DIVSD2,     2, { DIVIDEND32_REG, REG },
+                                   F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.sw",    DIVSW2,     2, { DIVIDEND16_REG_2, REG },
+                                   F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.s",     DIVSW2,     2, { DIVIDEND16_REG_2, REG },
+                                   F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
     * DIVU Wm,Wn	Unsigned integer divide: Wm/Wn -> W0, Rem -> W1
     ***************************************************************************/
    { "div.ud",    DIVU_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, F_NONE},
    { "div.uw",    DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
    { "div.u",     DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
+
+   /***************************************************************************
+    DIVU2 Wm,Wn     Unsigned integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
+    ***************************************************************************/
+   { "div2.ud",    DIVUD2,     2, { DIVIDEND32_REG, REG },
+                                    F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.uw",    DIVUW2,     2, { DIVIDEND16_REG_2, REG },
+                                   F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.u",     DIVUW2,     2, { DIVIDEND16_REG_2, REG },
+                                   F_IS_DSP_INSN | F_ISAV4 },
 
    /***************************************************************************
     * DO
@@ -1688,6 +1827,21 @@ const struct pic30_opcode pic30_opcodes[] =
     ***************************************************************************/
    { "ff1r",      FF1R,       2, { P_SRC_REG, DST_REG }, F_WORD },
 
+   /***************************************************************************
+    * FLIM
+    ***************************************************************************/
+   { "flim",      FLIM,       2, { BASE_REG_EVEN, P_SRC_REG }, F_ISAV4 | 
+                                                         F_IS_DSP_INSN },
+   { "flim",      FLIMW,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+                                   F_ISAV4 | F_IS_DSP_INSN },
+   /***************************************************************************
+    * FLIMW
+    ***************************************************************************/
+   { "flim",        FLIMW,       3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+                                      F_ISAV4 | F_IS_DSP_INSN },
+
+   { "flim.v",      FLIMWV,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+                                      F_ISAV4 | F_IS_DSP_INSN },
    /***************************************************************************
     * GOTO
     ***************************************************************************/
@@ -1794,6 +1948,33 @@ const struct pic30_opcode pic30_opcodes[] =
                                    DSP_ACCUMULATOR_SELECT }, F_WORD |
                                                              F_IS_DSP_INSN },
 
+   /***************************************************************************
+    * LAC.w
+    ***************************************************************************/
+   { "lac.w",       LAC_PS,     3, { G_REG,
+                                     DSP_PRESHIFT,
+                                     DSP_ACCUMULATOR_SELECT }, F_WORD |
+                                                               F_IS_DSP_INSN },
+   { "lac.w",       LAC,        2, { G_REG,
+                                     DSP_ACCUMULATOR_SELECT }, F_WORD |
+                                                               F_IS_DSP_INSN },
+
+   /***************************************************************************
+    * LACD
+    ***************************************************************************/
+   { "lac.d",     LACD_PS,   3, { P_SRC_REG,
+                                  DSP_PRESHIFT,
+                                  DSP_ACCUMULATOR_SELECT}, F_WORD | F_ISAV4 |
+                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+   { "lac.d",     LACD,   2, { P_SRC_REG,
+                               DSP_ACCUMULATOR_SELECT}, F_WORD | F_ISAV4 |
+                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+
+   /***************************************************************************
+    * LDSLV
+    ***************************************************************************/
+   { "ldslv",     LDSLV,      3, { P_SRC_REG, IND_DST_REG_POST_INC, LITERAL_2BIT},
+                                   F_WORD | F_IS_DSP_INSN | F_ISAV4 },  
    /***************************************************************************
     * LNK
     ***************************************************************************/
@@ -1969,6 +2150,34 @@ const struct pic30_opcode pic30_opcodes[] =
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+
+   /***************************************************************************
+    * MAXAB
+    **************************************************************************/
+   { "max",       MAXAB,      1, { DSP_ACCUMULATOR_SELECT },
+                                 F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * MINABW
+    **************************************************************************/
+   { "max",       MAXABW,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                 F_IS_DSP_INSN | F_ISAV4 },
+   { "max.v",     MAXABWV,    2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                 F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * MINAB
+    **************************************************************************/
+   { "min",       MINAB,      1, { DSP_ACCUMULATOR_SELECT },
+                                 F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * MINABW
+    **************************************************************************/
+   { "min",       MINABW,      2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                 F_IS_DSP_INSN | F_ISAV4 },
+   { "min.v",     MINABWV,   2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                 F_IS_DSP_INSN | F_ISAV4 },
 
    /***************************************************************************
     * MOV.b
@@ -2185,6 +2394,12 @@ const struct pic30_opcode pic30_opcodes[] =
    { "nopr",      NOPR,       0, { 0 /* OPERANDS */ }, F_NONE },
 
    /***************************************************************************
+    * NORMACW
+    ***************************************************************************/
+   { "norm",      NORMACW,    2, {DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
     * POP
     ***************************************************************************/
    { "pop.w",     POP_W,      1, { H_DST_REG }, F_WORD },
@@ -2362,6 +2577,26 @@ const struct pic30_opcode pic30_opcodes[] =
                                    G_REG }, F_WORD | F_IS_DSP_INSN },
    { "sac",       SAC,        2, { DSP_ACCUMULATOR_SELECT,
                                    G_REG }, F_WORD | F_IS_DSP_INSN },
+
+   /***************************************************************************
+    * SAC.w
+    ***************************************************************************/
+   { "sac.w",       SAC_PS,     3, { DSP_ACCUMULATOR_SELECT,
+                                     DSP_PRESHIFT,
+                                     G_REG }, F_WORD | F_IS_DSP_INSN },
+   { "sac.w",       SAC,        2, { DSP_ACCUMULATOR_SELECT,
+                                     G_REG }, F_WORD | F_IS_DSP_INSN },
+
+   /***************************************************************************
+    * SACD
+    ***************************************************************************/
+   { "sac.d",     SACD_PS,   3, { DSP_ACCUMULATOR_SELECT,
+                                  DSP_PRESHIFT,
+                                  P_SRC_REG }, F_WORD | F_ISAV4 |
+                                    F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+   { "sac.d",     SACD,      2, { DSP_ACCUMULATOR_SELECT,
+                                  P_SRC_REG }, F_WORD | F_ISAV4 |
+                                    F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
     * SRAC
@@ -2651,6 +2886,12 @@ const struct pic30_opcode pic30_opcodes[] =
    { "ulnk",      ULNK,       0, { 0 /* OPERANDS */ }, F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
+    * VFSLV
+    ***************************************************************************/
+   { "vfslv",     VFSLV,      3, { P_SRC_REG, IND_DST_REG_POST_INC, LITERAL_2BIT},
+                                   F_WORD | F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
     * XOR.b
     ***************************************************************************/
    { "xor.b",     XORWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
@@ -2721,6 +2962,52 @@ pic30_insert_dividend_reg (insn, flags, opnd, operand_value, error_msg)
                              opnd->bits, opnd->shift+4);
    return(insn);
 } /* unsigned long pic30_insert_dividend_reg(...) */
+
+/******************************************************************************
+ *
+ *   This function will insert the tttt encoding into the DIVSW2 & DIVUW2.
+ *
+ ******************************************************************************/
+unsigned long
+pic30_insert_dividend16_reg_2 (insn, flags, opnd, operand_value, error_msg)
+   unsigned long insn;
+   unsigned long flags __attribute__ ((__unused__));
+   const struct pic30_operand * opnd;
+   const struct pic30_operand_value * operand_value;
+   char **error_msg __attribute__ ((__unused__));
+
+{  
+   insn = PIC30_ADD_OPERAND (insn, operand_value->value,
+                             opnd->bits, opnd->shift);
+
+   insn = PIC30_ADD_OPERAND (insn, operand_value->value+1,
+                             opnd->bits, opnd->shift+4);
+      
+   return(insn);
+} /* unsigned long pic30_insert_dividend16_reg_2(...) */
+
+/******************************************************************************
+ *
+ *   This function will insert the tttt encoding into the DIVF2.
+ *
+ ******************************************************************************/
+unsigned long
+pic30_insert_divf2_dividend_reg (insn, flags, opnd, operand_value, error_msg)
+   unsigned long insn;
+   unsigned long flags __attribute__ ((__unused__));
+   const struct pic30_operand * opnd;
+   const struct pic30_operand_value * operand_value;
+   char **error_msg __attribute__ ((__unused__));
+
+{
+   insn = PIC30_ADD_OPERAND (insn, operand_value->value,
+                             opnd->bits, opnd->shift);
+
+   insn = PIC30_ADD_OPERAND (insn, operand_value->value-1,
+                             opnd->bits, opnd->shift-4);
+
+   return(insn);
+} /* unsigned long pic30_insert_divf2_dividend_reg(...) */
 
 /******************************************************************************/
 
@@ -3198,7 +3485,32 @@ pic30_insert_p_src_reg (insn, flags, opnd, operand_value, error_msg)
  *
  ******************************************************************************/
 
-{
+{   long int mode = pic30_get_p_or_q_mode_value (operand_value->type,
+                                                          error_msg);
+    if (((insn & 0xFF8050) == 0x030010) || ((insn & 0xFF8050) == 0x038010)){
+     if ((mode != P_OR_Q_REGISTER_INDIRECT) &&
+         (mode != P_OR_Q_REGISTER_POST_INCREMENT)){
+       if (!(*error_msg)) {
+         *error_msg = (char *) malloc (BUFSIZ);
+         strcpy (*error_msg, "ldslv & vfslv source address mode is "
+                             "constrained to indirect and indirect "
+                             "with post increment.\n");
+       }
+      return insn;
+     }
+   }
+
+   else if (((insn & 0xFF0000) == 0xDB0000) || ((insn & 0xFF0000) == 0xdc0000)) {
+     if ((mode == P_OR_Q_REGISTER_DIRECT) && (operand_value->value % 2)) {
+       if (!(*error_msg)) {
+         *error_msg = (char *) malloc (BUFSIZ);
+         strcpy (*error_msg, "lac.d & sac.d should have even register number "
+                             "when in direct addressing mode ");
+       }
+      return insn;
+     }
+   }
+
    insn = PIC30_ADD_OPERAND (insn, operand_value->value,
                              opnd->bits, opnd->shift);
 
@@ -3438,13 +3750,30 @@ pic30_match_div_src_reg (check)
 /******************************************************************************
  *
  *   This operand ensures that the operand value (register number) is between
- *   2 and 15, inclusive.
+ *   1 and 15, inclusive.
  *
  ******************************************************************************/
 
 {
-   return ((check->value >=2) && (check->value <= 15));
+   return ((check->value >=1) && (check->value <= 15));
 } /* unsigned char pic30_match_div_src_reg(...) */
+
+/******************************************************************************/unsigned char
+pic30_match_dividend16_reg_2 (check)
+   const struct pic30_operand_value * check;
+
+/******************************************************************************
+ *
+ *   This operand ensures that the operand value (register number) is between
+ *   0 and 14 inclusive.
+ *
+ ******************************************************************************/
+
+{
+   return ((check->value >=0) && (check->value <= 14));
+} /* unsigned char pic30_match_div_src_reg(...) */
+
+
 
 /******************************************************************************/
 
@@ -4115,6 +4444,24 @@ pic30_match_unsigned_3bit_lit (check)
    return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
            (PIC30_IS_3_BIT_UNSIGNED_LITERAL (check->value)));
 } /* unsigned char pic30_match_unsigned_3bit_lit(...) */
+
+/******************************************************************************/
+unsigned char
+pic30_match_unsigned_2bit_lit (check)
+   const struct pic30_operand_value * check;
+
+/******************************************************************************
+ *
+ *   This function ensures that the given operand value is an unsigned 2-bit
+ *   literal.
+ *
+ ******************************************************************************/
+
+{
+   return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
+           (PIC30_IS_2_BIT_UNSIGNED_LITERAL (check->value)));
+} /* unsigned char pic30_match_unsigned_3bit_lit(...) */
+
 /******************************************************************************/
 unsigned char
 pic30_match_frame_size (check)
@@ -4229,7 +4576,24 @@ pic30_match_6bit_lit (check)
 {
    return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
            (PIC30_IS_DSP6_BIT_LITERAL (check->value)));
-} /* unsigned char pic30_match_4bit_lit(...) */
+} /* unsigned char pic30_match_6bit_lit(...) */
+
+/******************************************************************************/
+
+unsigned char
+pic30_match_wid5_lit (check)
+   const struct pic30_operand_value * check;
+
+/******************************************************************************
+ *
+ * This function will ensure that the given operand value is belongs to [1, 16].
+ *
+ ******************************************************************************/
+
+{
+   return ((check->modifier == PIC30_NO_MODIFIER_FOUND) &&
+           (PIC30_IS_WID5_LITERAL (check->value)));
+} /* unsigned char pic30_match_wid5_lit(...) */
 
 /******************************************************************************/
 

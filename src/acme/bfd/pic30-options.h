@@ -62,7 +62,8 @@ extern bfd_boolean pic30_local_stack;
 extern bfd_boolean pic30_psv_override;
 extern bfd_boolean pic30_eds_stack;
 extern bfd_boolean pic30_partition_flash;
-extern bfd_boolean pic30_ide_dashboard;
+extern bfd_boolean pic30_memory_summary;
+extern char *memory_summary_arg;
 
 /* --fill option specific definitions */
 extern bfd_boolean pic30_has_fill_option;
@@ -155,7 +156,7 @@ enum pic30_options {
   NO_LOCAL_STACK_OPTION,
   PSV_OVERRIDE_OPTION,
   PARTITION_FLASH,
-  IDE_DASHBOARD
+  MEMORY_SUMMARY
 };
 
 static struct option longopts[] = 
@@ -195,6 +196,6 @@ static struct option longopts[] =
   { "no-local-stack", no_argument, NULL, NO_LOCAL_STACK_OPTION},
   { "psv-override", no_argument, NULL, PSV_OVERRIDE_OPTION },
   { "partition", no_argument, NULL, PARTITION_FLASH },
-  { "ide-dashboard", no_argument, NULL, IDE_DASHBOARD },
+  { "memorysummary", required_argument, NULL, MEMORY_SUMMARY },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

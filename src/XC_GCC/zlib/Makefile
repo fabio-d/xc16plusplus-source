@@ -18,7 +18,7 @@
 
 CC=/Developer/usr/bin/gcc-4.2
 
-CFLAGS= -DUSE_MMAP
+CFLAGS= -DNO_snprintf -DHAS_sprintf_void -DNO_ERRNO_H
 #CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
 #CFLAGS=-g -DDEBUG
 #CFLAGS=-O3 -Wall -Wwrite-strings -Wpointer-arith -Wconversion \
@@ -39,7 +39,7 @@ TAR=tar
 SHELL=/bin/sh
 EXE=
 
-prefix =/Users/cawilkie/dev/builds/build_20141219/bin/XC_GCC-elf-native-xclm//host-libs
+prefix =/Users/cawilkie/dev/builds/build_20150630/bin/XC_GCC-elf-native-xclm//host-libs
 exec_prefix =${prefix}
 libdir =${exec_prefix}/lib
 includedir =${prefix}/include

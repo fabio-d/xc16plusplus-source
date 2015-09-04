@@ -727,7 +727,14 @@ char * pic30_unique_selected_configword_names(void)
   return result;
 }
 
-
+/*
+** Do we support CodeGuard?
+**
+*/
+int pic30_have_CG_settings(void) {
+  /* if we have any setting at all, then we have them */
+  return CG_settings && CG_settings->name != 0;
+}
 
 /*
 ** Decode a CodeGuard config word,
@@ -1027,7 +1034,7 @@ pic30_is_dualpartition_machine(const bfd_arch_info_type *proc)
   struct pic30_resource_info *f;
 
   if (proc == NULL)    /* if no processor has been specified,        */
-    return rc;         /*  assume it does NOT support ECORE          */
+    return rc;         /*  assume it does NOT support dualpartition          */
 
   for (f = arch_flags_head[0].next; f != NULL; f = f->next)
     if (proc == f->arch_info) {
@@ -1036,6 +1043,24 @@ pic30_is_dualpartition_machine(const bfd_arch_info_type *proc)
 
   return rc;
 }
+
+int
+pic30_is_contexts_machine(const bfd_arch_info_type *proc)
+{
+  int rc = 0;
+  struct pic30_resource_info *f;
+
+  if (proc == NULL)    /* if no processor has been specified,        */
+    return rc;         /*  assume it does NOT support contexts          */
+
+  for (f = arch_flags_head[0].next; f != NULL; f = f->next)
+    if (proc == f->arch_info) {
+      rc = f->flags & HAS_ALTREGS;
+    }
+
+  return rc;
+}
+
 
 int
 pic30_is_5V_machine(const bfd_arch_info_type *proc)

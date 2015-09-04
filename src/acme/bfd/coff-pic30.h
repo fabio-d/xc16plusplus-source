@@ -36,6 +36,8 @@ extern int pic30_adjustable_against_section (unsigned short);
 #define PIC30_IS_13_BIT_FILE_REG(lit) (((lit) >= 0) && ((lit) < 8192))
 #define PIC30_IS_BYTE_VALUE_UNSIGNED(lit) (((lit) >= 0) && ((lit) < 256))
 #define PIC30_IS_3_BIT_UNSIGNED_LITERAL(lit) (((lit) >= 0) && ((lit) <= 4 ))
+#define PIC30_IS_2_BIT_UNSIGNED_LITERAL(lit) (((lit) >= 0) && ((lit) <= 3 ))
+#define PIC30_IS_WID5_LITERAL(lit) (((lit) >= 1) && ((lit) <= 16 ))
 
 #define FILE_REG_LIMIT 8192
 

@@ -1017,6 +1017,9 @@ init_optimization_passes (void)
       NEXT_PASS (pass_validate_dsp_instructions);
 #endif
       NEXT_PASS (pass_combine);
+#ifdef _BUILD_C30_
+      NEXT_PASS (pass_cse3);
+#endif
       NEXT_PASS (pass_if_after_combine);
       NEXT_PASS (pass_partition_blocks);
       NEXT_PASS (pass_regmove);
