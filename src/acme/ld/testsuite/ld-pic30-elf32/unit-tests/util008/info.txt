@@ -1,0 +1,30 @@
+util008: pic30-objdump [-r option] displays PC addresses:
+
+The objective of this test is to verify that
+pic30-objdump [-r option] displays relocation
+records in program memory with PC addresses.
+Two test cases are included: -r used alone
+and also in combination with -d.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools CD image directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+12/11/2002 - GSM

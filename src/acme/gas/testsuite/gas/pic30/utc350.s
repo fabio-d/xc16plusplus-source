@@ -1,0 +1,5 @@
+	.text
+	.fillvalue 0x12
+	.fillupper 0x34
+	.org 0x6
+	.byte 0x55

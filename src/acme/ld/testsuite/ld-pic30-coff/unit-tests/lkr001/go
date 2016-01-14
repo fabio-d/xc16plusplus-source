@@ -1,0 +1,109 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+INCLUDE_PATH=$PIC30_CD/support/dsPIC30F/inc
+
+#
+# convert paths to DOS, if necessary
+#
+HOST=`uname`
+if ( echo $HOST | grep -i "cygwin" > /dev/null 2>&1 ) ; then
+  HOST="cygwin"
+  INCLUDE_PATH=`cygpath -m $INCLUDE_PATH`
+fi
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.o
+$GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH
+err=$?
+if [ $vflag = "on" ]; then
+    clear
+    echo
+    echo "$GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH"
+    echo $err
+fi
+
+
+rm -f t.exe
+$GLD30 -o t.exe t1.o || exit 99
+err=$?
+if [ $vflag = "on" ]; then
+    echo "$GLD30 -o t.exe t1.o"
+    echo $err
+fi
+
+if [ $vflag = "on" ]; then
+    echo ">>Declaring CONFIG words in assembly language:"
+    $OBJDUMP -s --start=0xf80000 t.exe || exit 99
+    echo
+fi
+
+rm -f test.out
+echo ">>Declaring CONFIG words in assembly language:" > temp
+$OBJDUMP -s --start=0xf80000 t.exe >> temp
+# remove arbitrary symbols from objdump output
+sed -e 's/<.*>/<sym>/' temp > test.out
+
+#rm -f t2.s t2.o
+#$PIC30_CD/bin/pic30-gcc t2.c
+#err=$?
+#if [ $vflag = "on" ]; then
+#    clear
+#    echo
+#    echo "$PIC30_CD/bin/pic30-gcc t2.c"
+#    echo $err
+#fi
+
+
+#if [ $vflag = "on" ]; then
+#    echo ">>Declaring CONFIG words in C:"
+#    $OBJDUMP -d a.out || exit 99
+#    echo
+#fi
+
+#echo >> test.out
+#echo ">>Declaring CONFIG words in C:" >> test.out
+#$OBJDUMP -d a.out >> test.out
+
+echo
+echo `head -1 info.txt`
+
+if [ $vflag = "on" ]; then
+    diff -b -B test.out expect.out
+else
+    diff -b -B test.out expect.out > /dev/null
+fi
+
+
+if [ $? -ne 0 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

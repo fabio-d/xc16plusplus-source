@@ -1,0 +1,25 @@
+
+External Symbols in Data Memory (by address):
+External Symbols in Data Memory (by name):
+                    0x080d                  L_data1
+                    0x080d                  L_data1
+                    0x080d                  L_data1
+                    0x080c                  L_data2
+                    0x080c                  L_data2
+                    0x080c                  L_data2
+External Symbols in Data EEPROM (by address):
+External Symbols in Data EEPROM (by name):
+                  0x7ff00d                  L_eedata1
+                  0x7ff00d                  L_eedata1
+                    0xf00d                  L_eedata1
+                  0x7ff00c                  L_eedata2
+                  0x7ff00c                  L_eedata2
+                    0xf00c                  L_eedata2
+External Symbols in Program Memory (by address):
+External Symbols in Program Memory (by name):
+                  0x00011a                  L_prog1
+                  0x00011a                  L_prog1
+                  0x00011a                  L_prog1
+                  0x000118                  L_prog2
+                  0x000118                  L_prog2
+                  0x000118                  L_prog2

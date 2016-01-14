@@ -1,0 +1,4 @@
+	.text
+	pop	extdec
+	.end
+

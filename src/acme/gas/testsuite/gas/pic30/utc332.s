@@ -1,0 +1,2 @@
+	.text
+	.fill 4

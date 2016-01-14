@@ -1,0 +1,7 @@
+
+t.exe:     file format coff-pic30
+
+Contents of section .dinit:
+ 0100 000800 0c0000 010000 112200  ..........".
+ 0108 334400 556600 778800 99aa00  3D.Uf.w.....
+ 0110 bbcc00 000000                ......      

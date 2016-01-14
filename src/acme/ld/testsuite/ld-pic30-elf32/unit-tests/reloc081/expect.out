@@ -1,0 +1,30 @@
+
+t.exe:     file format elf32-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	40 80 de    	asr.w     w0, #0x0, w0
+ 102:	c3 08 de    	lsr.w     w1, #0x3, w1
+ 104:	c7 19 dd    	sl.w      w3, #0x7, w3
+ 106:	48 a2 de    	asr.w     w4, #0x8, w4
+ 108:	cf 2a de    	lsr.w     w5, #0xf, w5
+ 10a:	00 00 00    	nop       
+ 10c:	40 80 de    	asr.w     w0, #0x0, w0
+ 10e:	c3 08 de    	lsr.w     w1, #0x3, w1
+ 110:	c7 19 dd    	sl.w      w3, #0x7, w3
+ 112:	48 a2 de    	asr.w     w4, #0x8, w4
+ 114:	cf 2a de    	lsr.w     w5, #0xf, w5
+
+00000116 <__t2>:
+ 116:	40 80 de    	asr.w     w0, #0x0, w0
+ 118:	c3 08 de    	lsr.w     w1, #0x3, w1
+ 11a:	c7 19 dd    	sl.w      w3, #0x7, w3
+ 11c:	48 a2 de    	asr.w     w4, #0x8, w4
+ 11e:	cf 2a de    	lsr.w     w5, #0xf, w5
+ 120:	00 00 00    	nop       
+ 122:	40 80 de    	asr.w     w0, #0x0, w0
+ 124:	c3 08 de    	lsr.w     w1, #0x3, w1
+ 126:	c7 19 dd    	sl.w      w3, #0x7, w3
+ 128:	48 a2 de    	asr.w     w4, #0x8, w4
+ 12a:	cf 2a de    	lsr.w     w5, #0xf, w5

@@ -1,0 +1,30 @@
+
+
+Program Memory  [Origin = 0x100, Length = 0x3ff00]
+
+section                    address   length (PC units)   length (bytes) (dec)
+-------                    -------   -----------------   --------------------
+.dinit                       0x100                 0xe            0x15  (21)
+.text                        0x10e                 0x8             0xc  (12)
+.isr                         0x116                 0x4             0x6  (6)
+
+                     Total program memory used (bytes):           0x27  (39) <1%
+
+
+Data Memory  [Origin = 0x800, Length = 0xf800]
+
+section                    address      alignment gaps    total length  (dec)
+-------                    -------      --------------    -------------------
+.bss                         0x800                   0            0x60  (96)
+
+                        Total data memory used (bytes):           0x60  (96) <1%
+
+
+Dynamic Memory Usage
+
+region                     address                      maximum length  (dec)
+------                     -------                      ---------------------
+heap                             0                                   0  (0)
+stack                        0x860                              0xf7a0  (63392)
+
+                        Maximum dynamic memory (bytes):         0xf7a0  (63392)

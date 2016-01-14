@@ -1,0 +1,27 @@
+lkr036: Multiple COMMON symbols are combined (SSR# 21675):
+
+The objective of this test is to verify that
+multiple common symbols declared with the .comm
+directive are combined by the linker and
+allocated in the .bss section.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s,t2.s - source files
+
+
+03/27/2003 - GSM

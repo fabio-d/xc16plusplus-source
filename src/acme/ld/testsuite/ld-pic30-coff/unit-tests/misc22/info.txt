@@ -1,0 +1,33 @@
+misc022: Regression test of SSR# 25887:
+
+The objective of this test is to verify that
+if the data region extends past 0x8000, and
+PSV sections have been allocated, the top of
+data memory is lowered to 0x8000. For this
+test, an error should be reported.
+
+(Based on Plum Hall capacity test with -mconst-in-code.)
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+12/1/2004 - GSM

@@ -1,0 +1,33 @@
+reloc076: BFD_RELOC_PIC30_TRAP_ARGUMENT (min/max):
+
+The objective of this test is to verify that
+BFD_RELOC_PIC30_TRAP_ARGUMENT relocations work
+properly when the symbol is defined in the
+same file and across files.
+
+NOTE: This test has been disabled by removing
+the "go" script. To re-enable this test, copy
+go.old to go and restart the test driver.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s,t2.s - source files
+test.out - output of the test
+expect.out - correct output
+
+
+
+3/26/2002 - GSM

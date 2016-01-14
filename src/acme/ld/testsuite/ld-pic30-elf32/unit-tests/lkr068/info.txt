@@ -1,0 +1,28 @@
+lkr068: Absolute sections outside of standard regions:
+
+The objective of this test is to verify that
+absolute sections may be allocated at arbitrary
+addresses, outside of the standard memory regions.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+t.gld - linker script
+expect.out - expected output
+
+
+1/29/2008 - GSM

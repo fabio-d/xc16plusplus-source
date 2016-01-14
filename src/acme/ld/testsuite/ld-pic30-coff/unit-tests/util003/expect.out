@@ -1,0 +1,6 @@
+
+t1.o:     file format coff-pic30
+
+Contents of section .text:
+ 0000 000000 222222 444444 666666  ..."""DDDfff
+ 0008 888888                       ...         

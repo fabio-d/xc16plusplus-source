@@ -1,0 +1,30 @@
+lkr035: ALIGN(), NEXT() in general expressions (SSR# 21589):
+
+The objective of this test is to verify that
+the ALIGN() and NEXT() functions can be used in 
+general expressions together with a specified
+region. Previously, the region was ignored.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 CD image directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+t.lkr - linker script
+test.out - output of the test
+expect.out - correct output
+
+
+
+3/18/2003 - GSM

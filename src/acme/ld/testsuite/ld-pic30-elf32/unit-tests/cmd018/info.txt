@@ -1,0 +1,32 @@
+cmd018: --no-isr option:
+
+The objective of this test is to verify that
+a default interrupt handler is not created
+when the --report-mem option is specified.
+
+Note: This test wil link, because the linker
+supplies a value of 0 for __DefaultInterrupt.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+9/29/2004 - GSM

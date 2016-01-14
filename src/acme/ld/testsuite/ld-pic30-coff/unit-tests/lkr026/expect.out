@@ -1,0 +1,6 @@
+
+Excerpt from pic30-objdump output:
+
+Idx Name          Size      VMA       LMA
+  3 foo           00000010  00008100  00000100
+

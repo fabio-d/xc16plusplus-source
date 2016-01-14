@@ -1,0 +1,30 @@
+lkr042: reduced code size with --smart-io:
+
+The objective of this test is to verify that a
+mixed I/O call application built with -smart-io
+uses less memory than a mixed call application
+built with --no-smartio.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.c - source file
+run.cmd - command file for the simulator
+t1.out,t2.out - output of the test
+
+
+
+10/06/2003 - GSM

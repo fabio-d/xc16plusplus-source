@@ -1,0 +1,22 @@
+>>Declaring CONFIG words in assembly language:
+
+t.exe:     file format elf32-pic30
+
+Disassembly of section .reset:
+Disassembly of section __FOSC:
+
+00f80000 <__FOSC>:
+  f80000:	34 12 00    	nop       
+Disassembly of section __FWDT:
+
+00f80002 <__FWDT>:
+  f80002:	34 12 00    	nop       
+Disassembly of section __FBORPOR:
+
+00f80004 <__FBORPOR>:
+  f80004:	56 34 12    	.pword 0x123456
+Disassembly of section .ivt:
+Disassembly of section .aivt:
+Disassembly of section .isr:
+Disassembly of section .text:
+Disassembly of section .dinit:

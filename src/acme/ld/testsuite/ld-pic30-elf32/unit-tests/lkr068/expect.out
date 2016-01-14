@@ -1,0 +1,11 @@
+
+Excerpt from pic30-elf-objdump output:
+
+Idx Name          Size      VMA       LMA
+  2 low_data      00000008  00000080  00000080
+  3 high_data     00000008  00005000  00005000
+  4 low_code      00000002  00000080  00000080
+  5 high_code     00000002  00005000  00005000
+  8 low_eedata    00000008  00008e00  00000e00
+  9 high_eedata   00000008  0000fe00  007ffe00
+

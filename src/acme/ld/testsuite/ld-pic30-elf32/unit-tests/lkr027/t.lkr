@@ -1,0 +1,80 @@
+/*
+** Linker Script for p30sim
+*/
+
+OUTPUT_FORMAT("coff-pic30")
+OUTPUT_ARCH("pic30")
+EXTERN(__resetPRI)
+EXTERN(__resetALT)
+ENTRY(__reset)
+
+
+/*
+** Memory Regions
+*/
+MEMORY
+{
+  data  (a!xr) : ORIGIN = 0x800,    LENGTH = 63488
+  program (xr) : ORIGIN = 0x100,    LENGTH = ((128K * 2) - 0x100)
+  psv          : ORIGIN = 0x8000,   LENGTH = 32768
+  reset        : ORIGIN = 0,        LENGTH = (4)
+}
+
+/*
+** Base Memory Addresses - Program Memory
+*/
+__RESET_BASE  = 0;        /* Reset Instruction                */
+__CODE_BASE   = 0x100;    /* Handles, User Code, Library Code */
+
+
+/*
+** Base Memory Addresses - Data Memory
+*/
+__SFR_BASE    = 0;        /* Memory-mapped SFRs                 */
+__DATA_BASE   = 0x800;    /* X and General Purpose Data Memory  */
+
+SECTIONS
+{
+
+/*
+** Reset Instruction
+*/
+.reset __RESET_BASE :
+  {
+        SHORT(__reset * 1); /* must use an expression here! */
+        SHORT(0x04);
+        SHORT((__reset >> 16) & 0x7F);
+        SHORT(0);
+  } >reset
+
+/*
+** User Code and Library Code
+*/
+.text __CODE_BASE :
+  {
+        *(.handle);
+        *(.libtext);
+        *(.text);
+  } >program
+
+/*
+** Initialized Data Template
+*/
+.dinit :
+  {
+        *(.dinit);
+  } >program
+
+/*
+** Overlay sections in PSV window
+*/
+
+OVERLAY :
+  {
+    foo
+      { *(foo) }
+    fee
+      { *(fee) } 
+  } > psv AT>program
+
+}

@@ -1,0 +1,8 @@
+
+excerpt from pic30-objdump (-h option):
+
+  6 foo           00000002  0000f000  007ff000  0000027c  2**1
+                  CONTENTS, ALLOC, LOAD, EEDATA
+
+size of section .dinit (should be 2):    2
+total data memory used (should be 0):    0

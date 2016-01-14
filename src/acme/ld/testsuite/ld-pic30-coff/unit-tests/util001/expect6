@@ -1,0 +1,10 @@
+     30 .text
+     58 .data
+     80 .bss
+     a8 .file
+     ba fake
+     de .text
+    102 .data
+    126 .bss
+    16e three
+    184 __C30COFF

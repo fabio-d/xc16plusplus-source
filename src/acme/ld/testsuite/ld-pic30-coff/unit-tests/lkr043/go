@@ -1,0 +1,102 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+
+BIN2HEX=$PIC30_CD/bin/pic30-bin2hex
+SIM30=$PIC30_CD/bin/sim30
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.out t2.out
+$PIC30_CD/bin/pic30-gcc t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
+err=$?
+if [ $vflag = "on" ]; then
+    clear
+    echo
+    echo "$PIC30_CD/bin/pic30-gcc t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
+    echo $err
+fi
+
+if [ $err -ne 0 ]; then
+    exit
+fi
+
+rm -f t1.hex
+$BIN2HEX t1.exe -v > t1.out
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$BIN2HEX t1.exe -v >t1.out"
+    echo $err
+fi
+
+
+$PIC30_CD/bin/pic30-gcc t2.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
+err=$?
+if [ $vflag = "on" ]; then
+    clear
+    echo
+    echo "$PIC30_CD/bin/pic30-gcc t2.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
+    echo $err
+fi
+
+if [ $err -ne 0 ]; then
+    exit
+fi
+
+rm -f t2.hex
+$BIN2HEX t2.exe -v > t2.out
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$BIN2HEX t2.exe -v >t2.out"
+    echo $err
+fi
+
+SIZE1=`perl -n -e 'if (/\.text.*\((\d+)\)/) {print $1}' t1.out`
+SIZE2=`perl -n -e 'if (/\.text.*\((\d+)\)/) {print $1}' t2.out`
+
+{
+echo "size of .text in mixed I/O application with --no-smart-io:    $SIZE1"
+echo "size of .text in non-mixed application:                       $SIZE2"
+} > test.out
+
+if [ $vflag = "on" ]; then
+    echo
+    cat test.out
+fi
+
+echo
+echo `head -1 info.txt`
+
+if [ $SIZE1 -le $SIZE2 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

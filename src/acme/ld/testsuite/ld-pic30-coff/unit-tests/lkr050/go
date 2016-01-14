@@ -1,0 +1,93 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GCC30=$PIC30_CD/bin/pic30-gcc
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+
+BIN2HEX=$PIC30_CD/bin/pic30-bin2hex
+SIM30=$PIC30_CD/bin/sim30
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.o
+$GAS30 t1.s -o t1.o
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GAS30 t1.s -o t1.o"
+    echo $err
+    echo
+fi
+
+rm -f t.exe
+$GLD30 t1.o -o t.exe -Map=t.map
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GLD30 t1.o -o t.exe -Map=t.map"
+    echo $err
+    echo
+fi
+
+rm -f temp
+$OBJDUMP -h t.exe > temp
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$OBJDUMP -h t.exe"
+    echo $err
+    cat temp
+    echo
+fi
+
+DESC1=`perl -n -e 'if (/(.*bss_810.*)/../(.*ABSOLUTE.*)/) {print "$1\n"}' temp`
+DESC2=`perl -n -e 'if (/(.*data_820.*)/../(.*ABSOLUTE.*)/) {print "$1\n"}' temp`
+DESC3=`perl -n -e 'if (/(.*code_210.*)/../(.*ABSOLUTE.*)/) {print "$1\n"}' temp`
+DESC4=`perl -n -e 'if (/(.*psv_220.*)/../(.*ABSOLUTE.*)/) {print "$1\n"}' temp`
+
+{
+echo
+echo "excerpt from pic30-objdump (-h option):"
+echo
+echo "$DESC1"
+echo "$DESC2"
+echo "$DESC3"
+echo "$DESC4"
+echo
+} > test.out
+
+echo
+echo `head -1 info.txt`
+
+diff test.out expect.out
+err=$?
+if [ $err -ne 0 ]; then
+    echo "ERROR Detected!!"
+    echo
+    exit 99
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

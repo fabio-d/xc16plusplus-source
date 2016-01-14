@@ -1,0 +1,38 @@
+misc21: Regression test of SSR# 25916:
+
+The objective of this test is to verify that
+the memory usage report correctly accounts
+for the vector tables and reset instruction
+in computing the % used in program memory,
+and that the % used in data memory and data
+ EEPROM memory is correct.
+
+Note: on the 30f3014 device, memory ranges
+are as follows:
+
+data:    2048 bytes
+program: ((8K * 3) - 384) bytes = 24,192 bytes
+eedata:  1024 bytes
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+12/1/2004 - GSM

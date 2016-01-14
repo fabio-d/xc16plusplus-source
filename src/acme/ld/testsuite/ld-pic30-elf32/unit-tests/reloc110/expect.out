@@ -1,0 +1,5 @@
+
+t.exe:     file format elf32-pic30
+
+Contents of section .text:
+ 1000 111111 201020 c0cc2c         ... . ..,   

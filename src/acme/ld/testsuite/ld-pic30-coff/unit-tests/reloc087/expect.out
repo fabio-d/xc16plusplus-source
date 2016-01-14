@@ -1,0 +1,30 @@
+
+t.exe:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	00 00 20    	mov.w     #0x0, w0
+ 102:	00 30 20    	mov.w     #0x300, w0
+ 104:	f0 ff 27    	mov.w     #0x7fff, w0
+ 106:	00 00 28    	mov.w     #0x8000, w0
+ 108:	f0 ff 2f    	mov.w     #0xffff, w0
+ 10a:	00 00 00    	nop       
+ 10c:	00 00 20    	mov.w     #0x0, w0
+ 10e:	00 30 20    	mov.w     #0x300, w0
+ 110:	f0 ff 27    	mov.w     #0x7fff, w0
+ 112:	00 00 28    	mov.w     #0x8000, w0
+ 114:	f0 ff 2f    	mov.w     #0xffff, w0
+
+00000116 <__t2>:
+ 116:	00 00 20    	mov.w     #0x0, w0
+ 118:	00 30 20    	mov.w     #0x300, w0
+ 11a:	f0 ff 27    	mov.w     #0x7fff, w0
+ 11c:	00 00 28    	mov.w     #0x8000, w0
+ 11e:	f0 ff 2f    	mov.w     #0xffff, w0
+ 120:	00 00 00    	nop       
+ 122:	00 00 20    	mov.w     #0x0, w0
+ 124:	00 30 20    	mov.w     #0x300, w0
+ 126:	f0 ff 27    	mov.w     #0x7fff, w0
+ 128:	00 00 28    	mov.w     #0x8000, w0
+ 12a:	f0 ff 2f    	mov.w     #0xffff, w0

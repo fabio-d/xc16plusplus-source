@@ -1,0 +1,1911 @@
+################################################################################
+#
+# This is the unit-test suite for the pic30 architecture.
+#
+
+# pic30.sub1.exp
+#
+# Updated 3/20/2003, Guy McCarthy
+#
+# This is a subset of the unit-test suite that is designed to test
+# functional changes to the assembler for v1.10. The following unit
+# tests are included in the subset:
+
+# utc17   utc18   utc19   utc20   utc21   utc22   utc23   utc24
+# utc25   utc26   utc27   utc28   utc29   utc30   utc31   utc32
+# utc33   utc34   utc309  utc310  utc348  utc349  utc350  utc351
+# utc353  utc354  utc355  utc356  utc357  utc358  utc359  utc796
+# utc797  utc798  utc889  utc890  utc891  utc892  utc893  utc931
+# utc932  utc933  utc935  utc936  utc1008 utc1009 utc1011 utc1012
+# utc1014 utc1015 utc1017 utc1018 utc1020 utc1021 utc1023 utc1024
+# utc1025 utc1026 utc1027 utc1028 utc1029 utc1030 utc1031 utc1032
+# utc1033 utc1034 utc1036 utc1037 utc1039 utc1040 utc1041 utc1042
+# utc1043 utc1044 utc1069 utc1070 utc1071 utc1072 utc1073 utc1074
+# utc1075 utc1076 utc1077 utc1078
+
+#
+# The following new unit tests were written:
+
+# utc1120 utc1121 utc1122 utc1123 utc1124 utc1125 utc1126 utc1127
+# utc1128 utc1129 utc1130 utc1131 utc1132 utc1133 utc1134 utc1135
+# utc1136 utc1137 utc1138 utc1139 utc1140 utc1141 utc1142 utc1143
+# utc1144 utc1145 utc1146 utc1147 utc1148 utc1149 utc1150 utc1151
+# utc1152 utc1153
+
+#
+# For the complete unit-test suite, see pic30.exp.
+#
+
+
+
+proc all_nulls { args } {
+    foreach x $args { if [expr $x!=0] { return 0 } }
+    return 1
+}
+
+#
+#  run a test that is supposed to produce no output
+#
+
+proc run_to_completion { filename } {
+    set output 0
+    gas_start $filename ""
+    while 1 {
+      expect {
+        eof { break }
+        timeout { perror "timeout\n"; break }
+        -re ".*\n" { set output 1 }
+      }
+    }
+    gas_finish
+    if [expr $output!=0] then { fail $filename } else { pass $filename }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if a .fillupper
+# directive is seen in a section that is not a .text or executable section.
+#
+proc run_fillupper_ignored {} {
+   set testname ".fillupper ignored."
+   set x1 0
+   set x2 0
+   gas_start "utc18.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillupper not specified in a code section.  .fillupper ignored\[^\n\]*\n"                           { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the optional
+# argument for the .fillupper directive exceeds the maximum value.
+#
+proc run_greater_than_max_fillupper {} {
+   set testname ".fillupper Maximum + 1."
+   set x1 0
+   set x2 0
+   gas_start "utc25.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillupper expects a constant positive byte value.  0x00 assumed\[^\n\]*\n"                          { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the optional
+# argument for the .fillupper directive is less than the minimum value.
+#
+proc run_less_than_min_fillupper {} {
+   set testname ".fillupper Minimum - 1."
+   set x1 0
+   set x2 0
+   gas_start "utc24.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillupper expects a constant positive byte value.  0x00 assumed\[^\n\]*\n"                          { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if a .fillvalue
+# directive is seen in a section that is not a .text or executable section.
+#
+proc run_fillvalue_ignored {} {
+   set testname ".fillvalue ignored."
+   set x1 0
+   set x2 0
+   gas_start "utc26.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillvalue not specified in a code section.  .fillvalue ignored\[^\n\]*\n"                           { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the optional
+# argument for the .fillvalue directive exceeds the maximum value.
+#
+proc run_greater_than_max_fillvalue {} {
+   set testname ".fillvalue Maximum + 1."
+   set x1 0
+   set x2 0
+   gas_start "utc27.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillvalue expects a constant positive byte value.  0x00 assumed\[^\n\]*\n"                          { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the optional
+# argument for the .fillvalue directive is less than the minimum value.
+#
+proc run_less_than_min_fillvalue {} {
+   set testname ".fillvalue Minimum - 1."
+   set x1 0
+   set x2 0
+   gas_start "utc32.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fillvalue expects a constant positive byte value.  0x00 assumed\[^\n\]*\n"                          { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error message is generated if the
+# specified directive is used within an assembly source file.
+#
+proc run_directive_deleted { directive } {
+   set testname "$directive deleted"
+   set err_msg "Error: $directive directive not supported in pic30 target."
+
+   switch $directive {
+      ".balign"   { set tst_src "utc2.s" }
+      ".balignl"  { set tst_src "utc3.s" }
+      ".balignw"  { set tst_src "utc4.s" }
+      ".dcb"      { set tst_src "utc291.s" }
+      ".dcb.b"    { set tst_src "utc292.s" }
+      ".dcb.d"    { set tst_src "utc294.s" }
+      ".dcb.l"    { set tst_src "utc295.s" }
+      ".dcb.s"    { set tst_src "utc296.s" }
+      ".dcb.w"    { set tst_src "utc297.s" }
+      ".dcb.x"    { set tst_src "utc298.s" }
+      ".ds"       { set tst_src "utc299.s" }
+      ".ds.b"     { set tst_src "utc300.s" }
+      ".ds.d"     { set tst_src "utc301.s" }
+      ".ds.l"     { set tst_src "utc302.s" }
+      ".ds.p"     { set tst_src "utc303.s" }
+      ".ds.s"     { set tst_src "utc304.s" }
+      ".ds.w"     { set tst_src "utc305.s" }
+      ".ds.x"     { set tst_src "utc306.s" }
+      ".octa"     { set tst_src "utc74.s" }
+      ".p2align"  { set tst_src "utc5.s" }
+      ".p2alignl" { set tst_src "utc6.s" }
+      ".p2alignw" { set tst_src "utc7.s" }
+      ".quad"     { set tst_src "utc75.s" }
+      ".zero"     { set tst_src "utc307.s" }
+   }
+
+   if {![info exists tst_src]} {
+      warning "run_directive_deleted:  $directive not a recognized directive."
+      fail $testname
+   } else {
+      set x1 0
+      set x2 0
+      gas_start $tst_src ""
+      while 1 {
+         expect {
+             -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+             -re "\[ \t\]*$err_msg\[^\n\]*\n"            { set x2 1 }
+             -re "\[^\n\]*\n"                    { }
+             timeout                             { perror "timeout\n"; break }
+             eof                                 { break }
+         }
+      }
+      gas_finish
+      if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+   }
+}
+
+################################################################################
+#
+# This procedure will assemble the program specified by the tst_src argument.
+# It will check the output to ensure that an error is generated.
+#
+proc run_expected_error { tst_src testname } {
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: .*\[^\n\]*\n"           { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .byte directive exceeds the maximum value.
+#
+proc run_greater_than_max_byte {} {
+   set testname ".byte Maximum + 1."
+   set x1 0
+   set x2 0
+   gas_start "utc248.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0x100 truncated to 0x0.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .byte directive is less than the minimum value.
+#
+proc run_less_than_min_byte {} {
+   set testname ".byte Minimum - 1."
+   set x1 0
+   set x2 0
+   gas_start "utc249.s" ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0xffffff7f truncated to 0x7f.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .word/.hword directive exceeds the maximum value.
+#
+proc run_greater_than_max_word { is_hword_variant } {
+   if { $is_hword_variant } {
+      set testname ".hword Maximum + 1."
+      set tst_src "utc250.s"
+   } else {
+      set testname ".word Maximum + 1."
+      set tst_src "utc262.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0x10000 truncated to 0x0.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .word/.hword directive is less than the minimum value.
+#
+proc run_less_than_min_word { is_hword_variant } {
+   if { $is_hword_variant } {
+      set testname ".hword Minimum - 1."
+      set tst_src "utc251.s"
+   } else {
+      set testname ".word Maximum + 1."
+      set tst_src "utc263.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0xffff7fff truncated to 0x7fff.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will test the assembler to ensure that all instructions are
+# encoded properly.
+#
+proc run_isa_encoding { is_full srcdir subdir AS OBJDUMP } {
+   if { $is_full } {
+      set testname "ISA Encoding - full"
+      set flag "-f"
+   } else {
+      set testname "ISA Encoding - partial"
+      set flag "-p"
+   }
+
+   send_log "$srcdir/$subdir/isa_encoding.pl -asm $AS -dump $OBJDUMP $flag $srcdir/$subdir/isa.map\n"
+   catch "exec $srcdir/lib/run $srcdir/$subdir/isa_encoding.pl -asm $AS -dump $OBJDUMP $flag $srcdir/$subdir/isa.map" comp_output
+
+   send_log "$comp_output\n"
+
+   if { [regexp "Errors found!" $comp_output] || \
+        [regexp "Died" $comp_output] ||
+        [regexp "bad interpreter" $comp_output] ||
+        [regexp "not found" $comp_output] ||
+        [regexp "Total Tests Completed = 0." $comp_output] } then {
+      fail "$testname"
+   } else {
+      pass "$testname"
+   }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .int/.long directive exceeds the maximum value.
+#
+proc run_greater_than_max_int { is_long_variant } {
+   if { $is_long_variant } {
+      set testname ".long Maximum + 1."
+      set tst_src "utc258.s"
+   } else {
+      set testname ".int Maximum + 1."
+      set tst_src "utc254.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0x100000000 truncated to 0x0.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the argument for
+# the .int/.long directive is less than the minimum value.
+#
+proc run_less_than_min_int { is_long_variant } {
+   if { $is_long_variant } {
+      set testname ".long Minimum + 1."
+      set tst_src "utc259.s"
+   } else {
+      set testname ".int Minimum + 1."
+      set tst_src "utc255.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0xf7fffffff truncated to 0x7fffffff.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the flag argument
+# for the .section directive is invalid.
+#
+proc run_invalid_section_flag {} {
+   set testname ".section - Invalid Flag"
+   set x1 0
+   set x2 0
+   gas_start utc270.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: unknown section attribute 'T'\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the fill argument
+# for the .skip/.space directive exceeds the maximum value.
+#
+proc run_greater_than_max_skip_fill { is_space_variant } {
+   if { $is_space_variant } {
+      set testname ".space directive's fill argument - Maximum + 1."
+      set tst_src "utc328.s"
+   } else {
+      set testname ".skip directive's fill argument - Maximum + 1."
+      set tst_src "utc319.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0x100 truncated to 0x0.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the fill argument
+# for the .skip/.space directive is less than the minimum value.
+#
+proc run_less_than_min_skip_fill { is_space_variant } {
+   if { $is_space_variant } {
+      set testname ".space directive's fill argument - Minimum + 1."
+      set tst_src "utc321.s"
+   } else {
+      set testname ".skip directive's fill argument - Minimum + 1."
+      set tst_src "utc320.s"
+   }
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0xffffff7f truncated to 0x7f.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the size argument
+# for the .fill directive exceeds the maximum value.
+#
+proc run_greater_than_max_fill_size { } {
+   set testname ".fill directive's size argument - Maximum + 1."
+   set tst_src "utc345.s"
+
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .fill size clamped to 8.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the size argument
+# for the .fill directive is less than the minimum value.
+#
+proc run_less_than_min_fill_size { } {
+   set testname ".fill directive's size argument - Minimum + 1."
+   set tst_src "utc346.s"
+
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Size argument < 0.  .fill ignored\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the fill argument
+# for the .org directive exceeds the maximum value.
+#
+proc run_greater_than_max_org_fill { } {
+   set testname ".org directive's fill argument - Maximum + 1."
+   set tst_src "utc357.s"
+
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0x100 truncated to 0x0.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the fill argument
+# for the .org directive is less than the minimum value.
+#
+proc run_less_than_min_org_fill { } {
+   set testname ".org directive's fill argument - Minimum + 1."
+   set tst_src "utc358.s"
+
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: Value 0xffffff7f truncated to 0x7f.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if an attempt to .org
+# backwards is made.
+#
+proc run_org_backwards { testname tst_src } {
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: attempt to .org backwards ignored\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the value for the
+# BFD_RELOC_PIC30_BIT_SELECT_3 relocation exceeds the maximum value.
+#
+proc run_greater_than_maximum_bit_select_3 { } {
+   set testname "BFD_RELOC_PIC30_BIT_SELECT_3 - Maximum Relocation + 1"
+
+   set x1 0
+   set x2 0
+   gas_start utc633.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Invalid value \[(\]8\[)\] for relocation BFD_RELOC_PIC30_BIT_SELECT_3\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the value for the
+# BFD_RELOC_PIC30_BIT_SELECT_4 relocation exceeds the maximum value.
+#
+proc run_greater_than_maximum_bit_select_4 { } {
+   set testname "BFD_RELOC_PIC30_BIT_SELECT_4 - Maximum Relocation + 1"
+
+   set x1 0
+   set x2 0
+   gas_start utc644.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Invalid value \[(\]16\[)\] for relocation BFD_RELOC_PIC30_BIT_SELECT_4\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the value for the
+# BFD_RELOC_PIC30_BIT_SELECT_4_BYTE relocation exceeds the maximum value.
+#
+proc run_greater_than_maximum_bit_select_4_byte { } {
+   set testname "BFD_RELOC_PIC30_BIT_SELECT_4_BYTE - Maximum Relocation + 1"
+
+   set x1 0
+   set x2 0
+   gas_start utc645.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Invalid value \[(\]8\[)\] for relocation BFD_RELOC_PIC30_BIT_SELECT_4_BYTE\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the value for the
+# BFD_RELOC_PIC30_DSP_5 relocation exceeds the maximum value.
+#
+proc run_greater_than_maximum_dsp_5 { } {
+   set testname "BFD_RELOC_PIC30_DSP_5 - Maximum Relocation + 1"
+
+   set x1 0
+   set x2 0
+   gas_start utc651.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Invalid value \[(\]16\[)\] for relocation BFD_RELOC_PIC30_DSP_5\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the value for the
+# BFD_RELOC_PIC30_DSP_PRESHIFT relocation exceeds the maximum value.
+#
+proc run_greater_than_maximum_dsp_preshift { } {
+   set testname "BFD_RELOC_PIC30_DSP_PRESHIFT - Maximum Relocation + 1"
+
+   set x1 0
+   set x2 0
+   gas_start utc659.s ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Invalid value \[(\]8\[)\] for relocation BFD_RELOC_PIC30_DSP_PRESHIFT\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if handle is used
+# on a symbol that is located in .data.
+#
+proc run_handle_of_local_data_symbol { in_text_section } {
+   if { $in_text_section } {
+      set testname ".word handle(local .data symbol) in .text"
+      set filename "utc771.s"
+   } else {
+      set testname ".word handle(local .data symbol) in .data"
+      set filename "utc773.s"
+   }
+
+   set x1 0
+   set x2 0
+   gas_start $filename ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Cannot use handle on a symbol \[(\]data_symbol\[)\] that is not located in an executable section\.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the operands cannot
+# be encoded.
+#
+proc run_invalid_operands_because_of_encoding { tst_cond tst_src } {
+   set testname "$tst_cond - Invalid operands because of encoding"
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Operands share encoding bits.  The operands must encode identically.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that a warning is generated if the .palign directive
+# is found inside of a .data section.
+#
+proc run_palign_in_data_section { tst_src } {
+   set testname ".palign found in .data section"
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: .palign not specified in a code section.  .palign ignored.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that the appropriate warning is generated.
+#
+proc run_test_warning { tst_src tst_name tst_wrn } {
+   set testname "$tst_name"
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Warning: $tst_wrn\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure that the appropriate error message is generated.
+#
+proc run_test_error { tst_src tst_name tst_err } {
+   set testname "$tst_name"
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error\: $tst_err\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will run the assembler with the given listing options.
+#
+# There should be an assembly language file named FILE.s in the test
+# suite directory, and a pattern file called FILE.l.  `run_list_test'
+# will assemble FILE.s with the given listing options, and then analyze that
+# with regexps.
+#
+# The FILE.l file begins with zero or more option lines which specify  the name
+# of the test and flags to pass to the assembler.  The option lines have  the
+# syntax:
+#
+#         # OPTION: VALUE
+#
+# OPTION is the name of some option, like "name" or "as", and
+# VALUE is OPTION's value.  The valid options are described below.
+# Whitespace is ignored everywhere, except within VALUE.  The option
+# list ends with the first line that doesn't match the above syntax
+# (hmm, not great for error detection).
+#
+# The interesting options are:
+#
+#   name: TEST-NAME
+#       The name of this test, passed to DejaGNU's `pass' and `fail'
+#       commands.  If omitted, this defaults to FILE, the root of the
+#       .s and .l files' names.
+#
+#   as: FLAGS
+#       When assembling FILE.s, pass FLAGS to the assembler.
+#
+# Each option may occur at most once.
+#
+# After the option lines come regexp lines.  `run_list_test' calls
+# `regexp_diff' to compare the output of the listing file against the
+# regexps in FILE.l.
+#
+proc run_list_test { name } {
+   global srcdir subdir
+   global AS
+   global ASFLAGS
+
+   if [string match "*/*" $name] {
+      set file $name
+      set name [file tail $name]
+   } else {
+      set file "$srcdir/$subdir/$name"
+   }
+   set opt_array [slurp_options "${file}.l"]
+   if { $opt_array == -1 } {
+      perror "error reading options from $file.l"
+      unresolved $subdir/$name
+      return
+   }
+
+   set opts(as) {}
+   set opts(name) {}
+
+   foreach i $opt_array {
+      set opt_name [lindex $i 0]
+      set opt_val [lindex $i 1]
+      if ![info exists opts($opt_name)] {
+         perror "unknown option $opt_name in file $file.l"
+         unresolved $subdir/$name
+         return
+      }
+      if [string length $opts($opt_name)] {
+         perror "option $opt_name multiply set in $file.l"
+         unresolved $subdir/$name
+         return
+      }
+      set opts($opt_name) $opt_val
+   }
+
+   if { $opts(name) == "" } {
+      set testname "$subdir/$name"
+   } else {
+      set testname $opts(name)
+   }
+
+   set sourcefile ${file}.s
+
+   send_log "$AS $ASFLAGS $opts(as) -o dump.o $sourcefile\n"
+   catch "exec $srcdir/lib/run $AS $ASFLAGS $opts(as) -o dump.o $sourcefile > dump.out"
+
+   verbose_eval {[file_contents "dump.out"]} 3
+   if { [regexp_diff "dump.out" "${file}.l"] } then {
+      fail $testname
+      verbose "output is [file_contents "dump.out"]" 2
+      verbose "in pic30.exp" 0
+      return
+   }
+
+    pass $testname
+}
+
+################################################################################
+#
+# This procedure will ensure that the appropriate error message is generated.
+#
+proc run_invalid_processor { } {
+   set testname "--processor - Invalid Processor Specified"
+   set x1 0
+   gas_start "utc1112.s" "--processor 30F9999"
+   while 1 {
+      expect {
+          -re "\[ \t\]*Unknown processor 30F9999\[^\n\]*\n" { set x1 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if { $x1 == 1 } then { pass $testname } else { fail $testname }
+}
+
+######################################
+#
+#  This test needs to know the pathname to the test directory...
+#  also, currently this test is not expected to work under unix
+#
+
+proc run_test_utc1113 { } {
+   global srcdir
+   global subdir
+
+   set fd [open $srcdir/$subdir/utc1113.s w]
+   puts $fd ".include \"$srcdir/$subdir/utc1113\\bug.s\""
+   close $fd
+   run_to_completion utc1113.s
+}
+######################################
+#
+#  This test needs to know the pathname to the test directory.
+#
+
+proc run_dump_test_utc241 { } {
+   global srcdir
+   global subdir
+
+   set fd [open $srcdir/$subdir/utc241.s w]
+   puts $fd "\t.include \"$srcdir/$subdir/utc241.inc\""
+   close $fd
+
+   run_dump_test utc241
+
+   set fd [open $srcdir/$subdir/utc241.s w]
+   puts $fd "\t.include \"utc241.inc\""
+   close $fd
+}
+
+################################################################################
+
+if [istarget pic30*-*-*] {
+
+   #
+   # This test will check to see that the new assembler directive, .fillupper,
+   # exists.
+   #
+   gas_test "utc17.s" "" "" ".fillupper Exists"
+
+   #
+   # This test will ensure that the default value for the .fillupper directive
+   # is used when no .fillupper has been specified -- see utc21.[sd].
+   #
+   run_dump_test utc21
+
+   #
+   # This test will ensure that a warning is generated if a .fillupper
+   # directive is seen in a section that is not a .text or executable section.
+   # -- see utc18.s
+   #
+   run_fillupper_ignored
+
+   #
+   # This test will ensure that the default value is used when .fillupper is
+   # found in the source file without an additional argument after having
+   # seen a .fillupper directive that set the value.
+   #
+   run_dump_test utc22
+
+   #
+   # This test will ensure that the upper byte of program memory is filled
+   # with the specified fillupper value.
+   #
+   run_dump_test utc19
+
+   #
+   # This test will ensure that the maximum value may be specified for the
+   # .fillupper directive.
+   #
+   gas_test "utc20.s" "" "" ".fillupper Maximum"
+
+   #
+   # This test will ensure that the minimum value may be specified for the
+   # .fillupper directive.
+   #
+   gas_test "utc23.s" "" "" ".fillupper Minimum"
+
+   #
+   # This test will ensure that the .fillupper directive will not accept a
+   # value of 0xFF+1 as the optional argument -- see utc25.s
+   #
+   run_greater_than_max_fillupper
+
+   #
+   # This test will ensure that the .fillupper directive will not accept a
+   # value of 0x0-1 as the optional argument -- see utc24.s
+   #
+   run_less_than_min_fillupper
+
+   #
+   # This test will check to see that the new assembler directive, .fillvalue,
+   # exists.
+   #
+   gas_test "utc28.s" "" "" ".fillvalue Exists"
+
+   #
+   # This test will ensure that the default value for the .fillvalue directive
+   # is used when no .fillvalue has been specified -- see utc30.[sd]
+   #
+   run_dump_test utc30
+
+   #
+   # This test will ensure that a warning is generated if a .fillvalue
+   # directive is seen in a section that is not a .text or executable section.
+   # -- see utc26.s
+   #
+   run_fillvalue_ignored
+
+   #
+   # This test will ensure that the default value is used when .fillvalue is
+   # found in the source file without an additional argument after having
+   # seen a .fillvalue directive that set the value.
+   #
+   run_dump_test utc34
+
+   #
+   # This test will ensure that the specified value for the .fillvalue
+   # directive is used to fill the user-addressable PC locations.
+   #
+   run_dump_test utc33
+
+   #
+   # This test will ensure that the maximum value may be specified for the
+   # .fillvalue directive.
+   #
+   gas_test "utc29.s" "" "" ".fillvalue Maximum"
+
+   #
+   # This test will ensure that the minimum value may be specified for the
+   # .fillvalue directive.
+   #
+   gas_test "utc31.s" "" "" ".fillvalue Minimum"
+
+   #
+   # This test will ensure that the .fillvalue directive will not accept a
+   # value of 0xFF+1 as the optional argument -- see utc27.s
+   #
+   run_greater_than_max_fillvalue
+
+   #
+   # This test will ensure that the .fillvalue directive will not accept a
+   # value of 0x0-1 as the optional argument -- see utc32.s
+   #
+   run_less_than_min_fillvalue
+
+   #
+   # This test will ensure that an align in the text section moves the location
+   # counter to the next even program memory address.
+   #
+   run_dump_test utc309
+
+   #
+   # This test will ensure that an align in an "x" section moves the location
+   # counter to the next even program memory address.
+   #
+   run_dump_test utc310
+
+   #
+   # This test will ensure that the .org directive in the .text section
+   # moves the location counter to the correct position and fills all
+   # intervening bytes with 0x00.
+   #
+   run_dump_test utc348
+
+   #
+   # This test will ensure that the .org directive in a .section .const, "x"
+   # section moves the location counter to the correct position and fills
+   # all intervening bytes with 0x00.
+   #
+   run_dump_test utc349
+
+   #
+   # This test will ensure that the .org directive in the .text section
+   # moves the location counter to the correct position and fills the
+   # intervening bytes with the .fillvalue and .fillupper values specified.
+   #
+   run_dump_test utc350
+
+   #
+   # This test will ensure that the .org directive in the .section .const, "x"
+   # section moves the location counter to the correct position and fills the
+   # intervening bytes with the .fillvalue and .fillupper values specified.
+   #
+   run_dump_test utc351
+
+   #
+   # This test will ensure that the .org directive in the .text section moves
+   # the location counter to the correct position and fills the intervening
+   # user-addressable PC bytes with the fill value specified.
+   #
+   run_dump_test utc353
+
+   #
+   # This test will ensure that the .org directive in a .section .const, "x"
+   # section moves the location counter to the correct position and fills the
+   # intervening user-addressable PC bytes with the fill value specified.
+   #
+   run_dump_test utc354
+
+   #
+   # This test will ensure that the maximum fill parameter (0xFF) for the .org
+   # directive is accepted.
+   #
+   gas_test "utc355.s" "" "" ".org Maximum Fill"
+
+   #
+   # This test will ensure that the minimum fill parameter (-128) for the .org
+   # directive is accepted.
+   #
+   gas_test "utc356.s" "" "" ".org Minimum Fill"
+
+   #
+   # This test will ensure that a warning is generated when the fill argument
+   # of the .org directive is given a value that is one more than the maximum
+   # byte value -- see utc357.s.
+   #
+   run_greater_than_max_org_fill
+
+   #
+   # This test will ensure that a warning is generated when the fill argument
+   # of the .org directive is given a value that is one less than the minimum
+   # byte value -- see utc358.s.
+   #
+   run_less_than_min_org_fill
+
+   #
+   # This test will ensure than an error is generated when an attempt is made
+   # to .org backwards in a section.
+   #
+   setup_xfail pic30*-*-*
+   run_org_backwards ".org Backwards" "utc359.s"
+
+   #
+   # Test to ensure that the changes made to the equals() function properly
+   # changes the current location counter.
+   #
+   run_dump_test utc796
+
+   #
+   # Test to ensure that an attempt to org backwards using the . = new-lc
+   # syntax results in an error.
+   #
+   setup_xfail pic30*-*-*
+   run_org_backwards ". = new-lc Backwards" "utc797.s"
+
+   #
+   # Test to ensure that we cannot set the location counter to a location
+   # smaller than the current location using the equals() function.
+   #
+   setup_xfail pic30*-*-*
+   run_org_backwards ". = new-lc Zero" "utc797b.s"
+
+   #
+   # Test to ensure that the changes made to the s_set() function properly
+   # changes the current location counter.
+   #
+   run_dump_test utc798
+
+   #
+   # This test ensures that we cannot equate the location counter to a
+   # location smaller than the current location counter using the .equ
+   # directive.
+   #
+   setup_xfail pic30*-*-*
+   run_test_error "utc931.s" ".equ ., new-lc - Out-of-Range new-lc" \
+                  {attempt to .org backwards ignored}
+
+   #
+   # This test ensures that changes made to the s_set() function properly
+   # change the current location counter.
+   #
+   run_dump_test utc935
+
+   # This test ensures that the assembler generates an error when the user
+   # tries to use the .equiv directive to set the location counter to an
+   # illegal value.
+   #
+   setup_xfail pic30*-*-*
+   run_test_error "utc932.s" ".equiv ., new-lc - Out-of-Range new-lc" \
+                  {attempt to .org backwards ignored}
+   setup_xfail pic30*-*-*
+   run_test_error "utc932b.s" ".equiv ., new-lc - Out-of-Range new-lc (2)" \
+                  {attempt to .org backwards ignored}
+
+   #
+   # This test ensures that the changes made to the s_set() function properly
+   # change the location counter for the .set directive.
+   #
+   run_dump_test utc936
+
+   #
+   # This test ensures that the assembler generates an error when the user
+   # tries to use the .set directive to set the location counter to an
+   # illegal value.
+   #
+   setup_xfail pic30*-*-*
+   run_test_error "utc933.s" ".set ., new-lc - Out-of-Range new-lc" \
+                  {attempt to .org backwards ignored}
+
+   #
+   # Test to ensure that the .palign directive in an "x" section after a
+   # .byte directive properly aligns and fills memory.
+   #
+   run_dump_test utc892
+
+   #
+   # Test to ensure that the .palign directive in an "x" section after a
+   # .pbyte directive properly aligns and fills memory.
+   #
+   run_dump_test utc893
+
+   #
+   # Test to ensure that the .palign directive in the .text section after a
+   # .byte directive properly aligns and fills memory.
+   #
+   run_dump_test utc890
+
+   #
+   # Test to ensure that the .palign directive in the .text section after a
+   # .pbyte directive properly aligns and fills memory.
+   #
+   run_dump_test utc891
+
+   #
+   # This tests ensures that the .palign directive will cause a warning if found
+   # inside of a .data section.
+   #
+   run_palign_in_data_section "utc889.s"
+
+   #
+   # This test ensures that an error is given if an alignment request of less
+   # than 2 is made in the .text section.
+   #
+   run_test_error "utc1008.s" \
+      ".align - Minimum - 1 alignment in .text" \
+      {Alignment in CODE section must be at least 2 units.  Alignment ignored.}
+
+   #
+   # This test ensures that an error is given if an alignment request of less
+   # than 4 is made in the .section .const, "x" section.
+   #
+   run_test_error "utc1009.s" \
+      ".align - Minimum - 1 alignment in .section .const, \"x\"" \
+      {Alignment in CODE section must be at least 2 units.  Alignment ignored.}
+
+   #
+   # This test ensures that an error is given if an alignment request that is
+   # not a power of 2 is made in the .text section.
+   #
+   run_test_error "utc1011.s" \
+      ".align - Not power of 2 alignment in .text" {alignment not a power of 2}
+
+   #
+   # This test ensures that an error is given if an alignment request that is
+   # not a power of 2 is made in the .section .const, "x" section.
+   #
+   run_test_error "utc1012.s" \
+      ".align - Not power of 2 alignment in .section .const, \"x\"" \
+      {alignment not a power of 2}
+
+   #
+   # This test ensures that an error is given if an alignment requrest of 2^16
+   # is made in the .text section.
+   #
+   run_test_warning "utc1014.s" ".align - Maximum + 1 alignment in .text" \
+      {alignment too large: 2\^15 assumed}
+
+   #
+   # This test ensures that an error is given if an alignment requrest of 2^16
+   # is made in the .section .const, "x" section.
+   #
+   run_test_warning "utc1015.s" \
+      ".align - Maximum + 1 alignment in .section .const, \"x\"" \
+      {alignment too large: 2\^15 assumed}
+
+   #
+   # This test ensures that the maximum alignment required is accepted for the
+   # .align directive located in the .text section.
+   #
+   run_dump_test utc1017
+
+   #
+   # This test ensures that the maximum alignment required is accepted for the
+   # .align directive located in the .section .const, "x" section.
+   #
+   run_dump_test utc1018
+   #
+   # This test ensures that the minimum alignment required is accepted for the
+   # .align directive located in the the .text section.
+   #
+   run_dump_test utc1020
+
+   #
+   # This test ensures that the minimum alignment required is accepted for the
+   # .align directive located in the the .section .const, "x" section.
+   #
+   run_dump_test utc1021
+
+   #
+   # This test ensures that an error is given if an alignment request of less
+   # than 2 is made in a .palign directive in the .text section.
+   #
+   run_test_error "utc1023.s" \
+      ".palign - Minimum - 1 alignment in .text" \
+      {Alignment in CODE section must be at least 2 units.  Alignment ignored.}
+
+   #
+   # This test ensures that an error is given if an alignment request of less
+   # than 2 is made in a .palign directive in the .section .const, "x" section.
+   #
+   run_test_error "utc1024.s" \
+      ".palign - Minimum - 1 alignment in .section .const, \"x\"" \
+      {Alignment in CODE section must be at least 2 units.  Alignment ignored.}
+
+   #
+   # This test ensures that an error is given if an alignment request that is
+   # not a power of 2 is made in a .palign directive in the .text section.
+   #
+   run_test_error "utc1025.s" \
+      ".palign - Not power of 2 alignment in .text" {alignment not a power of 2}
+
+   #
+   # This test ensures that an error is given if an alignment request that is
+   # not a power of 2 is made in a .palign directive in the .section .const, "x"
+   # section.
+   #
+   run_test_error "utc1026.s" \
+      ".palign - Not power of 2 alignment in .section .const, \"x\"" \
+      {alignment not a power of 2}
+
+   #
+   # This test ensures that an error is given if an alignment requrest of 2^16
+   # is made in a .palign directive in the .text section.
+   #
+   run_test_warning "utc1027.s" ".palign - Maximum + 1 alignment in .text" \
+      {alignment too large: 2\^15 assumed}
+
+   #
+   # This test ensures that an error is given if an alignment requrest of 2^16
+   # is made in a .palign directive in the .section .const, "x" section.
+   #
+   run_test_warning "utc1028.s" \
+      ".palign - Maximum + 1 alignment in .section .const, \"x\"" \
+      {alignment too large: 2\^15 assumed}
+
+   #
+   # This test ensures that the maximum alignment required is accepted for the
+   # .palign directive located in the .text section.
+   #
+   run_dump_test utc1029
+
+   #
+   # This test ensures that the maximum alignment required is accepted for the
+   # .palign directive located in the .section .const, "x" section.
+   #
+   run_dump_test utc1030
+
+   #
+   # This test ensures that the minimum alignment required is accepted for the
+   # .palign directive located in the the .text section.
+   #
+   run_dump_test utc1031
+
+   #
+   # This test ensures that the minimum alignment required is accepted for the
+   # .palign directive located in the the .section .const, "x" section.
+   #
+   run_dump_test utc1032
+
+   #
+   # This test ensures that the .align directive without a fill uses the
+   # last specified .fillupper and .fillvalue to fill in the skipped spaces.
+   #
+   run_dump_test utc1033
+
+   #
+   # This test ensures that the .align directive without a fill uses the
+   # zeroes to fill in the skipped spaces if neither a .fillupper or .fillvalue
+   # were specified.
+   #
+   run_dump_test utc1034
+
+   #
+   # This test ensures that the fill value is used to fill the lower two bytes
+   # of program memory when a .fillvalue and .fillupper have not been used.
+   #
+   run_dump_test utc1036
+
+   #
+   # This test ensures that the fill value is used to fill the lower two bytes
+   # of program memory when a .fillvalue has been used and fill the upper byte
+   # with the specified .fillupper.
+   #
+   run_dump_test utc1037
+
+   #
+   # This test ensures that the maximum fill value for the .align directive is
+   # accepted.
+   #
+   run_dump_test utc1039
+
+   #
+   # This test ensures that the minimum fill value for the .align directive is
+   # accepted.
+   #
+   run_dump_test utc1040
+
+   #
+   # This test ensures that the .align directive is carried out when the MAX
+   # argument is 0.
+   #
+   run_dump_test utc1041
+
+   #
+   # This test ensures that the .align directive is carried out when the MAX
+   # argument exceeds the number of bytes being skipped.
+   #
+   run_dump_test utc1042
+
+   #
+   # This test ensures that the .align directive is carried out when the MAX
+   # argument is equal to the number of bytes being skipped.
+   #
+   run_dump_test utc1043
+
+   #
+   # This test ensures that the .align directive is NOT carried out when the MAX
+   # argument is less than the number of bytes being skipped.
+   #
+   run_dump_test utc1044
+
+   #
+   # This test ensures that the .palign directive without a fill uses the
+   # last specified .pfillvalue to fill in the skipped spaces.
+   #
+   run_dump_test utc1069
+
+   #
+   # This test ensures that the .palign directive without a fill uses the
+   # zeroes to fill in the skipped spaces if a .pfillvalue was not specified.
+   #
+   run_dump_test utc1070
+
+   #
+   # This test ensures that the fill value is used to fill all three bytes
+   # of program memory when a .pfillvalue has not been used.
+   #
+   run_dump_test utc1071
+
+   #
+   # This test ensures that the fill value is used to fill all three bytes
+   # of program memory when a .pfillvalue has been used.
+   #
+   run_dump_test utc1072
+
+   #
+   # This test ensures that the maximum fill value for the .palign directive is
+   # accepted.
+   #
+   run_dump_test utc1073
+
+   #
+   # This test ensures that the minimum fill value for the .palign directive is
+   # accepted.
+   #
+   run_dump_test utc1074
+
+   #
+   # This test ensures that the .palign directive is carried out when the MAX
+   # argument is 0.
+   #
+   run_dump_test utc1075
+
+   #
+   # This test ensures that the .palign directive is carried out when the MAX
+   # argument exceeds the number of bytes being skipped.
+   #
+   run_dump_test utc1076
+
+   #
+   # This test ensures that the .palign directive is carried out when the MAX
+   # argument is equal to the number of bytes being skipped.
+   #
+   run_dump_test utc1077
+
+   #
+   # This test ensures that the .palign directive is NOT carried out when the
+   # MAX argument is less than the number of bytes being skipped.
+   #
+   run_dump_test utc1078
+
+   #
+   # This test will ensure that an error is given if an invalid processor is
+   # specified with the --processor command-line option.
+   #
+   run_invalid_processor
+
+   #
+   # Start of new tests:
+   #
+
+   #
+   # This test ensures that a label in program memory forces alignment to
+   # the next addressable location.
+   #
+   run_dump_test utc1120
+
+   #
+   # This test ensures that in the absence of a label, program memory
+   # is packed tightly.
+   #
+   run_dump_test utc1121
+
+   #
+   # This test ensures that only valid PC addresses are displayed
+   # as section offsets in the listing file.
+   #
+   run_list_test utc1122
+
+   #
+   # This test ensures that each section offset in the listing file
+   # corresponds to 3 bytes of program memory
+   #
+   run_list_test utc1123
+
+   #
+   # This test ensures that program memory addresses in the listing file
+   # are displayed as 24 bits
+   #
+   run_list_test utc1124
+
+   #
+   # This test ensures that data memory addresses in the listing file
+   # are displayed as 16 bits
+   #
+   run_list_test utc1125
+
+   #
+   # This test ensures that padding in program memory is displayed
+   # in the listing file after incomplete program words, rather
+   # than before the next data directive.
+   #
+   run_list_test utc1126
+
+   #
+   # This test ensures that non-aligned bytes in program memory
+   # are translated in the listing file to indicate byte position
+   # in the current program word.
+   #
+   run_list_test utc1127
+
+   #
+   # This test ensures that labels in program memory are displayed
+   # on a new line, after alignment padding is inserted.
+   #
+   run_list_test utc1128
+
+   #
+   # This test ensures that implicit alignment (as defined in
+   # MPLAB C30 v1.10 DOS, section 2.4.3.4) occurs properly
+   # when no listing file is enabled.
+   #
+   run_dump_test utc1129
+
+   #
+   # This test ensures that implicit alignment (as defined in
+   # MPLAB C30 v1.10 DOS, section 2.4.3.4) occurs properly
+   # when a listing file is enabled.
+   #
+   run_dump_test utc1130
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #1)
+   #
+   run_test_error "utc1131.s" \
+      "data reference to .text section (BFD_RELOC_PIC30_FILE_REG_WORD)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #2)
+   #
+   run_test_error "utc1132.s" \
+      "data reference to .text section (BFD_RELOC_PIC30_FILE_REG_WORD_WITH_DST)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #3)
+   #
+   run_test_error "utc1133.s" \
+      "data reference to .text section (BFD_RELOC_PIC30_WORD)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #4)
+   #
+   run_test_error "utc1134.s" \
+      "data reference to .text section (BFD_RELOC_8)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #5)
+   #
+   run_test_error "utc1135.s" \
+      "data reference to .text section (BFD_RELOC_16)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in the .text section (variant #6)
+   #
+   run_test_error "utc1136.s" \
+      "data reference to .text section (BFD_RELOC_32)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #1)
+   #
+   run_test_error "utc1137.s" \
+      "data reference to \"x\" section (BFD_RELOC_PIC30_FILE_REG_WORD)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #2)
+   #
+   run_test_error "utc1138.s" \
+      "data reference to \"x\" section (BFD_RELOC_PIC30_FILE_REG_WORD_WITH_DST)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #3)
+   #
+   run_test_error "utc1139.s" \
+      "data reference to \"x\" section (BFD_RELOC_PIC30_WORD)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #4)
+   #
+   run_test_error "utc1140.s" \
+      "data reference to \"x\" section (BFD_RELOC_8)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #5)
+   #
+   run_test_error "utc1141.s" \
+      "data reference to \"x\" section (BFD_RELOC_16)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that an error is given if a data reference
+   # is made to a symbol in an "x" section (variant #6)
+   #
+   run_test_error "utc1142.s" \
+      "data reference to \"x\" section (BFD_RELOC_32)" \
+      {Cannot reference executable symbol .* in a data context}
+
+   #
+   # This test ensures that non-aligned relocations in CODE sections
+   # are displayed with valid PC addresses.
+   #
+   run_dump_test utc1143
+
+   #
+   # This test ensures that non-aligned relocations in READONLY sections
+   # are displayed with correct data addresses.
+   #
+   run_dump_test utc1144
+
+   #
+   # This test ensures that non-aligned relocations in DATA sections
+   # are displayed with correct data addresses.
+   #
+   run_dump_test utc1145
+
+   #
+   # This test ensures that an error is given if the invalid
+   # addressing mode ++[Wn] is used (SSR# 20404)
+   #
+   run_test_error "utc1146.s" \
+      "invalid addressing mode ++\[Wn\] (SSR# 20404)" \
+      {Invalid operand syntax .*}
+
+   #
+   # This test ensures that an error is given if the invalid
+   # addressing mode --[Wn] is used (SSR# 20404)
+   #
+   run_test_error "utc1147.s" \
+      "invalid addressing mode --\[Wn\] (SSR# 20404)" \
+      {Invalid operand syntax .*}
+
+   #
+   # This test ensures that an error is given if an invalid
+   # prefix is used on a floating point constant with the
+   # .float directive (SSR# 20836)
+   #
+   run_test_error "utc1148.s" \
+      ".float - invalid floating point prefix (SSR# 20836)" \
+      {Prefix .* is not valid for a floating point constant.}
+
+   #
+   # This test ensures that an error is given if an invalid
+   # prefix is used on a floating point constant with the
+   # .double directive (SSR# 20836)
+   #
+   run_test_error "utc1149.s" \
+      ".double - invalid floating point prefix (SSR# 20836)" \
+      {Prefix .* is not valid for a floating point constant.}
+
+   #
+   # This test ensures that an error is given if an attempt
+   # is made to locate executable code in a data section.
+   # (SSR# 21676)
+   #
+   run_test_error "utc1150.s" \
+      "attempt to locate code in a data section (SSR# 21676)" \
+       {Cannot locate executable code in a data section}
+
+   #
+   # This test ensures that the 2-argument form of .bss directive
+   # allocates the correct amount of space in the .bss section.
+   #
+   run_dump_test utc1151
+
+   #
+   # This test ensures that the 3-argument form of .bss directive
+   # allocates a correctly aligned object and that the .bss section
+   # is also aligned.
+   #
+   run_dump_test utc1152
+
+   #
+   # This test ensures that the .lcomm directive allocates
+   # the correct amount of space in the .bss section.
+   #
+   run_dump_test utc1153
+
+}
