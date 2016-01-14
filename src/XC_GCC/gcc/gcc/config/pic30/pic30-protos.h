@@ -35,12 +35,17 @@ extern tree pic30_identBoot[2];
 extern tree pic30_identExternal[2];
 extern tree pic30_identSpace[2];
 
+tree pic30_extended_pointer_integer_type(enum machine_mode);
+int pic30_md_mustsave(rtx reg);
+void pic30_notice_type_qualifier(tree t);
 tree pic30_read_externals(enum pic30_special_trees kind);
 tree pic30_write_externals(enum pic30_special_trees kind);
 
 void pic30_handle_code_pragma(struct cpp_reader *pfile);
 void pic30_handle_idata_pragma(struct cpp_reader *pfile);
 void pic30_handle_udata_pragma(struct cpp_reader *pfile);
+void mchp_handle_config_pragma(struct cpp_reader *pfile);
+
 extern const char * pic30_section_name(rtx op);
 extern const char *pic30_strip_name_encoding_helper(const char *symbol_name);
 extern const char *pic30_strip_name_encoding(const char *symbol_name);
@@ -67,8 +72,8 @@ extern int pic30_validate_symbolic_address_operand(enum machine_mode, rtx);
 extern int pic30_data_space_operand_p(enum machine_mode mode,rtx op,int strict);
 extern void pic30_emit_fillupper(tree decl, int set);
 extern int pic30_managed_psv;
-extern tree
-pic30_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p, tree *post_p);
+extern tree pic30_gimplify_va_arg_expr(tree valist, tree type, 
+                                       gimple_seq pre_p, gimple_seq post_p);
 extern int pic30_noreturn_function(tree decl);
 extern char *pic30_boot_secure_access(rtx call, int *slot, int *set_psv);
 extern rtx pic30_convert_mode(enum machine_mode newmode, 
@@ -91,6 +96,7 @@ extern int pic30_psv_reg_operand(rtx op, enum machine_mode mode);
 extern int pic30_psv_operand(rtx op, enum machine_mode mode);
 extern int pic30_ext_operand(rtx op, enum machine_mode mode);
 extern int pic30_pmp_operand(rtx op, enum machine_mode mode);
+extern int pic30_mem_df_operand(rtx op, enum machine_mode mode);
 extern int pic30_mem_eds_operand(rtx op, enum machine_mode mode);
 extern int pic30_mem_peds_operand(rtx op, enum machine_mode mode);
 extern int pic30_eds_operand(rtx op, enum machine_mode mode);
@@ -129,6 +135,7 @@ extern void pic30_handle_interrupt_pragma(struct cpp_reader *);
 extern void pic30_handle_code_pragma(struct cpp_reader *);
 extern void pic30_handle_idata_pragma(struct cpp_reader *);
 extern void pic30_handle_udata_pragma(struct cpp_reader *);
+extern void pic30_handle_large_arrays_pragma(struct cpp_reader *);
 extern int pic30_hard_regno_mode_ok(int, enum machine_mode);
 extern void pic30_expand_prologue(void);
 extern void pic30_expand_epilogue(void);

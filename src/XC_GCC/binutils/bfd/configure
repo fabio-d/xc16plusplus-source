@@ -12130,7 +12130,7 @@ if test "${with_bugurl+set}" = set; then :
 	   ;;
      esac
 else
-  BUGURL="http://support.microchip.com/"
+  BUGURL="http://www.microchip.com/support"
 
 fi
 

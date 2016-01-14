@@ -1,6 +1,0 @@
-
-excerpt from pic30-objdump (-h option):
-
-bss_800 00000002 00000800 00000800
-bss_align800 00000800 00001000 00001000
-

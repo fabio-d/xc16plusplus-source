@@ -1,6 +1,0 @@
-asciAAAA1:	.asciz	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-asciAAAA2:	.asciz	"abcdefghijklmnopqrstuvwxyz"
-asciAAAA3:	.asciz	"0123456789"
-asciAAAB1:	.asciz	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-asciAAAB2:	.asciz	"abcdefghijklmnopqrstuvwxyz"
-asciAAAB3:	.asciz	"0123456789"

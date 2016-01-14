@@ -1,2 +1,0 @@
-	.text
-	bset	xsfr,#xxx

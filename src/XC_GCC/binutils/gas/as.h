@@ -651,4 +651,11 @@ COMMON char *        found_comment_file;
  #error "Octets per byte conflicts with its power-of-two definition!"
 #endif
 
+struct section_stack
+{
+  struct section_stack *next;
+  segT seg, prev_seg;
+  int subseg, prev_subseg;
+};
+
 #endif /* GAS */

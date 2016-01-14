@@ -59,6 +59,7 @@
 #ifdef LICENSE_MANAGER
 #include "../../../../../pic30-lm/include/pic30-lm.h"
 #endif
+#include "config/mchp-cci/cci.h"
 
 #ifndef C30_SMARTIO_RULES
 /* make this the default */
@@ -79,6 +80,8 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
   struct cpp_reader *pfile = (struct cpp_reader *)pfile_v;
 
   sprintf(buffer,"__OPTIMIZATION_LEVEL__=%d", optimize);
+  cpp_define(pfile,buffer);
+  sprintf(buffer,"__LARGE_ARRAYS__=%d", TARGET_BIG != 0);
   cpp_define(pfile,buffer);
   if (pic30_target_family) cpp_define(pfile, pic30_target_family);
   if (pic30_target_cpu) cpp_define(pfile, pic30_target_cpu);
@@ -109,12 +112,13 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
   }
 
 
-  cpp_define(pfile,"__XC16");
-  cpp_define(pfile,"__C30");
-  cpp_define(pfile,"__dsPIC30");
-  cpp_define(pfile,"__C30__");
-  cpp_define(pfile,"__XC16__");
-  cpp_define(pfile,"__dsPIC30__");
+  if ((cpp_get_options (pfile)->lang != CLK_ASM)) {
+    cpp_define(pfile,"__XC16");
+    cpp_define(pfile,"__C30");
+    cpp_define(pfile,"__dsPIC30");
+    cpp_define(pfile,"__C30__");
+    cpp_define(pfile,"__XC16__");
+    cpp_define(pfile,"__dsPIC30__");
 
 #if PIC30_DWARF2
     cpp_define(pfile,"__XC16ELF");
@@ -141,6 +145,13 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
       cpp_define(pfile,"dsPIC30");
     }
 #endif
+  } else {
+    cpp_define(pfile, "__ASM30");
+    cpp_define(pfile, "__ASM30__");
+    if (!flag_iso) {
+      cpp_define(pfile, "ASM30");
+    }
+  }
   if (pic30_device_mask) {
     if (pic30_device_mask & HAS_DSP) cpp_define(pfile,"__HAS_DSP__");
     if (pic30_device_mask & HAS_EEDATA) cpp_define(pfile,"__HAS_EEDATA__");
@@ -157,6 +168,8 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     if ((pic30_device_mask & HAS_5VOLTS) || TARGET_ARCH(PIC30F))
       cpp_define(pfile,"__HAS_5VOLTS__");
   }
+
+  if (target_flags & MASK_CCI) mchp_init_cci(pfile_v);
 }
 
 /*
@@ -449,3 +462,5 @@ void pic30_handle_interrupt_pragma(struct cpp_reader *pfile ATTRIBUTE_UNUSED) {
     lTreeInterrupt = chainon(lTreeInterrupt, treeFcn);
 }
 
+void pic30_handle_large_arrays_pragma(struct cpp_reader *pfile) {
+}

@@ -215,8 +215,6 @@ int flag_no_builtin;
 
 int flag_no_nonansi_builtin;
 
-/* Nonzero means give `double' the same size as `float'.  */
-
 #ifndef TARGET_SHORT_DOUBLE
 #define TARGET_SHORT_DOUBLE 0
 #endif
@@ -3818,7 +3816,7 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
         || TYPE_UNSIGNED (TREE_TYPE (intop)) != TYPE_UNSIGNED (result_type))
       intop = convert(c_common_type_for_size(TYPE_PRECISION(result_type),
                                              TYPE_UNSIGNED(result_type)),intop);
-  } else
+  } 
 #endif
   if (TYPE_PRECISION (TREE_TYPE (intop)) != TYPE_PRECISION (sizetype)
       || TYPE_UNSIGNED (TREE_TYPE (intop)) != TYPE_UNSIGNED (sizetype))
@@ -6570,8 +6568,8 @@ handle_mode_attribute (tree *node, tree name, tree args,
    struct attribute_spec.handler.  */
 
 static tree
-handle_unique_section_attribute (tree *node, tree name ATTRIBUTE_UNUSED, 
-                          tree args, int flags ATTRIBUTE_UNUSED, 
+handle_unique_section_attribute (tree *node, tree name ATTRIBUTE_UNUSED,
+                          tree args ATTRIBUTE_UNUSED, int flags ATTRIBUTE_UNUSED,
                           bool *no_add_attrs)
 {
   tree decl = *node;
@@ -7898,9 +7896,14 @@ parse_optimize_options (tree args, bool attr_p)
    struct attribute_spec.handler.  */
 
 static tree
-handle_optimize_attribute (tree *node, tree name, tree args,
+handle_optimize_attribute (tree * ARG_UNUSED (node), tree name, tree ARG_UNUSED (args),
 			   int ARG_UNUSED (flags), bool *no_add_attrs)
 {
+#if defined(TARGET_MCHP_PIC32MX)
+      warning (OPT_Wattributes, "%qE attribute ignored", name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+#else
   /* Ensure we have a function type.  */
   if (TREE_CODE (*node) != FUNCTION_DECL)
     {
@@ -7911,7 +7914,7 @@ handle_optimize_attribute (tree *node, tree name, tree args,
     {
       struct cl_optimization cur_opts;
       tree old_opts = DECL_FUNCTION_SPECIFIC_OPTIMIZATION (*node);
-
+      
       /* Save current options.  */
       cl_optimization_save (&cur_opts);
 
@@ -7930,6 +7933,7 @@ handle_optimize_attribute (tree *node, tree name, tree args,
     }
 
   return NULL_TREE;
+#endif
 }
 
 /* Check for valid arguments being passed to a function.

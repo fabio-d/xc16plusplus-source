@@ -1,7 +1,0 @@
-rm -rf t1.o t2.o t.exe
-
-as-new -o t1.o t1.s
-as-new -o t2.o t2.s
-
-ld-new -o t.exe t1.o t2.o
-/rrutils/binutils/objdump -d t.exe

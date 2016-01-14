@@ -1,3 +1,0 @@
-        .text
-        .pascii "abc"
-        

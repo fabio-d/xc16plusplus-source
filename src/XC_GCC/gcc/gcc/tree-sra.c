@@ -3236,7 +3236,7 @@ dump_dereferences_table (FILE *f, const char *str, HOST_WIDE_INT *table)
 {
   basic_block bb;
 
-  fprintf (dump_file, str);
+  fprintf (dump_file, "%s", str);
   FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, EXIT_BLOCK_PTR, next_bb)
     {
       fprintf (f, "%4i  %i   ", bb->index, bitmap_bit_p (final_bbs, bb->index));

@@ -65,8 +65,8 @@ static void gld${EMULATION_NAME}_before_parse (void);
 static void gld${EMULATION_NAME}_after_open (void);
 static void gld${EMULATION_NAME}_before_allocation (void);
 static void gld${EMULATION_NAME}_after_allocation (void);
-static lang_output_section_statement_type *gld${EMULATION_NAME}_place_orphan
-  (asection *, const char *, int);
+//static lang_output_section_statement_type *gld${EMULATION_NAME}_place_orphan
+  //(asection *, const char *, int);
 EOF
 
 if [ "x${USE_LIBPATH}" = xyes ] ; then
@@ -947,7 +947,7 @@ static bfd_boolean
 gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
 {
   const struct elf_backend_data *bed = get_elf_backend_data (abfd);
-  struct build_id_info *info = (struct build_id_info *)
+  struct build_id_info *id_info = (struct build_id_info *)
     elf_tdata (abfd)->after_write_object_contents_info;
   asection *asec;
   Elf_Internal_Shdr *i_shdr;
@@ -955,7 +955,7 @@ gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
   bfd_size_type size;
   Elf_External_Note *e_note;
 
-  asec = info->sec;
+  asec = id_info->sec;
   if (bfd_is_abs_section (asec->output_section))
     {
       einfo (_("%P: warning: .note.gnu.build-id section discarded,"
@@ -984,7 +984,7 @@ gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
   bfd_h_put_32 (abfd, NT_GNU_BUILD_ID, &e_note->type);
   memcpy (e_note->name, "GNU", sizeof "GNU");
 
-  if (!strcmp (info->style, "md5"))
+  if (!strcmp (id_info->style, "md5"))
     {
       struct md5_ctx ctx;
       md5_init_ctx (&ctx);
@@ -996,7 +996,7 @@ gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
       else
 	return FALSE;
     }
-  else if (!strcmp (info->style, "sha1"))
+  else if (!strcmp (id_info->style, "sha1"))
     {
       struct sha1_ctx ctx;
       sha1_init_ctx (&ctx);
@@ -1008,7 +1008,7 @@ gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
       else
 	return FALSE;
     }
-  else if (!strcmp (info->style, "uuid"))
+  else if (!strcmp (id_info->style, "uuid"))
     {
       int n;
       int fd = open ("/dev/urandom", O_RDONLY);
@@ -1019,10 +1019,10 @@ gld${EMULATION_NAME}_write_build_id_section (bfd *abfd)
       if (n < (int) size)
 	return FALSE;
     }
-  else if (!strncmp (info->style, "0x", 2))
+  else if (!strncmp (id_info->style, "0x", 2))
     {
       /* ID is in string form (hex).  Convert to bits.  */
-      const char *id = info->style + 2;
+      const char *id = id_info->style + 2;
       size_t n = 0;
       do
 	{
@@ -1414,7 +1414,7 @@ if test x"$LDEMUL_BEFORE_ALLOCATION" != xgld"$EMULATION_NAME"_before_allocation;
 fragment <<EOF
 
 /* used by before_allocation and handle_option. */
-static void 
+static void
 gld${EMULATION_NAME}_append_to_separated_string (char **to, char *op_arg)
 {
   if (*to == NULL)
@@ -1481,7 +1481,7 @@ gld${EMULATION_NAME}_before_allocation (void)
     {
       const char *audit_libs = elf_dt_audit (abfd);
 
-      /* If the input bfd contains an audit entry, we need to add it as 
+      /* If the input bfd contains an audit entry, we need to add it as
          a dep audit entry.  */
       if (audit_libs && *audit_libs != '\0')
 	{
@@ -1496,7 +1496,7 @@ gld${EMULATION_NAME}_before_allocation (void)
 	          *cp2 = '\0';
 		  more = 1;
 		}
-	      
+
 	      if (cp != NULL && *cp != '\0')
 	        gld${EMULATION_NAME}_append_to_separated_string (&depaudit, cp);
 
@@ -1732,7 +1732,7 @@ output_rel_find (asection *sec, int isdyn)
 
   return last;
 }
-
+#if 0
 /* Place an orphan section.  We use this to put random SHF_ALLOC
    sections in the right segment.  */
 
@@ -1942,6 +1942,7 @@ gld${EMULATION_NAME}_place_orphan (asection *s,
 
   return lang_insert_orphan (s, secname, constraint, after, place, NULL, NULL);
 }
+#endif
 EOF
 fi
 
@@ -2173,7 +2174,7 @@ gld${EMULATION_NAME}_handle_option (int optc)
 	link_info.emit_note_gnu_build_id = xstrdup (optarg);
       break;
     case OPTION_AUDIT:
-  	gld${EMULATION_NAME}_append_to_separated_string (&audit, optarg); 
+  	gld${EMULATION_NAME}_append_to_separated_string (&audit, optarg);
 	break;
     case 'P':
 	gld${EMULATION_NAME}_append_to_separated_string (&depaudit, optarg);

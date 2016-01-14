@@ -52,6 +52,7 @@
 
 #if defined(TARGET_IS_PIC32MX)
 #include "elf32-pic32.c"
+#include "elf/pic32.h"
 #endif
 
 static bfd_reloc_status_type gprel32_with_gp
@@ -89,6 +90,9 @@ static irix_compat_t elf32_mips_irix_compat
 
 extern const bfd_target bfd_elf32_bigmips_vec;
 extern const bfd_target bfd_elf32_littlemips_vec;
+
+/*FS*/
+bfd_boolean pic32_allocate = TRUE;
 
 /* Nonzero if ABFD is using the N32 ABI.  */
 #define ABI_N32_P(abfd) \
@@ -2995,6 +2999,10 @@ static const struct ecoff_debug_swap mips_elf32_ecoff_debug_swap = {
   _bfd_mips_elf_read_ecoff_info
 };
 
+#if defined(TARGET_IS_PIC32MX)
+#include "pic32-attributes.c"
+#endif
+
 #define ELF_ARCH			bfd_arch_mips
 #define ELF_MACHINE_CODE		EM_MIPS
 
@@ -3049,7 +3057,11 @@ static const struct ecoff_debug_swap mips_elf32_ecoff_debug_swap = {
 #define elf_backend_may_use_rel_p	1
 #define elf_backend_may_use_rela_p	0
 #define elf_backend_default_use_rela_p	0
+#if defined(PIC32) || defined(TARGET_IS_PIC32MX)
 #define elf_backend_sign_extend_vma	TRUE
+#else
+#define elf_backend_sign_extend_vma	TRUE
+#endif
 #define elf_backend_plt_readonly	1
 #define elf_backend_plt_sym_val		_bfd_mips_elf_plt_sym_val
 

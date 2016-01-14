@@ -1,3 +1,0 @@
-	.data
-	.word paddr(foo)
-

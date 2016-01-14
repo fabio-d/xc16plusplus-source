@@ -1,3 +1,0 @@
-        .text
-        .word dmaoffset(dat)
-        

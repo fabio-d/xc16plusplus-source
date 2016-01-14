@@ -1,9 +1,0 @@
-#objdump: -s -j .text
-#name: Dot expressions in program memory (SSR# 22168)
-
-.*:.*
-
-Contents of section .text:
- 0000 111111 222222 000000 aaaabb  ..."""......
- 0008 000000 aaaabb aaaabb 000000  ............
- 0010 cccccc cccccc cccccc 000000  ............

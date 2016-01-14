@@ -713,6 +713,7 @@ parse_args (unsigned argc, char **argv)
     }
 
   last_optind = -1;
+
   while (1)
     {
       int longind;

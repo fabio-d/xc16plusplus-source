@@ -281,7 +281,7 @@ case ${generic_target} in
 
   # don't change em like *-*-bsd does
   # cpu_type for pic32mx is set to mips
-  mips-mchp-elf)			fmt=elf em=tmips ;;
+  mips-mchp-elf)			fmt=elf em=tmips-pic32 ;;
   mips-sony-bsd*)			fmt=ecoff ;;
   mips-*-ultrix*)			fmt=ecoff endian=little ;;
   mips-*-osf*)				fmt=ecoff endian=little ;;

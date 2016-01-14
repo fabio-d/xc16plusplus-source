@@ -30,6 +30,11 @@
 #include "libbfd.h"
 #include "compress-debug.h"
 
+#ifdef TARGET_IS_PIC32MX
+#include "../bfd/pic32-utils.h"
+#endif
+
+
 #ifndef TC_ADJUST_RELOC_COUNT
 #define TC_ADJUST_RELOC_COUNT(FIX, COUNT)
 #endif
@@ -574,7 +579,17 @@ size_seg (bfd *abfd, asection *sec, void *xxx ATTRIBUTE_UNUSED)
     (flags & SEC_HAS_CONTENTS) != 0)
     return;
 
+#ifdef TARGET_IS_PIC32MX
+  /* For pic32, we require greater control over SEC_HAS_CONTENTS */
+  /*  (see similar test in bfd/coffgen.c )                       */
+  if ((size > 0) &&
+      !PIC32_IS_BSS_ATTR(sec) &&
+      !PIC32_IS_PERSIST_ATTR(sec) &&
+      !PIC32_IS_STACK_ATTR(sec) &&
+      !PIC32_IS_HEAP_ATTR(sec))
+#else
   if (size > 0 && ! seginfo->bss)
+#endif
     flags |= SEC_HAS_CONTENTS;
 
   flags &= ~SEC_RELOC;

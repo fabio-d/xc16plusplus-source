@@ -1,2 +1,0 @@
-t1.o(.text+0x4):fake: Link Error: relocation truncated to fit: WORD symB3
-t1.o(.text+0x8):fake: Link Error: relocation truncated to fit: WORD symB5

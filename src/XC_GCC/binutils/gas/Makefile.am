@@ -293,6 +293,7 @@ TARG_ENV_HFILES = \
 	config/te-svr4.h \
 	config/te-symbian.h \
 	config/te-tmips.h \
+	config/te-tmips-pic32.h \
 	config/te-vxworks.h \
 	config/te-wince-pe.h
 

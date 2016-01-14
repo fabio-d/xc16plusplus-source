@@ -1,2 +1,0 @@
-	.text
-	.ascii "utc201"

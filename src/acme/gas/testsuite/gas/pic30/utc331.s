@@ -1,2 +1,0 @@
-	.data
-	.fill 2

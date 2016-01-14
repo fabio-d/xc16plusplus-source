@@ -26,6 +26,8 @@ Boston, MA 02111-1307, USA.  */
 /* This is the target description macros file for the Microchip dsPIC.   */
 /************************************************************************/
 
+#include "config/mchp-cci/cci-backend.h"
+
 #if defined(OBJECT_FORMAT_ELF)
 #define   PIC30_DWARF2   1      /* ELF/DWARF default output ?   */
 #else
@@ -50,79 +52,6 @@ Boston, MA 02111-1307, USA.  */
  *  definitions of possible return types for pic30 operand types 
  */
 
-#if 0
-
-/* POISONED */
-
-#define PREDICATE_CODES \
-  {"pic30_general_operand", {CONST_INT, CONST_DOUBLE, CONST, SYMBOL_REF, \
-                             LABEL_REF, SUBREG, REG, MEM }}, \
-  { "pic30_psvapge_operand", { REG }}, \
-  { "pic30_psv_operand", { MEM }}, \
-  { "pic30_tbl_operand", { MEM }}, \
-  { "pic30_register_operand", { REG, SUBREG }}, \
-  { "pic30_mode1_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_mode1P_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_mode1PN_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_mode1J_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_mode1JN_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_indirect_mem_operand", { MEM }}, \
-  { "pic30_move2_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_mode2_or_P_operand", {SUBREG, REG, MEM, CONST_INT }}, \
-  { "pic30_immediate_1bit_operand", { CONST_INT }}, \
-  { "pic30_accumulator_operand", { REG }}, \
-  { "pic30_awb_operand", { REG }}, \
-  { "pic30_mac_input_operand", { REG }}, \
-  { "pic30_xprefetch_operand", { REG }}, \
-  { "pic30_yprefetch_operand", { REG }}, \
-  { "pic30_mode2_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_mode2res_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_mode2mres_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_modek_operand", { MEM }}, \
-  { "pic30_mode3_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_wreg_operand",  { SUBREG, REG }}, \
-  { "pic30_breg_operand",  { SUBREG, REG }}, \
-  { "pic30_creg_operand", { SUBREG, REG }}, \
-  { "pic30_ereg_operand", { SUBREG, REG }}, \
-  { "pic30_near_operand", { MEM }}, \
-  { "pic30_T_operand", { MEM }}, \
-  { "pic30_data_operand", { MEM }}, \
-  { "pic30_code_operand", { MEM }}, \
-  { "pic30_reg_or_code_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_reg_or_near_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_reg_imm_or_near_operand", { SUBREG, REG, MEM, CONST_INT }}, \
-  { "pic30_rR_or_near_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_wreg_or_near_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_reg_or_imm_operand", { SUBREG, REG, CONST_INT }}, \
-  { "pic30_imm2to15_operand", { CONST_INT }}, \
-  { "pic30_imm8_operand", { CONST_INT }}, \
-  { "pic30_imm16plus_operand", { CONST_INT }}, \
-  { "pic30_math_operand", { REG, MEM, SUBREG, CONST_INT }}, \
-  { "pic30_inc_imm_operand", { CONST_INT }}, \
-  { "pic30_near_math_operand", { REG, MEM, SUBREG,  CONST_INT }}, \
-  { "pic30_near_mode2_operand", { REG, MEM, SUBREG }}, \
-  { "pic30_near_mode1PN_operand", { REG, MEM, SUBREG,  CONST_INT }}, \
-  { "pic30_move_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_invalid_address_operand", { SYMBOL_REF, LABEL_REF, CONST }}, \
-  { "pic30_symbolic_address_operand", { SYMBOL_REF, LABEL_REF, CONST }}, \
-  { "pic30_call_address_operand", { SYMBOL_REF, LABEL_REF, CONST, REG }}, \
-  { "pic30_reg_or_zero_operand", { SUBREG, REG, CONST_INT }}, \
-  { "pic30_rR_or_zero_operand", { SUBREG, REG, MEM, CONST_INT }}, \
-  { "pic30_O_operand", { CONST_INT }}, \
-  { "pic30_I_operand", { CONST_INT }}, \
-  { "pic30_J_operand", { CONST_INT }}, \
-  { "pic30_M_operand", { CONST_INT }}, \
-  { "pic30_JM_operand", { CONST_INT }}, \
-  { "pic30_JN_operand", { CONST_INT }}, \
-  { "pic30_PN_operand", { CONST_INT }}, \
-  { "pic30_reg_or_P_operand", { SUBREG, REG, CONST_INT }}, \
-  { "pic30_rR_or_JN_operand", { MEM, SUBREG, REG, CONST_INT }}, \
-  { "pic30_reg_or_R_operand", { SUBREG, REG, MEM }}, \
-  { "pic30_P_operand", { CONST_INT }}, \
-  { "pic30_Q_operand", { MEM }}, \
-  { "pic30_R_operand", { MEM }},
-
-#endif
 
 /* Define the intrinsic functions for the dsPIC.  */
 
@@ -173,6 +102,7 @@ enum pic30_builtins
    PIC30_BUILTIN_WRITEOSCCONH,
    PIC30_BUILTIN_WRITERTCWEN,
    PIC30_BUILTIN_WRITENVM,
+   PIC30_BUILTIN_WRITENVM_SECURE,
    PIC30_BUILTIN_TBLRDLB,
    PIC30_BUILTIN_TBLRDHB,
    PIC30_BUILTIN_TBLRDL,
@@ -187,40 +117,12 @@ enum pic30_builtins
    PIC30_BUILTIN_EDSPAGE,
    PIC30_BUILTIN_EDSOFFSET,
    PIC30_BUILTIN_WRITEPWMSFR,
-   PIC30_BUILTIN_WRITEDISICNT
+   PIC30_BUILTIN_WRITEDISICNT,
+   PIC30_BUILTIN_WRITECRYOTP
 };
 
 #define       TARGET_USE_PA   1
 
-/* Names to predefine in the preprocessor for this target machine.  */
-
-/*
-** Define this to be a string constant containing `-D' options to define the
-** predefined macros that identify this machine and system. These macros will
-** be predefined unless the `-ansi' option is specified. In addition, a
-** parallel set of macros are predefined, whose names are made by appending
-** `__' at the beginning and at the end. These `__' macros are permitted by
-** the ANSI standard, so they are predefined regardless of whether `-ansi' is
-** specified.
-**
-** See tm-sun3.h, tm-sun2.h, tm-isi68.h for different CPP_PREDEFINES.
-*/
-#if 0
-/* poisoned */
-#if (PIC30_DWARF2)
-#define CPP_PREDEFINES "-DC30 -DC30ELF -DdsPIC30 -DdsPIC30ELF"
-#else
-#define CPP_PREDEFINES "-DC30 -DC30COFF -DdsPIC30 -DdsPIC30COFF"
-#endif
-#endif
-
-/*
-** Print subsidiary information on the compiler version in use.
-*/
-#if 0
-   /* if you are looking for the version information, it is now in version.h */
-#define TARGET_VERSION " (dsPIC30, Microchip v1.20 Pre-Alpha 0)"
-#endif
 
 /*
 ** A C string constant that tells the GNU CC driver program options to pass to
@@ -233,7 +135,13 @@ enum pic30_builtins
 
 #define ASM_SPEC   "%{!.s:%{!.S:--relax}} %{mcpu=*:-p%*} -omf=" OMF
 
-#define CC1_SPEC  "-mresource=%I-../../c30_device.info -omf=" OMF
+#ifndef MCHP_CCI_CC1_SPEC
+#error MCHP_CCI_CC1_SPEC not defined
+#endif
+
+#define CC1_SPEC  " \
+  %(mchp_cci_cc1_spec) \
+  -mresource=%I-../../c30_device.info -omf=" OMF
 
 #define LINK_SPEC   "%{mcpu=*:-p%*} -omf=" OMF
 
@@ -277,13 +185,17 @@ enum pic30_builtins
 #if (PIC30_DWARF2)
 #define   LIB_SPEC   "-start-group -lpic30-elf -lm-elf -lc-elf -end-group"
 #define   ALT_FM_LIB_SPEC   "-start-group -lpic30-elf -lfastm-elf -lc-elf -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
 #define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
 #define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
 #else
 #define   LIB_SPEC   "-start-group -lpic30-coff -lm-coff -lc-coff -end-group"
 #define   ALT_FM_LIB_SPEC   "-start-group -lpic30-coff -lfastm-coff -lc-coff -end-group"
+#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
 #define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
 #define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
+#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
 #endif
 
 /*
@@ -295,6 +207,22 @@ enum pic30_builtins
 */
 #undef   STARTFILE_SPEC
 #define   STARTFILE_SPEC   ""
+
+/* This macro defines names of additional specifications to put in the specs
+   that can be used in various specifications like CC1_SPEC.  Its definition
+   is an initializer with a subgrouping for each command option.
+
+   Each subgrouping contains a string constant, that defines the
+   specification name, and a string constant that used by the GCC driver
+   program.  */
+#undef EXTRA_SPECS
+#define EXTRA_SPECS											\
+  { "mchp_cci_cc1_spec", MCHP_CCI_CC1_SPEC },				\
+  SUBTARGET_EXTRA_SPECS
+
+#ifndef SUBTARGET_EXTRA_SPECS
+#define SUBTARGET_EXTRA_SPECS
+#endif
 
 /* making STANDARD_EXEC_PREFIX and STANDARD_BINDIR_PREFIX point to the same
    directory will cause make_relative_paths to make no change - ie look in the 
@@ -379,45 +307,6 @@ extern void pic30_system_include_paths(const char *root, const char *system,
          MPLABC30_PIC33E_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC33F_LIB_PATH
         
-
-#if 0
-
-/* POISONED */
-
-/*----------------------------------------------------------------------*/
-/* Run-time compilation parameters selecting different hardware subsets.*/
-/*----------------------------------------------------------------------*/
-#define   TARGET_MASK_LARGE_CODE        0x00000001
-#define   TARGET_MASK_CONST_IN_DATA     0x00000002
-#define   TARGET_MASK_LARGE_AGG         0x00000004
-#define   TARGET_MASK_LARGE_SCALAR      0x00000008
-#if TARGET_USE_PA
-#define TARGET_MASK_PA                  0x00000010
-#endif
-#define TARGET_MASK_ARCH_PIC30FXXXX     0x00000040  /* does not include future
-                                                   TARGET_MASK_ARCH_PIC30F<>
-                                                   devices */
-#define TARGET_MASK_SMART_IO            0x00000080  /* -msmart-io enabled */
-#define TARGET_MASK_NO_ISRW             0x00000100
-#define TARGET_MASK_OLD_OMF             0x00000200
-#define TARGET_MASK_ARCH_PIC24F         0x00000400
-#define TARGET_MASK_ARCH_PIC33          0x00000800
-#define TARGET_MASK_ARCH_PIC30F202X     0x00002000
-#define TARGET_MASK_ARCH_PIC24H         0x00004000
-#define TARGET_MASK_ARCH_GENERIC        0x00008000
-#define TARGET_MASK_CONST_IN_PSV        0x00010000
-#define TARGET_MASK_CONST_IN_PROG       0x00020000
-#define TARGET_MASK_SKIP_DOT_FILE       0x00040000
-#define TARGET_MASK_ARCH_PIC24FK        0x00080000
-#define TARGET_MASK_ABI_CHECK           0x00100000
-#define TARGET_MASK_EDS                 0x00200000
-#define TARGET_TRACK_PSVPAG             0x00400000
-#define TARGET_MASK_NCHAR               0x00800000
-#define TARGET_MASK_BIG                 0x01000000
-#define TARGET_MASK_ARCH_DA_GENERIC     0x02000000
-
-#endif
-
 #define MASK_ARCH_PIC30F         (MASK_ARCH_PIC30FXXXX | MASK_ARCH_PIC30F202X)
 
 /*
@@ -433,180 +322,19 @@ extern void pic30_system_include_paths(const char *root, const char *system,
 #define TARGET_SMALL_SCALAR   ((target_flags & MASK_LARGE_SCALAR) == 0)
 
 
-#if 0 
-/* defined by stoopid opts file */
-
-/*
-** Large data model means that data objects must be
-** addressed using the long 16-bit direct address.
-*/
-#define TARGET_LARGE_AGG   ((target_flags & TARGET_LARGE_AGG) != 0)
-
-/*
-** Large scalar model means that scalar objects must be
-** addressed using the long 16-bit direct address.
-*/
-#define TARGET_LARGE_SCALAR   ((target_flags & TARGET_LARGE_SCALAR) != 0)
-#endif
-
 /*
 ** Small code model means that calls to functions
 ** can be done using the short RCALL instruction.
 */
 #define TARGET_SMALL_CODE   ((target_flags & MASK_LARGE_CODE) == 0)
 
-#if 0 
-/* defined by stoopid opts file */
-
-/*
-** Large code model means that calls to functions
-** must be done using the long CALL instruction.
-*/
-#define TARGET_LARGE_CODE   ((target_flags & TARGET_LARGE_CODE) != 0)
-
-#define TARGET_SMALL_CHAR ((TARGET_SMALL_SCALAR) || \
-                           (target_flags & TARGET_NCHAR))
-
-#define TARGET_BIG_ARRAYS (target_flags & TARGET_BIG)
-
-/*
-** Constants in data means that the .const section is in a chosen space.
-*/
-#define TARGET_CONST_IN_DATA ((target_flags & TARGET_CONST_IN_DATA) != 0)
-#define TARGET_CONST_IN_PSV  ((target_flags & TARGET_CONST_IN_PSV) != 0)
-#define TARGET_CONST_IN_PROG ((target_flags & TARGET_CONST_IN_PROG) != 0)
-#define TARGET_EDS ((target_flags & TARGET_EDS))
-#endif
-
 #define TARGET_CONST_IN_CODE ((!TARGET_CONST_IN_DATA) && (!TARGET_CONST_IN_PSV))
-#if 0
-/* defined by stoopid opts file */
-
-#if TARGET_USE_PA
-/*
-** Procedure aggregation means that the procedure aggregation optimization
-** stage is run.
-*/
-#define TARGET_PA             ((target_flags & TARGET_PA) != 0)
-
-/*
-** No procedure aggregation means that the procedure aggregation optimization
-** stage is not run.
-*/
-#define TARGET_NO_PA          ((target_flags & TARGET_PA) == 0)
-#endif
-#endif
 
 /*
  *  Generic test to see if ARCHictecture version X is requested:
  *    current values for X are A and B
  */
 #define TARGET_ARCH(X)  ((target_flags & MASK_ARCH_ ## X) != 0)
-
-#if 0
-/* defined by stoopid opts file */
-
-/*
- *  TARGET_SMART_IO evaluates to 0,1,2
- *    0 if TARGET_SMART_IO not set
- *    1 if TARGET_SMART_IO set and TARGET_SMART_IO_LVL clear
- *    2 if TARGET_SMART_IO set and TARGET_SMART_IO_LVL set
- */
-#define TARGET_SMART_IO ((target_flags&TARGET_SMART_IO) ? (pic30_io_size_val) : 0)
-
-
-#define TARGET_ISR_WARN (!(target_flags&TARGET_NO_ISRW))
-
-#define TARGET_SKIP_DOT_FILE (target_flags & TARGET_SKIP_DOT_FILE)
-
-#define TARGET_ABI_CHECK (target_flags & TARGET_ABI_CHECK)
-
-/*
-** Default target_flags if no switches specified.
-*/
-#define TARGET_DEFAULT ( 0 )
-
-/*
-** This macro defines names of command options to set and clear bits in
-** target_flags. Its definition is an initializer with a subgrouping for each
-** command option. Each subgrouping contains a string constant, that defines
-** the option name, a number, which contains the bits to set in target_flags,
-** and a second string which is the description displayed by --help. If the
-** number is negative then the bits specified by the number are cleared instead
-** of being set. If the description string is present but empty, then no help
-** information will be displayed for that option, but it will not count as an
-** undocumented option. The actual option name is made by appending `-m' to the
-** specified name. One of the subgroupings should have a null string. The
-** number in this grouping is the default value for target_flags. Any target
-** options act starting with that value.
-*/
-#define TARGET_SWITCHES                                               \
-{ \
- {"small-data", \
-    -(TARGET_MASK_LARGE_AGG | TARGET_MASK_LARGE_SCALAR), \
-    "Use small data model"}, \
- {"large-data", \
-    (TARGET_MASK_LARGE_AGG | TARGET_MASK_LARGE_SCALAR), \
-    "Use large data model"}, \
- {"small-scalar", \
-    -TARGET_MASK_LARGE_SCALAR, \
-    "Use small scalar data model"}, \
- {"large-scalar", \
-    TARGET_MASK_LARGE_SCALAR, \
-    "Use large scalar data model"}, \
- {"small-aggregate", \
-    -TARGET_MASK_LARGE_AGG, \
-    "Use small aggregate data model"}, \
- {"large-aggregate", \
-    TARGET_MASK_LARGE_AGG, \
-    "Use large aggregate data model"}, \
- {"small-code", \
-    -TARGET_MASK_LARGE_CODE, \
-    "Use small code model"}, \
- {"large-code", \
-    TARGET_MASK_LARGE_CODE, \
-    "Use large code model"}, \
- {"const-in-data", \
-    TARGET_MASK_CONST_IN_DATA, \
-    "Put constants in data space"}, \
- {"const-in-code", \
-    -(TARGET_MASK_CONST_IN_DATA | TARGET_MASK_CONST_IN_PSV | \
-      TARGET_MASK_CONST_IN_PROG), \
-    "Put constants in code space"}, \
- {"pa", \
-    TARGET_MASK_PA, \
-    "Run procedural abstraction stage"}, \
- {"no-pa", \
-    ~TARGET_MASK_PA, \
-    "Do not run procedural abstraction stage"}, \
- {"smart-io", \
-    TARGET_MASK_SMART_IO, \
-    "Enable smart IO library call forwarding"}, \
- {"no-isr-warn", \
-    TARGET_MASK_NO_ISRW, \
-    "Disable warning for inappropriate use of ISR function names"}, \
- { "no-file", \
-    TARGET_MASK_SKIP_DOT_FILE, \
-    "Disable placing file directive in assembly output"}, \
- { "unified", \
-   (TARGET_MASK_EDS), \
-   "Use unified data model\n"}, \
- { "near-chars", \
-   (TARGET_MASK_NCHAR), \
-   "Place 'char' variables into near data space, regardless of memory model\n"}, \
- { "enable-large-arrays", \
-   (TARGET_MASK_BIG), \
-   "Allow arrays larger than 32K\n"}, \
- { "large-arrays", \
-   (TARGET_MASK_BIG), \
-   "Allow arrays larger than 32K\n"}, \
- { "track", \
-   (TARGET_TRACK_PSVPAG), \
-   "Track auto psv page\n"}, \
- { "", TARGET_DEFAULT,NULL} \
-}
-
-#endif
 
 extern int target_flags;
 
@@ -642,23 +370,6 @@ enum errata_mask {
 extern int pic30_errata_mask;
 
 extern const char *pic30_pa_level;
-
-#if 0
-
-/* poisoned */
-
-#define TARGET_OPTIONS \
-{                                                                     \
- {"cpu=", &pic30_target_cpu, "Select target CPU" }, \
- {"errata=", &pic30_errata, "Enable compiler generated work-arounds for specific errata"}, \
- {"fillupper=", &pic30_fillupper, "Select global fillupper value for data stored in FLASH"}, \
- {"it=", &pic30_it_option, "Enable instrumented trace" }, \
- {"pa=", &pic30_pa_level, "Procedural abstraction nesting limit" },   \
- {"resource=", &pic30_resource_file, "Identify XC16 resource file"}, \
- {"smart-io=", &pic30_io_size, "Set smart IO library call forwarding level"}, \
- {"text=", &pic30_text_scn, "Name the text section (default .text)" }, \
-}
-#endif
 
 /*
  *  Post-process after setting option values - checks for valid -m options
@@ -1019,20 +730,6 @@ extern int         pic30_clear_fn_list;
 #define FRAME_POINTER_REGNUM FP_REGNO
 
 /*
-** Value should be nonzero if functions must have frame pointers.
-** Zero means the frame pointer need not be set up (and parms
-** may be accessed via the stack pointer) in functions that seem suitable.
-** This is computed in `reload', in reload1.c.
-*/
-
-/* GCC 4.5.1, now a target function 
-   default function value is to return false */
-
-#if 0
-#define FRAME_POINTER_REQUIRED   0
-#endif
-
-/*
 ** Define this macro if debugging can be performed even without a frame
 ** pointer. If this macro is defined, GNU CC will turn on the
 ** `-fomit-frame-pointer' option whenever `-O' is specified.
@@ -1202,7 +899,7 @@ enum reg_class
         { 0x0000fffc, 0x00000000 }, \
         { 0x0000fffd, 0x00000000 }, \
         { 0x0000fffe, 0x00000000 }, \
-        { 0xfe00ffff, 0x00000001 }, \
+        { 0xff08ffff, 0x00000001 }, \
 /*ER*/  { 0x00001555, 0x00000000 }, \
         { 0xfe000000, 0x00000001 }, \
         { 0x0000ffff, 0x00000000 }  \
@@ -1736,23 +1433,6 @@ enum reg_class
 ** otherwise, FUNC is 0.
 */
 
-/*
- * for gcc-4.0.2; using gen_rtx_fmt_e is bad because there is not enough
- * information; use gen_rtx_REG() instead - it eventually calls gen_rtx_fmt_i00
- * which is the assumed type of a REG in other places...
- */
-#if 0
-#define FUNCTION_VALUE(VALTYPE, FUNC)  \
-  gen_rtx_fmt_e(REG,TYPE_MODE(VALTYPE),WR0_REGNO)
-
-/*
-** Define how to find the value returned by a library function
-** assuming the value has mode MODE.
-*/
-
-#define LIBCALL_VALUE(MODE)  \
-   gen_rtx_fmt_e(REG, MODE, WR0_REGNO)   /* Return in W0 */
-#else
 #define FUNCTION_VALUE(VALTYPE, FUNC)  \
   gen_rtx_REG(TYPE_MODE(VALTYPE),WR0_REGNO)
 
@@ -1763,7 +1443,6 @@ enum reg_class
 
 #define LIBCALL_VALUE(MODE)  \
    gen_rtx_REG(MODE, WR0_REGNO)   /* Return in W0 */
-#endif
 
 /* Implicit Calls to Library Routines  */
 
@@ -1818,17 +1497,6 @@ typedef struct pic30_args
 #define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)   \
   (pic30_function_arg_advance (&CUM, MODE, TYPE, NAMED))
 
-#if 0
-/* macro poisoned, now TARGET_ARG_PARTIAL_BYTES */
-/*
-** For an arg passed partly in registers and partly in on the stack,
-** this is the number of registers used.
-** For args passed entirely in registers or entirely in memory, zero.
-*/
-#define FUNCTION_ARG_PARTIAL_NREGS(CUM, MODE, TYPE, NAMED) \
-  (pic30_function_arg_partial_nregs (CUM, MODE, TYPE, NAMED))
-#endif
-
 /* 1 if N is a possible register number for function argument passing. */
 
 #define FUNCTION_ARG_REGNO_P(N)  ((N) <= PIC30_LAST_PARAM_REG)
@@ -1873,19 +1541,6 @@ typedef struct pic30_args
 */
 #define FUNCTION_PROFILER(FILE, LABELNO) pic30_function_profiler(FILE, LABELNO)
 
-#if 0
-/* these macros are poisoned and no longer used */
-/* Output assembler code to FILE to initialize this source file's
-   basic block profiling info, if that has not already been done.  */
-#define FUNCTION_BLOCK_PROFILER(FILE, LABELNO)  \
-  fprintf (FILE, "; got into FUNCTION_BLOCK_PROFILER with label # %d\n",LABELNO)
-
-/* Output assembler code to FILE to increment the entry-count for
-   the BLOCKNO'th basic block in this source file.  */
-#define BLOCK_PROFILER(FILE, BLOCKNO)   \
-  fprintf (FILE, "; got into BLOCK_PROFILER with block # %d\n",BLOCKNO)
-#endif
-
 /*
 ** Define this macro as a C expression that is nonzero if the return
 ** instruction or the function epilogue ignores the value of the stack pointer;
@@ -1914,26 +1569,6 @@ typedef struct pic30_args
    { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },  \
    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM } }
 
-/* why this ? */
-#if 0
-   { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },  
-#endif
-
-/*
-** A C expression that returns non-zero if the compiler is allowed to try to
-** replace register number from-reg with register number to-reg. This macro
-** need only be defined if ELIMINABLE_REGS is defined, and will usually be the
-** constant 1, since most of the cases preventing register elimination are
-** things that the compiler already knows about.
-*/
-/*
- * GCC 4.5.1 now a target function, default is to return true
- */
-#if 0
-/* POISONED */
-#define CAN_ELIMINATE(FROM, TO)   1
-#endif
-
 /*
 ** This macro is similar to INITIAL_FRAME_POINTER_OFFSET.
 ** It specifies the initial difference between the specified pair of registers.
@@ -1943,49 +1578,9 @@ typedef struct pic30_args
    pic30_initial_elimination_offset(FROM, TO, &(OFFSET))
 
 /*
-** Output assembler code for a block containing the constant parts
-** of a trampoline, leaving space for the variable parts.
-*/
-/*
- * GCC 4.5.1 now a target function, default is NULL
- *
- * TARGET_ASM_TRAMPOLINE_TEMPLATE
- */
-#if 0
-/* POISONED */
-#define TRAMPOLINE_TEMPLATE(FILE)         \
-{                     \
-   error("trampolines are not supported");      \
-}
-#endif
-
-/*
 ** Length in units of the trampoline for entering a nested function.
 */
 #define TRAMPOLINE_SIZE 2
-
-/*
-** Emit RTL insns to initialize the variable parts of a trampoline.
-** FNADDR is an RTX for the address of the function's pure code.
-** CXT is an RTX for the static chain value for the function.
-*/
-#if 0
-/* POISONED */
-#define INITIALIZE_TRAMPOLINE(TRAMP, FNADDR, CXT)   \
-{                     \
-   error("trampolines are not supported");      \
-}
-#endif
-
-#if 0
-/* poisoned and apparantly no longer supported */
-/*
-** Define this macro if GNU CC should generate calls to the System V
-** (and ANSI C) library functions memcpy and memset rather than the BSD
-** functions bcopy and bzero.
-*/
-#define TARGET_MEM_FUNCTIONS
-#endif
 
 /************************************************************************/
 /* Addressing modes, and classification of registers for them.      */
@@ -2039,23 +1634,6 @@ typedef struct pic30_args
 /* Nonzero if X is a hard reg that can be used as a base reg.  */
 #define REG_OK_FOR_BASE_P(X)  REGNO_OK_FOR_BASE_P(REGNO(X))
 
-#if 0
-/*
- * We define TARGET_LEGITMATE_ADDRESS_P instead ... 
- */
-
-/*
-** A C compound statement with a conditional goto LABEL; executed if
-** X (an RTX) is a legitimate memory address on the target machine
-** for a memory operand of mode MODE.
-*/
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)         \
-{                           \
-  if (pic30_check_legit_addr(MODE, X, 1))            \
-    goto LABEL;                        \
-}
-#endif
-
 #else
 
 /*
@@ -2070,46 +1648,6 @@ typedef struct pic30_args
 */
 #define REG_OK_FOR_BASE_P(X) (REGNO(X) >= 0)
 
-#if 0
-/*
- * We define TARGET_LEGITMATE_ADDRESS_P instead ... 
- */
-
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)         \
-{                           \
-  if (pic30_check_legit_addr(MODE, X, 0))            \
-    goto LABEL;                        \
-}
-#endif
-
-#endif
-
-/*
-** Try machine-dependent ways of modifying an illegitimate address
-** to be legitimate.  If we find one, return the new, valid address.
-** This macro is used in only one place: `memory_address' in explow.c.
-**
-** OLDX is the address as it was before break_out_memory_refs was called.
-** In some cases it is useful to look at this to decide what needs to be done.
-**
-** MODE and WIN are passed so that this macro can use
-** GO_IF_LEGITIMATE_ADDRESS.
-**
-** It is always safe for this macro to do nothing.  It exists to recognize
-** opportunities to optimize the output.
-*/
-/* GCC 4.5.1 now poisoned,
-
-   Define TARGET_LEGITIMIZE_ADDRESS instead */
-#if 0
-/* poisoned */
-#define LEGITIMIZE_ADDRESS(X,OLDX,MODE,WIN) { \
-  rtx newx; \
-  if ((newx = pic30_legitimize_address(X,OLDX,MODE)) != 0) { \
-    X=newx; \
-    goto WIN; \
-  } \
-}
 #endif
 
 /*
@@ -2146,24 +1684,6 @@ typedef struct pic30_args
 ** code or data or sfr space.
 */
 
-#if 0
-#define PIC30_SFR_FLAG_CHAR   '|'
-#define PIC30_PGM_FLAG_CHAR   '@'
-#define PIC30_FCNN_FLAG_CHAR   '%'
-#define PIC30_FCNS_FLAG_CHAR   '&'
-#define PIC30_SFR_NAME_P(NAME)   (*(NAME) == PIC30_SFR_FLAG_CHAR)
-#define PIC30_PGM_NAME_P(NAME)   (*(NAME) == PIC30_PGM_FLAG_CHAR)
-#define PIC30_FCNN_NAME_P(NAME)   (*(NAME) == PIC30_FCNN_FLAG_CHAR)
-#define PIC30_FCNS_NAME_P(NAME)   (*(NAME) == PIC30_FCNS_FLAG_CHAR)
-#define PIC30_FCN_NAME_P(NAME)   (PIC30_FCNS_NAME_P(NAME) || \
-             PIC30_FCNN_NAME_P(NAME))
-#define ENCODED_NAME_P(SYMBOL_NAME)   \
-(               \
-   (PIC30_SFR_NAME_P(SYMBOL_NAME)) || \
-   (PIC30_PGM_NAME_P(SYMBOL_NAME)) || \
-   (PIC30_FCN_NAME_P(SYMBOL_NAME))   \
-)
-#else
 /* the flags may be any length if surrounded by | */
 #define PIC30_EXTENDED_FLAG  "|"
 #define PIC30_PROG_FLAG       PIC30_EXTENDED_FLAG "pm"      PIC30_EXTENDED_FLAG
@@ -2195,6 +1715,7 @@ typedef struct pic30_args
 #define PIC30_SECURE_FLAG     PIC30_EXTENDED_FLAG "sec"
 #define PIC30_AUXFLASH_FLAG   PIC30_EXTENDED_FLAG "aux"     PIC30_EXTENDED_FLAG
 #define PIC30_AUXPSV_FLAG     PIC30_EXTENDED_FLAG "xpsv"    PIC30_EXTENDED_FLAG
+#define PIC30_DF_FLAG         PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -2209,7 +1730,6 @@ typedef struct pic30_args
 #define ENCODED_NAME_P(SYMBOL_NAME) \
   ((SYMBOL_NAME[0] == PIC30_EXTENDED_FLAG[0]) ? \
     (strrchr(SYMBOL_NAME,PIC30_EXTENDED_FLAG[0]) - SYMBOL_NAME) + 1 : 0)
-#endif
 
 /*
 ** Decode SYM_NAME and store the real name part in VAR, sans
@@ -2245,22 +1765,6 @@ typedef struct pic30_args
 ** For dsPIC, it may be best always to use a tree.
 */
 #define CASE_VALUES_THRESHOLD (10)
-
-#if 0
-/* this macro is poisoned and no longer used */
-/*
-** Specify the tree operation to be used to convert reals to integers.
-*/
-#define IMPLICIT_FIX_EXPR FIX_ROUND_EXPR
-#endif
-
-#if 0
-/* this macro is poisoned and no longer used */
-/*
-** This is the kind of divide that is easiest to do in the general case.
-*/
-#define EASY_DIV_EXPR TRUNC_DIV_EXPR
-#endif
 
 /*
 ** Define this as 1 if `char' should by default be signed; else as 0.
@@ -2339,94 +1843,14 @@ typedef struct pic30_args
   c_register_pragma(0, "interrupt", pic30_handle_interrupt_pragma); \
   c_register_pragma(0, "code", pic30_handle_code_pragma); \
   c_register_pragma(0, "idata", pic30_handle_idata_pragma); \
-  c_register_pragma(0, "udata", pic30_handle_udata_pragma); }
+  c_register_pragma(0, "udata", pic30_handle_udata_pragma); \
+  c_register_pragma(0, "config", mchp_handle_config_pragma); \
+  c_register_pragma(0, "large_ararys", pic30_handle_large_arrays_pragma); \
+  }
 
 extern void pic30_cpu_cpp_builtins(void *);
 
 #define TARGET_CPU_CPP_BUILTINS() pic30_cpu_cpp_builtins(pfile)
-
-
-#if 0
-/* poisoned */
-
-/*
-** Compute the cost of computing a constant rtl expression RTX
-** whose rtx-code is CODE.  The body of this macro is a portion
-** of a switch statement.  If the code is computed here,
-** return it with a return statement.  Otherwise, break from the switch.
-*/
-
-#define CONST_COSTS(RTX,CODE,OUTER_CODE)  \
-  case CONST_INT:                  \
-    return (INTVAL(RTX) == 0) ? 0 :             \
-           (-31 <= INTVAL(RTX) && INTVAL(RTX) <= 31) ? 1 :   \
-           (-1023 <= INTVAL(RTX) && INTVAL(RTX) <= 1023) ? 2 :   \
-      3;                     \
-  case CONST:                     \
-  case LABEL_REF:                  \
-    return 3;                     \
-  case SYMBOL_REF:                  \
-    return pic30_neardata_space_operand_p(RTX) ? 1 : 3;      \
-  case CONST_DOUBLE:                  \
-    return (RTX == CONST0_RTX(GET_MODE(RTX))) ? 2 : 4;
-
-/*
-** Like CONST_COSTS but applies to nonconstant RTL expressions.
-** This can be used, for example, to indicate how costly a multiply
-** instruction is. In writing this macro, you can use the construct 
-** COSTS_N_INSN(n) to specify a cost equal to n fast instructions.
-** OUTER_CODE is the code of the expression in which X is contained.
-** This macro is optional; do not define it if the default cost 
-** assumptions are adequate for the target machine.
-**
-** synth_mult does bad things with -2*i, i an integer,
-** so make the cost of MULT low, so that it won't synthesize.
-**
-** Likewise, expand_divmod generates fast, but large, code for
-** div/mod by a constant; we want to suppress that.
-*/
-#define RTX_COSTS(X,CODE,OUTER_CODE)            \
-  case DIV :                     \
-  case UDIV :                     \
-  case MOD :                     \
-  case UMOD :                     \
-   if (GET_MODE(X) == HImode)            \
-          return(COSTS_N_INSNS(1));         \
-   else                     \
-          return(COSTS_N_INSNS(10));         \
-  case MULT :                     \
-  { int required_insns=1;               \
-    return COSTS_N_INSNS (required_insns); }         \
-  case ASHIFT:                     \
-  case ASHIFTRT:                  \
-  case LSHIFTRT:                  \
-   /* An immediate count is preferable to a variable one */\
-   if (GET_MODE(X) >= SImode)            \
-   {                     \
-      if (GET_CODE(XEXP(X, 1)) == CONST_INT)      \
-      {                  \
-         return(COSTS_N_INSNS(1));      \
-      }                  \
-      else                  \
-      {                  \
-         return(COSTS_N_INSNS(2));      \
-      }                  \
-   }                     \
-   return(COSTS_N_INSNS(1));
-
-/*
-** Compute the cost of an address.  This is meant to approximate the size
-** and/or execution delay of an insn using that address.  If the cost is
-** approximated by the RTL complexity, including CONST_COSTS above, as
-** is usually the case for CISC machines, this macro should not be defined.
-** For aggressively RISCy machines, only one insn format is allowed, so
-** this macro should be a constant.  The value of this macro only matters
-** for valid addresses.  We handle the most common address without 
-** a call to pic30_address_cost.
-*/
-#define ADDRESS_COST(ADDR) (REG_P(ADDR) ? 1 : pic30_address_cost(ADDR))
-
-#endif
 
 /*
 ** Compute extra cost of moving data between one register class
@@ -2487,15 +1911,6 @@ extern void pic30_cpu_cpp_builtins(void *);
 ** address than to call an address kept in a register.
 */
 #define NO_FUNCTION_CSE
-
-#if 0
-/* Macro poisoned */
-/*
-** Define this macro if it is good or better for a function to call itself
-** with an explicit address than to call an address kept in a register.
-*/
-#define NO_RECURSIVE_FUNCTION_CSE
-#endif
 
 /*
 ** A C compound statement to set the components of cc_status appropriately
@@ -2583,10 +1998,6 @@ if (pic30_near_operand(OP1, GET_MODE(OP1)))         \
 ** the user can always get a specific type of output by using `-gstabs',
 ** `-gcoff', `-gdwarf-1', `-gdwarf-2', or `-gxcoff'
 */
-#if 0
-/* poisoned macro */
-#define   LINKER_DOES_NOT_WORK_WITH_DWARF2   1
-#endif
 
 #if (!PIC30_DWARF2)
 #define PREFERRED_DEBUGGING_TYPE      SDB_DEBUG
@@ -2696,19 +2107,6 @@ if (pic30_near_operand(OP1, GET_MODE(OP1)))         \
 */
 #define NO_DOLLAR_IN_LABEL
 
-#if 0
-/* poisoned macro */
-/*
-** Output at beginning of assembler file.
-*/
-#define ASM_FILE_START(FILE) pic30_asm_file_start(FILE)
-
-/*
-** Output at end of assembler file.
-*/
-#define ASM_FILE_END(FILE) pic30_asm_file_end(FILE)
-#endif
-
 /*
 ** Output to assembler file text saying following lines
 ** may contain character constants, extra white space, comments, etc.
@@ -2720,31 +2118,6 @@ if (pic30_near_operand(OP1, GET_MODE(OP1)))         \
 ** no longer contain unusual constructs.
 */
 #define ASM_APP_OFF   ""
-
-#if 0
-/*
-** A list of names for sections other than the standard two,
-** which are in_text and in_data. You need not define this macro
-** on a system with no other sections (that GCC needs to use).
-*/
-#define EXTRA_SECTIONS  in_ndata, \
-         in_const, \
-         in_dconst, \
-         in_ndconst
-
-/*
-** One or more functions to be defined in `varasm.c'.
-** These functions should do jobs analogous to those of text_section
-** and data_section, for your additional sections.
-** Do not define this macro if you do not define EXTRA_SECTIONS.
-*/
-#define EXTRA_SECTION_FUNCTIONS \
-  NDATA_SECTION_FUNCTION        \
-  CONST_SECTION_FUNCTION        \
-  DCONST_SECTION_FUNCTION       \
-  NDCONST_SECTION_FUNCTION      \
-  NAMED_SECTION_FUNCTION
-#endif
 
 #define NAMED_SECTION_FUNCTION void pic30_no_section() { \
    in_section = in_named;                                \
@@ -2843,21 +2216,6 @@ ndconst_section ()                                           \
 #define NDCONST_SECTION_ASM_OP pic30_ndconst_section_asm_op()
 
 /*
-** A C statement to output something to the assembler file to switch
-** to section <name> for object <decl> which is either a FUNCTION_DECL,
-** a VAR_DECL, or NULL_TREE. <reloc> indicates whether the initial value
-** of <exp> requires link-time relocation. Some target formats do not
-** support arbitrary sections.  Do not define this macro in such cases.
-** At present this macro is used only to support section attributes.
-** When this macro is undefined, section attributes are disabled.
-*/
-#if 0
-/* macro poisoned */
-#define ASM_OUTPUT_SECTION_NAME(FILE, DECL, NAME, RELOC) \
-   pic30_asm_output_section_name(FILE, DECL, NAME, RELOC)
-#endif
-
-/*
 ** A C statement to output DBX or SDB debugging information before code for
 ** line number line of the current source file to the stdio stream stream. 
 ** This macro need not be defined if the standard form of debugging information
@@ -2867,17 +2225,6 @@ ndconst_section ()                                           \
 #define SDB_OUTPUT_SOURCE_LINE(STREAM, LINE)         \
           fprintf(STREAM, "\t.ln\t%d\n", LINE)
 
-
-/*
-** A C statement or statements to switch to the appropriate section for
-** output of EXP.  You can assume that EXP is either a `VAR_DECL' node
-** or a constant of some sort.  RELOC indicates whether the initial value
-** of EXP requires link-time relocations.
-*/
-#if 0
-/* now controlloed by macro TARGET_ASM_SELECT_SECTION */
-#define SELECT_SECTION(EXP, RELOC, ALIGN) pic30_select_section ((EXP), (RELOC))
-#endif
 
 /*
 ** How to renumber registers for dbx and gdb.
@@ -3003,20 +2350,6 @@ do {                     \
 } while (0)           
 
 /*
-** This is how to output a command to make the user-level label named NAME
-** defined for reference from other files.
-*/
-#if 0
-/* now defined by TARGET_ASM_GLOBALIZE_LABEL */
-#define ASM_GLOBALIZE_LABEL(FILE,NAME) \
-do {            \
-  fputs("\t.global\t", FILE);   \
-  assemble_name(FILE, NAME);   \
-  fputs("\t; export\n", FILE);   \
-} while (0)
-#endif
-
-/*
 ** This is how we tell the assembler that a symbol is weak.
 */
 #define ASM_WEAKEN_LABEL(FILE,NAME)   \
@@ -3054,23 +2387,6 @@ do {               \
 */
 #define ASM_GENERATE_INTERNAL_LABEL(BUF,PREFIX,NUM)      \
    sprintf (BUF, "*.%s%d", PREFIX, NUM)
-
-#if 0
-/*
-** A C statement to store into the string string a label whose name is made
-** from the string prefix and the number num. This string, when output
-** subsequently by assemble_name, should produce the output that
-** ASM_OUTPUT_INTERNAL_LABEL would produce with the same prefix and num.
-** If the string begins with `*', then assemble_name will output the rest of
-** the string unchanged. It is often convenient for ASM_GENERATE_INTERNAL_LABEL
-** to use `*' in this way. If the string doesn't start with `*', then
-** ASM_OUTPUT_LABELREF gets to output the string, and may change it.
-** (Of course, ASM_OUTPUT_LABELREF is also part of your machine description,
-** so you should know what it does on your machine.)
-*/
-#define ASM_GENERATE_INTERNAL_LABEL(BUFFER, PREFIX, NUM) \
-    sprintf (BUFFER, "*.%s%d", PREFIX, NUM)
-#endif
 
 /*
 ** Define this if the label before a jump-table needs to be output specially.
@@ -3254,65 +2570,6 @@ do {               \
   sprintf ((OUTPUT), "%s.%u", (NAME), (LABELNO)))
 
 /*
-** Define this macro as a C statement to output on the stream stream the
-** assembler code to arrange to call the function named name at initialization
-** time. Assume that name is the name of a C function generated automatically
-** by the compiler. This function takes no arguments. Use the function
-** assemble_name to output the name name; this performs any system-specific
-** syntactic transformations such as adding an underscore. If you don't define
-** this macro, nothing special is output to arrange to call the function. This
-** is correct when the function will be called in some other manner--for
-** example, by means of the collect2 program, which looks through the symbol
-** table to find these functions by their names.
-**
-** For dsPIC, this is a nop until we implement C++ support.
-*/
-#if 0
-#define ASM_OUTPUT_CONSTRUCTOR(FILE, NAME)  do {   \
-   fprintf(FILE, "\t.init\n\t"); assemble_name(FILE, NAME); \
-        fprintf(FILE,"  ;constructor\n"); } while (0)
-#endif
-
-/*
-** This is like ASM_OUTPUT_CONSTRUCTOR but used for termination functions
-** rather than initialization functions. When ASM_OUTPUT_CONSTRUCTOR and
-** ASM_OUTPUT_DESTRUCTOR are defined, the initialization routine generated
-** for the generated object file will have static linkage.
-**
-** For dsPIC, this is a nop until we implement C++ support.
-*/
-#if 0
-#define ASM_OUTPUT_DESTRUCTOR(FILE, NAME)  do {   \
-   fprintf(FILE, "\t.init\n\t"); assemble_name(FILE, NAME); \
-        fprintf(FILE,"  ;destructor\n"); } while (0)
-#endif
-
-/*
-** Define the parentheses used to group arithmetic operations
-** in assembler code.
-*/
-
-#if 0
-#define ASM_OPEN_PAREN "("
-#define ASM_CLOSE_PAREN ")"
-#endif
-
-/*
-** Define results of standard character escape sequences.
-*/
-#if 0
-/* poisoned */
-#define TARGET_BELL   007
-#define TARGET_BS   010
-#define TARGET_TAB   011
-#define TARGET_NEWLINE   012
-#define TARGET_VT   013
-#define TARGET_FF   014
-#define TARGET_CR   015
-#define TARGET_ESC      033
-#endif
-
-/*
 ** Print operand X (an rtx) in assembler syntax to file FILE.
 ** CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
 ** For `%' followed by punctuation, CODE is the punctuation and X is null.
@@ -3406,22 +2663,8 @@ extern int pic30_license_valid;
                                       (MODE == P32EDSmode) || \
                                       (MODE == P32PEDSmode) || \
                                       (MODE == P16APSVmode) || \
-                                      (MODE == P24PSVmode))
-
-
-/*                               keyword         mapping          disable */
-#if 0
-#define TARGET_RESERVED_WORDS { "__psv__", RID_TARGET_QUAL, 0 }, \
-                              { "__prog__", RID_TARGET_QUAL, 0 }, \
-                              { "__pmp__", RID_TARGET_QUAL, 0}, \
-                              { "__external__", RID_TARGET_QUAL, 0 }, \
-                              { "__eds__", RID_TARGET_QUAL, 0}, 
-
-#define TARGET_PARSE_TARGET_RID(qual, x)  pic30_parse_target_rid(qual,x)
-
-#define TARGET_CONVERT_MODE(NEWMODE,OLDMODE,RTX,UNSIGNED) \
-  pic30_convert_mode(NEWMODE,OLDMODE,RTX,UNSIGNED)
-#else
+                                      (MODE == P24PSVmode) || \
+                                      (MODE == P32DFmode))
 
 enum pic30_address_space {
   /* ADDR_SPACE_GENERIC = 0 */
@@ -3429,7 +2672,8 @@ enum pic30_address_space {
   pic30_space_prog,
   pic30_space_pmp,
   pic30_space_external,
-  pic30_space_eds
+  pic30_space_eds,
+  pic30_space_packed
 };
 
 #define TARGET_ADDR_SPACE_KEYWORDS \
@@ -3437,10 +2681,8 @@ enum pic30_address_space {
   ADDR_SPACE_KEYWORD("__prog__", pic30_space_prog),          \
   ADDR_SPACE_KEYWORD("__pmp__", pic30_space_pmp),            \
   ADDR_SPACE_KEYWORD("__external__", pic30_space_external),  \
-  ADDR_SPACE_KEYWORD("__eds__", pic30_space_eds)
-
-#endif
-
+  ADDR_SPACE_KEYWORD("__eds__", pic30_space_eds),            \
+  ADDR_SPACE_KEYWORD("__pack_upper_byte", pic30_space_packed)
 
 enum pic30_set_psv_results {
   pic30_set_nothing,
@@ -3541,6 +2783,24 @@ enum pic30_acceptible_regs_flags {
 };
 
 #define TARGET_CHECK_SECTION_FLAGS pic30_check_section_flags
+
+#define MCHP_CONFIGURATION_DATA_FILENAME "configuration.data"
+#define MCHP_CONFIGURATION_HEADER_MARKER "Configuration Word Definitions: "
+#define MCHP_CONFIGURATION_HEADER_VERSION "0001"
+#define MCHP_CONFIGURATION_HEADER_SIZE \
+  (sizeof (MCHP_CONFIGURATION_HEADER_MARKER) + 5)
+
+#define mchp_processor_string pic30_target_cpu
+extern const char *mchp_config_data_dir;
+
+/*
+ * some modes don't have a linear address map, so its not okay just to convert
+ * them by gen_lowpart - there may be some 'work' required.
+ */
+/* all modes are linera, bar EDS */
+#define TARGET_LINEAR_MODE(mode) \
+  (!((mode == P32PEDSmode) || (mode == P32EDSmode)))
+
 
 #endif
 

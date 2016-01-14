@@ -420,7 +420,7 @@ obj_elf_local (int ignore ATTRIBUTE_UNUSED)
 
   do
     {
-      symbolP = get_sym_from_input_line_and_check (); 
+      symbolP = get_sym_from_input_line_and_check ();
       c = *input_line_pointer;
       S_CLEAR_EXTERNAL (symbolP);
       symbol_get_obj (symbolP)->local = 1;
@@ -444,7 +444,7 @@ obj_elf_weak (int ignore ATTRIBUTE_UNUSED)
 
   do
     {
-      symbolP = get_sym_from_input_line_and_check (); 
+      symbolP = get_sym_from_input_line_and_check ();
       c = *input_line_pointer;
       S_SET_WEAK (symbolP);
       symbol_get_obj (symbolP)->local = 1;
@@ -496,17 +496,9 @@ obj_elf_visibility (int visibility)
   demand_empty_rest_of_line ();
 }
 
-static segT previous_section;
-static int previous_subsection;
-
-struct section_stack
-{
-  struct section_stack *next;
-  segT seg, prev_seg;
-  int subseg, prev_subseg;
-};
-
-static struct section_stack *section_stack;
+extern segT previous_section;
+extern int previous_subsection;
+extern struct section_stack *section_stack;
 
 static bfd_boolean
 get_section (bfd *abfd ATTRIBUTE_UNUSED, asection *sec, void *inf)
@@ -2068,7 +2060,7 @@ elf_adjust_symtab (void)
   list.elt_count = NULL;
   list.indexes = hash_new ();
   bfd_map_over_sections (stdoutput, build_group_lists, &list);
-  
+
   /* Make the SHT_GROUP sections that describe each section group.  We
      can't set up the section contents here yet, because elf section
      indices have yet to be calculated.  elf.c:set_group_contents does

@@ -1255,7 +1255,7 @@ dump_relocations (FILE * file,
 	case EM_CR16_OLD:
 	  rtype = elf_cr16_reloc_type (type);
 	  break;
-	
+
 	case EM_MICROBLAZE:
 	case EM_MICROBLAZE_OLD:
 	  rtype = elf_microblaze_reloc_type (type);
@@ -2595,7 +2595,7 @@ get_machine_flags (unsigned e_flags, unsigned e_machine)
 	  if (e_flags & E_FLAG_RX_64BIT_DOUBLES)
 	    strcat (buf, ", 64-bit doubles");
 	  if (e_flags & E_FLAG_RX_DSP)
-	    strcat (buf, ", dsp");	  
+	    strcat (buf, ", dsp");
 
 	case EM_S390:
 	  if (e_flags & EF_S390_HIGH_GPRS)
@@ -6208,7 +6208,7 @@ decode_arm_unwind (struct arm_unw_aux_info *aux,
     }
   else
     {
-      
+
       per_index = (word >> 24) & 0x7f;
       if (per_index != 0 && per_index != 1 && per_index != 2)
 	{
@@ -9389,7 +9389,7 @@ get_section_contents (Elf_Internal_Shdr * section, FILE * file)
                              _("section contents"));
 }
 
-		      
+
 static void
 dump_section_as_strings (Elf_Internal_Shdr * section, FILE * file)
 {
@@ -9862,7 +9862,7 @@ static const char * arm_attr_tag_THUMB_ISA_use[] =
 static const char * arm_attr_tag_FP_arch[] =
   {"No", "VFPv1", "VFPv2", "VFPv3", "VFPv3-D16", "VFPv4", "VFPv4-D16"};
 static const char * arm_attr_tag_WMMX_arch[] = {"No", "WMMXv1", "WMMXv2"};
-static const char * arm_attr_tag_Advanced_SIMD_arch[] = 
+static const char * arm_attr_tag_Advanced_SIMD_arch[] =
   {"No", "NEONv1", "NEONv1 with Fused-MAC"};
 static const char * arm_attr_tag_PCS_config[] =
   {"None", "Bare platform", "Linux application", "Linux DSO", "PalmOS 2004",
@@ -9903,16 +9903,16 @@ static const char * arm_attr_tag_FP_HP_extension[] =
   {"Not Allowed", "Allowed"};
 static const char * arm_attr_tag_ABI_FP_16bit_format[] =
   {"None", "IEEE 754", "Alternative Format"};
-static const char * arm_attr_tag_MPextension_use[] = 
+static const char * arm_attr_tag_MPextension_use[] =
   {"Not Allowed", "Allowed"};
 static const char * arm_attr_tag_DIV_use[] =
-  {"Allowed in Thumb-ISA, v7-R or v7-M", "Not allowed", 
+  {"Allowed in Thumb-ISA, v7-R or v7-M", "Not allowed",
     "Allowed in v7-A with integer division extension"};
 static const char * arm_attr_tag_T2EE_use[] = {"Not Allowed", "Allowed"};
 static const char * arm_attr_tag_Virtualization_use[] =
-  {"Not Allowed", "TrustZone", "Virtualization Extensions", 
+  {"Not Allowed", "TrustZone", "Virtualization Extensions",
     "TrustZone and Virtualization Extensions"};
-static const char * arm_attr_tag_MPextension_use_legacy[] = 
+static const char * arm_attr_tag_MPextension_use_legacy[] =
   {"Not Allowed", "Allowed"};
 
 #define LOOKUP(id, name) \
@@ -10017,7 +10017,7 @@ display_arm_attribute (unsigned char * p)
 		case 3: printf ("??? 3\n"); break;
 		default:
 		  if (val <= 12)
-		    printf (_("8-byte and up to %d-byte extended\n"), 
+		    printf (_("8-byte and up to %d-byte extended\n"),
 			    1 << val);
 		  else
 		    printf ("??? (%d)\n", val);
@@ -10036,7 +10036,7 @@ display_arm_attribute (unsigned char * p)
 		case 3: printf ("??? 3\n"); break;
 		default:
 		  if (val <= 12)
-		    printf (_("8-byte and up to %d-byte extended\n"), 
+		    printf (_("8-byte and up to %d-byte extended\n"),
 			    1 << val);
 		  else
 		    printf ("??? (%d)\n", val);

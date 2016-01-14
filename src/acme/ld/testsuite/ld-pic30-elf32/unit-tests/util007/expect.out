@@ -1,5 +1,0 @@
-
-t.exe:     file format elf32-pic30
-
-Contents of section foo:
- 8100 61626364 65666768 696a6b6c 6d6e6f70  abcdefghijklmnop

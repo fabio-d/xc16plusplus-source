@@ -1,1 +1,0 @@
-	.set	CONST,1

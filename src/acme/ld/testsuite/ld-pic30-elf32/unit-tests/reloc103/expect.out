@@ -1,4 +1,0 @@
-t1.o(.text+0x0): In function `__reset':
-: Link Error: relocation truncated to fit: .word symLO
-t1.o(.text+0x2): In function `__reset':
-: Link Error: relocation truncated to fit: .word symHI

@@ -1,8 +1,0 @@
-MEMORY
-{
-  data (a!xr) : ORIGIN = 0xaa, LENGTH = 0x9FFF
-  program (xr) : ORIGIN = 0x100, LENGTH = 0x80000000
-}
-
-__DMA_BASE    = 0x2000;
-__DMA_END     = 0x6447;

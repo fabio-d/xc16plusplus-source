@@ -1,4 +1,0 @@
-t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: DSP PRESHIFT shiftLO
-t1.o(.text+0x2):fake: Link Error: relocation truncated to fit: DSP PRESHIFT shiftHI
-t1.o(.text+0x4):fake: Link Error: relocation truncated to fit: DSP PRESHIFT shiftLO
-t1.o(.text+0x6):fake: Link Error: relocation truncated to fit: DSP PRESHIFT shiftHI

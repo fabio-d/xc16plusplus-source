@@ -32,6 +32,10 @@
 #include "as.h"
 #include "safe-ctype.h"
 
+#if defined(TARGET_IS_PIC32MX)
+#include "pic32-utils.h"
+#endif
+
 #ifdef HAVE_LIMITS_H
 #include <limits.h>
 #else
@@ -675,7 +679,11 @@ dwarf2_directive_loc (int dummy ATTRIBUTE_UNUSED)
 	  *input_line_pointer = c;
 	  value = get_absolute_expression ();
 	  if (value >= 0)
-	    current.discriminator = value;
+	    {
+#if !defined(TARGET_IS_PIC32MX)
+	      current.discriminator = value;
+#endif
+	    }
 	  else
 	    {
 	      as_bad (_("discriminator less than zero"));
@@ -1241,10 +1249,18 @@ process_entries (segT seg, struct line_entry *e)
 
       if (e->loc.discriminator != 0)
 	{
+#if !defined(TARGET_IS_PIC32MX)
 	  out_opcode (DW_LNS_extended_op);
 	  out_leb128 (1 + sizeof_leb128 (e->loc.discriminator, 0));
 	  out_opcode (DW_LNE_set_discriminator);
 	  out_uleb128 (e->loc.discriminator);
+#else
+          if (0)
+            {
+              /* Avoid "defined by never used" warning. */
+              out_leb128 (0);
+            }
+#endif
 	}
 
       if (isa != e->loc.isa)
@@ -1253,7 +1269,6 @@ process_entries (segT seg, struct line_entry *e)
 	  out_opcode (DW_LNS_set_isa);
 	  out_uleb128 (isa);
 	}
-
       if ((e->loc.flags ^ flags) & DWARF2_FLAG_IS_STMT)
 	{
 	  flags = e->loc.flags;
@@ -1757,7 +1772,11 @@ dwarf2_finish (void)
 
   /* Create and switch to the line number section.  */
   line_seg = subseg_new (".debug_line", 0);
+#if defined(TARGET_IS_PIC32MX)
+  PIC32_SET_INFO_ATTR(line_seg);
+#else
   bfd_set_section_flags (stdoutput, line_seg, SEC_READONLY | SEC_DEBUGGING);
+#endif
 
   /* For each subsection, chain the debug entries together.  */
   for (s = all_segs; s; s = s->next)
@@ -1789,13 +1808,18 @@ dwarf2_finish (void)
       abbrev_seg = subseg_new (".debug_abbrev", 0);
       aranges_seg = subseg_new (".debug_aranges", 0);
 
+#if defined(TARGET_IS_PIC32MX)
+      PIC32_SET_INFO_ATTR(info_seg);
+      PIC32_SET_INFO_ATTR(abbrev_seg);
+      PIC32_SET_INFO_ATTR(aranges_seg);
+#else
       bfd_set_section_flags (stdoutput, info_seg,
 			     SEC_READONLY | SEC_DEBUGGING);
       bfd_set_section_flags (stdoutput, abbrev_seg,
 			     SEC_READONLY | SEC_DEBUGGING);
       bfd_set_section_flags (stdoutput, aranges_seg,
 			     SEC_READONLY | SEC_DEBUGGING);
-
+#endif
       record_alignment (aranges_seg, ffs (2 * sizeof_address) - 1);
 
       if (all_segs->next == NULL)

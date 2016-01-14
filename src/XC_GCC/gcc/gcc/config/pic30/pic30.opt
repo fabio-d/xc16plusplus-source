@@ -88,8 +88,15 @@ Mask(LEGACY_LIBC)
 
 Mask(TARGET_SHORT_DOUBLE)
 
+Mask(CCI)
+
+Mask(NO_OVERRIDE_INLINE)
 
 ; options
+
+mcci
+Target RejectNegative Mask(CCI) MaskExists
+Use CCI keywords
 
 ; ugh have to cheat for these two
 msmall-data
@@ -147,6 +154,11 @@ Disable warning for inappropriate use of ISR function names
 mshort-double
 Target Mask(TARGET_SHORT_DOUBLE) MaskExists
 Target version of -fshort-double since this flag is not availble to LTO tool
+
+mno-override-inline
+Target RejectNegative Mask(NO_OVERRIDE_INLINE) MaskExists
+Set compiler's override of 'inline' keyword and options for -O1 and -Os; by default the compiler will not inline at these levels
+
  
 ;
 ; **************************** CAUTION
@@ -154,7 +166,6 @@ Target version of -fshort-double since this flag is not availble to LTO tool
 ; **************************** a space or anything
 ; **************************** CAUTION
 ;
-
 mcpu=
 Target RejectNegative Joined Var(pic30_target_cpu) VarExists
 Select target CPU 
@@ -230,3 +241,7 @@ Place all code into auxiliary flash
 mlegacy-libc
 Target Mask(LEGACY_LIBC) MaskExists
 use legacy lib/include directory
+
+mprint-builtins
+Target RejectNegative Var(TARGET_PRINT_BUILTINS)
+-mprint-builtins        Print a list of enabled builtin functions

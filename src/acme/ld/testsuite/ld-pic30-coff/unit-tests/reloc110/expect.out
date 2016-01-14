@@ -1,5 +1,0 @@
-
-t.exe:     file format coff-pic30
-
-Contents of section .text:
- 1000 111111 201020 c0cc2c         ... . ..,   

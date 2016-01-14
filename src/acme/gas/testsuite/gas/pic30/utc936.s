@@ -1,5 +1,0 @@
-	.text
-	.fillupper 0xFF
-	.fillvalue 0x1
-	.set ., 0x20
-	nop

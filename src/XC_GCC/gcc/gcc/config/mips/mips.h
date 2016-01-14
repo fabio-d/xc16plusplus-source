@@ -837,7 +837,7 @@ enum mips_code_readable_setting {
   "%{!mno-dsp: \
      %{march=24ke*|march=34kc*|march=34kf*|march=34kx*|march=1004k*: -mdsp} \
      %{march=74k*:%{!mno-dspr2: -mdspr2 -mdsp}}}"
- 
+
 #define DRIVER_SELF_SPECS BASE_DRIVER_SELF_SPECS
 
 #define GENERATE_DIVIDE_TRAPS (TARGET_DIVIDE_TRAPS \
@@ -1142,7 +1142,7 @@ enum mips_code_readable_setting {
 
 /* The CACHE instruction is available.  */
 #define ISA_HAS_CACHE (TARGET_CACHE_BUILTIN && !TARGET_MIPS16)
- 
+
 /* ISA has single-instruction unaligned load/store support.  */
 #define ISA_HAS_UL_US           (TARGET_OCTEON \
                                  && TARGET_OCTEON_UNALIGNED \
@@ -2982,11 +2982,16 @@ do {									\
 #endif
 
 /* Define the strings to put out for each section in the object file.  */
+#ifndef TEXT_SECTION_ASM_OP
 #define TEXT_SECTION_ASM_OP	"\t.text"	/* instructions */
+#endif
+#ifndef DATA_SECTION_ASM_OP
 #define DATA_SECTION_ASM_OP	"\t.data"	/* large data */
+#endif
 
-#undef READONLY_DATA_SECTION_ASM_OP
+#ifndef READONLY_DATA_SECTION_ASM_OP
 #define READONLY_DATA_SECTION_ASM_OP	"\t.rdata"	/* read-only data */
+#endif
 
 #define ASM_OUTPUT_REG_PUSH(STREAM,REGNO)				\
 do									\
@@ -3175,6 +3180,7 @@ extern const struct mips_cpu_info *mips_arch_info;
 extern const struct mips_cpu_info *mips_tune_info;
 extern const struct mips_rtx_cost_data *mips_cost;
 extern bool mips_base_mips16;
+extern bool mips_base_micromips;
 extern enum mips_code_readable_setting mips_code_readable;
 #endif
 

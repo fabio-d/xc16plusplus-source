@@ -1,4 +1,0 @@
-.text
-.pbyte 0x12
-.palign 2, 0x34, 1
-.pbyte 0x56

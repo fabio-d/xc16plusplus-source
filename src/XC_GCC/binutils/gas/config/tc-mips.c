@@ -34,6 +34,9 @@
 #include "dwarf2dbg.h"
 #include "dw2gencfi.h"
 
+/*FS*/
+#include "pic32-utils.h"
+
 #ifdef DEBUG
 #define DBG(x) printf x
 #else
@@ -1322,7 +1325,14 @@ static int validate_mips_insn (const struct mips_opcode *);
 static int validate_micromips_insn (const struct mips_opcode *);
 static int relaxed_micromips_16bit_branch_length (fragS *, asection *, int);
 static int relaxed_micromips_32bit_branch_length (fragS *, asection *, int);
-
+/*FS*/
+void pic32_attribute (int);
+static int pic32_align_power PARAMS ((offsetT));
+extern int pic32_is_valid_attributes PARAMS ((unsigned int, unsigned char));
+extern unsigned int pic32_attribute_map PARAMS ((asection *));
+static  bfd_vma pic32_address PARAMS ((bfd_vma));
+static  bfd_vma pic32_element_size PARAMS ((bfd_vma));
+extern int pic32_set_implied_attributes PARAMS ((asection *, unsigned char ));
 /* Table and functions used to map between CPU/ISA names, and
    ISA levels, and CPU numbers.  */
 
@@ -1410,6 +1420,7 @@ static const pseudo_typeS mips_pseudo_table[] =
   {"int", s_cons, 2},
   {"long", s_cons, 2},
   {"octa", s_cons, 4},
+  {"pushsection", s_change_section, 1},
   {"quad", s_cons, 3},
   {"section", s_change_section, 0},
   {"short", s_cons, 1},
@@ -1842,7 +1853,8 @@ struct regname {
     {"$28",	RTYPE_NUM | 28}, \
     {"$29",	RTYPE_NUM | 29}, \
     {"$30",	RTYPE_NUM | 30}, \
-    {"$31",	RTYPE_NUM | 31}
+    {"$31",	RTYPE_NUM | 31}, \
+    {"$$31",	RTYPE_NUM | 31}
 
 #define FPU_REGISTER_NAMES       \
     {"$f0",	RTYPE_FPU | 0},  \
@@ -13715,7 +13727,7 @@ s_change_sec (int sec)
 	{
 	  bfd_set_section_flags (stdoutput, seg, (SEC_ALLOC | SEC_LOAD
 						  | SEC_READONLY | SEC_RELOC
-						  | SEC_DATA));
+						  | SEC_CODE));
 	  if (strncmp (TARGET_OS, "elf", 3) != 0)
 	    record_alignment (seg, 4);
 	}
@@ -13738,9 +13750,150 @@ s_change_sec (int sec)
   auto_align = 1;
 }
 
+
+segT previous_section;
+
+int previous_subsection;
+
+struct section_stack *section_stack;
+
 void
 s_change_section (int ignore ATTRIBUTE_UNUSED)
 {
+  /* Switch to the section, creating it if necessary.  */
+  if (ignore)
+    {
+      struct section_stack *elt;
+      elt = (struct section_stack *) xmalloc (sizeof (struct section_stack));
+      elt->next = section_stack;
+      elt->seg = now_seg;
+      elt->prev_seg = previous_section;
+      elt->subseg = now_subseg;
+      elt->prev_subseg = previous_subsection;
+      section_stack = elt;
+    }
+  previous_section = now_seg;
+  previous_subsection = now_subseg;
+
+  bfd_boolean has_flags = FALSE;
+  char *save;
+  int result;
+   save = input_line_pointer;
+   while (!is_end_of_line[(unsigned char) *input_line_pointer]) {
+     if (*input_line_pointer++ == ',') {
+       SKIP_WHITESPACE();
+       if (*input_line_pointer == '\"') {
+         has_flags = TRUE;
+         break;
+       }
+     }
+   }
+   input_line_pointer = save;
+
+   if (has_flags) {
+     /* old style section directive */
+     as_warn (_("Quoted section flags are deprecated, use attributes instead"));
+    obj_elf_section (0);}
+
+   else {
+   /* new style section directive */
+
+     char *section_name;
+     int has_auto_name = 0;
+     char c;
+     char *name;
+     unsigned int exp = 0; /* subsection number */
+     asection *sec;
+
+     /* get the section name */
+     section_name = input_line_pointer;
+     c = get_symbol_end ();
+
+     if ((c == '*') && (strlen(section_name) == 0))
+       {
+         static unsigned int auto_name_cnt = 0;
+         const char *s = ".scn";
+         unsigned int lineno,len;
+         char *filename;
+         char *p,cc;
+
+         *input_line_pointer++ = c;
+         has_auto_name = 1;
+
+         p = input_line_pointer;
+         cc = get_symbol_end ();
+         if (strlen(p) > 0) {  /* if a name is provided, use it */
+           name = xmalloc (input_line_pointer - p + 1);
+           strcpy (name, p);
+         } else {              /* else invent a name */
+           as_where( &filename, &lineno);
+           len = strlen(filename) + strlen(s) + 5;
+           name = xmalloc (len + 1);
+           snprintf(name, len, "%s%s%d", filename, s, ++auto_name_cnt);
+         }
+         *input_line_pointer = cc;
+       }
+     else if (strlen(section_name) == 0) {
+       as_bad (_("invalid section name (none)\n"));
+       name = "(none)";
+       *input_line_pointer = c;
+     }
+      else
+       {
+         name = xmalloc (input_line_pointer - section_name + 1);
+         strcpy (name, section_name);
+         /*xc32-129*/
+         if (strcmp(name,".RAMFUNC$") == 0)
+             as_bad (_(".RAMFUNC$ is a reserved section name.\n"));
+         *input_line_pointer = c;
+       }
+
+     /* create and/or switch to the new section */
+     sec = subseg_new (name, (subsegT) exp);
+
+     /* process the attribute list, if any */
+     pic32_attribute (1);
+
+    if (flag_debug)
+       printf ("    pic32_section::new_attribute_map = 0x%x\n",
+               pic32_attribute_map (sec));
+
+     /* set implied attributes, if any */
+     result = pic32_set_implied_attributes(sec, flag_debug);
+     if (result == 1)
+       as_warn (_("Implied attributes for section \'%s\'"
+                  " are deprecated"), name);
+     else if (result == -1)
+       as_bad (_("Attributes for section \'%s\'"
+                 " conflict with implied attributes"), name);
+
+
+     /* set unordered attribute, if appropriate */
+     if (has_auto_name)
+       PIC32_SET_UNORDERED_ATTR(sec);
+
+      /* encode any attribute in a symbol. Stay mips compatible */
+     if (pic32_attribute_map(sec)) {
+      char *sym_name;
+      char *ext_attr_prefix = "__ext_attr_";
+      symbolS * symbolp;
+
+      sym_name = xmalloc (strlen(sec->name) + strlen(ext_attr_prefix) + 1);
+      (void) sprintf(sym_name, "%s%s", ext_attr_prefix, sec->name);
+      if (!symbol_find(sym_name)) {
+        symbolp = symbol_new (sym_name, absolute_section,
+                              (valueT) pic32_attribute_map(sec),
+                              &zero_address_frag);
+
+        symbol_table_insert (symbolp);
+        symbol_mark_resolved (symbolp);
+       }
+     }
+  /* Prevent SEC_HAS_CONTENTS from being inadvertently set.  */
+  if (PIC32_IS_BSS_ATTR(sec))
+    seg_info (sec)->bss = 1;
+   } /* new style section directive */
+#if 0
 #ifdef OBJ_ELF
   char *section_name;
   char c;
@@ -13813,6 +13966,7 @@ s_change_section (int ignore ATTRIBUTE_UNUSED)
   if (now_seg->name != section_name)
     free (section_name);
 #endif /* OBJ_ELF */
+#endif
 }
 
 void
@@ -16613,8 +16767,14 @@ s_mips_end (int x ATTRIBUTE_UNUSED)
   else
     p = NULL;
 
+#ifdef PIC32_IS_RAMFUNC_ATTR
+  if (((bfd_get_section_flags (stdoutput, now_seg) & SEC_CODE) == 0) &&
+      (PIC32_IS_RAMFUNC_ATTR(now_seg) == 0))
+    as_warn (_(".end not in text/code or ramfunc section"));
+#else
   if ((bfd_get_section_flags (stdoutput, now_seg) & SEC_CODE) == 0)
     as_warn (_(".end not in text section"));
+#endif
 
   if (!cur_proc_ptr)
     {
@@ -16705,8 +16865,14 @@ s_mips_ent (int aent)
       || *input_line_pointer == '-')
     get_number ();
 
+#ifdef PIC32_IS_RAMFUNC_ATTR
+  if (((bfd_get_section_flags (stdoutput, now_seg) & SEC_CODE) == 0) &&
+      (PIC32_IS_RAMFUNC_ATTR(now_seg) == 0))
+    as_warn (_(".ent or .aent not in text/code or ramfunc section."));
+#else
   if ((bfd_get_section_flags (stdoutput, now_seg) & SEC_CODE) == 0)
     as_warn (_(".ent or .aent not in text section."));
+#endif
 
   if (!aent && cur_proc_ptr)
     as_warn (_("missing .end"));
@@ -16982,7 +17148,8 @@ static const struct mips_cpu_info mips_cpu_info_table[] =
   { "xlr",            0,      ISA_MIPS64,     CPU_XLR },
 
   /* Microchip PIC32MX */
-  { "pic32mx",        0,      ISA_MIPS32R2,   CPU_PIC32MX },
+  { "pic32mx",        MIPS_CPU_ASE_DSP | MIPS_CPU_ASE_DSPR2,
+						ISA_MIPS32R2,   CPU_PIC32MX },
 
   /* End marker */
   { NULL, 0, 0, 0 }
@@ -23219,4 +23386,239 @@ micromips_macro (struct mips_cl_insn *ip)
   if (!mips_opts.at && used_at)
     as_bad (_("Macro used $at after \".set noat\""));
 }
+
+/*FS*/
+
+#define SKIP_COMMA()                    \
+  {                                     \
+    if (* input_line_pointer == ',')    \
+      ++ input_line_pointer;            \
+  }
+
+
+void
+pic32_attribute (int is_section)
+{
+   asection *sec = now_seg;
+   symbolS *symbolp;
+   unsigned int attribute_map = 0;
+   unsigned int old_map = pic32_attribute_map(sec);
+   const char *info_sec_prefix = "__memory_";
+   char * info_sec_name;
+   bfd_vma      old_lma = sec->lma;
+    if (flag_debug) {
+    printf ("--> pic32_attribute::begin %s\n", sec->name);
+    printf ("    pic32_attribute::old_map = 0x%x\n", old_map);
+  }
+   if (is_it_end_of_statement ()) {
+   if (is_section)
+      {} /* no attribute list is OK */
+   else
+      as_bad (_(".attribute expects an attribute name"));
+  }
+   #define MAX_ATTR_LEN 20
+  while (!is_it_end_of_statement ())
+    {
+      offsetT arg = 0;
+      int has_arg = 0;
+      int has_alpha_arg = 0;
+      char *alpha_arg = NULL;
+      int is_valid = 0;
+      int pic32_index = 0;
+      char *name, *keep;
+      char c,s[MAX_ATTR_LEN],s2[MAX_ATTR_LEN];
+      unsigned int i,len,len2;
+
+      SKIP_COMMA ();
+      SKIP_WHITESPACE ();
+
+      name = input_line_pointer;
+      c = get_symbol_end ();
+
+      /* make a local copy, lower case */
+      name = strncpy(s, name, sizeof(s));
+      len = strlen(name);
+      for(i = 0; i < len; i++) {
+        s[i] = TOLOWER(s[i]);
+      }
+
+        /* get the argument, if any */
+      *input_line_pointer = c;
+      if (c == '(') {
+        has_arg++;
+        input_line_pointer++;
+        SKIP_WHITESPACE ();
+
+        /* test for valid string argument */
+      keep = alpha_arg = input_line_pointer;
+      c = get_symbol_end (); /* advances input_line_pointer, inserts NULL */
+
+      len2 = sizeof(s2);
+        alpha_arg = strncpy(s2, alpha_arg, len2);      /* make a local copy */
+        s2[len2-1] = 0;                         /* make sure its terminated */
+
+        *input_line_pointer = c;            /* replace char that was NULLed */
+
+       if (strcmp(name, "memory") == 0)
+          has_alpha_arg++;       /* argument to memory() is always a string */
+#if 0
+        else {
+          for(i = 0; s2[i]; i++)            /* make the argument lower case */
+            s2[i] = TOLOWER(s2[i]);
+          if (is_valid_argument_name(alpha_arg))  /* and check the std list */
+            has_alpha_arg++;
+        }
+#endif
+        if (!has_alpha_arg) {                   /* if not a valid alpha arg */
+          input_line_pointer = keep;          /* restore input_line_pointer */
+          arg = get_absolute_expression ();  /* try to evaluate as absolute */
+        }
+
+        input_line_pointer++;                     /* skip the closing paren */
+      }
+
+      if (flag_debug) {
+          printf ("    pic32_attribute::attribute = %s\n", name);
+          if (has_alpha_arg)
+            printf ("    pic32_attribute::argument  = %s\n", alpha_arg);
+          else if (has_arg)
+            printf ("    pic32_attribute::argument  = 0x%lx\n", arg);
+      }
+
+#undef ATTR
+#undef ATTR_IS
+#undef MASK1
+#undef MASK2
+#undef MASK3
+#undef MASK4
+
+#define PIC32_SET_MEMORY_ATTR_ARG(a)                                \
+        if (has_arg) {                                              \
+          asection *memsec;                                         \
+          info_sec_name = xmalloc (strlen(alpha_arg) +              \
+                          strlen(info_sec_prefix) + 1);             \
+          (void) sprintf(info_sec_name, "%s%s",                     \
+           info_sec_prefix, alpha_arg);                             \
+          memsec = subseg_new (info_sec_name, 0);                   \
+          PIC32_SET_INFO_ATTR(memsec);                              \
+          symbolp = symbol_new (sec->name, absolute_section,        \
+                               (valueT) 1, &zero_address_frag);     \
+          (void) subseg_new (sec->name, 0);                         \
+        }
+
+#define PIC32_SET_ABSOLUTE_ATTR_ARG(a)                              \
+        sec->vma = pic32_address(a);                                \
+        sec->lma = pic32_address(a);
+#define PIC32_SET_ALIGN_ATTR_ARG(a)                                 \
+        record_alignment (sec, pic32_align_power(arg));
+#define PIC32_SET_MERGE_ATTR_ARG(a)                                 \
+        sec->entsize = pic32_element_size(arg);
+#define ATTR(_id, _has_arg, _set_it)                                \
+      if ((strlen(#_id) == len) && (strcmp( name, (#_id)) == 0)) {  \
+        if (_has_arg && !has_arg)                                   \
+          as_bad (_("%s requires an argument."), name);             \
+        _set_it;                                                    \
+        is_valid |= 1;                                              \
+        attribute_map |= (1 << pic32_index);                              \
+      }                                                             \
+      pic32_index++;
+#include "pic32-attributes.h"
+       if (!is_valid) {
+        as_bad (_("\'%s\' is not a valid attribute name"), name);
+        demand_empty_rest_of_line ();
+        break;
+      }
+
+    } /* while (!is_it_end_of_statement ()) */
+
+    if (flag_debug)
+    printf ("    pic32_attribute::map = %x\n", attribute_map);
+
+  /*
+ *   ** If we are processing a section directive,
+ *     ** merge attributes with any previous definition(s).
+ *       */
+  if (is_section && old_map) {
+    attribute_map |= old_map;
+    if (attribute_map != old_map)
+      as_warn (_("changed section attributes for %s"), sec->name);
+    if (old_lma && (old_lma != sec->lma))
+      as_bad (_("section address 0x%lx conflicts with previous value 0x%lx"),
+              sec->lma, old_lma);
+  }
+
+  /* if any attributes specified, validate them */
+  if (attribute_map &&
+      !pic32_is_valid_attributes(attribute_map, flag_debug))
+    as_bad (_("invalid attribute combination for %s"), sec->name);
+#if 0
+  /* validate special case attributes */
+  if (PIC32_IS_NEAR_ATTR(sec) &&
+      PIC32_IS_ABSOLUTE_ATTR(sec) &&
+      (PIC32_IS_DATA_ATTR(sec) ||
+       PIC32_IS_BSS_ATTR(sec) ||
+       PIC32_IS_PERSIST_ATTR(sec)))
+    {
+      if (sec->vma > NEAR_DATA_LIMIT)
+        as_bad (_("section address 0x%lx exceeds near data range"), sec->vma);
+    }
+#endif
+   if (flag_debug)
+    printf ("<-- pic32_attribute::exit\n");
+
+  } /* pic32_attribute */
+
+
+/******************************************************************************/
+
+/*
+ * ** Convert align(),reverse() arg to a power of two
+ * */
+static int
+pic32_align_power (offsetT bytes)
+{
+  unsigned int result = (unsigned int) bytes;
+  /* Convert to a power of 2.  */
+  if (result != 0)
+    {
+      unsigned int i;
+
+      if (result > 32768)
+        as_bad(_("section alignment cannot exceed 32768"));
+
+      for (i = 0; (result & 1) == 0; result >>= 1, ++i)
+        ;
+      if (result != 1)
+        as_bad (_("section alignment must be a power of 2"));
+
+      result = i;
+    }
+  return result;
+} /* pic32_align_power */
+
+/*
+ * ** Validate address() arg
+ * */
+static bfd_vma
+pic32_address (bfd_vma addr)
+{
+  if (!PIC32_IS_EVEN(addr))
+    as_bad (_("section address must be even"));
+
+  return addr;
+} /* pic32_address */
+
+
+
+/*
+ * ** Validate merge() arg
+ * */
+static bfd_vma
+pic32_element_size (bfd_vma size)
+{
+  if (size > 0x100)
+    as_bad (_("element size must be in range [0..256]"));
+
+  return size;
+} /* pic32_element_size */
 

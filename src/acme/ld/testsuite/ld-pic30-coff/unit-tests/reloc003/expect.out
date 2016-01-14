@@ -1,2 +1,0 @@
-t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: BIT SELECT 3 bitLO
-t1.o(.text+0x2):fake: Link Error: relocation truncated to fit: BIT SELECT 3 bitHI

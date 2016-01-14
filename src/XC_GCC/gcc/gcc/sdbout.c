@@ -1652,7 +1652,11 @@ sdbout_begin_prologue (unsigned int line, const char *file ATTRIBUTE_UNUSED)
 static void
 sdbout_end_prologue (unsigned int line, const char *file ATTRIBUTE_UNUSED)
 {
+#ifdef _BUILD_C30_
+  sdb_begin_function_line = SDB_BEGIN_FUNCTION_LINE(line-1);
+#else
   sdb_begin_function_line = line - 1;
+#endif
   PUT_SDB_FUNCTION_START (line);
   sdbout_parms (DECL_ARGUMENTS (current_function_decl));
   sdbout_reg_parms (DECL_ARGUMENTS (current_function_decl));

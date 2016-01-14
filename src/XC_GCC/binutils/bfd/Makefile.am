@@ -575,7 +575,9 @@ BFD32_BACKENDS_CFILES = \
 	xcofflink.c \
 	xsym.c \
 	xtensa-isa.c \
-	xtensa-modules.c
+	xtensa-modules.c \
+	pic32-attributes.c
+	
 
 # The .o files needed by all of the 64 bit vectors that are configured into
 # target_vector in targets.c if configured with --enable-targets=all
