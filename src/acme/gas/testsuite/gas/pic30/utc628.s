@@ -1,0 +1,2 @@
+	.text
+	btst	xsfr,#xxx

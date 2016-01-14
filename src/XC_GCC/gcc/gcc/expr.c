@@ -2867,6 +2867,13 @@ set_storage_via_setmem (rtx object, rtx size, rtx val, unsigned int align,
 	  if (pred != 0 && ! (*pred) (opsize, mode))
 	    opsize = copy_to_mode_reg (mode, opsize);
 
+#ifdef _BUILD_C30_
+          /* what happens if opsize is invalid as a reg? */
+          if (pred != 0 && ! (*pred) (opsize, mode)) {
+            return false;
+          }
+#endif
+
 	  opchar = val;
 	  char_mode = insn_data[(int) code].operand[2].mode;
 	  if (char_mode != VOIDmode)
@@ -7086,6 +7093,12 @@ expand_expr_addr_expr (tree exp, rtx target, enum machine_mode tmode,
   enum machine_mode rmode;
   rtx result;
 
+#ifdef _BUILD_C30_
+#ifdef TARGET_WARN_ADDRESS
+  TARGET_WARN_ADDRESS(exp,tmode);
+#endif
+#endif
+
   /* Target mode of VOIDmode says "whatever's natural".  */
   if (tmode == VOIDmode)
     tmode = TYPE_MODE (TREE_TYPE (exp));
@@ -7494,8 +7507,21 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	if (targetm.addr_space.subset_p (as_to, as_from)
 	    || targetm.addr_space.subset_p (as_from, as_to))
 	  {
+#if defined(_BUILD_C30_) && 1
+	    op0 = expand_expr (treeop0, NULL_RTX, TYPE_MODE(type), modifier);
+            /* Not sure why it was chosen to just pass the types, but...
+             * having the treeop is quite useful - 
+             *
+             * for example, on some devices a 'stack address' is really in
+             * the EDS address space, but for efficiency it is treated as
+             * a normal HImode pointer.  Unless we want to make a C pointer
+             * out of a stack object
+             */
+	    op0 = targetm.addr_space.convert (op0, treeop0, type);
+#else
 	    op0 = expand_expr (treeop0, NULL_RTX, VOIDmode, modifier);
 	    op0 = targetm.addr_space.convert (op0, treeop0_type, type);
+#endif
 	    gcc_assert (op0);
 	    return op0;
 	  }

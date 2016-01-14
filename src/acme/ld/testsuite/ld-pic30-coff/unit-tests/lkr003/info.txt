@@ -1,0 +1,30 @@
+lkr003: Interrupt vector tables:
+
+The objective of this test is to verify that
+primary and alternate interrupt vector tables
+are constructed properly.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+testgen.pl - used to create t1.s
+
+
+
+3/18/2002 - GSM

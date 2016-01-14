@@ -1,0 +1,5 @@
+
+t.exe:     file format elf32-pic30
+
+Contents of section .text:
+ 0124 202222 404424 111111          ""@D$...   

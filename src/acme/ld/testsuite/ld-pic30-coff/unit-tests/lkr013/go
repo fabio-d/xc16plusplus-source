@@ -1,0 +1,82 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GLDPATH=$PIC30_CD/support/dsPIC30F/gld
+
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+# remove temporary files
+rm -f temp test.out
+
+{
+echo
+echo "Internal linker script:"
+echo
+}  > test.out
+
+# make a copy of the internal linker script
+$GLD30 --verbose > temp
+
+# use perl to extract a program region length
+perl -n -e 'if (/(reset.*ORIGIN.*)/) {print "  $1\n"}' temp >> test.out
+
+{
+echo
+echo "Device linker script:"
+echo
+}  >> test.out
+
+# make a copy of a device linker script
+cat $GLDPATH/p30f3014.gld > temp
+
+# use perl again
+perl -n -e 'if (/(reset.*ORIGIN.*)/) {print "  $1\n"}' temp >> test.out
+
+if [ $vflag = "on" ]; then
+    echo
+    cat test.out
+    echo
+fi
+
+echo
+echo `head -1 info.txt`
+
+if [ $vflag = "on" ]; then
+    diff -b -B test.out expect.out
+else
+    diff -b -B test.out expect.out > /dev/null
+fi
+
+
+if [ $? -ne 0 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

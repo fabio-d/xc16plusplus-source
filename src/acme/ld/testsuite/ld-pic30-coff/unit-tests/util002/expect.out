@@ -1,0 +1,11 @@
+
+t1.o:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000000 <__reset>:
+   0:	00 00 00    	nop       
+   2:	22 22 22    	mov.w     #0x2222, w2
+   4:	44 44 44    	add.b     w8, [--w4], w8
+   6:	66 66 66    	and.b     w12, #0x6, [--w12]
+   8:	88 88 88    	mov.w     w8, 0x1110

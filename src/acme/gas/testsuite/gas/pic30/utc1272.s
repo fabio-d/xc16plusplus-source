@@ -1,0 +1,17 @@
+        .text
+        call  secure(17)
+        call  secure(18)
+        call  secure(19)
+        call  secure(20)
+        call  secure(21)
+        call  secure(22)
+        call  secure(23)
+        call  secure(24)
+        call  secure(25)
+        call  secure(26)
+        call  secure(27)
+        call  secure(28)
+        call  secure(29)
+        call  secure(30)
+        call  secure(31)
+        

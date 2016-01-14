@@ -1,0 +1,2 @@
+t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: DSP SIGNED 6 shiftLO
+t1.o(.text+0x2):fake: Link Error: relocation truncated to fit: DSP SIGNED 6 shiftHI

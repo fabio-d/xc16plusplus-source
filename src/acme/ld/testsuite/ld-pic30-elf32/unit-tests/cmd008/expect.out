@@ -1,0 +1,6 @@
+
+t.exe:     file format elf32-pic30
+
+Contents of section .dinit:
+ 0100 000800 0c0000 020000 112233  .........."3
+ 0108 445566 778899 aabbcc 000000  DUfw........

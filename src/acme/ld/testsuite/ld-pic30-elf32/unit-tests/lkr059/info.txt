@@ -1,0 +1,27 @@
+lkr059:  Unordered input sections are not padded
+
+The objective of this test is to verify that
+unordered input sections are not padded
+by the assembler and allocated without
+padding by the linker. Note that unordered
+sections are named * in assembly source code.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s,t2.s - source files
+
+
+
+9/28/2004 - GSM

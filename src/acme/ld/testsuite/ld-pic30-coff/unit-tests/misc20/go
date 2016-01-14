@@ -1,0 +1,142 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GCC30=$PIC30_CD/bin/pic30-gcc
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+
+SIM30=$PIC30_CD/bin/sim30
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f test.out
+# test without ICD2RAM, 1.30 linker script
+{ echo
+  echo "testing without ICD2RAM, 1.30 linker script (expect sim30 output a-z):"
+  echo
+} > test.out
+rm -f t.exe
+$GCC30 -o t.exe t.c -Wl,--heap=512 -Tp30f6014.gld > /dev/null 2>&1 || exit 99
+err=$?
+if [ $vflag = "on" ]; then
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tp30f6014.gld"
+    echo $err
+fi
+
+$SIM30 run.cmd > /dev/null
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$SIM30 run.cmd"
+    echo $err
+fi
+cat UartOut.txt >> test.out
+rm -f UartOut.txt
+
+# test with ICD2RAM, 1.30 linker script
+{ echo
+  echo "testing with ICD2RAM 1.30 linker script (expect sim30 output a-z):"
+  echo
+} >> test.out
+rm -f t.exe
+$GCC30 -o t.exe t.c -Wl,--heap=512  -Tp30f6014.gld -DICD2RAM > /dev/null 2>&1 || exit 99
+err=$?
+if [ $vflag = "on" ]; then
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tp30f6014.gld -DICD2RAM"
+    echo $err
+fi
+
+$SIM30 run.cmd > /dev/null
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$SIM30 run.cmd"
+    echo $err
+fi
+cat UartOut.txt >> test.out
+rm -f UartOut.txt
+
+# test without ICD2RAM, 1.20 linker script
+{ echo
+  echo "testing without ICD2RAM, 1.20 linker script (expect sim30 output a-z):"
+  echo
+} >> test.out
+rm -f t.exe
+$GCC30 -o t.exe t.c -Wl,--heap=512 -Tt120.gld> /dev/null 2>&1 || exit 99
+err=$?
+if [ $vflag = "on" ]; then
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tt120.gld"
+    echo $err
+fi
+
+$SIM30 run.cmd > /dev/null
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$SIM30 run.cmd"
+    echo $err
+fi
+cat UartOut.txt >> test.out
+rm -f UartOut.txt
+
+# test with ICD2RAM, 1.20 linker script
+{ echo
+  echo "testing with ICD2RAM 1.20 linker script (expect sim30 output a-z):"
+  echo
+} >> test.out
+rm -f t.exe
+$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -DICD2RAM > /dev/null 2>&1 || exit 99
+err=$?
+if [ $vflag = "on" ]; then
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -DICD2RAM"
+    echo $err
+fi
+
+$SIM30 run.cmd > /dev/null
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$SIM30 run.cmd"
+    echo $err
+fi
+cat UartOut.txt >> test.out
+rm -f UartOut.txt
+
+echo
+echo `head -1 info.txt`
+
+if [ $vflag = "on" ]; then
+    diff -b -B test.out expect.out
+else
+    diff -b -B test.out expect.out > /dev/null
+fi
+
+
+if [ $? -ne 0 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

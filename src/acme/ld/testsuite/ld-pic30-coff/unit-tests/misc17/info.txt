@@ -1,0 +1,32 @@
+misc17: Regression test of SSR# 21573:
+
+The objective of this test is to verify that
+section .comment is not LOADed and does not
+take up space in the application memory map.
+
+Note that section .comment should have contents
+in the linked object file, but should not appear
+in a hex file produced by pic30-bin2hex.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+3/3/2003 - GSM

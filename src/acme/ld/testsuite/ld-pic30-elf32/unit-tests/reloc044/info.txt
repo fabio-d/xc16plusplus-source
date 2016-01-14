@@ -1,0 +1,29 @@
+reloc044: BFD_RELOC_PIC30_PWORD (min/max):
+
+The objective of this test is to verify that
+BFD_RELOC_PIC30_PWORD relocations work properly
+with minimum and maximum values.
+
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s, t2.s - source files
+test.out - output of the test
+expect.out - correct output
+
+
+11/07/2001 - GSM
+

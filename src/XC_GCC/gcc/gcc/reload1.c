@@ -2874,6 +2874,12 @@ eliminate_regs_1 (rtx x, enum machine_mode mem_mode, rtx insn,
 
       new_rtx = eliminate_regs_1 (XEXP (x, 0), GET_MODE (x), insn, true,
 				  for_costs);
+
+#ifdef _BUILD_C30_
+      if (!for_costs && pic30_ecore_target()) 
+        new_rtx = targetm.legitimize_address(new_rtx, new_rtx, GET_MODE(x));
+#endif
+
       if (for_costs
 	  && memory_address_p (GET_MODE (x), XEXP (x, 0))
 	  && !memory_address_p (GET_MODE (x), new_rtx))
@@ -7325,8 +7331,10 @@ int rtx_modifies_or_offsets_stack(rtx *x_ptr, rtx **offset) {
     case MINUS:
     case PLUS:
       if (REG_P(XEXP(x, 0)) && (REGNO(XEXP(x,0)) == REGNO(stack_pointer_rtx))){
-        gcc_assert(GET_CODE(XEXP(x,1)) == CONST_INT); 
-        if (offset) *offset = x_ptr;
+        if (offset) {
+          // gcc_assert(GET_CODE(XEXP(x,1)) == CONST_INT); 
+          *offset = x_ptr;
+        }
         break;
       }
     case POST_INC:

@@ -1,0 +1,30 @@
+util009: pic30-objdump [-D option] displays unlinked READONLY sections:
+
+The objective of this test is to verify that
+pic30-objdump [-D option] displays a READONLY
+section correctly before linking. Note that
+unlinked READONLY sections are represented
+in the object file as DATA type sections.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools CD image directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+1/20/2003 - GSM

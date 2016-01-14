@@ -159,7 +159,48 @@ mno-override-inline
 Target RejectNegative Mask(NO_OVERRIDE_INLINE) MaskExists
 Set compiler's override of 'inline' keyword and options for -O1 and -Os; by default the compiler will not inline at these levels
 
+mno-file
+Target Mask(SKIP_DOT_FILE) MaskExists
+Disable placing file directive in assembly output
+
+munified
+Target Mask(EDS) MaskExists
+Use unified data model
+
+mnear-chars
+Target Mask(NCHAR) MaskExists
+Place 'char' variables into near data space, regardless of memory model
+
+menable-large-arrays
+Target Mask(BIG) MaskExists
+Allow arrays larger than 32K
+
+mlarge-arrays
+Target Mask(BIG) MaskExists
+Allow arrays larger than 32K
+
+mtrack
+Target Mask(TRACK_PSVPAG) MaskExists
+Track auto psv page
+
+mdebug
+Target Mask(TRACE_ALL_ADDR) MaskExists Undocumented
+
+mauxflash
+Target Mask(AUX_FLASH) MaskExists
+Place all code into auxiliary flash
+
+mlegacy-libc
+Target Mask(LEGACY_LIBC) MaskExists
+use legacy lib/include directory
+
+mprint-builtins
+Target RejectNegative Var(TARGET_PRINT_BUILTINS)
+-mprint-builtins        Print a list of enabled builtin functions
  
+mep
+Target Var(TARGET_FORCE_EP) VarExists Undocumented
+
 ;
 ; **************************** CAUTION
 ; **************************** Ensure that the '=' sign is not followed by
@@ -206,42 +247,7 @@ msfr-warn=
 Target Joined Var(pic30_io_fmt) VarExists
 Enable [on] or disable (off) sfr warnings
 
-mno-file
-Target Mask(SKIP_DOT_FILE) MaskExists
-Disable placing file directive in assembly output
+mext=
+Target Joined Var(mchp_import)
+Enable support for importing external code from another vendor
 
-munified
-Target Mask(EDS) MaskExists
-Use unified data model
-
-mnear-chars
-Target Mask(NCHAR) MaskExists
-Place 'char' variables into near data space, regardless of memory model
-
-menable-large-arrays
-Target Mask(BIG) MaskExists
-Allow arrays larger than 32K
-
-mlarge-arrays
-Target Mask(BIG) MaskExists
-Allow arrays larger than 32K
-
-mtrack
-Target Mask(TRACK_PSVPAG) MaskExists
-Track auto psv page
-
-mdebug
-Target Mask(TRACE_ALL_ADDR) MaskExists
-Enable extra debugging
-
-mauxflash
-Target Mask(AUX_FLASH) MaskExists
-Place all code into auxiliary flash
-
-mlegacy-libc
-Target Mask(LEGACY_LIBC) MaskExists
-use legacy lib/include directory
-
-mprint-builtins
-Target RejectNegative Var(TARGET_PRINT_BUILTINS)
--mprint-builtins        Print a list of enabled builtin functions

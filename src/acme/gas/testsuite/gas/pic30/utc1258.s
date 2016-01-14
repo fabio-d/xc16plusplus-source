@@ -1,0 +1,17 @@
+        .text
+        call  boot(17)
+        call  boot(18)
+        call  boot(19)
+        call  boot(20)
+        call  boot(21)
+        call  boot(22)
+        call  boot(23)
+        call  boot(24)
+        call  boot(25)
+        call  boot(26)
+        call  boot(27)
+        call  boot(28)
+        call  boot(29)
+        call  boot(30)
+        call  boot(31)
+        

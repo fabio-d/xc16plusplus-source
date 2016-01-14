@@ -1,0 +1,19 @@
+
+t.exe:     file format elf32-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	00 00 00    	nop       
+
+00000102 <part1>:
+ 102:	10 04 c9    	add       [w0], #0x8, A
+ 104:	90 03 ca    	lac       [w0], #0x7, A
+ 106:	10 04 cc    	sac       A, #0x8, [w0]
+ 108:	90 03 cd    	sac.r     A, #0x7, [w0]
+
+0000010a <part2>:
+ 10a:	10 04 c9    	add       [w0], #0x8, A
+ 10c:	90 03 ca    	lac       [w0], #0x7, A
+ 10e:	10 04 cc    	sac       A, #0x8, [w0]
+ 110:	90 03 cd    	sac.r     A, #0x7, [w0]

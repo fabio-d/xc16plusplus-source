@@ -1,0 +1,28 @@
+lkr007: X data space (out-of-range):
+
+The objective of this test is to verify that
+data buffers that are too large for X data space
+cause a link error.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 CD image directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+3/28/2002 - GSM

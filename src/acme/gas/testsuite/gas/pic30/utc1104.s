@@ -1,0 +1,3 @@
+	.data
+	.byte paddr(foo)
+

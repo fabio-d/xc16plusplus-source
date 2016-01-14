@@ -714,7 +714,7 @@ extern const char *mchp_config_data_dir;
         builtin_define_with_int_value ("__XC_VERSION", pic32_compiler_version);     \
       }                                                     \
                                                             \
-      if (TARGET_CCI) mchp_init_cci(pfile);    \
+      mchp_init_cci(pfile);    \
   } while (0);
 
 /*

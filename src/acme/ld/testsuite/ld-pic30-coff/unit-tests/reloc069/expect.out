@@ -1,0 +1,4 @@
+t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: UNSIGNED 10 symB2
+t1.o(.text+0x2):fake: Link Error: relocation truncated to fit: UNSIGNED 10 symB3
+t2.o(.text+0x0):fake: Link Error: relocation truncated to fit: UNSIGNED 10 symA2
+t2.o(.text+0x2):fake: Link Error: relocation truncated to fit: UNSIGNED 10 symA3

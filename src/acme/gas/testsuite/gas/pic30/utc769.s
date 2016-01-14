@@ -1,0 +1,2 @@
+	.text
+	.word handle(foo)

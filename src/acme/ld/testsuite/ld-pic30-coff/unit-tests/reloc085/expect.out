@@ -1,0 +1,18 @@
+
+t.exe:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	60 00 40    	add.w     w0, #0x0, w0
+ 102:	ff 82 52    	sub.w     w5, #0x1f, w5
+ 104:	00 00 00    	nop       
+ 106:	60 00 10    	subr.w    w0, #0x0, w0
+ 108:	ff 82 4a    	addc.w    w5, #0x1f, w5
+
+0000010a <__t2>:
+ 10a:	60 00 40    	add.w     w0, #0x0, w0
+ 10c:	ff 82 52    	sub.w     w5, #0x1f, w5
+ 10e:	00 00 00    	nop       
+ 110:	60 00 10    	subr.w    w0, #0x0, w0
+ 112:	ff 82 4a    	addc.w    w5, #0x1f, w5

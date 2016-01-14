@@ -1,0 +1,12 @@
+
+map .dinit into .text (expect sim30 output a-z):
+
+a-z: abcdefghijklmnopqrstuvwxyz
+
+map .dinit into .dinit (expect sim30 output a-z):
+
+a-z: abcdefghijklmnopqrstuvwxyz
+
+map .dinit into .foobar (expect sim30 output a-z):
+
+a-z: abcdefghijklmnopqrstuvwxyz
