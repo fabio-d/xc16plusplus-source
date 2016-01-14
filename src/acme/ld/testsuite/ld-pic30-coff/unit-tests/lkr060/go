@@ -1,0 +1,102 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GCC30=$PIC30_CD/bin/pic30-gcc
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+
+BIN2HEX=$PIC30_CD/bin/pic30-bin2hex
+SIM30=$PIC30_CD/bin/sim30
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.o
+$GAS30 t1.s -o t1.o -W
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GAS30 t1.s -o t1.o -W"
+    echo $err
+    echo
+fi
+
+rm -f temp1
+$OBJDUMP -h t1.o > temp1
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$OBJDUMP -h t1.o"
+    echo $err
+    cat temp1
+    echo
+fi
+
+rm -f t.exe
+$GLD30 t1.o -o t.exe -Map=t.map --report-mem --script=t.gld > temp3
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GLD30 t1.o -o t.exe -Map=t.map --report-mem --script=t.gld"
+    echo $err
+    echo
+fi
+
+rm -f temp2
+$OBJDUMP -h t.exe > temp2
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$OBJDUMP -h t.exe"
+    echo $err
+    cat temp2
+    echo
+fi
+
+DESC1=`perl -n -e 'if (/(.*const.*)/../(.*READONLY.*)/) {print "$1\n"}' temp2`
+SIZE1=`perl -n -e 'if (/\.dinit\s+\w+\s+0x(\w+)/) {print $1}' temp3`
+SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' temp3`
+
+{
+echo
+echo "excerpt from pic30-objdump (-h option):"
+echo
+echo "$DESC1"
+echo
+echo "size of section .dinit (should be 2):    $SIZE1"
+echo "total data memory used (should be 0):    $SIZE2"
+} > test.out
+
+echo
+echo `head -1 info.txt`
+
+diff test.out expect.out
+err=$?
+if [ $err -ne 0 ]; then
+    echo "ERROR Detected!!"
+    echo
+    exit 99
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

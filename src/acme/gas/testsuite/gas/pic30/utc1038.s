@@ -1,0 +1,3 @@
+.data
+.byte 0x12
+.align 4, 0x34

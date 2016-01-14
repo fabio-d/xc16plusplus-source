@@ -1,0 +1,8 @@
+
+excerpt from pic30-objdump (-h option):
+
+bss_1000 00000002 00001000 00001000
+ALLOC, ABSOLUTE   
+bss_rev1000 00000002 00000ffe 00000ffe
+ALLOC, REVERSE   
+

@@ -1,0 +1,8 @@
+t1.o:      35 .symtab
+t1.o:      3d .strtab
+t1.o:      45 .shstrtab
+t1.o:      4f .text
+t1.o:      55 .data
+t1.o:      5b .bss
+t1.o:     1f9 __C30ELF
+t1.o:     20a three

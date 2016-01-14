@@ -1,0 +1,20 @@
+t1.o(.text+0x0): In function `part1':
+: Link Error: Address of 'Bmin2' is too large. Suggest __eds__ access qualifier (in C) or edspage, edsoffset operators (in assembly)
+
+t1.o(.text+0x2): In function `part1':
+: Link Error: Cannot access symbol (Bmin1) at an odd address.
+t1.o(.text+0x4): In function `part1':
+: Link Error: Address of 'Bmax1' is too large. Suggest __eds__ access qualifier (in C) or edspage, edsoffset operators (in assembly)
+
+t1.o(.text+0x6): In function `part1':
+: Link Error: Cannot access symbol (Bmax2) at an odd address.
+t2.o(.text+0x0): In function `part2':
+: Link Error: Address of 'Amin2' is too large. Suggest __eds__ access qualifier (in C) or edspage, edsoffset operators (in assembly)
+
+t2.o(.text+0x2): In function `part2':
+: Link Error: Cannot access symbol (Amin1) at an odd address.
+t2.o(.text+0x4): In function `part2':
+: Link Error: Address of 'Amax1' is too large. Suggest __eds__ access qualifier (in C) or edspage, edsoffset operators (in assembly)
+
+t2.o(.text+0x6): In function `part2':
+: Link Error: Cannot access symbol (Amax2) at an odd address.

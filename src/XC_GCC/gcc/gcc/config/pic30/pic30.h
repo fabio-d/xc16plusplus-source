@@ -118,7 +118,14 @@ enum pic30_builtins
    PIC30_BUILTIN_EDSOFFSET,
    PIC30_BUILTIN_WRITEPWMSFR,
    PIC30_BUILTIN_WRITEDISICNT,
-   PIC30_BUILTIN_WRITECRYOTP
+   PIC30_BUILTIN_WRITECRYOTP,
+   MCHP_BUILTIN_SECTION_BEGIN,
+   MCHP_BUILTIN_SECTION_SIZE,
+   MCHP_BUILTIN_SECTION_END,
+   MCHP_BUILTIN_GET_ISR_STATE,
+   MCHP_BUILTIN_SET_ISR_STATE,
+   MCHP_BUILTIN_DISABLE_ISR,
+   MCHP_BUILTIN_ENABLE_ISR
 };
 
 #define       TARGET_USE_PA   1
@@ -300,6 +307,15 @@ extern void pic30_system_include_paths(const char *root, const char *system,
 
 #define DEFAULT_LIB_PATH  \
          MPLABC30_COMMON_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC24E_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC24F_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC24H_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC30F_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC33E_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC33F_LIB_PATH
+        
+#define DEFAULT_ERRATA_LIB_PATH  \
+         MPLABC30_ERRATA_COMMON_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC24E_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC24F_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC24H_LIB_PATH PATH_SEPARATOR_STR \
@@ -1716,6 +1732,7 @@ typedef struct pic30_args
 #define PIC30_AUXFLASH_FLAG   PIC30_EXTENDED_FLAG "aux"     PIC30_EXTENDED_FLAG
 #define PIC30_AUXPSV_FLAG     PIC30_EXTENDED_FLAG "xpsv"    PIC30_EXTENDED_FLAG
 #define PIC30_DF_FLAG         PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
+#define PIC30_KEEP_FLAG       PIC30_EXTENDED_FLAG "keep"    PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -1846,6 +1863,13 @@ typedef struct pic30_args
   c_register_pragma(0, "udata", pic30_handle_udata_pragma); \
   c_register_pragma(0, "config", mchp_handle_config_pragma); \
   c_register_pragma(0, "large_ararys", pic30_handle_large_arrays_pragma); \
+  c_register_pragma(0, "align", mchp_handle_align_pragma); \
+  c_register_pragma(0, "section", mchp_handle_section_pragma); \
+  c_register_pragma(0, "printf_args", mchp_handle_printf_args_pragma); \
+  c_register_pragma(0, "scanf_args", mchp_handle_scanf_args_pragma); \
+  c_register_pragma(0, "keep", mchp_handle_keep_pragma); \
+  c_register_pragma(0, "optimize", mchp_handle_optimize_pragma); \
+  c_register_pragma(0, "inline", mchp_handle_inline_pragma); \
   }
 
 extern void pic30_cpu_cpp_builtins(void *);
@@ -2651,7 +2675,7 @@ extern int pic30_license_valid;
 
 /*END********************************************************************/
 
-#define TARGET_LAYOUT_DECL(DECL)  pic30_layout_decl(DECL)
+#define TARGET_APPLY_PRAGMA pic30_apply_pragmas
 #define TARGET_LAYOUT_TYPE(TYPE)  pic30_layout_type(TYPE)
 #define TARGET_POINTER_MODE(TYPE,DECL) (pic30_pointer_mode(TYPE,DECL))
 #define TARGET_POINTER_SIZE(TYPE) (GET_MODE_SIZE(pic30_pointer_mode(TYPE)))
@@ -2801,6 +2825,24 @@ extern const char *mchp_config_data_dir;
 #define TARGET_LINEAR_MODE(mode) \
   (!((mode == P32PEDSmode) || (mode == P32EDSmode)))
 
+
+/* handle this pragma */
+#define HANDLE_PRAGMA_PACK_PUSH_POP
+
+#define TARGET_BUILD_VARIANT_TYPE_COPY pic30_build_variant_type_copy
+
+#define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)       \
+do {                                                                      \
+  if ((GET_CODE(X) == PLUS) && (GET_CODE(XEXP(X,1)) == PLUS)) {           \
+    /* looks like an address of the form (plus (x) (plus (y) (z))), which \
+       we can't handle without reloading - reload the inner plus */       \
+    push_reload(XEXP(X,1), NULL_RTX, &XEXP(X,1), NULL, W_REGS,            \
+                GET_MODE(X), VOIDmode, 0, 0, OPNUM, TYPE, insn);          \
+    goto WIN;                                                             \
+  }                                                                       \
+} while(0)
+
+#define TARGET_WARN_ADDRESS pic30_warn_address
 
 #endif
 

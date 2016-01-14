@@ -1,0 +1,15 @@
+
+t.exe:     file format coff-pic30
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         00000008  00000100  00000100  000000f8  2**1
+                  CONTENTS, ALLOC, LOAD, CODE
+  1 .bss          00000010  00000810  00000810  00000000  2**1
+                  ALLOC
+  2 .data         00000010  00000820  00000820  00000108  2**1
+                  CONTENTS, ALLOC, DATA, NEVER_LOAD
+  3 .dinit        0000001a  00000108  00000108  00000128  2**1
+                  CONTENTS, ALLOC, LOAD, CODE
+  4 .isr          00000002  00000122  00000122  0000015c  2**1
+                  CONTENTS, ALLOC, LOAD, CODE

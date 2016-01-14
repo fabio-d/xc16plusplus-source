@@ -1,0 +1,30 @@
+=========================
+Running Linker Unit Tests 
+=========================
+
+Last updated on 2004-03-29 by GM
+
+
+The linker uses a test driver written in perl.  The test cases are found in subdirectories under $SRC_DIR/acme/ld/testsuite/ld-pic30-coff/unit-tests. The tests are run as a suite using the following commands:
+
+- cd $SRC_DIR/acme/ld/testsuite/ld-pic30-coff/unit-tests
+- perl go
+
+The results will be printed to the screen. Individual test results may be examined like this:
+
+- cd misc18
+- chmod a+x go
+- ./go
+
+When a test is run individually, diagnostic information remains in the directory and can be viewed. The verbose option will write additional information to the console:
+
+- ./go -v 
+
+Each unit test directory contains a standard set of files with the following naming convention:
+
+  info.txt -- documentation for the unit test
+  go --  shell script to run the unit test
+  t1.s, t2.s -- source files
+  t.lkr -- linker script
+  test.out -- output of the test
+  expect.out -- expected output

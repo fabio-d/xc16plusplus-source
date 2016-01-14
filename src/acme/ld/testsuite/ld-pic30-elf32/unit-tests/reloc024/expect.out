@@ -1,0 +1,8 @@
+t1.o(.text+0x0): In function `__reset':
+: Link Error: relocation truncated to fit: FRAME SIZE frameMIN2
+t1.o(.text+0x2): In function `__reset':
+: Link Error: Cannot access symbol (frameMIN1) at an odd address.
+t1.o(.text+0x4): In function `__reset':
+: Link Error: relocation truncated to fit: FRAME SIZE frameMAX1
+t1.o(.text+0x6): In function `__reset':
+: Link Error: Cannot access symbol (frameMAX2) at an odd address.

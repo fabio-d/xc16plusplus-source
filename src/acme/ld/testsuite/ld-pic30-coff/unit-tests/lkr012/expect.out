@@ -1,0 +1,10 @@
+
+Internal linker script:
+
+  program (xr) : ORIGIN = 0x100
+  __CODE_BASE   = 0x100
+
+Device linker script:
+
+  program (xr) : ORIGIN = 0x100
+  __CODE_BASE   = 0x100

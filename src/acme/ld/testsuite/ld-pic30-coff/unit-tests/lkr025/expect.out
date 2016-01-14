@@ -1,0 +1,13 @@
+
+t.exe:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000102 <__reset>:
+ 102:	00 81 00    	nop       
+ 104:	00 81 00    	nop       
+
+t.exe:     file format coff-pic30
+
+Contents of section foo:
+ 8100 1111                                 ..              

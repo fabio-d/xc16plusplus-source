@@ -1,0 +1,29 @@
+lkr030: ICD2 support (__ICD2RAM defined in source code):
+
+The objective of this test is to verify that
+a range of data memory from 0x800 to 0x850
+is reserved for the ICD2 Debug Executive
+whenever the symbol __ICD2RAM is defined in 
+assembly source code.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+expect.out - expected output
+
+
+3/14/2003 - GSM

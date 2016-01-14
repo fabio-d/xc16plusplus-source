@@ -1,0 +1,3 @@
+	.text
+	repeat #extdeclare
+	.end

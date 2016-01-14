@@ -3977,7 +3977,14 @@ process_command (int argc, const char **argv)
 #ifdef DEFAULT_LIB_PATH
       if ((temp == 0) && (pathNo == 0))
         {
-           temp = DEFAULT_LIB_PATH;
+          for (i = 1; i < argc; i++)
+            {
+              if (!strncmp(argv[i], "-merrata=", sizeof("-merrata=")-1))
+                {
+                   temp = DEFAULT_ERRATA_LIB_PATH;
+                }
+            }
+           if (temp == 0) temp = DEFAULT_LIB_PATH;
         }
 #endif
 #if defined(DEFAULT_LIB_PATH) || defined(NON_DEFAULT_LIBRARY_PATH)
@@ -7827,7 +7834,7 @@ main (int argc, char **argv)
             free(new_version);
             printf (_("%s %s%s\n"), programname, pkgversion_string,
 	            version_string);
-            printf (_("__XC16_VERSION == %d\n"), vid);
+            printf (_("__XC16_VERSION__ == %d\n"), vid);
           }
 #else
       printf (_("%s %s%s\n"), programname, pkgversion_string,

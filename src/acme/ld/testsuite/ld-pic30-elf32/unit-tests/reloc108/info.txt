@@ -1,0 +1,34 @@
+reloc108: BFD_RELOC_PIC30_P_DMAOFFSET (general, explicit mapping):
+
+The objective of this test is to verify that
+BFD_RELOC_PIC30_P_DMAOFFSET relocations can be
+performed on unaligned data elements in dma
+memory. DMA sections are
+explicitly mapped in the linker script.
+
+Note: This test exercises SSR# 27891.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s, t2.s - source files
+t.lkr - linker script
+test.out - output of the test
+expect.out - correct output
+testgen.pl - test case generator (used to create t2.s)
+
+
+1/9/2006 - GSM
+

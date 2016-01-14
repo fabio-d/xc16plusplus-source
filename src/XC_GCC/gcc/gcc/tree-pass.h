@@ -626,6 +626,7 @@ extern void do_per_function_toporder (void (*) (void *), void *);
 #ifdef _BUILD_C30_
 extern struct rtl_opt_pass pass_validate_dsp_instructions;
 extern struct rtl_opt_pass pass_merge_accumulators;
+extern struct rtl_opt_pass pass_adjust_frame_related;
 #endif
 
 #endif /* GCC_TREE_PASS_H */

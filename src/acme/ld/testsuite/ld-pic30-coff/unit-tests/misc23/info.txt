@@ -1,0 +1,30 @@
+misc23: Regression test of SSR# 28118:
+
+The objective of this test is to verify that
+section .dinit can be explicitly mapped in
+various ways without causing an internal error
+or data corruption at runtime.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+3. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t.c - source file
+t1.gld,t2.gld,t3.gld - linker scripts
+test.out - output of the test
+expect.out - correct output
+
+
+
+5/7/2009 - GSM

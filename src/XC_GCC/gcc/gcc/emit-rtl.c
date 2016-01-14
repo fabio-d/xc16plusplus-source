@@ -5869,6 +5869,7 @@ init_emit_once (void)
       const_tiny_rtx[i][P32PEDSmode] = GEN_INT(i);
       const_tiny_rtx[i][P32EDSmode] = GEN_INT(i);
       const_tiny_rtx[i][P16APSVmode] = GEN_INT(i);
+      const_tiny_rtx[i][P32DFmode] = GEN_INT(i);
 #endif
 
     }

@@ -1,0 +1,16 @@
+t1.o(.text+0x0): In function `part1':
+: Link Error: Cannot access symbol (Bmin2) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t1.o(.text+0x2): In function `part1':
+: Link Error: Cannot access symbol (Bmin1) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t1.o(.text+0x4): In function `part1':
+: Link Error: Cannot access symbol (Bmax1) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t1.o(.text+0x6): In function `part1':
+: Link Error: Cannot access symbol (Bmax2) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t2.o(.text+0x0): In function `part2':
+: Link Error: Cannot access symbol (Amin2) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t2.o(.text+0x2): In function `part2':
+: Link Error: Cannot access symbol (Amin1) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t2.o(.text+0x4): In function `part2':
+: Link Error: Cannot access symbol (Amax1) with file register addressing. Value must be less than 8192. Suggest large-data model.
+t2.o(.text+0x6): In function `part2':
+: Link Error: Cannot access symbol (Amax2) with file register addressing. Value must be less than 8192. Suggest large-data model.

@@ -1,0 +1,8 @@
+
+t.exe:     file format xxx-pic30
+
+Disassembly of section .isr:
+
+00000100 <__DefaultInterrupt>:
+ 100:	00 40 da    	.pword 0xda4000
+ 102:	00 00 fe    	reset

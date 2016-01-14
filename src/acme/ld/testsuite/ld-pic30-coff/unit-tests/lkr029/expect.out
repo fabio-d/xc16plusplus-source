@@ -1,0 +1,12 @@
+
+t.exe:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	2f 80 20    	mov.w     #0x802, w15
+ 102:	00 00 07    	rcall     0x104 <_main>
+Disassembly of section .text:
+
+00000104 <_main>:
+ 104:	00 28 ef    	clr.w     0x800

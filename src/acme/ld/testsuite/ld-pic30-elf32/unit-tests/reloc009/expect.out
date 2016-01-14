@@ -1,0 +1,8 @@
+t1.o(.text+0x0): In function `__reset':
+: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitLO
+t1.o(.text+0x2): In function `__reset':
+: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitHI
+t1.o(.text+0x4): In function `__reset':
+: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitLO
+t1.o(.text+0x6): In function `__reset':
+: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitHI

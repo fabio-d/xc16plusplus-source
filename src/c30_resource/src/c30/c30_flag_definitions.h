@@ -49,6 +49,7 @@
 #define HAS_DMAV2  1<<16
 #define HAS_AUXFLASH 1<<17
 #define HAS_5VOLTS 1 << 18
+#define HAS_GIE    1 << 19
 
 /* IS_CODEGUARD_ID flags */
 #define FLASH         1<<8
@@ -179,6 +180,12 @@
  */
 #define MPLABC30_COMMON_LIB_PATH ".." DIR_SEPARATOR_STR \
                                  "lib" PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
+                                 "gld"
+#define MPLABC30_ERRATA_COMMON_LIB_PATH ".." DIR_SEPARATOR_STR \
+                                 "errata-lib" PATH_SEPARATOR_STR \
                                  ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "generic" DIR_SEPARATOR_STR \

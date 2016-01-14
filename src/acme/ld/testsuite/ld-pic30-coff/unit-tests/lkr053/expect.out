@@ -1,0 +1,8 @@
+
+excerpt from pic30-objdump (-h option):
+
+bss_1000 00001000 00001000 00001000
+ALLOC, ABSOLUTE   
+bss_ymem 00000002 0000fffe 0000fffe
+ALLOC, YMEMORY   
+

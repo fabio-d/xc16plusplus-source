@@ -1,0 +1,249 @@
+:
+
+echo "EXTRA_CFLAGS=$EXTRA_CFLAGS"
+echo "Command Line:"
+echo $0 $*
+
+SRC_DIR=`pwd`
+WORKING_DIR=`pwd`
+OMF=elf
+TARGET_OS=native
+UNAME=`uname -s | sed -e 's/[^a-Z].*$//' | tr "[:upper:]" "[:lower:]"`
+BUILD_OS="i386-$UNAME"
+EXTRA_DEFINES=
+EXTRA_OPTS=
+CROSS=
+
+BUGURL="http://www.microchip.com/support"
+
+DONE=0
+while [ "$DONE" = "0" ]; do
+  if [ "${1:-done}" = "done" ]; then
+    DONE=1;
+  else
+    case $1 in
+      -user)
+         BUGURL="email:`whoami`@`hostname`"
+         shift 1;;
+      -install=*) 
+         INSTALL=`echo $1 | sed 's/.*=//'`;
+         shift 1;;
+      -src=*) 
+         SRC_DIR=`echo $1 | sed 's/.*=//'`;
+         shift 1;;
+      -omf=*) 
+         OMF=`echo $1 | sed 's/.*=//'`;
+         if [ "$OMF" = "elf" ]; then
+           #LTO="--enable-lto"
+           LTO="--disable-lto"
+         else
+           LTO="--disable-lto"
+         fi
+         shift 1;;
+      -cross=*) 
+         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' `;
+         SUFFIX=`echo $1 | sed -e 's/.*=//'`
+         case $SUFFIX in
+           *-*) SUFFIX=`echo $SUFFIX | sed -e 's/.*-/-/'`;;
+           *) SUFFIX="";
+         esac
+         if ( echo $TARGET_OS | grep -v -q "native" ); then
+           if ( echo ${TARGET_OS} | grep "i[0-9]86" ); then
+              # full host os specified
+              CROSS="--host=${TARGET_OS}"
+              ZLIB_TOOLS="${TARGET_OS}"
+           else
+              CROSS="--host=i386-${TARGET_OS}"
+              ZLIB_TOOLS="i386-${TARGET_OS}"
+           fi
+         fi
+         shift 1;;
+      -build=*)
+         BUILD="$BUILD `echo $1 | sed 's/.*=//'`";
+         shift 1;;
+      -D*)
+         EXTRA_DEFINES="$EXTRA_DEFINES $1"
+         shift 1;;
+      -?) 
+         echo "Usage: $0 <options>"
+         echo "    -install=<install-dir>"
+         echo "    -src=<src-dir>"
+         echo "    -omf=[coff|elf]"
+         echo "    -cross=[linux|mingw32]"
+         echo "    -build=<module>"
+         echo "    -D  specify extra defines for build"
+         echo
+         exit;;
+      *) echo "Unknown option $1";
+         exit;;
+    esac
+  fi
+done
+
+INSTALL_DIR=  
+if [ "$INSTALL" != "" ]; then
+  INSTALL_DIR="${INSTALL}-${TARGET_OS}${SUFFIX}"
+fi
+
+if [ "$BUILD" = "" ]; then
+  BUILD="gmp cloog libelf zlib gcc"
+fi
+
+if [ "$BUILD_OS" != "i386-darwin" ]; then
+  BUILD="$BUILD ppl"
+fi
+
+if ( echo $EXTRA_CFLAGS | grep -q -e "cover" ); then
+  OPT=
+else
+  OPT="-O2"
+fi
+
+# configure GMP
+
+mkdir -p $WORKING_DIR/host-libs
+
+if ( echo $BUILD | grep -q -i gmp ); then
+echo
+echo "*********** GMP"
+echo 
+
+mkdir -p gmp
+( cd gmp
+
+#  ABI=32 $SRC_DIR/gmp/configure --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm'
+  ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm' --build=$BUILD_OS
+
+  make -j 2 install
+)
+fi
+
+if ( echo $BUILD | grep -q -i ppl ); then
+echo
+echo "*********** PPL"
+echo 
+
+mkdir -p ppl
+( cd ppl
+
+  export CFLAGS=-m32
+  export CXXFLAGS=-m32
+
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld '--with-host-libstdcxx=-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm' --build=$BUILD_OS
+
+  make -j 2 install
+)
+fi
+
+if ( echo $BUILD | grep -q -i cloog ); then
+echo
+echo "*********** CLOOG"
+echo 
+
+mkdir -p cloog
+(
+  cd cloog
+
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld '--with-host-libstdcxx=-lstdc++' --build=$BUILD_OS
+
+  make -j 2 install
+)
+fi
+
+if ( echo $BUILD | grep -q -i libelf ); then
+echo
+echo "*********** LIBELF"
+echo 
+
+mkdir -p libelf 
+(
+  # does this need to be our libelf?
+
+  cd libelf
+
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/libelf/configure ${CROSS} --prefix=$WORKING_DIR//host-libs -disable-shared --disable-nls --disable-debug --build=$BUILD_OS
+
+  make -j 2 install
+)
+fi
+
+if ( echo $BUILD | grep -q -i zlib ); then
+echo
+echo "*********** ZLIB"
+echo 
+
+mkdir -p zlib
+(
+  cd $SRC_DIR/zlib/
+
+  ./configure --prefix=$WORKING_DIR//host-libs
+
+  make clean
+  # note to self: I think the configure will now set AR=,CC= and such for me
+
+  if [ "$CROSS" != "" ]; then
+    make CFLAGS="$EXTRA_CFLAGS $OPT" RANLIB="${ZLIB_TOOLS}-ranlib" LDSBARED="${ZLIB_TOOLS}-gcc" AR="${ZLIB_TOOLS}-ar" CC="${ZLIB_TOOLS}-gcc"  prefix=$WORKING_DIR//host-libs install
+  else
+    make install
+  fi
+
+)
+fi
+
+if ( echo $BUILD | grep -q -i gcc ); then
+echo
+echo "*********** GCC"
+echo 
+
+mkdir -p gcc
+(
+  cd gcc
+
+  if [ -d $SRC_DIR/../c30_resource ]; then
+    EXTRA_OPTS="$EXTRA_OPTS -I $SRC_DIR/../c30_resource/src/c30"
+  else
+    echo "***** cannot find c30_resource"
+    exit
+  fi
+
+  case $SUFFIX in
+    "-nolm") ;;
+  esac
+
+  DWARF=""
+  if [ "$OMF" = "elf" ]; then
+    DWARF="--with-dwarf2"
+  fi
+
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=${BUGURL} --with-host-libstdcxx="-lstdc++"
+
+
+  
+  make 
+)
+fi
+
+# install it
+
+if [ "$INSTALL_DIR" != "" ]; then
+  echo
+  echo "**** Installing GCC"
+  echo
+  
+  EXE=
+  if [ "$TARGET_OS" = "mingw32" ]; then
+    EXE=".exe"
+  fi
+
+  if [ -f gcc/gcc/xgcc${EXE} ]; then
+    cp gcc/gcc/xgcc${EXE}  $INSTALL_DIR/bin/bin/$OMF-gcc${EXE}
+  fi
+
+  if [ -f gcc/gcc/cc1${EXE} ]; then
+    cp gcc/gcc/cc1${EXE}  $INSTALL_DIR/bin/bin/$OMF-cc1${EXE}
+  fi
+
+  if [ -f gcc/gcc/cpp${EXE} ]; then
+    cp gcc/gcc/cpp${EXE}  $INSTALL_DIR/bin/bin/$OMF-cpp${EXE}
+  fi
+fi

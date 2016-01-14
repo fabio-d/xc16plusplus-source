@@ -1,0 +1,14 @@
+
+t1.o:     file format elf32-pic30
+
+Disassembly of section .data:
+
+00000000 <.data>:
+   0:	61 62    	.word 0x6261
+   2:	63 64    	.word 0x6463
+   4:	65 66    	.word 0x6665
+   6:	67 68    	.word 0x6867
+   8:	69 6a    	.word 0x6a69
+   a:	6b 6c    	.word 0x6c6b
+   c:	6d 6e    	.word 0x6e6d
+   e:	6f 70    	.word 0x706f

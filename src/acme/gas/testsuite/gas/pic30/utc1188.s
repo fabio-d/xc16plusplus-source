@@ -1,0 +1,3 @@
+        .section foo,eedata
+        
+        

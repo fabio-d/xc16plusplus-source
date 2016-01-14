@@ -1,0 +1,32 @@
+map004: Sorted tables of external symbols:
+
+The objective of this test is to verify that
+sorted tables of external symbols appear in the
+linker map file. Note that each table appears in
+two forms: sorted by address, and sortd by name.
+Three tables should appear: data memory, edata memory
+and program memory.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+10/4/2004 - GSM

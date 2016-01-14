@@ -1,0 +1,30 @@
+cmd012: --data-init option conflict:
+
+The objective of this test is to verify that
+an error message is generated if both the
+--data-init and --no-data-init options
+are specified.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+11/26/2002 - GSM

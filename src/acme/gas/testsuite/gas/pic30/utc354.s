@@ -1,0 +1,3 @@
+	.section foo, "x"
+	.org 0x6, 0x11
+	.byte 0x12

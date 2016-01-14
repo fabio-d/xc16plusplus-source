@@ -1,0 +1,43 @@
+
+t.exe:     file format elf32-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	00 00 00    	nop       
+
+00000102 <part1>:
+ 102:	00 00 a1    	bclr.w    w0, #0x0
+ 104:	01 10 a0    	bset.w    w1, #0x1
+ 106:	02 20 a2    	btg.w     w2, #0x2
+ 108:	03 30 a3    	btst.c    w3, #0x3
+ 10a:	04 48 a3    	btst.z    w4, #0x4
+ 10c:	05 50 a4    	btsts.c   w5, #0x5
+ 10e:	06 68 a4    	btsts.z   w6, #0x6
+ 110:	07 70 a7    	btsc.w    w7, #0x7
+ 112:	08 80 a6    	btss.w    w8, #0x8
+ 114:	09 90 a1    	bclr.w    w9, #0x9
+ 116:	0a a0 a0    	bset.w    w10, #0xa
+ 118:	0b b0 a2    	btg.w     w11, #0xb
+ 11a:	0c c0 a3    	btst.c    w12, #0xc
+ 11c:	0d d8 a3    	btst.z    w13, #0xd
+ 11e:	0e e0 a4    	btsts.c   w14, #0xe
+ 120:	0f f8 a4    	btsts.z   w15, #0xf
+
+00000122 <part2>:
+ 122:	00 00 a1    	bclr.w    w0, #0x0
+ 124:	01 10 a0    	bset.w    w1, #0x1
+ 126:	02 20 a2    	btg.w     w2, #0x2
+ 128:	03 30 a3    	btst.c    w3, #0x3
+ 12a:	04 48 a3    	btst.z    w4, #0x4
+ 12c:	05 50 a4    	btsts.c   w5, #0x5
+ 12e:	06 68 a4    	btsts.z   w6, #0x6
+ 130:	07 70 a7    	btsc.w    w7, #0x7
+ 132:	08 80 a6    	btss.w    w8, #0x8
+ 134:	09 90 a1    	bclr.w    w9, #0x9
+ 136:	0a a0 a0    	bset.w    w10, #0xa
+ 138:	0b b0 a2    	btg.w     w11, #0xb
+ 13a:	0c c0 a3    	btst.c    w12, #0xc
+ 13c:	0d d8 a3    	btst.z    w13, #0xd
+ 13e:	0e e0 a4    	btsts.c   w14, #0xe
+ 140:	0f f8 a4    	btsts.z   w15, #0xf

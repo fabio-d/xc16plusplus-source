@@ -1,0 +1,8 @@
+
+Internal linker script:
+
+  reset        : ORIGIN = 0,        LENGTH = (4)
+
+Device linker script:
+
+  reset        : ORIGIN = 0x0,        LENGTH = 0x4

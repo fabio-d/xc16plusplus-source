@@ -1010,7 +1010,19 @@
   (UNSPECV_NOEDSWT     72)
   (UNSPECV_WRITEPWMCON 73) ; __builtin_write_PWMCON
   (UNSPECV_WRITECRTOTP 74) ; __builtin_write_CRYOTP
-  (UNSPECV_TEMP        99)
+  (UNSPEC_SECTION_BEGIN 75)
+  (UNSPEC_SECTION_END  76)
+  (UNSPEC_SECTION_SIZE 77)
+  (UNSPECV_SET_ISR_STATE 78)
+  (UNSPEC_GET_ISR_STATE 79)
+  (UNSPECV_ENABLE_ISR  80)
+  (UNSPECV_DISABLE_ISR 81)
+  (UNSPECV_ENABLE_ISR_GIE  82)
+  (UNSPECV_DISABLE_ISR_GIE 83)
+  (UNSPEC_EXTRACT_GIE  84)
+  (UNSPEC_INSERT_GIE   85)
+  (UNSPEC_EDSSTACKADDR 86)
+  (UNSPECV_TEMP        199)
  ]
 )
 
@@ -1082,6 +1094,28 @@
 (define_attr "type"
   "def,use,defuse,etc"
   (const_string "etc"))
+
+;
+; exch
+;
+
+(define_insn "exch"
+ [(parallel [(set (match_operand:HI 0 "pic30_register_operand" "=&r")
+                  (match_operand:HI 1 "pic30_register_operand" "=&r"))
+             (set (match_dup 1) (match_dup 0))]
+ )]
+ ""
+ "*
+{
+  if (REGNO(operands[1]) == REGNO(operands[0])) {
+    return \"; exch %0,%1\";
+  } if (pic30_errata_mask & exch_errata) {
+    return \"push %0\;mov %1,%0\;pop %1\";
+  } else {
+    return \"exch %0,%1\";
+  }
+}")
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
@@ -2773,23 +2807,24 @@
 ;  This pattern should restore the src/ dest ptrs before finishing
 ;
 (define_insn "movmemhi"
-  [(set (match_operand:BLK 0 "memory_operand" "=R,m,R,m,R,m,R,m")
-        (match_operand:BLK 1 "memory_operand" "R,R,m,m,R,R,m,m"))
-   (use (match_operand:HI 2 "immediate_operand" "J,J,J,J,i,i,i,i"))
+  [(set (match_operand:BLK 0 "memory_operand"  "=R,m,R,m,R,m,R")
+        (match_operand:BLK 1 "memory_operand"   "R,R,m,m,R,R,m"))
+   (use (match_operand:HI 2 "immediate_operand" "J,J,J,i,i,i,i"))
    (use (match_operand:HI 3 "const_int_operand" ""))
    (clobber (reg:HI RCOUNT))
-   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,&r,&r,&r,&r"))
-   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,&r,&r,&r"))
+   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,&r,&r,&r"))
+   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,&r,&r"))
   ]
   ""
   "*
    { /* my calculation says maximum string size is ~120 */
      static char buffer[160];
      char *c = buffer;
-     char *op0 = \"%r0\";
-     char *op1 = \"%r1\";
-     int restore_with_sub_0=0;
-     int restore_with_sub_1=0;
+     char *op0 = \"[%r0++]\";
+     char *op1 = \"[%r1++]\";
+     char *restore_with_sub_0=0;
+     char *restore_with_sub_1=0;
+     char *restore_w14=0;
      char *sub_value = 0;  /* != 0 => use register */
      int repeat_repeat;
      int repeat_count;
@@ -2799,55 +2834,378 @@
      default: break;
      case 0:  /* both registers */
               /* literal <= 10 bits */
-              restore_with_sub_0 = 1;
-              restore_with_sub_1 = 1;
+              restore_with_sub_0 = \"%r0\";
+              restore_with_sub_1 = \"%r1\";
               break;
      case 1:  /* op0 is memory, take its address */
               /* literal <= 10 bits */
-              c += sprintf(c,\"mov #%%0,%%4\;\");
-              op0 = \"%4\";
-              restore_with_sub_1 = 1;
+              if (pic30_T_constraint(operands[0]) ||
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                c += sprintf(c,\"mov #%%0,%%4\;\");
+                op0 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[0],0),0);
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r0 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              } 
+              restore_with_sub_1 = \"%r1\";
               break;
      case 2:  /* op1 is memory, take its address */
               /* literal <= 10 bits */
-              c += sprintf(c,\"mov #%%1,%%4\;\");
-              restore_with_sub_0 = 1;
-              op1 = \"%4\";
+              if (pic30_T_constraint(operands[1]) ||
+                  pic30_U_constraint(operands[1],VOIDmode)) {
+                c += sprintf(c,\"mov #%%1,%%4\;\");
+                op1 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[1]) ||
+                         pic30_Q_constraint(operands[1])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[1],0),0);
+                X = XEXP(XEXP(operands[1],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r1 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              } 
+              restore_with_sub_0 = \"%r0\";
               break;
      case 3:  /* op0 and op1 are memory, take their addresses */
-              c += sprintf(c,\"mov #%%0,%%4\;\");
-              op0 = \"%4\";
-              c += sprintf(c,\"mov #%%1,%%5\;\");
-              op1 = \"%5\";
+              if (pic30_T_constraint(operands[0]) || 
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                c += sprintf(c,\"mov #%%0,%%4\;\");
+                op0 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+  
+                Wn = XEXP(XEXP(operands[0],0),0);  
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_ecore_target() && 
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r0 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X)) 
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0) 
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X)) 
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0) 
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              }
+              if (pic30_T_constraint(operands[1]) ||
+                  pic30_U_constraint(operands[1],VOIDmode)) {
+                c += sprintf(c,\"mov #%%1,%%5\;\");
+                op1 = \"[%5++]\";
+              }  else if (pic30_S_constraint(operands[1]) ||
+                         pic30_Q_constraint(operands[1])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[1],0),0);
+                X = XEXP(XEXP(operands[1],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r1 == W14/W15 */
+                  gcc_assert(restore_w14 == 0);
+                  c += sprintf(c,\"mov w14,%%5\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[w14++]\";
+                  restore_w14 = \"%5\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%5\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%5\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%5\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%5\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%5\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%5\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[%5++]\";
+                }
+              } else {
+                gcc_assert(0);
+              }
               break;
      case 4:  /* op0 and op1 are registers */
               /* literal > 10 bits, save repeat count in reg */
-              restore_with_sub_0 = 1;
-              restore_with_sub_1 = 1;
+              restore_with_sub_0 = \"%r0\";
+              restore_with_sub_1 = \"%r1\";
               c += sprintf(c,\"mov #%%2,%%4\;\");
               sub_value =\"%4\";
               break;
      case 5:  /* op0 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
-              c += sprintf(c,\"mov #%%0,%%4\;\");
-              op0 = \"%4\";
-              c += sprintf(c,\"mov #%%2,%%5\;\");
+              if (pic30_T_constraint(operands[0]) ||
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                c += sprintf(c,\"mov #%%0,%%4\;\");
+                op0 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[0],0),0);
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r0 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              }
+              if (pic30_T_constraint(operands[2]) ||
+                  pic30_U_constraint(operands[2],VOIDmode)) {
+                c += sprintf(c,\"mov #%%2,%%5\;\");
+              } else {
+                c += sprintf(c,\"mov %%2,%%5\;\");
+              }
               sub_value = \"%5\";
-              restore_with_sub_1 = 1;
+              restore_with_sub_1 = \"%r1\";
               break;
      case 6:  /* op1 is memory, take its address */
               /* literal > 10 bits, save repeat count in reg */
-              c += sprintf(c,\"mov #%%1,%%4\;\");
-              restore_with_sub_0 = 1;
-              op1 = \"%4\";
-              c += sprintf(c,\"mov #%%2,%%5\;\");
+              if (pic30_T_constraint(operands[1]) ||
+                  pic30_U_constraint(operands[1],VOIDmode)) {
+                c += sprintf(c,\"mov #%%1,%%4\;\");
+                op1 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[1]) ||
+                         pic30_Q_constraint(operands[1])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[1],0),0);
+                X = XEXP(XEXP(operands[1],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r1 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op1 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              }
+              restore_with_sub_0 = \"%r0\";
+              if (pic30_T_constraint(operands[2]) ||
+                  pic30_U_constraint(operands[2],VOIDmode)) {
+                c += sprintf(c,\"mov #%%2,%%5\;\");
+              } else {
+                c += sprintf(c,\"mov %%2,%%5\;\");
+              }
               sub_value = \"%5\";
-              break;
-     case 7:  /* op0 and op1 are memory, take their addresses */
-              c += sprintf(c,\"mov #%%0,%%4\;\");
-              op0 = \"%4\";
-              c += sprintf(c,\"mov #%%1,%%5\;\");
-              op1 = \"%5\";
               break;
      }
      
@@ -2860,10 +3218,9 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c,\"repeat #16383-1\;mov.b [%s++],[%s++]\;\", op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;mov.b [%s++],[%s++]\", repeat_count, 
-                                                            op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;mov.b [%s++],[%s++]\", 
+           c += sprintf(c,\"repeat #16383-1\;mov.b %s,%s\;\", op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;mov.b %s,%s\", repeat_count,op1, op0);
+         } else c += sprintf(c,\"repeat #%d-1\;mov.b %s,%s\", 
                              repeat_count, op1, op0);
          break;
      default: {
@@ -2877,28 +3234,35 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c,\"repeat #16383-1\;mov [%s++],[%s++]\;\", op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;mov [%s++],[%s++]\", 
+           c += sprintf(c,\"repeat #16383-1\;mov %s,%s\;\", op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;mov %s,%s\", 
                         repeat_count, op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;mov [%s++],[%s++]\", 
+         } else c += sprintf(c,\"repeat #%d-1\;mov %s,%s\", 
                              repeat_count, op1, op0);
          if (repeat_remainder) 
-           c += sprintf(c,\"\;mov.b [%s++],[%s++]\", op1,op0);
+           c += sprintf(c,\"\;mov.b %s,%s\", op1,op0);
          break;
        }
      }
      if (restore_with_sub_0) {
        if (sub_value) {
-         c += sprintf(c,\"\;sub %s, %s, %s\", op0, sub_value, op0);
-       } else c += sprintf(c,\"\;sub #%%2, %s\", op0);
+         c += sprintf(c,\"\;sub %s, %s, %s\", 
+                      restore_with_sub_0, sub_value, restore_with_sub_0);
+       } else c += sprintf(c,\"\;sub #%%2, %s\", restore_with_sub_0);
      }
      if (restore_with_sub_1) {
        if (sub_value) {
-         c += sprintf(c,\"\;sub %s, %s, %s\", op1, sub_value, op1);
-       } else c += sprintf(c,\"\;sub #%%2, %s\", op1);
+         c += sprintf(c,\"\;sub %s, %s, %s\", 
+                      restore_with_sub_1, sub_value, restore_with_sub_1);
+       } else c += sprintf(c,\"\;sub #%%2, %s\", restore_with_sub_1);
+     }
+     if (restore_w14) {
+       c += sprintf(c, \"\;mov %s,w14\", restore_w14);
      }
      return buffer;
-   } ")
+   } "
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Block clear.
@@ -2907,68 +3271,232 @@
 ;; Argument 1 is the length
 ;; Argument 2 is the alignment
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define_expand "clrstrhi"
-  [(parallel [(set (match_operand:BLK 0 "memory_operand" "")
-		   (const_int 0))
-	      (use (match_operand:HI 1 "const_int_operand" ""))
-	      (use (match_operand:HI 2 "const_int_operand" ""))
-	      (clobber (match_dup 3))
-	      (clobber (reg:HI RCOUNT))
-  ])]
-  ""
-  "
-{
-	rtx addr0;
-	int n;
-
-	if (GET_CODE (operands[1]) != CONST_INT)
-		FAIL;
-	n = INTVAL(operands[1]);
-	if (n < 1)
-		FAIL;
-
-	switch (INTVAL(operands[2]))
-	{
-	case 1:
-		if (n > 16383)
-			FAIL;
-		break;
-	default:
-		if ((n > (16383/2)) || (n & 1))
-			FAIL;
-	}
-	addr0 = copy_to_mode_reg (Pmode, XEXP (operands[0], 0));
-
-	operands[3] = addr0;
-
-	operands[0] = gen_rtx_MEM (BLKmode, addr0);
-}")
-
-;; Block clear.
-;; Argument 0 is the destination
-;; Argument 1 is the length
-;; Argument 2 is the alignment
-
-(define_insn "*bzero"
-  [(set (mem:BLK (match_operand:HI 0 "pic30_register_operand" "r"))
-	(const_int 0))
-   (use (match_operand:HI 1 "const_int_operand" ""))
-   (use (match_operand:HI 2 "immediate_operand" ""))
-   (clobber (match_dup 0))
+(define_insn "setmemhi"
+  [
+   (set (match_operand:BLK 0 "memory_operand"  "=R,m,R,m,R,m,R,m")
+        (match_operand    2 "const_int_operand" "O,O,O,O,i,i,i,i"))
+   (use (match_operand:HI 1 "immediate_operand" "J,J,i,i,J,J,i,i"))
+   (use (match_operand:HI 3 "const_int_operand" ""))
    (clobber (reg:HI RCOUNT))
+   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,X,&r,&r,&r"))
+   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,X,X,&r"))
+   (clobber (match_scratch:HI 6  "=X,X,X,X,&r,&r,&r,&r"))
   ]
   ""
   "*
-{
-	switch (INTVAL(operands[2]))
-	{
-	case 1:
-		return \"repeat #%1-1\;clr.b [%0++]\";
-	default:
-		return \"repeat #%1/2-1\;clr [%0++]\";
-	}
-}")
+   { /* my calculation says maximum string size is ~120 */
+     static char buffer[160];
+     char *c = buffer;
+     char *op0 = \"[%r0++]\";
+     char *op1 = \"\";
+     char *restore_with_sub_0=0;
+     char *restore_w14=0;
+     char *sub_value = 0;  /* != 0 => use register */
+     int repeat_repeat;
+     int repeat_count;
+     char *set_instr = \"mov\";
+
+
+     if (INTVAL(operands[2]) == 0) {
+       set_instr = \"clr\";
+     } else {
+       /* the top four are the same as the bottom four, just that we don't
+          need a clobber register for the value */
+       gcc_assert(which_alternative > 3);
+       which_alternative -= 4;
+       c += sprintf(c,\"mov #%d,%%6\;\", INTVAL(operands[2]));
+       op1=\"%6,\";
+     }
+
+     repeat_count = INTVAL(operands[1]);
+     switch (which_alternative) {
+     default: break;
+     case 0:  /* op0 is register */
+              /* literal <= 10 bits */
+              restore_with_sub_0 = \"%r0\";
+              break;
+     case 1:  /* op0 is memory, take its address */
+              /* literal <= 10 bits */
+              if (pic30_T_constraint(operands[0]) ||
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                c += sprintf(c,\"mov #%%0,%%4\;\");
+                op0 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[0],0),0);
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r0 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              } 
+              break;
+     case 2:  /* op0 is a register */
+              /* literal > 10 bits, save repeat count in reg */
+              restore_with_sub_0 = \"%r0\";
+              c += sprintf(c,\"mov #%%1,%%4\;\");
+              sub_value =\"%4\";
+              break;
+     case 3:  /* op0 is memory, take its address */
+              /* literal > 10 bits, save repeat count in reg */
+              if (pic30_T_constraint(operands[0]) ||
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                c += sprintf(c,\"mov #%%0,%%4\;\");
+                op0 = \"[%4++]\";
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[0],0),0);
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_ecore_target() &&
+                    (REGNO(Wn) == WR14_REGNO) || (REGNO(Wn) == WR15_REGNO)) {
+                  /* ecore cannot go through %%4 if r0 == W14/W15 */
+                  c += sprintf(c,\"mov w14,%%4\;\");
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,W14\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,W14\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,W14\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      if (REGNO(Wn) != WR14_REGNO) {
+                        c += sprintf(c,\"mov W15,W14\;\");
+                      }
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,W14\;\",-1 *INTVAL(X));
+                      else c += sprintf(c,\"add #%d,W14\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[w14++]\";
+                  restore_w14 = \"%4\";
+                } else {
+                  if (REG_P(X))
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                  else {
+                    if (CONST_OK_FOR_LETTER_P(X,'P')) {
+                      c += sprintf(c,\"add w%d,#%d,%%4\;\",REGNO(Wn),INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(X,'N')) {
+                      c += sprintf(c,\"sub w%d,#%d,%%4\;\",
+                                     REGNO(Wn),-1*INTVAL(X));
+                    } else {
+                      c += sprintf(c,\"mov w%d,%%4\;\", REGNO(Wn));
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%d,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%d,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              }
+              if (pic30_T_constraint(operands[2]) ||
+                  pic30_U_constraint(operands[2],VOIDmode)) {
+                c += sprintf(c,\"mov #%%1,%%5\;\");
+              } else {
+                c += sprintf(c,\"mov %%1,%%5\;\");
+              }
+              sub_value = \"%5\";
+              break;
+     }
+     
+     switch (INTVAL(operands[3]))
+     {
+       case 1:
+         /* 
+         ** Byte operation
+         */
+         repeat_repeat =  repeat_count - 16383;
+         if (repeat_repeat < 0) repeat_repeat = 0;
+	 if (repeat_repeat) {
+           c += sprintf(c, \"repeat #16383-1\;%s.b %s%s\;\", 
+                           set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\", 
+                           repeat_count, set_instr, op1, op0);
+         } else c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\", 
+                             repeat_count, set_instr, op1, op0);
+         break;
+       default: {
+         int repeat_remainder;
+	 /* 
+	 ** Word operation
+	 */
+         /* repeat count is expressed in bytes */
+         repeat_remainder = (repeat_count & 1);
+         repeat_count = repeat_count / 2;
+         repeat_repeat =  repeat_count - 16383;
+         if (repeat_repeat < 0) repeat_repeat = 0;
+	 if (repeat_repeat) {
+           c += sprintf(c,\"repeat #16383-1\;%s %s%s\;\", 
+                           set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s %s%s\", 
+                        repeat_count, set_instr, op1, op0);
+         } else c += sprintf(c,\"repeat #%d-1\;%s %s%s\", 
+                             repeat_count, set_instr, op1, op0);
+         if (repeat_remainder) 
+           c += sprintf(c,\"\;%s.b %s%s\", set_instr, op1, op0);
+         break;
+       }
+     }
+     if (restore_with_sub_0) {
+       if (sub_value) {
+         c += sprintf(c,\"\;sub %s, %s, %s\", 
+                      restore_with_sub_0, sub_value, restore_with_sub_0);
+       } else c += sprintf(c,\"\;sub #%%1, %s\", restore_with_sub_0);
+     }
+     if (restore_w14) {
+       c += sprintf(c, \"\;mov %s,w14\", restore_w14);
+     }
+     return buffer;
+   } "
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; compare instructions.
@@ -3652,7 +4180,7 @@
   "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
 )
 
-(define_insn "sign_extendsip32eds2"
+(define_insn "extendsip32eds2"
   [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r,r")
         (sign_extend:P32EDS
           (match_operand:SI 1 "pic30_register_operand"   "r,0")))]
@@ -3662,7 +4190,7 @@
    rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15"
 )
 
-(define_insn "sign_extendsip32peds2"
+(define_insn "extendsip32peds2"
   [(set (match_operand:P32PEDS 0 "pic30_register_operand"   "=r")
         (sign_extend:P32PEDS
           (match_operand:SI 1 "pic30_register_operand"   "r")))]
@@ -3771,7 +4299,7 @@
   "; nop %1,%0"
 )
 
-(define_insn "sign_extendp32extsi2"
+(define_insn "extendp32extsi2"
   [(set (match_operand:SI       0 "register_operand" "=r")
         (sign_extend:SI 
           (match_operand:P32EXT 1 "register_operand" " 0")))]
@@ -3952,6 +4480,26 @@
   ]
 )
 
+(define_insn "extendhip32eds_stack"
+  [(set (match_operand: P32EDS 0 "pic30_register_operand"    "=r")
+        (unspec:P32EDS [
+          (match_operand:HI 1    "pic30_register_operand"    " r")
+        ] UNSPEC_EDSSTACKADDR))]
+  ""
+  "mul.uu %1,#1,%0\;rlc %1,[w15]\;rlc %d0,%d0"
+  [(set_attr "cc" "clobber")]
+)
+
+(define_insn "extendhip32peds_stack"
+  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r")
+        (unspec:P32PEDS [
+          (match_operand:HI 1    "pic30_register_operand"    " r")
+        ] UNSPEC_EDSSTACKADDR))]
+  ""
+  "mul.uu %1,#1,%0\;rlc %1,[w15]\;rlc %d0,%d0"
+  [(set_attr "cc" "clobber")]
+)
+
 (define_insn "extendhip32eds2"
   [(set (match_operand: P32EDS 0 "pic30_register_operand"    "=r")
         (sign_extend:P32EDS
@@ -4082,9 +4630,9 @@
 
 ; general case
 (define_insn "movqi_gen_DATA"
-  [(set (match_operand:QI 0 "pic30_moveb_operand"
+  [(set (match_operand:QI 0 "pic30_move_operand"
 		"=r<>,RS,r<>, R,  r<>,RS,r<>, R,   Q,r,a,U,?d,?U,?U,?U, ?U, ? U,RS,<>RS,RS<>,Q,?T, ?T,   RS<>,<>RS,T, r")
-        (match_operand:QI 1 "pic30_moveb_operand"
+        (match_operand:QI 1 "pic30_move_operand"
 		 "r,  r,<>RS,<>RS,r,  r, RS<>,RS<>,r,Q,U,a, U, d,RS,<>RS,RS<>,Q,?U,?U,? U,?  U,RS<>,<>RS,?T,  ?T, ?r,?T"))
   ]
   ""
@@ -4114,7 +4662,7 @@
          break;
        }
        if ((reg < WR8_REGNO) && (!pic30_interrupt_function_p(cfun->decl))) {
-         /* other_reg is not used and its a clobbered regsiter, so its free! */
+         /* other_reg is not used and its a clobbered register, so its free! */
          break;
        }
        /* otherwise inelligble */
@@ -4204,7 +4752,6 @@
      case 18: /* R, U */
      case 19: /* <>R, U */
      case 20: /* R<>, U */
-     case 21: /* Q, U */
               if (!save) {
                 return \"mov.b %1,WREG\;mov.b w0,%0\";
               } else if (other_reg) {
@@ -4216,21 +4763,36 @@
 
                 gcc_assert(other_reg_with_save);
                 regno = REGNO(other_reg_with_save);
-                if (which_alternative == 21) {
-                  sprintf(buffer,
-                          \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],w%d\"
-                          \"\;mov.b w%d,%%0\;pop w%d\",
-                          regno, regno, regno, regno, regno, regno);
-                  return buffer;
-                } else {
-                  sprintf(buffer,
-                         \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],%%0\;pop w%d\",
-                          regno, regno, regno, regno);
-                  return buffer;
-                }
+                sprintf(buffer,
+                       \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],%%0\;pop w%d\",
+                        regno, regno, regno, regno);
+                return buffer;
               } else {
                 return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
               }
+     case 21: /* Q, U */
+              if (!save) {
+                return \"mov.b %1,WREG\;mov.b w0,%0\";
+              } else if (other_reg) {
+                sprintf(buffer,
+                        \"mov #(%%1),w%d\;mov.b [w%d],w%d\;mov.b w%d,%%0\",
+                        REGNO(other_reg), REGNO(other_reg),
+                        REGNO(other_reg), REGNO(other_reg));
+                return buffer;
+              } else if (not_reg) {
+                int regno;
+
+                gcc_assert(other_reg_with_save);
+                regno = REGNO(other_reg_with_save);
+                sprintf(buffer,
+                        \"push w%d\;mov #(%%1),w%d\;mov.b [w%d],w%d\"
+                        \"\;mov.b w%d,%%0\;pop w%d\",
+                        regno, regno, regno, regno, regno, regno);
+                return buffer;
+              } else {
+                return \"push w0\;mov.b %1,WREG\;mov.b w0,%0\;pop w0\";
+              }
+
      case 22:
      case 23: /* T, <>R */
               if (!save) {
@@ -4318,7 +4880,7 @@
          break;
        }
        if ((reg < WR8_REGNO) && (!pic30_interrupt_function_p(cfun->decl))) {
-         /* other_reg is not used and its a clobbered regsiter, so its free! */
+         /* other_reg is not used and its a clobbered register, so its free! */
          break;
        }
        /* otherwise inelligble */
@@ -5103,14 +5665,14 @@
 (define_insn "movpag"
   [(set (reg:HI PSVPAG)
         (edspage:HI
-           (match_operand 0 "pic30_reg_or_symbolic_address" "g,r")
+           (match_operand 0 "pic30_reg_or_symbolic_address" "r,g")
            (match_operand 1 "immediate_operand" "i,i")))]
   "pic30_ecore_target()"
   "*
    {  
       if (INTVAL(operands[1]))
         error(\"Page offset not accepted\");
-      if (which_alternative == 0) {
+      if (which_alternative == 1) {
         char *t = pic30_section_base(operands[0],1,0);
         static char result[80];
 
@@ -12878,7 +13440,8 @@
      if (pic30_ecore_target()) {
        psv_set = 1;
        /* create pointer */
-       if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode)) {
+       if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
+           pic30_symbolic_address_operand_offset(XEXP(op1,0)) < 1023) {
          char *t = pic30_section_base(XEXP(op1,0),0,0);
          
          emit_insn(
@@ -13308,6 +13871,26 @@
   [(set_attr "type" "def")]
 )
 
+(define_insn "movP32DF_lit"
+  [(set (match_operand:P32DF 0 "pic30_register_operand"           "=r")
+        (match_operand:P32DF 1 "immediate_operand"                "i"))]
+  ""
+  "*
+{ static char buffer[80];
+  long i = INTVAL(operands[1]);
+
+  if (pic30_symbolic_address_operand(operands[1],P32DFmode)) {
+    sprintf(buffer,\"mov #packed_lo(%%1),%%0\;mov #packed_hi(%%1),%%d0\");
+  } else {
+    sprintf(buffer,\"mov #%d,%%0\;mov #%d,%%d0\",(i & 0xFFFF),
+                   (i & 0xFFFF0000) >> 15);
+  }
+  return buffer;
+}"
+  [(set_attr "type" "def")]
+)
+
+
 (define_insn "movP32EDS_lit"
   [(set (match_operand:P32EDS 0 "pic30_register_operand"          "=r")
         (match_operand:P32EDS 1 "immediate_operand"               "i"))]
@@ -13518,7 +14101,40 @@
 	case 5: /* > = r */
 		return \"mov.d %1,%0\";
 	case 6: /* > = > */
-		return \"mov %1,%0\;mov %1,%0\";
+                // any pre-decrement cannot be done in 'pieces'
+                { int op0_pre, op1_pre;
+                  int op0_dec, op1_dec;
+
+                  pic30_pp_modify(operands[0],&op0_pre,&op0_dec);
+                  pic30_pp_modify(operands[1],&op1_pre,&op1_dec);
+                  if ((op0_pre == -1) && (op1_pre == -1)) {
+                    if ((op0_dec == -1) && (op1_dec == -1)) {
+		      return \"sub #4,%r1\;sub #4,%r0\;\"
+                             \"mov [%r1++],[%r0++]\;mov [%r1--],[%r0--]\";
+                    } else if ((op0_dec == -1) && (op1_dec == 1)) {
+		      return \"add #4,%r1\;sub #4,%r0\;\"
+                             \"mov [%r1++],[%r0++]\;mov [%r1--],[%r0--]\";
+                    } else if ((op0_dec == 1) && (op1_dec == -1)) {
+		      return \"sub #4,%r1\;add #4,%r0\;\"
+                             \"mov [%r1++],[%r0++]\;mov [%r1--],[%r0--]\";
+                    } else if ((op0_dec == 1) && (op1_dec == 0)) {
+		      return \"add #4,%r1\;add #4,%r0\;\"
+                             \"mov [%r1++],[%r0++]\;mov [%r1--],[%r0--]\";
+                    } else gcc_assert(0);
+                  } else if (op0_pre == -1) {
+		    if (op0_dec == -1) {
+                      return \"sub #4,%r0\;mov %1,[%r0++]\;mov %1,[%r0--]\";
+                    } else if (op0_dec == 1) {
+                      return \"add #4,%r0\;mov %1,[%r0++]\;mov %1,[%r0--]\";
+                    } else gcc_assert(0);
+                  } else if (op1_pre == -1) {
+		    if (op1_dec == -1) {
+                      return \"sub #4,%r1\;mov [%r1++],%0\;mov [%r1--],%0\";
+                    } else if (op1_dec == 1) {
+                      return \"add #4,%r1\;mov [%r1++],%0\;mov [%r1--],%0\";
+                    } else gcc_assert(0);
+                  } else return \"mov %1,%0\;mov %1,%0\";
+                }
 	case 7: /* Q = r */
 		return \"mov %1,%0\;mov %d1,%Q0\";
 	case 8: /* r = < */
@@ -15629,10 +16245,22 @@
   if (pic30_rR_or_near_operand(operands[1],GET_MODE(operands[1])) &&
       pic30_rR_or_JN_APSV_operand(operands[2],GET_MODE(operands[2]))) {
     emit_insn(gen_addsi3_DATA(operands[0], operands[1], operands[2]));
-  } else if (pic30_errata_mask & psv_errata) {
-    emit_insn(gen_addsi3_errata_APSV(operands[0], operands[1], operands[2]));
+  } else if (pic30_rR_or_near_APSV_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_rR_or_JN_APSV_operand(operands[2],GET_MODE(operands[2]))) {
+    if (pic30_errata_mask & psv_errata) {
+      emit_insn(gen_addsi3_errata_APSV(operands[0], operands[1], operands[2]));
+    } else {
+      emit_insn(gen_addsi3_noerrata_APSV(operands[0],operands[1], operands[2]));
+    }
   } else {
-    emit_insn(gen_addsi3_noerrata_APSV(operands[0], operands[1], operands[2]));
+    rtx reg1 = operands[1];
+    rtx reg2 = operands[2];
+
+    if (!pic30_register_operand(reg1,GET_MODE(reg1)))
+      reg1 = force_reg(GET_MODE(reg1), reg1);
+    if (!pic30_mode2mres_operand(reg2,GET_MODE(reg2)))
+      reg2 = force_reg(GET_MODE(reg2), reg2);
+    emit(gen_addsi3x_DATA(operands[0], reg1, reg2));
   }
   DONE;
 }")
@@ -24112,6 +24740,13 @@
      int set_psv;
      rtx sfr;
      rtx psv_page;
+
+     if ((GET_CODE(operands[1]) == MEM) &&
+         (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)) {
+       if (!pic30_program_space_operand_p(XEXP(operands[1],0))) {
+         error(\"Cannot call non-program symbol\");
+       }
+     }
  
      security = pic30_boot_secure_access(operands[1],&slot,&set_psv);
      if (set_psv == pic30_set_on_call) {
@@ -24212,7 +24847,14 @@
      int set_psv;
      rtx sfr;
      rtx psv_page;
- 
+
+     if ((GET_CODE(operands[0]) == MEM) &&
+         (GET_CODE(XEXP(operands[0],0)) == SYMBOL_REF)) {
+       if (!pic30_program_space_operand_p(XEXP(operands[0],0))) {
+         error(\"Cannot call non-program symbol\");
+       }
+     }
+
      security = pic30_boot_secure_access(operands[0],&slot,&set_psv);
      if (set_psv == pic30_set_on_call) {
        sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
@@ -24306,6 +24948,14 @@
       !pic30_call_address_operand (XEXP (operands[0], 0), Pmode))
     operands[0] = gen_rtx_MEM (GET_MODE (operands[0]),
 			       force_reg (Pmode, XEXP (operands[0], 0)));
+
+  if ((GET_CODE(operands[0]) == MEM) && 
+      (GET_CODE(XEXP(operands[0],0)) == SYMBOL_REF)) {
+    if (!pic30_program_space_operand_p(XEXP(operands[0],0))) {
+      error(\"Cannot call non-program symbol\");
+    }
+  }
+
   security = pic30_boot_secure_access(operands[0],&slot,&set_psv);
   if (set_psv == pic30_set_on_call) {
     sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
@@ -24365,7 +25015,7 @@
 ;;
 (define_insn "return"
   [(return)]
-  "pic30_null_epilogue_p()"
+  "pic30_null_epilogue_p(0)"
   "*
 {
 	pic30_set_function_return(TRUE);
@@ -24376,7 +25026,7 @@
 
 (define_insn "return_from_epilogue"
   [(return)]
-  "!pic30_null_epilogue_p() && reload_completed"
+  "!pic30_null_epilogue_p(0) && reload_completed"
   "*
   { extern tree current_function_decl;
     if (pic30_interrupt_function_p(current_function_decl))
@@ -24603,11 +25253,286 @@
   "nop"
   [(set_attr "cc" "unchanged")])
 
+;
+;; misc
+;
+
+(define_insn "section_begin"
+  [(set (match_operand:SI 0 "pic30_register_operand" "=r")
+        (unspec:SI [ 
+          (match_operand 1 "immediate_operand" "i")
+        ] UNSPEC_SECTION_BEGIN))]
+  ""
+  "*
+  { static char *buffer = 0;
+    static buffer_size;
+    int len;
+
+    tree t = (tree)(INTVAL(operands[1]));
+    char *section_name = TREE_STRING_POINTER(t);
+    len = sizeof (\"mov #.startof.(),%0\;mov #.startof_hi.(),%d0\");
+    len += strlen(section_name)*2;
+    len++;
+    if (buffer_size < len) {
+      if (buffer) free(buffer);
+      buffer = xmalloc(len+50);
+      buffer_size = len+50;
+    }
+    sprintf(buffer, \"mov #.startof.(%s),%%0\;mov #.startof_hi.(%s),%%d0\",
+            section_name, section_name);
+    return buffer;
+  }"
+)
+
+(define_insn "section_end"
+  [(set (match_operand:SI 0 "pic30_register_operand" "=r")
+        (unspec:SI [ 
+          (match_operand 1 "immediate_operand" "i")
+        ] UNSPEC_SECTION_END))]
+  ""
+  "*
+  { static char *buffer = 0;
+    static buffer_size;
+    int len;
+
+    tree t = (tree)(INTVAL(operands[1]));
+    char *section_name = TREE_STRING_POINTER(t);
+    len = sizeof (\"mov #.endof.(),%0\;mov #.endof_hi.(),%d0\");
+    len += strlen(section_name)*2;
+    len++;
+    if (buffer_size < len) {
+      if (buffer) free(buffer);
+      buffer = xmalloc(len+50);
+      buffer_size = len+50;
+    }
+    sprintf(buffer, \"mov #.endof.(%s),%%0\;mov #.endof_hi.(%s),%%d0\",
+            section_name, section_name);
+    return buffer;
+  }"
+
+)
+
+(define_insn "section_size"
+  [(set (match_operand:SI 0 "pic30_register_operand" "=r")
+        (unspec:SI [ 
+          (match_operand 1 "immediate_operand" "i")
+        ] UNSPEC_SECTION_SIZE))]
+  ""
+  "*
+  { static char *buffer = 0;
+    static buffer_size;
+    int len;
+
+    tree t = (tree)(INTVAL(operands[1]));
+    char *section_name = TREE_STRING_POINTER(t);
+    len = sizeof (\"mov #.sizeof.(),%0\;mov #.sizeof_hi.(),%d0\");
+    len += strlen(section_name)*2;
+    len++;
+    if (buffer_size < len) {
+      if (buffer) free(buffer);
+      buffer = xmalloc(len+50);
+      buffer_size = len+50;
+    }
+    sprintf(buffer, \"mov #.sizeof.(%s),%%0\;mov #.sizeof_hi.(%s),%%d0\",
+            section_name, section_name);
+    return buffer;
+  }"
+)
+
+; define [sg]et_isr_state as an expand, in so that we can generate less
+;   code if we don't actually 'use' the value (apart from to re-set it)
+;   if unless we say if (__builtin_get_isr_state() == n) there is no need
+;   to shift the value
+
+(define_insn "get_isr_state_helper"
+  [(set (match_operand:HI 0 "pic30_register_operand" "=r")
+        (unspec:HI [ (const_int 0) ] UNSPEC_GET_ISR_STATE))]
+  ""
+  "mov _SR,%0"
+)
+
+(define_insn "extract_gie"
+  [(set (match_operand:HI 0 "pic30_register_operand" "=r")
+        (unspec:HI [ (match_dup 0) ] UNSPEC_EXTRACT_GIE))]
+  ""
+  "btsc _INTCON2,#15\;bset %0,#3"
+)
+
+(define_expand "get_isr_state"
+ [(set (match_operand:HI 0 "pic30_register_operand" "=r")
+       (unspec:HI [(const_int 0)] UNSPEC_GET_ISR_STATE))]
+ ""
+ "{ rtx reg = operands[0];
+
+    if (!pic30_register_operand(operands[0], HImode)) {
+      reg = force_reg (GET_MODE(operands[0]), operands[0]);
+    }
+    emit_insn(
+      gen_get_isr_state_helper(reg)
+    );
+    emit_insn(
+      gen_ashrhi3(reg, reg, GEN_INT(5))
+    );
+    emit_insn(
+      gen_andhi3(reg, reg, GEN_INT(7))
+    );
+    if (pic30_device_has_gie()) {
+      emit_insn(
+        gen_extract_gie(reg)
+      );
+    }
+    if (reg != operands[0]) {
+      emit_move_insn(operands[0], reg);
+    }
+    DONE;
+  }")
+
+(define_insn "set_isr_state_helper"
+  [(unspec_volatile [
+      (match_operand:HI 0 "pic30_register_operand" "r")
+    ] UNSPECV_SET_ISR_STATE)
+   (clobber (match_scratch:HI 1                    "=r"))
+   (clobber (match_scratch:HI 2                    "=r"))]
+  ""
+  "mov _SR,%1\;and.b #0x1F,%1\;ior %1,%0,%1\;mov %1,_SR"
+  [(set_attr "cc" "clobber")]
+)
+
+(define_insn "insert_gie"
+  [(unspec_volatile [ 
+      (match_operand:HI 0 "pic30_register_operand" "r")] UNSPEC_INSERT_GIE)
+   (clobber (match_scratch:HI 1                    "=r"))]
+  ""
+  "mov _INTCON2,%1\;bclr %1,#15\;btsc %0,#3\;bset %1,#15\;mov %1,_INTCON2"
+)
+
+
+(define_expand "set_isr_state"
+ [(unspec_volatile [ 
+     (match_operand:HI 0 "pic30_register_operand" "=r")] UNSPECV_SET_ISR_STATE)]
+ ""
+ "{ rtx reg = operands[0];
+    rtx reg2 = gen_reg_rtx(HImode);
+
+    if (!pic30_register_operand(operands[0], HImode)) {
+      reg = force_reg (GET_MODE(operands[0]), operands[0]);
+    }
+    emit_insn(
+      gen_andhi3(reg2, reg, GEN_INT(7))
+    );
+    emit_insn(
+      gen_ashlhi3(reg2, reg2, GEN_INT(5))
+    );
+    emit_insn(
+      gen_set_isr_state_helper(reg2)
+    );
+    if (pic30_device_has_gie()) {
+      emit_insn(
+        gen_insert_gie(reg)
+      );
+    }
+    DONE;
+  }")
+
+(define_insn "disable_isr_gie"
+  [(unspec_volatile [(const_int 0)] UNSPECV_DISABLE_ISR_GIE)]
+  ""
+  "*
+{
+  if (pic30_device_has_gie()) {
+    // clear the GIE
+    return \"bclr _INTCON2,#15\";
+  } else {
+    error(\"This device has no GIE\");
+    return \"; This device has no GIE\";
+  }
+}")
+
+(define_insn "enable_isr_gie"
+  [(unspec_volatile [(const_int 0)] UNSPECV_ENABLE_ISR_GIE)]
+  ""
+  "*
+{
+  if (pic30_device_has_gie()) {
+    // set the GIE
+    return \"bset _INTCON2,#15\";
+  } else {
+    error(\"This device has no GIE\");
+    return \"; This device has no GIE\";
+  }
+}")
+
+(define_insn "disable_isr_ipl"
+  [(unspec_volatile [(const_int 0)] UNSPECV_DISABLE_ISR)
+   (clobber
+      (match_scratch:HI 0  "=a,r"))
+   (clobber
+      (match_scratch:HI 1  "=r,r"))]
+  ""
+  "*
+{
+  if (which_alternative == 0) {
+    return \"mov _DISICNT,%1\;disi #0x3FFF\;mov #0xE0,%0\;ior _SR\;mov %1,_DISICNT\;mov w0,_WREG0\";
+  } else {
+    return \"mov _DISICNT,%1\;disi #0x3FFF\;mov _SR,%1\;ior #0xE0,%1\;mov %1,_SR\;mov %1,_DISICNT\;mov w0,_WREG0\";
+  }
+}")
+
+(define_insn "enable_isr_ipl"
+  [(unspec_volatile [(const_int 0)] UNSPECV_ENABLE_ISR)
+   (clobber
+      (match_scratch:HI 0  "=r"))
+   (clobber
+      (match_scratch:HI 1  "=r"))]
+  ""
+  "*
+{
+  // if (which_alternative == 0) {
+  //  return \"mov #0x1F,%1\;and.b _SR,WREG\;bset.b w0,#7\;mov.b w0,_SR\";
+  // } else {
+    return \"mov _DISICNT,%1\;disi #0x3FFF\;mov _SR,%0\;and.b #0x1F,%0\;bset.b %0,#7\;mov %0,_SR\;mov %1,_DISICNT\;mov w0,_WREG0\";
+  // }
+}")
+
+(define_expand "disable_isr"
+  [(const_int 0)]
+  ""
+  "{
+     if (pic30_device_has_gie()) {
+       emit_insn(
+         gen_disable_isr_gie()
+       );
+     } else {
+       emit_insn(
+         gen_disable_isr_ipl()
+       );
+     }
+     DONE;
+   }")
+
+(define_expand "enable_isr"
+  [(const_int 0)]
+  ""
+  "{
+     if (pic30_device_has_gie()) {
+       emit_insn(
+         gen_enable_isr_gie()
+       );
+     } else {
+       emit_insn(
+         gen_enable_isr_ipl()
+       );
+     }
+     DONE;
+   }")
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;	Peephole
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; generate btst f, #bit
+
 
 ; first from load, and, compare
 (define_peephole
@@ -24707,6 +25632,33 @@
 )
 
 
+;; remove redundant lnk
+(define_peephole2
+  [(parallel[
+      (set (reg:HI SPREG)
+            (match_operand 0 "immediate_operand" "i"))
+      (clobber (reg:HI FPREG))
+      (use (reg:HI FPREG))
+      (use (reg:HI SPREG))]
+  )]
+  "pic30_lnk_removed(insn,1+INTVAL(operands[0]))"
+  [(set (reg:HI SPREG)
+        (plus:HI (reg:HI SPREG)
+                 (match_dup 0)))]
+  "{ operands[0] = GEN_INT(INTVAL(operands[0])+2); }"
+)
+
+(define_peephole2
+  [(parallel[
+     (set (reg:HI SPREG)
+          (reg:HI FPREG))
+     (clobber (reg:HI FPREG))]
+  )]
+  "pic30_lnk_removed(insn,0)"
+  [(unspec_volatile [(const_int 0)] UNSPECV_NOP)]
+  ""
+)
+  
 ;;
 ;; 16-bit shift right SI followed by truncate to HI.
 ;; Simplify to most-significant subreg.
@@ -25075,7 +26027,7 @@
 	(match_operand:HI 1 "pic30_J_operand"   "J"))
    (return)
   ]
- "pic30_null_epilogue_p()"
+ "pic30_null_epilogue_p(1)"
  "*
 {
 	pic30_set_function_return(TRUE);
@@ -25095,7 +26047,7 @@
 	(match_operand:SI 1 "pic30_J_operand"   "J"))
    (return)
   ]
- "pic30_null_epilogue_p()"
+ "pic30_null_epilogue_p(1)"
  "*
 {
 	pic30_set_function_return(TRUE);
@@ -25112,58 +26064,58 @@
 
 ;; Substitute bra/goto f for rcall/call f; ret
 
-; (define_peephole
-;   [(call (match_operand:QI 0 "memory_operand" "R,mp")
-;          (match_operand:HI 1 "pic30_general_operand" ""))
-;    (return)
-;   ]
-;   "pic30_null_epilogue_p() /* a */"
-;   "*
-; {
-; 	pic30_set_function_return(TRUE);
-; 	switch (which_alternative)
-; 	{
-; 	static char szInsn[48];
-; 	case 0:
-; 		sprintf(szInsn, \"goto %s\",
-; 				reg_names[REGNO(XEXP(operands[0],0))]);
-; 		return(szInsn);
-; 	case 1:
-; 		if (pic30_near_function_p(operands[0]))
-; 			return(\"bra %0\");
-; 		else
-; 			return(\"goto %0\");
-; 	default:
-; 		return(\";\");
-; 	}
-; }")
+(define_peephole
+  [(call (match_operand:QI 0 "memory_operand" "R,mp")
+         (match_operand:HI 1 "pic30_general_operand" ""))
+   (return)
+  ]
+  "pic30_null_epilogue_p(1) /* a */"
+  "*
+{
+	pic30_set_function_return(TRUE);
+	switch (which_alternative)
+	{
+	static char szInsn[48];
+	case 0:
+		sprintf(szInsn, \"goto %s\",
+				reg_names[REGNO(XEXP(operands[0],0))]);
+		return(szInsn);
+	case 1:
+		if (pic30_near_function_p(operands[0]))
+			return(\"bra %0\");
+		else
+			return(\"goto %0\");
+	default:
+		return(\";\");
+	}
+}")
 
-; (define_peephole
-;   [(set (match_operand 0 "pic30_register_operand"         "r,r")
-;         (call (match_operand:QI 1 "memory_operand"  "R,mp")
-;               (match_operand:HI 2 "pic30_general_operand" "")))
-;    (return)
-;   ]
-;   "pic30_null_epilogue_p()"
-;   "*
-; {
-; 	pic30_set_function_return(TRUE);
-; 	switch (which_alternative)
-; 	{
-; 	static char szInsn[48];
-; 	case 0:
-; 		sprintf(szInsn, \"goto %s\",
-; 				reg_names[REGNO(XEXP(operands[1],0))]);
-; 		return(szInsn);
-; 	case 1:
-; 		if (pic30_near_function_p(operands[1]))
-; 			return(\"bra %1\");
-; 		else
-; 			return(\"goto %1\");
-; 	default:
-; 		return(\";\");
-; 	}
-; }")
+(define_peephole
+  [(set (match_operand 0 "pic30_register_operand"         "r,r")
+        (call (match_operand:QI 1 "memory_operand"  "R,mp")
+              (match_operand:HI 2 "pic30_general_operand" "")))
+   (return)
+  ]
+  "pic30_null_epilogue_p(1)"
+  "*
+{
+	pic30_set_function_return(TRUE);
+	switch (which_alternative)
+	{
+	static char szInsn[48];
+	case 0:
+		sprintf(szInsn, \"goto %s\",
+				reg_names[REGNO(XEXP(operands[1],0))]);
+		return(szInsn);
+	case 1:
+		if (pic30_near_function_p(operands[1]))
+			return(\"bra %1\");
+		else
+			return(\"goto %1\");
+	default:
+		return(\";\");
+	}
+}")
 
 ;; Combine mov.w pairs to mov.d
 

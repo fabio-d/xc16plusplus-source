@@ -1,0 +1,30 @@
+cmd026: processor, linker script conflict:
+
+The objective of this test is to verify that
+a warning message is generated if the target
+processor does not match the linker script.
+
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+4/7/2006 - GSM

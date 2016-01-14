@@ -1,0 +1,34 @@
+map002: Memory usage reporting:
+
+The objective of this test is to verify that
+a memory usage report in included in the
+linker map file. Note that alignment gaps
+in data memory should be tabulated.
+
+Note: In this example, the alignment gap
+can be eliminated by re-ordering the object
+files in the link command.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s,t2.s - source files
+test.out - output of the test
+expect.out - correct output
+
+
+
+12/03/2002 - GSM
