@@ -1,0 +1,28 @@
+lkr045:  NOLOAD sections in program memory (SSR# 23629)
+
+The objective of this test is to verify that NOLOAD
+sections in program memory as not listed as data memory
+and are not included in the data init template.
+
+How to execute the test:
+
+1. Set the environment variable $PIC30_CD
+    to your pic30 tools binary directory
+2. Export $PIC30_CD
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+t.gld - custom linker script
+test.out - output from the test
+expect.out - expected output
+
+
+
+2/20/2004 - GSM

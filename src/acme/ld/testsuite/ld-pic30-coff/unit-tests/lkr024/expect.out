@@ -1,0 +1,9 @@
+
+Excerpt from the link map:
+
+                  0x000100                  L1
+                  0x000100                  L1
+                    0x8100                  L1
+                  0x000101                  L2
+                  0x000101                  L2
+                    0x8101                  L2

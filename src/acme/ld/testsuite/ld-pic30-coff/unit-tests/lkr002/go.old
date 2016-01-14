@@ -1,0 +1,6 @@
+rm -f t1.o t.exe
+
+as-new -o t1.o t1.s
+ld-new -o t.exe t1.o --script=sample.lkr
+
+/rrutils/binutils/objdump -h t.exe

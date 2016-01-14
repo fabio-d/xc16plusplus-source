@@ -1,0 +1,8 @@
+
+excerpt from pic30-objdump (-h option):
+
+bss_1000 00001000 00001000 00001000
+ALLOC, ABSOLUTE   
+bss_near 00000002 00000800 00000800
+ALLOC, NEAR   
+

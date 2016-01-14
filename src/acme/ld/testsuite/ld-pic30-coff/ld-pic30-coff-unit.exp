@@ -1,0 +1,54 @@
+#
+# Unit Tests for pic30-ld
+#
+# - All of the linker unit tests reside in individual folders
+#   in a directory called "unit-tests". Each unit test includes
+#   a bash script called "go" that runs the test and evaluates
+#   the results.
+#
+# - At the top level (in this folder) is a perl script test
+#   driver called "ld-pic30-coff-unit.pl" that steps through
+#   the unit test directories, invokes the go script in each,
+#   and then cleans up the temporary files. A copy of the
+#   test driver is also located inside "unit-tests".
+#   
+# - This expect script invokes the test driver, catches its
+#   output, and parses the results to issue pass and fail
+#   messages to Deja GNU.
+#
+# - Note that the test driver and go scripts are all capable
+#   of stand-alone operation. Each unit test folder includes
+#   its own documentation in a file called "info.txt".
+#
+#
+# Change Log:
+#
+# 11/9/2001     initial version                 Guy McCarthy
+#
+#
+if [istarget pic30*-*-*] {
+    set driver "$srcdir/$subdir/ld-pic30-coff-unit.pl"
+    set folder "$srcdir/$subdir/unit-tests"
+    #system "perl $driver $folder"
+    catch "exec $srcdir/lib/run perl $driver $folder" comp_output
+    #send $comp_output
+
+    set lines [split $comp_output "\r\n"]
+    foreach line $lines {
+        #send -- "$line\n"
+        if [regexp (.*):(.*): $line ignore dir name] {
+            set testname $name
+        }
+        if [regexp "All Tests Pass" $line ] {
+            pass "$testname"
+        }
+        if [regexp "ERRORs Detected!!" $line ] {
+            fail "$testname"
+        }
+    }
+}
+
+
+
+
+

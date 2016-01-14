@@ -1,0 +1,88 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GLDPATH=$PIC30_CD/support/dsPIC30F/gld
+
+#
+# convert paths to DOS, if necessary
+#
+HOST=`uname`
+if ( echo $HOST | grep -i "cygwin" > /dev/null 2>&1 ) ; then
+  HOST="cygwin"
+  GLDPATH=`cygpath -m $GLDPATH`
+fi
+
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.o
+$GAS30 -o t1.o t1.s
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GAS30 -o t1.o t1.s"
+    echo $err
+fi
+
+
+rm -f t.exe t.map
+$GLD30 -o t.exe t1.o --script=$GLDPATH/p30f3014.gld -Map=t.map --no-pack-data --report-mem > temp
+err=$?
+if [ $vflag = "on" ]; then
+    echo
+    echo "$GLD30 -o t.exe t1.o --script=$GLDPATH/p30f3014.gld -Map=t.map --no-pack-data --report-mem"
+    echo $err
+fi
+
+
+echo "Excerpt from memory usage report:" > test.out
+grep "\.xbss"  temp >> test.out
+grep "\.xdata" temp >> test.out
+grep "\.bss"   temp  >> test.out
+if [ $vflag = "on" ]; then
+    echo
+    cat test.out
+fi
+
+
+echo
+echo `head -1 info.txt`
+
+if [ $vflag = "on" ]; then
+    diff -b -B test.out expect.out
+else
+    diff -b -B test.out expect.out > /dev/null
+fi
+
+
+if [ $? -ne 0 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

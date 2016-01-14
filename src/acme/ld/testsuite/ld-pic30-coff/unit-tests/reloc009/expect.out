@@ -1,0 +1,4 @@
+t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitLO
+t1.o(.text+0x2):fake: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitHI
+t1.o(.text+0x4):fake: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitLO
+t1.o(.text+0x6):fake: Link Error: relocation truncated to fit: BIT SELECT 4 (byte) bitHI

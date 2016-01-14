@@ -1,0 +1,2 @@
+t1.o(.text+0x4):fake: Link Error: PC Relative branch to 'L0' is out of range. Suggest large-code model.
+t1.o(.text+0x10006):fake: Link Error: PC Relative branch to 'L0' is out of range. Suggest large-code model.

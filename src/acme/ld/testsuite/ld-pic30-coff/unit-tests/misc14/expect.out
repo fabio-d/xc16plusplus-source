@@ -1,0 +1,42 @@
+
+t1.o:     file format coff-pic30
+
+RELOCATION RECORDS FOR [.text]:
+OFFSET   TYPE              VALUE 
+00000000 .pbyte            f1
+00000000 .pbyte            f2
+00000000 .pbyte            f3
+00000002 .pbyte            f4
+
+
+RELOCATION RECORDS FOR [foo]:
+OFFSET   TYPE              VALUE 
+00000000 .byte             f1
+00000001 .byte             f2
+00000002 .byte             f3
+00000003 .byte             f4
+
+
+RELOCATION RECORDS FOR [dat]:
+OFFSET   TYPE              VALUE 
+00000000 .byte             f1
+00000001 .byte             f2
+00000002 .byte             f3
+00000003 .byte             f4
+
+
+
+t.exe:     file format coff-pic30
+
+Contents of section .text:
+ 0110 010203 040000                ......      
+
+t.exe:     file format coff-pic30
+
+Contents of section foo:
+ 8100 01020304                             ....            
+
+t.exe:     file format coff-pic30
+
+Contents of section dat:
+ 0800 01020304                             ....            

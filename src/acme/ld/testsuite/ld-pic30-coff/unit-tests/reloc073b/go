@@ -1,0 +1,78 @@
+#! /bin/sh
+
+#
+# CONFIGURATION SECTION
+#
+if [ -z "$PIC30_CD" ]; then
+    echo "Environmental variable PIC30_CD must be set up.";
+    exit 1;
+fi
+
+GAS30="$PIC30_CD/bin/pic30-as -W"
+GLD30=$PIC30_CD/bin/pic30-ld
+OBJDUMP=$PIC30_CD/bin/pic30-objdump
+
+#
+# END CONFIGURATION
+#
+
+# process args
+vflag=off
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -v)  vflag=on;;
+    esac
+    shift
+done
+
+rm -f t1.o
+$GAS30 -o t1.o t1.s
+if [ $vflag = "on" ]; then
+    clear
+    echo
+    echo "$GAS30 -o t1.o t1.s"
+    echo $?
+fi
+
+rm -f t2.o
+$GAS30 -o t2.o t2.s
+if [ $vflag = "on" ]; then
+    echo "$GAS30 -o t2.o t2.s"
+    echo $?
+fi
+
+rm -f t.exe
+$GLD30 --script=t.lkr -o t.exe t1.o t2.o -e 0 || exit 99
+if [ $vflag = "on" ]; then
+    echo "$GLD30 --script=t.lkr -o t.exe t1.o t2.o -e 0"
+    echo $?
+fi
+
+if [ $vflag = "on" ]; then
+    $OBJDUMP -D t.exe || exit 99
+    echo
+fi
+
+rm -f test.out
+$OBJDUMP -s -j .data t.exe > test.out
+
+echo
+echo `head -1 info.txt`
+
+if [ $vflag = "on" ]; then
+    diff -b -B test.out expect.out
+else
+    diff -b -B test.out expect.out > /dev/null
+fi
+
+
+if [ $? -ne 0 ]; then
+    echo "ERRORs Detected!!"
+    echo
+    exit 199
+fi
+
+echo "All Tests Pass"
+echo
+exit 0

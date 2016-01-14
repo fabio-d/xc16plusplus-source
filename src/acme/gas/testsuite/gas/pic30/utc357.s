@@ -1,0 +1,2 @@
+	.text
+	.org 0x4, (0xFF+1)

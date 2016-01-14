@@ -1,0 +1,64 @@
+        .text
+        .global __reset, part1, part2
+__reset:
+        ;; equates for forward branches
+        .equ    myL200,0x300
+        .equ    myL400,0x502
+        .equ    myL600,0x704
+        .equ    myL800,0x906
+        .equ    myL1200,0x1308
+        .equ    myL1400,0x150A
+        .equ    myL1600,0x170C
+        .equ    myL1800,0x190E
+        .equ    myL1A00,0x1B10
+        .equ    myL1C00,0x1D12
+        .equ    myL1E00,0x1F14
+        .equ    myL2000,0x2116
+        .equ    myL4000,0x4118
+        .equ    myL6000,0x611A
+        .equ    myL8000,0x811C
+        .equ    myLA000,0xA11E
+        .equ    myLC000,0xC120
+        .equ    myLE000,0xE122
+        .equ    myL10000,0x10124
+        .equ    myL12000,0x12126
+        .equ    myL14000,0x14128
+        .equ    myL20000,0x2012A
+part1:  
+        bra     myL200
+        bra     myL400
+        bra     myL600
+        bra     myL800
+part2:
+        bra     C,myL1200
+        bra     Z,myL1400
+        bra     N,myL1600   
+        bra     GT,myL1800  
+part3:
+        bra     myL1A00
+        bra     myL1C00
+        bra     myL1E00
+        bra     myL2000
+part4:  
+        bra     myL4000
+        bra     myL6000
+        bra     myL8000
+        bra     myLA000
+part5:  
+        bra     myLC000
+        bra     myLE000
+        bra     myL10000
+        .if 0
+        bra     myL12000        ; out of range
+        bra     myL14000        ; out of range
+        bra     myL20000        ; out of range
+        .endif
+
+        ;; skip ahead to test backward references
+        .org    0x10000
+
+        .equ    myLFFFE,0xFFF0
+
+part6:
+        bra     myLFFFE
+        

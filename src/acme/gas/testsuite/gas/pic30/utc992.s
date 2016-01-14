@@ -1,0 +1,3 @@
+	.text
+	pwrsav #foo
+	.end

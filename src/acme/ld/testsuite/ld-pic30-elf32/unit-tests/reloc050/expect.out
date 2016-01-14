@@ -1,0 +1,14 @@
+
+t.exe:     file format elf32-pic30
+
+Disassembly of section .text:
+
+00001000 <part1>:
+    1000:	10 00 00    	nop       
+    1002:	20 21 00    	nop       
+    1004:	40 41 42    	add.b     w4, [--w0], w2
+
+00001006 <part2>:
+    1006:	20 00 00    	nop       
+    1008:	20 21 00    	nop       
+    100a:	40 41 42    	add.b     w4, [--w0], w2

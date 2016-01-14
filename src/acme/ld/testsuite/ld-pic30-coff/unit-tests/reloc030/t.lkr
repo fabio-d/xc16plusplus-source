@@ -1,0 +1,28 @@
+OUTPUT_FORMAT("coff-pic30")
+OUTPUT_ARCH("pic30")
+
+MEMORY
+{
+  data (a!xr) : ORIGIN = 0x800, LENGTH = 0xF800
+  program (xr) : ORIGIN = 0x100, LENGTH = 0x80000000
+}
+
+
+SECTIONS
+{
+.text 0x1000 :
+  { *(.text) }
+
+/* Data address = 0x10 */ 
+.const1 0x10 :
+  { *(.const1) }
+
+/* Data address = 0x222120 */
+.const2 0x222120 :
+  { *(.const2) }
+
+/* Data address = 0x43424140 */
+.const4 0x43424140 :
+  { *(.const4) }
+
+}

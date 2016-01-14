@@ -1,0 +1,35 @@
+cmd024: --no-force-link option:
+
+The objective of this test is to verify that
+the linker will emit an error message if
+the link target processor has a more
+restrictive instruction set than one of
+the input objects. The presence of the
+--no-force-link linker option should
+not change the default behaviour.
+
+Note: This test is related to lkr065
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+test.out - output of the test
+expect.out - expected output
+
+
+
+4/7/2006 - GSM

@@ -1,0 +1,2 @@
+	.section foo, "x"
+	.word 0x7475, 0x3263, 0x3533

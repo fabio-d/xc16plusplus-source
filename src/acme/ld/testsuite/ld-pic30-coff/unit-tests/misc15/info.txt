@@ -1,0 +1,28 @@
+misc15: Regression test of SSR# 17969:
+
+The objective of this test is to verify that
+the linker detects when the heap manager is
+included, but no heap is specified. An error
+message should be generated.
+
+How to execute the test:
+
+
+1. Edit the Configuration section of file "go"
+2. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.c - source file
+test.out - output of the test
+expect.out - correct output
+
+
+
+6/18/2002 - GSM

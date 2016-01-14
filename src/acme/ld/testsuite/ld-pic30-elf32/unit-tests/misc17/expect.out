@@ -1,0 +1,5 @@
+
+t.exe:     file format elf32-pic30
+
+Contents of section .comment:
+ 0000 0068656c 6c6f0000                    .hello..        

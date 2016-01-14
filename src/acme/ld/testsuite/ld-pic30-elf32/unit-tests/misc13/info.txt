@@ -1,0 +1,32 @@
+misc13: Regression test of constants in data (packed):
+
+The objective of this test is to verify that
+initialized data sections are handled correctly
+when the --pack-data option is used.
+The compiled program is executed via the
+simulator and correct output is verified.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.c, t2.s - source files
+run.cmd - command file for the simulator
+test.out - output of the test
+expect.out - correct output
+
+
+
+4/10/2002 - GSM

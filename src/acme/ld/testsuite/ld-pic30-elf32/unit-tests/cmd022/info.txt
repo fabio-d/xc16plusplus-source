@@ -1,0 +1,28 @@
+cmd022: -p option (invalid ID):
+
+The objective of this test is to verify that
+the linker will emit an error message if an
+invalid processor ID is specified
+via the -p option.
+
+How to execute the test:
+
+1. Set the environment variable $ACME_BIN
+    to your pic30 tools binary directory
+2. Export $ACME_BIN
+3. Edit the Configuration section of file "go"
+4. Execute "go"
+
+To get verbose output:
+
+Execute "go -v"
+
+File Descriptions:
+-----------------
+info.txt - this file
+go - shell script to automate testing
+t1.s - source file
+
+
+
+4/6/2006 - GSM

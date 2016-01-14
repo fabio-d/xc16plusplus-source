@@ -1,0 +1,1527 @@
+# runtest --tool=gas --target=pic30-*-* ./gas/pic30/pic30cert.exp
+################################################################################
+#
+# This is the certification test suite for the pic30 architecture.
+#
+################################################################################
+#
+# This procedure will assemble the program specified by the tst_src argument.
+# it will check the output to ensure that an error is generated.
+#
+proc run_expected_error { tst_src testname } {
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: .*\[^\n\]*\n"           { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure  will test the  assembler to ensure that  all instructions
+# are encoded properly.
+
+proc run_isa_encoding { is_full srcdir subdir AS OBJDUMP } {
+   if { $is_full } {
+      set testname "ISA Encoding - full"
+      set flag "-f"
+   } else {
+      set testname "ISA Encoding - partial"
+      set flag "-p"
+   }
+
+   send_log "perl $srcdir/$subdir/isa_encoding.pl -asm $AS -dump $OBJDUMP $flag $srcdir/$subdir/isa.map\n"
+   catch "exec perl $srcdir/lib/run $srcdir/$subdir/isa_encoding.pl -asm $AS -dump $OBJDUMP $flag $srcdir/$subdir/isa.map" comp_output
+
+   send_log "$comp_output\n"
+
+   if { [regexp "Errors found!" $comp_output] || \
+        [regexp "Died" $comp_output] ||
+     [regexp "not found" $comp_output] ||
+        [regexp "Total Tests Completed = 0." $comp_output] } then {
+      fail "$testname"
+   } else {
+      pass "$testname"
+   }
+}
+
+################################################################################
+#
+# This procedure will ensure that an error is generated if the operands cannot
+# be encoded.
+#
+proc run_invalid_operands_because_of_encoding { tst_cond tst_src } {
+   set testname "invalid operands because of encoding - $tst_cond"
+   set x1 0
+   set x2 0
+   gas_start $tst_src ""
+   while 1 {
+      expect {
+          -re "\[ \t\]*Assembler messages:\[^\n\]*\n" { set x1 1 }
+          -re "\[ \t\]*Error: Operands share encoding bits.  The operands must encode identically.\[^\n\]*\n"
+                                                      { set x2 1 }
+          -re "\[^\n\]*\n"                    { }
+          timeout                             { perror "timeout\n"; break }
+          eof                                 { break }
+      }
+   }
+   gas_finish
+   if [all_ones $x1 $x2] then { pass $testname } else { fail $testname }
+}
+
+################################################################################
+#
+# This procedure will ensure the assembler generates the correct stdout.
+#
+proc run_stdout_test { gasopt testname dfile sfile} {
+
+     global subdir
+     global srcdir
+
+     gas_run "$sfile" "$gasopt" ">$dfile.stdout"
+     if {[regexp_diff $dfile.stdout $srcdir/$subdir/$dfile]} then {
+     fail $testname
+     } else {
+     pass $testname
+     catch "exec $srcdir/lib/run rm $dfile.stdout" comp_output
+     if ![string match "" $comp_output] then {
+          send_log "$comp_output\n"
+          verbose "$comp_output" 3
+          }
+     }
+}
+
+################################################################################
+#
+# This procedure will ensure the assembler generates the correct stderr.
+#
+proc run_stderr_test { gasopt testname dfile sfile} {
+
+     global subdir
+     global srcdir
+
+     gas_run "$sfile" "$gasopt" "2>$dfile.stderr"
+     if {[regexp_diff $dfile.stderr $srcdir/$subdir/$dfile]} then {
+     fail $testname
+     } else {
+     pass $testname
+     catch "exec $srcdir/lib/run rm $dfile.stderr" comp_output
+     if ![string match "" $comp_output] then {
+          send_log "$comp_output\n"
+          verbose "$comp_output" 3
+          }
+     }
+}
+
+################################################################################
+#
+# This procedure will ensure the assembler generates the correct dependency info.
+#
+proc run_depend_test { gasopt testname dfile sfile} {
+
+     global subdir
+     global srcdir
+
+     gas_run "$sfile" "-o dump.o $gasopt -MD $dfile.depend" ""
+     if {[regexp_diff $dfile.depend $srcdir/$subdir/$dfile]} then {
+     fail $testname
+     } else {
+     pass $testname
+     catch "exec $srcdir/lib/run rm $dfile.depend" comp_output
+     if ![string match "" $comp_output] then {
+          send_log "$comp_output\n"
+          verbose "$comp_output" 3
+          }
+     }
+
+}
+
+################################################################################
+#
+# This procedure checks for differences in the assembler-generated list files.
+#
+proc run_list_test { name listopt } {
+     global subdir srcdir
+     global AS
+     global ASFLAGS
+     global host_triplet
+
+     if [string match "*/*" $name] {
+     set file $name
+     set name [file tail $name]
+     } else {
+     set file "$srcdir/$subdir/$name"
+     }
+     set opt_array [slurp_options "${file}.d"]
+     if { $opt_array == -1 } {
+     perror "error reading options from $file.d"
+     unresolved $subdir/$name
+     return
+     }
+
+     set opts(as) {}
+     set opts(name) {}
+     set opts(PROG) {}
+     set opts(source) {}
+
+     foreach i $opt_array {
+     set opt_name [lindex $i 0]
+     set opt_val [lindex $i 1]
+     if ![info exists opts($opt_name)] {
+          perror "unknown option $opt_name in file $file.d"
+          unresolved $subdir/$name
+          return
+          }
+     if [string length $opts($opt_name)] {
+          perror "option $opt_name multiply set in $file.d"
+          unresolved $subdir/$name
+          return
+          }
+     set  opts($opt_name) $opt_val
+     }
+
+    if { $opts(name) == "" } {
+    set testname "$subdir/$name"
+    } else {
+    set testname $opts(name)
+    }
+
+    if { $opts(source) == "" } {
+    set sourcefile ${file}.s
+    } else {
+    set sourcefile $srcdir/$subdir/$opts(source)
+    }
+
+    send_log "$AS $ASFLAGS -a$listopt=$name\.lst $opts(as) $sourcefile\n"
+    catch "exec $srcdir/lib/run $AS $ASFLAGS -a$listopt=$name.lst $opts(as) $sourcefile" comp_output
+    set comp_output [prune_warnings $comp_output]
+    if ![string match "" $comp_output] then {
+    send_log "$comp_output\n"
+    verbose "$comp_output" 3
+    fail $testname
+    return
+    }
+
+     if {[regexp_diff "./$name.lst" "$file.d"]} then {
+     fail $testname
+     } else {
+     pass $testname
+     catch "exec $srcdir/lib/run rm $name.lst" comp_output
+     if ![string match "" $comp_output] then {
+          send_log "$comp_output\n"
+          verbose "$comp_output" 3
+          }
+     }
+}
+
+################################################################################
+################   Certification Test Cases   ##################################
+################################################################################
+
+if [istarget pic30*-*-*] {
+
+if (1) {
+
+     run_depend_test "" "-MD Dependency Info" "cert0034a1.d"\
+      "cert0034a1.s ./gas/pic30/cert0034a2.s"
+
+   # This test will check that  the --defsym command-line options defines a
+   # symbol.
+   
+     run_dump_test cert0004
+
+     setup_kfail "pic30-*-*" "SSR_22029"
+     gas_test_error "cert0006.s" "--defsym outrange=0xFFFFFFFF1"\
+       "--defsym Out-of-range Parameter"
+
+   # This  test will  check that  the --fatal-warnings  command-line option
+   # causes the assembler to treat  warnings as fatal errors.  We first run
+   # the  test without  the option  to  determine that  the file  correctly
+   # assembles.
+
+     run_dump_test cert0008
+
+     gas_test_error "cert0008.s" "--fatal-warnings"\
+       "--fatal-warnings Treat warnings as errors"
+
+   # This test will check that the --gdwarf2 command-line option causes the
+   # assembler to generate the DWARF2 debugging info.
+
+     gas_test_error "cert0013.s" "--gdwarf2"\
+         "--gdwarf2, command not recognized at this time"
+
+   # This test will check that  the --gstabs command-line option causes the
+   # assembler to generate the stabs debugging info.
+
+     gas_test_error "cert0010.s" "--gstabs"\
+         "--gstabs, command not recognized at this time"
+
+   # This test  will check that  the --help command-line option  causes the
+   # assembler to generate a help screen.
+
+     run_stdout_test "--help" "--help Help Screen" "cert0014.d" ""
+
+
+   # This test  will check that the --listing-cont-lines  option causes the
+   # assembler to  change the number  of continuation lines in  the listing
+   # file.
+
+     run_list_test cert0015a "hls"
+     run_list_test cert0015b "hls"
+     run_list_test cert0015c "hls"
+     run_list_test cert0015d "hls"
+     run_list_test cert0015e "hls"
+     run_list_test cert0015f "hls"
+
+   # This test  will check that  the --listing-lhs-width option  causes the
+   # the assembler to change the value of the lhs width.
+
+     run_list_test cert0017a "hls"
+     run_list_test cert0017b "hls"
+     run_list_test cert0017c "hls"
+     run_list_test cert0017d "hls"
+
+   # This test  will check that the --listing-lhs-width2  option causes the
+   # the assembler to change the value of the lhs width.
+
+     run_list_test cert0019a "hls"
+     run_list_test cert0019b "hls"
+     run_list_test cert0019c "hls"
+     run_list_test cert0019d "hls"
+
+   # This test  will check that  the --listing-rhs-width option  causes the
+   # the assembler to change the value of the rhs width.
+
+     run_list_test cert0021a "hls"
+     run_list_test cert0021b "hls"
+     run_list_test cert0021c "hls"
+     run_list_test cert0021d "hls"
+     run_list_test cert0021e "hls"
+
+   # This test will check  that the --statistics command-line option causes
+   # the assembler to output assembly statistics to stderr.
+
+     run_stderr_test "--statistics" "--statistics Display Stats (a)"\
+       "cert0023a.d" "cert0023a.s"
+     run_stderr_test "--statistics" "--statistics Display Stats (b)"\
+       "cert0023b.d" "cert0023b.s"
+
+   # The following set of tests will check that the -a command-line opt and
+   # various combinations  of its  sub-options correctly enable  and modify
+   # the listing output from the  assembler.  I commented out the -aL tests
+   # because GNU no longer supports this sub-option.
+
+     run_list_test cert0026aa ""
+     run_list_test cert0026ab "cdhlmns"
+     run_list_test cert0026ac "c"
+     run_list_test cert0026ad "d"
+     run_list_test cert0026ae "h"
+     run_list_test cert0026af "l"
+     run_list_test cert0026ag "m"
+     run_list_test cert0026ah "n"
+     run_list_test cert0026ai "s"
+     run_list_test cert0026ak "cd"
+     run_list_test cert0026al "ch"
+     run_list_test cert0026am "cl"
+     run_list_test cert0026an "cm"
+     run_list_test cert0026ao "cn"
+     run_list_test cert0026ap "cs"
+     run_list_test cert0026ar "hl"
+     run_list_test cert0026as "hm"
+     run_list_test cert0026at "hn"
+     run_list_test cert0026au "hs"
+     run_list_test cert0026aw "lm"
+     run_list_test cert0026ax "ln"
+     run_list_test cert0026ay "ls"
+     run_list_test cert0026ba "mn"
+     run_list_test cert0026bb "ms"
+     run_list_test cert0026bd "ns"
+     run_list_test cert0026bg "cdh"
+     run_list_test cert0026bh "cdl"
+     run_list_test cert0026bi "cdm"
+     run_list_test cert0026bj "cdn"
+     run_list_test cert0026bk "cds"
+     run_list_test cert0026bm "chl"
+     run_list_test cert0026bn "chm"
+     run_list_test cert0026bo "chn"
+     run_list_test cert0026bp "chs"
+     run_list_test cert0026br "clm"
+     run_list_test cert0026bs "cln"
+     run_list_test cert0026bt "cls"
+     run_list_test cert0026bv "cmn"
+     run_list_test cert0026bw "cms"
+     run_list_test cert0026by "cns"
+     run_list_test cert0026cb "dhl"
+     run_list_test cert0026cc "dhm"
+     run_list_test cert0026cd "dhn"
+     run_list_test cert0026ce "dhs"
+     run_list_test cert0026cg "dlm"
+     run_list_test cert0026ch "dln"
+     run_list_test cert0026ci "dls"
+     run_list_test cert0026ck "dmn"
+     run_list_test cert0026cl "dms"
+     run_list_test cert0026cn "dns"
+     run_list_test cert0026cp "hlm"
+     run_list_test cert0026cq "hln"
+     run_list_test cert0026cr "hls"
+     run_list_test cert0026ct "hmn"
+     run_list_test cert0026cu "hms"
+     run_list_test cert0026cw "hns"
+     run_list_test cert0026cz "lmn"
+     run_list_test cert0026da "lms"
+     run_list_test cert0026dc "lns"
+     run_list_test cert0026df "mns"
+     run_list_test cert0026di "cdhl"
+     run_list_test cert0026dj "cdhm"
+     run_list_test cert0026dk "cdhn"
+     run_list_test cert0026dl "cdhs"
+     run_list_test cert0026dn "chlm"
+     run_list_test cert0026do "chln"
+     run_list_test cert0026dp "chls"
+     run_list_test cert0026dr "clmn"
+     run_list_test cert0026ds "clms"
+     run_list_test cert0026du "cmns"
+     run_list_test cert0026dx "dhlm"
+     run_list_test cert0026dy "dhln"
+     run_list_test cert0026dz "dhls"
+     run_list_test cert0026eb "dhmn"
+     run_list_test cert0026ec "dhms"
+     run_list_test cert0026ee "dhns"
+     run_list_test cert0026eg "dlmn"
+     run_list_test cert0026eh "dlms"
+     run_list_test cert0026ej "dmns"
+     run_list_test cert0026em "hlmn"
+     run_list_test cert0026en "hlms"
+     run_list_test cert0026ep "hlns"
+     run_list_test cert0026er "lmns"
+     run_list_test cert0026eu "cdhlmn"
+     run_list_test cert0026ev "cdhlms"
+     run_list_test cert0026ex "cdhlns"
+     run_list_test cert0026fa "cdhmns"
+     run_list_test cert0026fc "cdlmns"
+     run_list_test cert0026ff "chlmns"
+     run_list_test cert0026fi "dhlmns"
+     run_list_test cert0026fn "i"
+     run_list_test cert0026fo "i"
+     run_list_test cert0026fp "i"
+
+   # The following  tests verify  that the -f  option skips  whitespace and
+   # comment  preprocessing.  Since  test  file (a)  contains comments  and
+   # whitespace, it  should not  assemble with the  option.  Test  file (b)
+   # should  pass with the  option because  it does  not have  comments and
+   # extra whitespace.
+
+     run_dump_test cert0028a
+     gas_test_error "cert0028a.s" "-f" "Skip whitespace"     
+    
+     run_dump_test cert0028b
+
+
+
+   # The following  tests verify that  the -I DIR command-line  option adds
+   # DIR to the  search list for .include.  Test (a)  should pass, but test
+   # (b) specifies a nonexistant directory and should therefore generate an
+   # error.
+
+     run_dump_test cert0029a
+     run_stderr_test "-I /some/nonexistant/dir" "-I DIR negative test"\
+       "cert0029b.d" "cert0029b.s"    
+
+   # The following test verifies that  the assembler produces an error with
+   # the -itbl command-line option.  The PIC30 target does not support this
+   # option at this time.
+
+     gas_test_error "cert0030a.s" "-itbl ./gas/pic30/itbl"\
+       "-itbl Extend Instruction Set not supported by PIC30 target"
+
+   # The  following test  verifies that  the -L  and  --keep-locals options
+   # force the assembler to keep local symbols in the object file.
+
+     run_dump_test cert0033a
+
+   # The following test  verifies that the -MD option  correctly causes the
+   # assembler to output dependency information to a file.
+
+     run_depend_test "" "-MD Dependency Info" "cert0034a1.d"\
+        "cert0034a1.s ./gas/pic30/cert0034a2.s"
+
+   # These  tests  verify  that  the  -R  command-line  option  causes  the
+   # assembler to fold Data into Text.  The data section part of the object
+   # file is zero  bytes long because all of the  object bytes are appended
+   # to the text section.  The  test cert0036a checks that the data section
+   # is not folded into the text section by default.
+
+     run_dump_test cert0036a
+     run_dump_test cert0036b  
+
+   # This test verifies  that the --version option causes  the assembler to
+   # output its version information to stdout.
+
+     run_stdout_test "--version" "--version, Prints Assembler version"\
+       "cert0037.d" ""
+
+   # This test verifies  that the .abort directive causes  the assembler to
+   # stop and output an error to stderr.
+
+     run_stderr_test "" ".abort Abort Directive" "cert0039.d" "cert0039.s"
+
+   # This test  verifies that the  .file directive causes the  assembler to
+   # start a new logical file by checking the dependency file.
+
+     run_depend_test "" ".file directive" "cert0041.d" "cert0041.s"
+
+   # These tests test the .ascii and .asciz directives in both the data and
+   # text sections.
+      
+     run_dump_test cert0213 
+     run_dump_test cert0044          
+     run_dump_test cert0214 
+     run_dump_test cert0045
+
+   # These tests verify  that the assembler generates an  error message for
+   # the  .balign,  .balignw, and  .balignl  directives  because the  pic30
+   # target does not support them.
+
+     run_stderr_test "" ".balign unsupported directive" "cert0046a.d"\
+        "cert0046a.s"
+     run_stderr_test "" ".balignw unsupported directive" "cert0046b.d"\
+        "cert0046b.s"
+     run_stderr_test "" ".balignl unsupported directive" "cert0046c.d"\
+        "cert0046c.s"
+
+   # These test verify  that the assembler generates bytes  in the data and
+   # text  sections using  the .byte  directive.   We also  check that  the
+   # assembler warns about out-of-range parameters that it truncates.
+
+     run_dump_test cert0215a
+     run_stderr_test "" ".byte Out-of-range parameter" "cert0300a.d"\
+        "cert0300a.s"
+     run_dump_test cert0050a
+     run_stderr_test "" ".byte Out-of-range parameter" "cert0301a.d"\
+       "cert0301a.s"
+
+   # This tests verifies that the .comm directive declares a common symbol.
+   # For the length  parameter, we use typical values,  min/max values, and
+   # out-of-range  (negative)  values.  The  assembler  should generate  an
+   # error for each out-of-range value.
+
+     run_list_test cert0051a ""
+     run_list_test cert0052a ""
+     run_stderr_test "" ".comm Out-of-range parameter" "cert0053a.d"\
+        "cert0053a.s"
+
+   # This test tests a really large data section.
+
+     run_dump_test cert0056a
+
+   # These tests verify that the .double directive generates an IEEE double
+   # floating-point constant.   They test the data and  text sections using
+   # both min/max and out-of-range values.
+
+     run_dump_test cert0216a
+     
+     run_dump_test cert0058a
+     run_stderr_test "" ".double TEXT Out-of-range parameter"\
+        "cert0061a.d" "cert0061a.s"
+     run_stderr_test "" ".double DATA Out-of-range parameter"\
+        "cert0218a.d" "cert0218a.s"
+ 
+   # This test verifies  that the .eject directive causes  the assembler to
+   # output a form feed and page headers to the list file.
+
+     run_list_test cert0062a ""
+
+   # These tests verify that the .else directive works within an .if/.endif
+   # block.
+
+     run_list_test cert0063a "hl"
+     run_list_test cert0063b "hl"
+
+   # This tests verifies that the .end directive causes assembly to stop.
+
+     run_list_test cert0064a "l"
+
+   # These  tests verify  that  the .equ  directive  assigns a  value to  a
+   # symbol.  If  used with  a parameter greater  than a 32-bit  value, the
+   # assembler generates an error and stops compilation.
+
+     run_stderr_test "" ".equ redefine executable label" "cert0067a.d" "cert0067a.s"
+     run_stderr_test "" ".equ redefine executable label" "cert0068a.d" "cert0068a.s"
+     run_stderr_test "" ".equ Set out-of-range value for a symbol"\
+        "cert0069a.d" "cert0069a.s"
+
+   # These tests verify that the .equiv directive correctly assigns a value
+   # to a  previously undefined symbol.   The assembler should  generate an
+   # error  for the  cases where  the  symbol was  previously defined.   It
+   # should also  generate an error  if the value  is does not fit  into 32
+   # bits.
+
+     run_dump_test cert0070a
+     
+     run_stderr_test "" ".equiv Negative test" "cert0070b.d"\
+       "cert0070b.s"
+     run_dump_test cert0071a
+     run_stderr_test "" ".equiv Out-of-range parameter" "cert0072a.d"\
+       "cert0072a.s"
+
+   # This test verifies that the  assembler stops assembly and generates an
+   # assemble-time error when it encounters the .err Error directive.
+
+     run_stderr_test "" ".err Error directive" "cert0073a.d"\
+       "cert0073a.s"
+
+   # This test  verifies that the assembler ignores  the .extern directive.
+   # Other assemblers may use  this directive to declare externally defined
+   # symbols.
+
+     run_dump_test cert0074a
+
+   # These tests verify that the assembler .fill directive works correctly.
+   # They test typical, limit, and out-of-range values.
+
+     run_dump_test cert0230a 
+     run_dump_test cert0075a
+     run_dump_test cert0231a
+     run_dump_test cert0231b
+     run_dump_test cert0076a
+     run_dump_test cert0076b
+     run_stderr_test "" ".fill Negative repeat value" "cert0077a.d"\
+       "cert0077a.s"
+     run_stderr_test "" ".fill 33-bit Fill value" "cert0077b.d"\
+       "cert0077b.s"
+
+   # These tests verify that .fillupper  directive sets The Value To put in
+   # the upper  byte of program memory  when the assembler  skips this byte
+   # because  of a  fill or  an .align.   We also  test that  the assembler
+   # generates an error  when the directive is in  a non-code section.  The
+   # assembler also  generates an error when  the value parameter  is not a
+   # constant positive byte value.
+
+     run_dump_test cert0278a
+     run_dump_test cert0278b
+     run_dump_test cert0278c
+     run_stderr_test "" \
+       ".fillupper directive warning for non-code-section"\
+       "cert0278d.d" "cert0278d.s"
+     run_stderr_test "" \
+       ".fillupper directive warning for out-of-range parameter"\
+       "cert0279a.d" "cert0279a.s"
+
+   # These tests verify that the .fillvalue directive sets the value to put
+   # in  the user-addressable  PC locations  of program  memory  when these
+   # bytes are skipped because of a  fill or an .align.  We also check that
+   # the assembler  generates the appropriate  warnings when the  user uses
+   # the directive in  an invalid section or does not  pass a constant byte
+   # value for the value parameter.
+
+     run_dump_test cert0280a
+     run_dump_test cert0280b
+     run_dump_test cert0280c
+     setup_kfail "*-*-*" "SSR_27305"
+     run_dump_test cert0281a
+     run_stderr_test "" ".fillvalue directive in non-code section"\
+       "cert0281b.d" "cert0281b.s"
+     run_stderr_test "" \
+       ".fillvalue directive, warning for out-of-range value"\
+       "cert0281c.d" "cert0281c.s"
+
+     run_dump_test cert0281d
+
+}
+if (1) {
+      
+   # These tests verify that the  .float directive creates an IEEE standard
+   # floating  point constant  in  both  text and  data  space.  They  test
+   # typical, out-of-range,  and max/min values.   For out-of-range values,
+   # the assembler should generate an appropriate warning.
+
+     run_dump_test cert0219a
+     run_dump_test cert0078a
+     run_stderr_test "" ".float, out-of-range parameter, data"\
+       "cert0221a.d" "cert0221a.s"
+     run_stderr_test "" ".float, out-of-range parameter, text"\
+       "cert0080a.d" "cert0080a.s"
+   
+   # These  tests verify  that the  .global and  .globl  directives declare
+   # symbol  names that are  defined in  the current  module and  should be
+   # available to other modules.  The global directive can be either before
+   # or after the label definition.
+
+     run_dump_test cert0081a
+     run_list_test cert0081b "s"
+     # .global directive on undefined symbol
+     run_list_test cert0081c "s"
+
+   # These  tests  verify that  the  .hword  directive correctly  assembles
+   # 16-bit  numbers in  the data  section.   We test  typical, limit,  and
+   # out-of-range  values.   In  the   case  of  out-of-range  values,  the
+   # assembler should generate a  warning, truncate the value, and continue
+   # assembling.
+
+     run_dump_test cert0224a 
+     run_dump_test cert0225a
+     run_dump_test cert0226a
+     run_stderr_test "" ".hword, data, truncation warning"\
+       "cert0226b.d" "cert0226b.s"
+
+   # These  tests  verify that  the  .hword  directive correctly  assembles
+   # 16-bit  numbers in  the text  section.   We test  typical, limit,  and
+   # out-of-range  values.   In  the   case  of  out-of-range  values,  the
+   # assembler should generate a  warning, truncate the value, and continue
+   # assembling.
+
+     run_dump_test cert0082a
+     run_dump_test cert0222a
+
+     run_dump_test cert0223a
+
+     run_stderr_test "" ".hword, text, truncation warning"\
+       "cert0223b.d" "cert0223b.s"
+
+     # The following tests verify conditional assembly.  This test verifies
+     # the functionality of the .if directive.
+
+     run_list_test cert0083a ""
+
+     # This test verifies the functionalilty of the .ifdef directive.
+
+     run_list_test cert0084a ""
+
+     # This test verifies the functionality of the .ifnotdef directive.
+
+     run_list_test cert0086a "l"
+
+   # This test  verifies that the .include  directive successfully includes
+   # supporting files in the assembly.
+
+     run_list_test cert0087a "l"
+
+   # This test verifies that the .int directive correctly assembles numbers
+   # that evaluate  at runtime.  This test  uses the .int  directive on the
+   # data section.
+
+     run_list_test cert0088a "l"
+
+   # This test verifies that the .int directive correctly assembles numbers
+   # that evaluate  at runtime.  This test  uses the .int  directive on the
+   # text section.
+
+     run_list_test cert0302a "l"
+
+   # This test verifies the .int directive on the data section with max/min
+   # limit parameters.
+
+     run_list_test cert0089a "l"
+
+   # This test verifies the .int directive on the text section with max/min
+   # limit parameters.
+
+     run_list_test cert0303a "l"
+
+   # This test  verifies that  the .int directive  generates a  warning for
+   # out-of-range parameters.   The list  test truncates the  parameter and
+   # the stderr test verifies that the assembler generates a warning.  This
+   # test assembles on the data section.
+
+     run_list_test cert0090a "l"
+     run_stderr_test "" ".int, data, truncation warning"\
+       "cert0090b.d" "cert0090b.s"
+
+   # This test  verifies that  the .int directive  generates a  warning for
+   # out-of-range parameters.   The list  test truncates the  parameter and
+   # the stderr test verifies that the assembler generates a warning.  This
+   # test assembles on the text section.
+
+     run_list_test cert0304a "l"
+     run_stderr_test "" ".int, text, truncation warning"\
+       "cert0304b.d" "cert0304b.s"
+
+   # These  tests verify  the .irp  and .irpc  directives.   The directives
+   # should evaluate statements assigning  different values to symbol.  For
+   # each value, symbol is set to  value, and the sequence of statements is
+   # assembled.  On initial testing, I see that the assembler lists up to 5
+   # values in the assembly listing but uses all values in the object dump.
+
+     run_dump_test cert0091a
+ 
+     run_dump_test cert0093a
+
+   # These  tests verify  that the  .lcomm directive  reserves bytes  for a
+   # local common.
+
+     run_list_test cert0094a "s"
+     run_list_test cert0095a "s"
+     run_stderr_test "" ".lcomm, out-of-range parameter"\
+       "cert0096a.d" "cert0096a.s"
+
+   # These tests verify that  assembler recognizes the .line directive, and
+   # treats '.line'  as if it were  the COFF '.ln'.  For  cert0099a, we may
+   # want to consider adding a  warning when the .line parameter is greater
+   # than the maximum allowed value.
+
+     run_stderr_test "" ".lcomm, out-of-range parameter"\
+       "cert0096a.d" "cert0096a.s"
+
+   # These tests verify that  assembler recognizes the .line directive, and
+   # treats '.line'  as if it were  the COFF '.ln'.  For  cert0099a, we may
+   # want to consider adding a  warning when the .line parameter is greater
+   # than the maximum allowed value.
+
+     run_dump_test cert0097a  
+     run_dump_test cert0098a
+     run_dump_test cert0099a
+
+   # This  test verifies that  the .list  directive increments  the listing
+   # counter.  When the listing counter is greater than zero, the assembler
+   # generates  assembly listings.   We use  this directive  in conjunction
+   # with the .nolist directive.
+
+     run_list_test cert0101a "l"
+
+   # These  tests verify  the .long  directive in  both the  data  and text
+   # sections.   We  use general-functionality  values,  limit values,  and
+   # out-of-range  values.  Currently  the  assembler does  not generate  a
+   # warning for out-of-range  values, but I entered SSR  #15738 to request
+   # that we add a warning.
+
+     run_list_test cert0227a "l"
+     run_list_test cert0102a "l"
+     run_list_test cert0103a "l"
+     run_list_test cert0228a "l"
+     setup_kfail "*-*-*" "SSR_22027"
+     run_stderr_test "" ".long, out-of-range parameter, data"\
+       "cert0229a.d" "cert0229a.s"
+
+     setup_kfail "*-*-*" "SSR_22027"
+     run_stderr_test "" ".long, out-of-range parameter, text"\
+       "cert0104a.d" "cert0104a.s"
+
+   # The .macro  and .endm directives  define a macro.  These  tests verify
+   # general functionality.
+
+     run_list_test cert0105a "lm"
+     run_list_test cert0106a "l"
+
+   # This  test  verifies  that  the  assembler generates  a  warning  that
+   # indicates  that we do  not support  the .octa  directive in  the PIC30
+   # target.
+
+     run_stderr_test "" ".octa directive not supported" "cert0107a.d"\
+       "cert0107a.s"
+
+   # These  tests verify  that  the .org  directive  advances the  location
+   # counter as  specified.  We  test the .org  directive in both  data and
+   # text  sections with general-functionality  values for  new-lc, max/min
+   # values, and out-of-range values.
+
+     run_dump_test cert0305a
+     run_dump_test cert0110a
+     run_dump_test cert0112a
+     run_dump_test cert0306a
+       
+   # Test to verify the .porg directive.Advance the location counter of the
+   # current  section to  new-lc. The  bytes between  the  current location
+   # counter and the new location  counter are filled with fill.  new-lc is
+   # an absolute  expression.  You cannot .porg backwards.   You cannot use
+   # .porg to cross sections.  The  new location counter is relative to the
+   # current  module and  is not  an absolute  address.  This  directive is
+   # allowed in only a code section. If not in a code section, a warning is
+   # generated and the  rest of the line is ignored.   fill is optional. If
+   # not  specified, it  defaults to  the last  .pfillvalue  specified. All
+   # three bytes of each program word are filled.
+
+     run_dump_test cert0307a
+
+     run_stderr_test "" \
+       ".porg directive, warning in data section"\
+       "cert0307b.d" "cert0307b.s"
+
+     run_stderr_test "" \
+       ".porg directive, error on odd new-lc"\
+       "cert0307c.d" "cert0307c.s"
+
+   # This test verifies  that the assembler generates an  error message for
+   # the .p2align directive because we do not support this directive in the
+   # pic30 target.
+
+     run_stderr_test "" ".p2align, Directive not supported" \
+       "cert0115a.d" "cert0115a.s"
+
+   # These  tests verify that  the assembler  handles the  .psize directive
+   # properly.  When we  use multiple .psize directives in  the source, the
+   # final  .psize directive overrides  previous directives.   For multiple
+   # .psize directives, the assembler generates a warning to the user.
+
+     run_list_test cert0118a "hls"
+     run_list_test cert0118b "hls"
+     run_list_test cert0119a "hls"
+     run_list_test cert0119b "hls"
+     run_stderr_test "-a=temp.lst" "Multiple .psize directive warning"\
+       "cert0118c.d" "cert0118c.s"
+
+   # This test verifies that the assembler generates an error for the .quad
+   # directive because this directive is not supported by the pic30 target.
+
+     run_stderr_test "" ".quad, Directive not supported" \
+       "cert0120a.d" "cert0120a.s"
+
+   # This test  verifies that the  .rept directive causes the  assembler to
+   # repeat the specified sequence of lines the specified number of times.
+
+     run_dump_test cert0123a
+
+   # This test  verifies that the  .rept directive causes the  assembler to
+   # repeat the specified  sequence of lines the specified  number of times
+   # even with the max/min limits for the .rept parameter.
+
+     run_dump_test cert0124a
+     run_dump_test cert0124b
+
+   # This test  verifies that the  .sbttl directive specifies  the subtitle
+   # for the assembly listing file.
+
+     run_list_test cert0125a "hls"
+
+   # This test verifies that the .section directive causes the assembler to
+   # assemble the  following code into  a specified section.  We  also test
+   # the various  flags and optional subsection  parameter values available
+   # for this directive.
+
+     run_stderr_test "" ".section directive, code in no load section" \
+       "cert0283a.d" "cert0283a.s"
+     run_dump_test cert0283b
+     run_dump_test cert0283c
+   
+   # This test verifies that the .section directive causes the assembler to
+   # assemble code in a specified section.
+
+     run_dump_test cert0127a
+
+   # This test verifies that the assembler generates an error when we use a
+   # non-existant parameter for the optional parameters.
+ 
+     run_stderr_test "" ".section directive, out-of-range parameters" \
+       "cert0284a.d" "cert0284a.s"
+     run_stderr_test "" ".section directive, out-of-range address" \
+       "cert0284b.d" "cert0284b.s"
+
+   # This test verifies that the assembler sets the value of a symbol to an
+   # expression when we use the .set directive.
+
+     run_dump_test cert0128a
+ 
+   # This test verifies that the assembler sets the value of a symbol to an
+   # expression when we use the  .set directive with max/min limits for the
+   # expression.
+
+     run_dump_test cert0129a
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to use the .set directive with an out-of-range expression.
+
+     run_stderr_test "" ".set directive, out-of-range expression" \
+       "cert0129b.d" "cert0129b.s"
+
+   # This test verifies the  general functionality of the .short directive.
+   # The .short  directive should cause  the assembler to assemble  a short
+   # number in the .data and/or .text sections.
+
+     run_dump_test cert0130a
+
+   # This test verifies that the .short directive works with limit parms in
+   # both the text and data sections.
+
+     run_dump_test cert0131a
+
+   # These tests verify  that the assembler generates an  error when we use
+   # the .short directive with out-of-range parameters (larger than 2 bytes
+   # wide.)
+
+     run_stderr_test "" ".short directive, out-of-range expression, max+1" \
+       "cert0132a.d" "cert0132a.s"
+     run_stderr_test "" ".short directive, out-of-range expression, min-1" \
+       "cert0132b.d" "cert0132b.s"
+
+   # This tests verifies that the .single directive causes the assembler to
+   # assemble a IEEE-754 standard single-precision floating-point number in
+   # both the  .data and  .text sections.  Certification  test #288  is now
+   # included with cert133.
+
+     run_dump_test cert0133a
+
+   # This test verifies that the  .single directive works for limit values.
+   # Because #134 includes #289, we no longer require test 289.
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to  use  the  .single  directive  when with  numbers  that  cannot  be
+   # represented in the single-precision floating-point standard.
+
+     run_stderr_test "" ".single directive, overflow error, .data sect."\
+       "cert0135a.d" "cert0135a.s"
+     run_stderr_test "" ".single directive, underflow error, .data sect."\
+       "cert0135b.d" "cert0135b.s"
+
+   # This test verifies  that the assembler generates an  error when we use
+   # the .single  directive with numbers that cannot  be represented within
+   # the single-precision floating-point standard.
+
+     run_stderr_test "" ".single directive, overflow error, .text sect."\
+       "cert0290a.d" "cert0290a.s"
+     run_stderr_test "" ".single directive, underflow error, .text sect."\
+       "cert0290b.d" "cert0290b.s"
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to  use  the  .single  directive  when with  numbers  that  cannot  be
+   # represented in the single-precision floating-point standard.
+
+     run_stderr_test "" ".single directive, overflow error, .data sect."\
+       "cert0135a.d" "cert0135a.s"
+     run_stderr_test "" ".single directive, underflow error, .data sect."\
+       "cert0135b.d" "cert0135b.s"
+
+   # This test verifies  that the assembler generates an  error when we use
+   # the .single  directive with numbers that cannot  be represented within
+   # the single-precision floating-point standard.
+
+     run_stderr_test "" ".single directive, overflow error, .text sect."\
+       "cert0290a.d" "cert0290a.s"
+     run_stderr_test "" ".single directive, underflow error, .text sect."\
+       "cert0290b.d" "cert0290b.s"
+
+   # This test verifies  that the assembler generates COFF  debug info when
+   # we use the .size directive within the .def/.endef pair.
+
+     run_dump_test cert0136a
+
+   # This test verifies the general functionality of the .skip directive in
+   # the .data section.
+
+     run_dump_test cert0137a
+
+   # This test verifies the general functionality of the .skip directive in
+   # the .text section.
+
+     run_dump_test cert0291a
+
+   # This test  verifies that  the .skip directive  works with  the max/min
+   # limits in the .data section.   Because of memory constraints, we limit
+   # the max to 0xFFFF.
+
+     run_dump_test cert0138a
+
+   # This test  verifies that  the .skip directive  works with  the max/min
+   # limits in the .text section.   Because of memory constraints, we limit
+   # the max to 0xFFFF.
+
+     run_dump_test cert0292a
+
+   # This test verifies that the .sleb128 directive causes the assembler to
+   # include compact variable length  representation of numbers used by the
+   # DWARF symbolic debugging format.
+
+     run_dump_test cert0139a
+
+   # This test verifies  that the .stabd directive causes  the assembler to
+   # generate  a symbol  for  use by  symbolic  debuggers.  This  directive
+   # generates a  symbol with a null  pointer for a  "name".  The assembler
+   # should set  the symbol's value to  the value of  the location counter,
+   # relocatably.
+
+     setup_kfail "pic30-*-*" "SSR_22173"
+     run_dump_test cert0140a
+
+   # This test verifies  that the .stabn directive causes  the assembler to
+   # generate a symbol for use  by symbolic debuggers.  This directive sets
+   # the name of the symbol to the empty string.
+
+     setup_kfail "pic30-*-*" "SSR_22173"
+     run_dump_test cert0140b
+
+   # This test verifies  that the .stabn directive causes  the assembler to
+   # generate a symbol for use  by symbolic debuggers.  This directive sets
+   # the name of the symbol to a user specified string.
+
+     setup_kfail "pic30-*-*" "SSR_22173"
+     run_dump_test cert0140c
+
+
+   # This test verifies that the  .string directive causes the assembler to
+   # copy a  string of characters to the  object file in both  the data and
+   # text sections.  This test encompasses certification tests 141 and 293.
+
+     run_dump_test cert0141a
+
+
+   # This test verifies that the .title directive sets the heading as title
+   # in the list file.
+
+     run_list_test cert0144a "hls"
+
+
+   # This  test verifies  that the  .type directive  records  the specified
+   # integer  value as the  type for  the debug  symbol defined  within the
+   # .def/.endef pair.
+
+     run_dump_test cert0145a
+
+   # This  test verifies  that the  .type directive  records  the specified
+   # integer value as the type for  the debug symbol.  In this test, we use
+   # the 16-bit maximum allowed for this value.
+
+     run_dump_test cert0146a
+
+   # This test verifies that the .val directive within the .def/.endef pair
+   # defines the address as the val of a symbol table entry.
+
+     run_dump_test cert0149a
+
+   # This  test verifies  that the  .val directive  works with  the maximum
+   # value allowed for its parameter.
+
+     run_dump_test cert0150a
+
+   # This test  verifies that the  .word directive causes the  assembler to
+   # assemble word numbers on the .data section.
+
+     run_dump_test cert0151a
+
+   # This test  verifies that the  .word directive causes the  assembler to
+   # assemble limit word numbers on the .data section.
+
+     run_dump_test cert0152a
+
+   # This test  verifies that the  .word directive causes the  assembler to
+   # assemble limit word numbers on the .text section.
+
+     run_dump_test cert0297a
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to use the  .word directive in the .data  section with an out-of-range
+   # parameter.
+
+     run_stderr_test "" ".word directive on .data, out-of-range value" \
+       "cert0153a.d" "cert0153a.s"
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to use the  .word directive in the .data  section with an out-of-range
+   # parameter.
+
+     run_stderr_test "" ".word directive on .text, out-of-range value" \
+       "cert0298a.d" "cert0298a.s"
+
+   # This test  verifies that the  .ident directive creates a  new .comment
+   # section.
+
+     run_dump_test cert0159a
+
+   # This test  verifies that the  .loc directive changes the  logical line
+   # number.
+
+     run_dump_test cert0162a
+
+   # This test verifies that the assembler ignores the .optim directive.
+
+     run_dump_test cert0164a
+
+   # This test verifies that the .weak  directive marks a symbol as weak in
+   # the COFF format.
+
+     run_dump_test cert0180a
+
+   # This test verifies that the assembler parses constants correctly.
+
+     run_dump_test cert0181a
+
+   # This  test verifies  that  the assembler  parses constants  correctly.
+   # Max/min limits
+
+     run_dump_test cert0182a
+
+   # These tests verify  that the assembler generates an  error when we try
+   # to use an invalid constant.
+
+     run_stderr_test "" "Constant Parsing (errors in constants)" \
+       "cert0183a.d" "cert0183a.s"
+     run_stderr_test "" "Constant Parsing (out-of-range constant)" \
+       "cert0183b.d" "cert0183b.s"
+
+   # This test verifies that the assembler recognizes labels correctly.  We
+   # test various lengths and acceptable characters.
+
+     run_dump_test cert0184a
+
+   # This test  verifies that the assembler generates  labels correctly for
+   # max/min lengths.
+
+     run_dump_test cert0185a
+
+   # This test verifies  that the assembler generates an  error when we use
+   # an illegal character in a label.
+
+     run_stderr_test "" "Invalid characters in labels" "cert0186a.d" \
+       "cert0186a.s"
+
+   # This  test  verifies  that   the  assembler  accepts  legal  usage  of
+   # operators.
+
+     run_dump_test cert0187a
+
+   # This test verifies that the  assembler accepts 32-bit operands for its
+   # math operators.
+
+     run_dump_test cert0188a
+
+   # This test verifies  that the assembler generates an  error when we try
+   # to use a greater than 32-bit wide operand with an operator.
+
+     run_stderr_test "" "Out-of-range operands for operators" \
+       "cert0189a.d" "cert0189a.s"
+
+   # This test  verifies that the  assembler computes math  operations with
+   # proper operator precedence.
+
+     run_dump_test cert0190a
+
+   # This  test verifies  that the  assembler  generates an  error when  we
+   # attempt  to  call  the  assembler with  an  unrecognized  command-line
+   # option.
+
+     run_stderr_test "--someinvalidopt" \
+       "Invalid command-line option error" "cert0195a.d" \
+       "cert0195a.s"
+
+   # This test  verifies that  the assembler generates  all of  the section
+   # types.
+
+     run_dump_test cert0205a
+
+   # This test verifies that the assembler generates a symbol table.
+
+     run_dump_test cert0206a
+
+   # These  tests verify  that the  .align directive  works correctly  in a
+   # section with the psv attribute.
+
+     run_list_test cert0400 "l"
+     run_list_test cert0401 "l"
+     run_list_test cert0401a "l"
+     run_stderr_test "" ".fillvalue not specified in code section" \
+       "cert0401b.d" "cert0401.s"
+     run_stderr_test "" ".align with out-of-range value for algn"\
+       "cert0402.d" "cert0402.s"
+
+   # This  test verifies  that the  .ascii directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0410 "l"
+
+   # This  test verifies  that the  .asciz directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0411 "l"
+
+   # This  test verifies  that the  .byte  directive works  correctly in  a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0420 "l"
+
+   # This test  verifies that  the .double directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0430 "l"
+
+   # This  test verifies  that the  .fill  directive works  correctly in  a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0440 "l"
+
+   # This test verifies that  the .fillupper directive causes the assembler
+   # to  emit a  warning when  the directive  is used  in a  "r"  or .const
+   # section.
+     run_stderr_test "" ".fillupper in .const or \"r\" section"\
+       "cert0450.d" "cert0450.s"
+
+   # This  test verifies  that the  .float directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+     run_list_test cert0460 "l"
+
+   # This  test verifies  that the  .hword directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0470 "l"
+
+   # This  test verifies  that  the  .int directive  works  correctly in  a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0480 "l"
+
+   # This  test verifies  that the  .long  directive works  correctly in  a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0490 "l"
+
+   # This  test verifies  that  the  .org directive  works  correctly in  a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0500 "l"
+
+   # This  test verifies  that  the  paddr operator  works  correctly in  a
+   # section with the "r" attribute and a .const section.
+
+     run_dump_test cert0510
+
+   # This test verifies that the  .palign directive causes the assembler to
+   # emit a warning when used in a read-only section.
+
+     run_stderr_test "" ".palign directive in read-only section" \
+         "cert0520.d" "cert0520.s"
+     run_list_test cert0521 "l"
+
+   # This test verifies that the .pbss section name causes the assembler to
+   # emit a section named .pbss.
+
+     run_dump_test cert0530
+
+   # This test  verifies that the assembler  emits an error when  we try to
+   # use the .pfill directive in a read-only or .const, "r" section.
+
+     run_stderr_test "" \
+         ".pfill not allowed in read-only or .const section" \
+         "cert0540.d" "cert0540.s"
+
+
+   # This  test verifies  that  the  .pfill directive  in  a executable  or
+   # .const, "x" section correctly fills the section.
+
+     run_list_test cert0541 "l"
+
+   # This test verifies that the .pskip directive in a read-only or .const,
+   # "r" section correctly causes the assembler to emit a warning.
+
+     run_stderr_test "" ".pskip not allowed in read-only section" \
+         "cert0550.d" "cert0550.s"
+
+   # This  test verifies  that  the  .pspace directive  in  a read-only  or
+   # .const, "r" section correctly causes the assembler to emit a warning.
+
+     run_stderr_test "" ".pspace not allowed in read-only section" \
+         "cert0560.d" "cert0560.s"
+
+   # This test  verifies that  the .single directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0570 "l"
+
+   # This  test verifies  that the  .skip  directive works  correctly in  a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0580 "l"
+
+   # This  test verifies  that the  .space directive  works correctly  in a
+   # section with the "r" attribute and a .const section.
+
+     run_list_test cert0590 "l"
+
+   # This  test verifies that  the assembler  updates the  location counter
+   # correctly  when  switching  back  and  forth  between  code  and  data
+   # sections.
+
+     run_list_test cert0600 "l"
+
+   # This  test verifies  that pic30-objdump  displays the  disassembly and
+   # full contents correctly with program-counter addressing.
+
+     run_dump_test cert0610
+     run_dump_test cert0620
+    
+   # This test verifies that the assembler  emits a warning when we use the
+   # SFTACK instruction with a shift value of -16 or 16.
+
+     run_stderr_test "--warn" \
+         "Error for SFTAC instr with shift count -16 or 16" \
+         "cert0630.d" "cert0630.s"
+
+   # This  test verifies  that we  can  use the  LNK intruction  on a  code
+   # symbol.
+
+     run_dump_test cert0640
+
+   # These tests  verify that the PIC30 special  operators behave correctly
+   # in a readonly section.
+
+   # tblpage(name)     Get page for table read/write operations
+   # tbloffset(name)   Get pointer for table read/write operations
+   # psvpage(name)     Get page for PSV data window operations
+   # psvoffset(name)   Get pointer for PSV data window operations
+   # paddr(label)      Get 24-bit address of label in program memory
+   # handle(label)     Get 16-bit reference to label in program memory
+   # .sizeof.(name)    Get size of section name in address units
+   # .startof.(name)   Get starting address of section name
+
+     run_dump_test cert0650
+     run_stderr_test "--warn" \
+         "Error when using executable or readonly special operators on data labels" \
+         "cert0651.d" "cert0651.s"
+
+   # These test  verify that the  assembler handles the .pbss  section with
+   # other section flags.
+
+     # .section .pbss, "b"
+     run_dump_test cert0660
+
+     # .section .pbss,noload,persist
+     run_dump_test cert0661
+
+     # .section test,bss,data,psv,code
+     run_stderr_test "--warn" \
+         "Expected error for the x and r section flags used together" \
+         "cert0665.d" "cert0665.s"
+
+     # .section .pbss (default flags)
+     run_dump_test cert0666
+
+   # These test verify that  the assembler adds file dependency information
+   # to the generated COFF file.
+
+     run_dump_test cert0670
+
+   # These tests verify that the .incbin directive adds a file verbatim at
+   # the current location.
+
+     run_dump_test cert0700    
+     run_dump_test cert0701
+     run_dump_test cert0702
+     run_dump_test cert0703
+     run_list_test cert0704 "l"
+     run_list_test cert0705 "l"
+     run_dump_test cert0706
+     run_dump_test cert0707
+
+   # These tests verify that the .pincbin directive adds a file verbatim at
+   # the current location.
+
+     run_stderr_test "" \
+         ".pincbin directive in .data section" \
+         "cert0710.d" "cert0710.s"
+     run_stderr_test "" \
+         ".pincbin directive in .data section" \
+         "cert0711.d" "cert0711.s"
+     run_dump_test cert0712
+     run_dump_test cert0713
+     run_stderr_test "" \
+         ".pincbin directive in .bss section" \
+         "cert0714.d" "cert0714.s"
+     run_stderr_test "" \
+         ".pincbin directive in unaligned .bss section" \
+         "cert0715.d" "cert0715.s"
+     run_stderr_test "" \
+         ".pincbin directive in .eedata section" \
+         "cert0716.d" "cert0716.s"
+     run_stderr_test "" \
+         ".pincbin directive in unaligned .eedata section" \
+         "cert0717.d" "cert0717.s"
+
+   # These tests verify that the .incbin directive with skip and count operands
+   # adds a file verbatim at the current location.
+
+     run_dump_test cert0720
+     run_stderr_test "" \
+         ".incbin directive in .data with min skip and min count" \
+         "cert0721.d" "cert0721.s"
+     run_dump_test cert0722
+     run_stderr_test "" \
+         ".incbin directive in .data with skip > filesize" \
+         "cert0723.d" "cert0723.s"
+     run_stderr_test "" \
+         ".incbin directive in .data with count > filesize" \
+         "cert0724.d" "cert0724.s"
+     run_stderr_test "" \
+         ".incbin directive in .data with skip < 0" \
+         "cert0725.d" "cert0725.s"
+     run_stderr_test "" \
+         ".incbin directive in .data with count < 0" \
+         "cert0726.d" "cert0726.s"
+
+   # These tests verify that the .pincbin directive with skip and count operands
+   # adds a file verbatim at the current location.
+
+     run_dump_test cert0727
+     run_stderr_test "" \
+         ".pincbin directive in .text with min skip and min count" \
+         "cert0728.d" "cert0728.s"
+     run_dump_test cert0729
+     run_stderr_test "" \
+         ".pincbin directive in .text with skip > filesize" \
+         "cert0730.d" "cert0730.s"
+     run_stderr_test "" \
+         ".pincbin directive in .text with count > filesize" \
+         "cert0731.d" "cert0731.s"
+     run_stderr_test "" \
+         ".pincbin directive in .text with skip < 0" \
+         "cert0732.d" "cert0732.s"
+     run_stderr_test "" \
+         ".pincbin directive in .text with count < 0" \
+         "cert0733.d" "cert0733.s"
+}
+
+
+
+if (1) {
+
+     verbose "\n\nBeginning SSR Fix-Verification tests for PIC30 target..." 0
+
+   # This test  verifies the assembler supports the  extended mnemonics for
+   # the  bit  instructions.  The  assembler  should  now support  extended
+   # mnemonics for the file-register bit-manipulation instructions.
+
+   #
+   # Example:
+   #    BCLR.w sfr, #bit4
+   #  and the assembler will translate this instruction to:
+   #    BCLR.B sfr, #bit4 ; bit4<= 7
+   #    BCLR.B sfr+1,#bit4-8 ; bit4 >= 8
+
+    run_list_test ssr_17467 "l"
+
+   # These tests verify that the assembler merges changed section attributes
+   # and validates the resulting combination.
+    run_dump_test ssr26616-1
+    run_stderr_test "" \
+        "Assembler merges changed section attributes and validates combination" \
+        "ssr26616-2.d" "ssr26616-2.s"
+
+   # This test verifies that .align 4 works on an even address.
+     run_list_test ssr26725-1 "l"
+
+     run_list_test ssr25958-1 "l"
+     run_stderr_test "" ".align in abs section with align value > section alignment" \
+        "ssr25958-2.d" "ssr25958-2.s"
+        
+     run_dump_test ssr27154-1
+     run_dump_test ssr27154-2
+
+   # Test the new .ifdecl and .ifndecl directives.
+     run_list_test ssr27007-1 "l"
+ 
+     run_dump_test cert0071a
+     
+     run_dump_test ssr27678-1     
+}
+
+################################################################################
+################   Instruction-Encoding Test Cases   ###########################
+################################################################################
+
+
+if (1) {
+     # This test tests all the possible encoding for all instructions.
+
+     verbose "\n\nBeginning FULL ISA Encoding test..." 0
+     run_isa_encoding false $srcdir $subdir $AS $OBJDUMP
+}
+
+}

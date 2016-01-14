@@ -1,0 +1,8 @@
+t1.o(.text+0x0): In function `__reset':
+: Link Error: relocation truncated to fit: SIGNED 10 (byte) symB2
+t1.o(.text+0x2): In function `__reset':
+: Link Error: relocation truncated to fit: SIGNED 10 (byte) symB3
+t2.o(.text+0x0): In function `__t2':
+: Link Error: relocation truncated to fit: SIGNED 10 (byte) symA2
+t2.o(.text+0x2): In function `__t2':
+: Link Error: relocation truncated to fit: SIGNED 10 (byte) symA3

@@ -1,0 +1,31 @@
+
+t.exe:     file format coff-pic30
+
+Disassembly of section .text:
+
+00000100 <__reset>:
+ 100:	00 00 00    	nop       
+
+00000102 <part1>:
+ 102:	40 00 c8    	sftac     A, #0x0
+ 104:	42 00 c8    	sftac     A, #0x2
+ 106:	44 00 c8    	sftac     A, #0x4
+ 108:	46 00 c8    	sftac     A, #0x6
+ 10a:	48 00 c8    	sftac     A, #0x8
+ 10c:	40 80 c8    	sftac     B, #0x0
+ 10e:	7e 80 c8    	sftac     B, #0x3e
+ 110:	7c 80 c8    	sftac     B, #0x3c
+ 112:	7a 80 c8    	sftac     B, #0x3a
+ 114:	78 80 c8    	sftac     B, #0x38
+
+00000116 <part2>:
+ 116:	40 00 c8    	sftac     A, #0x0
+ 118:	42 00 c8    	sftac     A, #0x2
+ 11a:	44 00 c8    	sftac     A, #0x4
+ 11c:	46 00 c8    	sftac     A, #0x6
+ 11e:	48 00 c8    	sftac     A, #0x8
+ 120:	40 80 c8    	sftac     B, #0x0
+ 122:	7e 80 c8    	sftac     B, #0x3e
+ 124:	7c 80 c8    	sftac     B, #0x3c
+ 126:	7a 80 c8    	sftac     B, #0x3a
+ 128:	78 80 c8    	sftac     B, #0x38

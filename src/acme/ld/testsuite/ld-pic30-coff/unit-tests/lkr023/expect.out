@@ -1,0 +1,2 @@
+Error: PSV section 'foo' exceeds 32K bytes (actual size = 32770).
+Error: Could not allocate program memory

@@ -1,0 +1,16 @@
+>>Declaring CONFIG words in assembly language:
+
+t.exe:     file format coff-pic30
+
+Contents of section .reset:
+Contents of section __FOSC:
+ f80000 341200                       4..         
+Contents of section __FWDT:
+ f80002 341200                       4..         
+Contents of section __FBORPOR:
+ f80004 563412                       V4.         
+Contents of section .ivt:
+Contents of section .aivt:
+Contents of section .text:
+Contents of section .dinit:
+Contents of section .isr:
