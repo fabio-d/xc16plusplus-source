@@ -1,6 +1,0 @@
-
-excerpt from pic30-objdump (-h option):
-
-  5 .ybss         00000002  0000fffe  0000fffe  00000000  2**1
-                  ALLOC, YMEMORY
-

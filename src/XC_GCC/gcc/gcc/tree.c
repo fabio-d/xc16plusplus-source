@@ -5491,6 +5491,10 @@ build_qualified_type (tree type, int type_quals)
     {
       t = build_variant_type_copy (type);
       set_type_quals (t, type_quals);
+#ifdef _BUILD_C30_
+      /* new targetm ? */
+      pic30_notice_type_qualifier(t);
+#endif
 
       if (TYPE_STRUCTURAL_EQUALITY_P (type))
 	/* Propagate structural equality. */

@@ -1,2 +1,0 @@
-	.text
-	btg	xsfr,#xxx

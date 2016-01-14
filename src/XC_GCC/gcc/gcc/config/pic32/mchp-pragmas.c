@@ -62,6 +62,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "bitmap.h"
 #include "diagnostic.h"
 
+#ifndef _BUILD_MCHP_
+#define _BUILD_MCHP_
+#endif
+#ifndef _BUILD_C32_
+#define _BUILD_C32_
+#endif
+
 #include <stdio.h>
 #include "cpplib.h"
 #include "mchp-pragmas.h"
@@ -76,9 +83,14 @@ void *alloca(size_t);
 #include <alloca.h>
 #endif
 
-#define CLEAR_REST_OF_INPUT_LINE() do{int t;tree tv;do{t=pragma_lex(&tv);}while(t!=CPP_EOF);}while(0);
+#include "config/mchp-cci/cci.c"  /* ack */
 
-#if 1 /* TODO */
+#ifndef CLEAR_REST_OF_INPUT_LINE
+#define CLEAR_REST_OF_INPUT_LINE() do{int t;tree tv;do{t=pragma_lex(&tv);}while(t!=CPP_EOF);}while(0);
+#endif
+
+#if 0 
+/* Moved to cci.c */
 
 /* handler function for the config pragma */
 void
@@ -140,7 +152,7 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
     {
       const cpp_token *raw_token;
       const char *setting_name;
-      const char *value_name;
+      unsigned char *value_name;
 
       /* the current token should be the setting name */
       if (tok != CPP_NAME)
@@ -160,28 +172,21 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
       /* now we have the value name. We don't use pragma_lex() to get this one
          since we don't want the additional interpretation going on there.
          i.e., converting integers from the string. */
-      raw_token = cpp_get_token (pfile);
-
-      if (raw_token->type == CPP_NAME)
+      tok = pragma_lex (&tok_value);
+      if (tok == CPP_NAME)
+        value_name = IDENTIFIER_POINTER (tok_value);
+      else if (tok == CPP_NUMBER)
         {
-        /*
-          value_name = IDENTIFIER_POINTER (
-                         HT_IDENT_TO_GCC_IDENT (
-                         HT_NODE (raw_token->val.node)));
-           space?              */
-          value_name = cpp_token_as_text (pfile, raw_token);
-
+          if (host_integerp (tok_value, 1 /* positive only */ ))
+          {
+            #define MAX_VALUE_NAME_LENGTH 22
+            HOST_WIDE_INT i;
+            i = tree_low_cst (tok_value, 1 /* positive only */ );
+            value_name = (unsigned char*)xcalloc(MAX_VALUE_NAME_LENGTH,1);
+            snprintf(value_name, MAX_VALUE_NAME_LENGTH, "%d", i);
+            #undef MAX_VALUE_NAME_LENGTH
+          }
         }
-      else if (raw_token->type == CPP_NUMBER)
-        {
-          value_name = (char*)raw_token->val.str.text;
-        }
-      else
-        {
-          error ("configuration value name expected in configuration pragma");
-          break;
-        }
-
       mchp_handle_configuration_setting (setting_name, value_name);
 
       /* if the next token is ',' then we have another setting. */
@@ -203,6 +208,69 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
      clear the rest of the data on the line. */
   if (tok != CPP_EOF)
     CLEAR_REST_OF_INPUT_LINE();
+}
+
+#endif
+
+
+
+/* parse the vector pragma */
+void
+mchp_handle_vector_pragma (struct cpp_reader *pfile ATTRIBUTE_UNUSED)
+{
+  int tok;
+  tree tok_value;
+  const char *fname;
+
+  /* syntax:
+     vector-pragma: # pragma vector target-name irq-num [ , irq-num ]...
+   */
+
+  /* Recognize the syntax. */
+  /* First we have the name of the function which is an interrupt handler */
+  tok = pragma_lex (&tok_value);
+  if (tok != CPP_NAME)
+    {
+      error ("function name not found in vector #pragma");
+      return;
+    }
+  fname = IDENTIFIER_POINTER (tok_value);
+  gcc_assert (fname);
+
+  /* The first address is mandatory since we have a vector clause */
+  tok = pragma_lex (&tok_value);
+  if (tok != CPP_NUMBER ||
+      ((int)TREE_INT_CST_LOW (tok_value) < 0 ||
+       (int)TREE_INT_CST_LOW (tok_value) > 63))
+    {
+      error ("IRQ number must be an integer between 0 and 63");
+      return;
+    }
+  /* add the vector to the list of dispatch functions to emit */
+  mchp_add_vector_dispatch_entry (fname, (int)TREE_INT_CST_LOW (tok_value));
+
+  /* There are optionally more addresses, comma separated */
+  tok = pragma_lex (&tok_value);
+  while (tok == CPP_COMMA)
+    {
+      tok = pragma_lex (&tok_value);
+      if (tok != CPP_NUMBER)
+        {
+          error ("address constant expected for vector function specifier");
+          return;
+        }
+      /* add the vector to the list of dispatch functions to emit */
+      mchp_add_vector_dispatch_entry (fname,
+                                      (int)TREE_INT_CST_LOW (tok_value));
+
+      tok = pragma_lex (&tok_value);
+    }
+
+  /* No further input is valid. We should have end of line here. */
+  if (tok != CPP_EOF)
+    {
+      error ("extraneous data at end of line of #pragma vector");
+    }
 }
 
 
@@ -262,7 +330,7 @@ mchp_handle_interrupt_pragma (struct cpp_reader *pfile ATTRIBUTE_UNUSED)
   ipl = tok_value;
 
   /* add the interrupt designation to the list of interrupt pragmas */
-  p = ggc_alloc (sizeof (struct interrupt_pragma_spec));
+  p = (struct interrupt_pragma_spec *)ggc_alloc (sizeof (struct interrupt_pragma_spec));
   p->next = interrupt_pragma_list_head;
   p->name = fname;
   p->ipl = ipl;
@@ -370,5 +438,4 @@ mchp_handle_interrupt_pragma (struct cpp_reader *pfile ATTRIBUTE_UNUSED)
       error ("extraneous data at end of line of #pragma interrupt");
     }
 }
-#endif /* TODO */
 

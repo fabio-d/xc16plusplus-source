@@ -1,4 +1,0 @@
-Excerpt from memory usage report:
-.bss             0x800                   0            0x10  (16)
-.ybss            0xfb0                   0            0x20  (32)
-.ydata           0xfd0                   0            0x30  (48)

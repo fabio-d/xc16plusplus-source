@@ -1,3 +1,0 @@
-	.data
-	.org 0x5
-	.byte 0x12

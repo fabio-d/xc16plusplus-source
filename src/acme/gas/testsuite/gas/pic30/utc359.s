@@ -1,3 +1,0 @@
-	.data
-	.word 0x1234
-	.org 0x1

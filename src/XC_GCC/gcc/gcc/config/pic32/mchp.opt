@@ -46,6 +46,10 @@ mflip-mips16
 Target Report Var(TARGET_FLIP_MIPS16)
 Switch on/off MIPS16 ASE on alternating functions for compiler testing
 
+mips16e
+Target Undocumented Var(TARGET_MCHP_MIPS16E)
+Use -mips16 instead of -mips16e
+
 mcheck-zero-division
 Target Report Mask(CHECK_ZERO_DIV)
 Trap on integer divide by zero
@@ -70,13 +74,13 @@ Use trap instructions to check for integer divide by zero
 ;Target Report RejectNegative InverseMask(SINGLE_FLOAT, DOUBLE_FLOAT) Undocumented
 ;Allow hardware floating-point instructions to cover both 32-bit and 64-bit operations
 
-;mdsp
-;Target Report Mask(DSP) Undocumented
-;Use MIPS-DSP instructions
+mdsp
+Target Report Mask(DSP) Undocumented
+Use MIPS-DSP instructions
 
-;mdspr2
-;Target Report Mask(DSPR2) Undocumented
-;Use MIPS-DSP REV 2 instructions
+mdspr2
+Target Report Mask(DSPR2)
+Use MIPS-DSP REV 2 instructions
 
 mdebugmips
 Target Undocumented Var(TARGET_DEBUG_MODE)
@@ -297,7 +301,7 @@ Target Report Mask(SYNCI) Undocumented
 Use synci instruction to invalidate i-cache
 
 mtune=
-Target RejectNegative Joined Var(mips_tune_string) Undocumented
+Target RejectNegative Joined Var(mips_tune_string) UndocumentedGCC does not support -C or -CC without -E
 -mtune=PROCESSOR	Optimize the output for PROCESSOR
 
 ;muclibc
@@ -331,13 +335,17 @@ mdebugger
 Target Var(TARGET_DEBUG_EXEC)
 Allocate space for debugger executive
 
-mno-peripheral-libs
-Target RejectNegative Var(TARGET_NOLINK_PERIPHERAL_LIBS)
-Do not link peripheral libraries
+mperipheral-libs
+Target Var(TARGET_LINK_PERIPHERAL_LIBS)
+Link peripheral libraries
 
 mno-mpdebug-lib
 Target RejectNegative Var(TARGET_NOLINK_MPDEBUG_LIBS)
 Do not link MPLAB REAL ICE and MPLAB ICD 3 debug-support library
+
+mno-override-inline
+Target RejectNegative Var(TARGET_NO_OVERRIDE_INLINE)
+Set compiler's override of 'inline' keyword and options for -O1 and -Os; by default the compiler will not inline at these levels
 
 mappio-debug
 Target Var(TARGET_APPIO_DEBUG)
@@ -351,8 +359,35 @@ msmart-io=
 Target Var RejectNegative Joined UInteger Var(mchp_io_size_val) Init(1)
 -msmart-io=LEVEL	Enable smart-IO library call forwarding level LEVEL [0,2]
 
+mlegacy-libc
+Target Var Var(TARGET_LEGACY_LIBC)
+-legacy-libc	Use legacy lib/include directory
+
+mxc32cpp-lib
+Target Var Var(TARGET_XC32_LIBCPP) Undocumented 
+-mxc32cpp-lib	Use the XC32 Standard C++ Libraries
+
+mtext=
+Target Report RejectNegative Joined Var(mchp_text_scn) Init(NULL)
+-mtext=NAME	Name the text section NAME (default .text)
+
+mit=
+Target Report RejectNegative Joined Var(mchp_it_transport)
+-mit=TRANSPORT	Enable instrumented trace for MPLAB REAL ICE
+
 mprocessor=
 Target Report RejectNegative Joined Var(mchp_processor_string)
 -mprocessor=PROCESSOR	Specify the target PIC32 PROCESSOR
 
+mlicense-warning
+Target Var Var(TARGET_LICENSE_WARNING) Undocumented Init(1)
+-mlicense-warning	Emit the license warning when appropriate
+
+mcci
+Target RejectNegative Var(TARGET_CCI)
+-mcci	Use CCI keywords
+
+mprint-builtins
+Target RejectNegative Var(TARGET_PRINT_BUILTINS)
+-mprint-builtins	Print a list of enabled builtin functions
 

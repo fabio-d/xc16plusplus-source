@@ -41,9 +41,21 @@
 #include "demangle.h"
 #include "hashtab.h"
 
+#ifndef PIC32
+#define PIC32
+#endif
+#ifndef TARGET_IS_PIC32MX
+#define TARGET_IS_PIC32MX
+#endif
+
+#ifdef TARGET_IS_PIC32MX
+#include "pic32-utils.h"
+#endif
+
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) & (((TYPE*) 0)->MEMBER))
 #endif
+
 
 /* Locals variables.  */
 static struct obstack stat_obstack;
@@ -60,11 +72,15 @@ static bfd_boolean map_option_f;
 static bfd_vma print_dot;
 static lang_input_statement_type *first_file;
 static const char *current_target;
+#ifdef TARGET_IS_PIC32MX
+lang_statement_list_type statement_list;
+#else
 static lang_statement_list_type statement_list;
+#endif
 static struct bfd_hash_table lang_definedness_table;
 static lang_statement_list_type *stat_save[10];
 static lang_statement_list_type **stat_save_ptr = &stat_save[0];
-static struct unique_sections *unique_section_list;
+struct unique_sections *unique_section_list;
 static bfd_boolean ldlang_sysrooted_script = FALSE;
 
 /* Forward declarations.  */
@@ -104,6 +120,20 @@ bfd_boolean delete_output_file_on_failure = FALSE;
 struct lang_phdr *lang_phdr_list;
 struct lang_nocrossrefs *nocrossref_list;
 bfd_boolean missing_file = FALSE;
+
+#ifdef TARGET_IS_PIC32MX
+/* functions defined in bfd/pic32-attributes.c */
+extern unsigned int pic32_attribute_map
+  PARAMS ((asection *));
+
+extern int pic32_is_valid_attributes
+  PARAMS ((unsigned int, unsigned char));
+
+extern void pic32_create_data_init_template(void);
+extern void pic32_create_specific_fill_sections(void);
+extern void pic32_create_stack_section(void);
+static bfd_boolean issue_warning = TRUE;
+#endif
 
  /* Functions that traverse the linker script and might evaluate
     DEFINED() need to increment this.  */
@@ -871,7 +901,8 @@ walk_wild (lang_wild_statement_type *s, callback_t callback, void *data)
 }
 
 /* lang_for_each_statement walks the parse tree and calls the provided
-   function for each node.  */
+   function for each node, except those inside output section statements
+   with constraint set to -1.  */
 
 static void
 lang_for_each_statement_worker (void (*func) (lang_statement_union_type *),
@@ -887,8 +918,9 @@ lang_for_each_statement_worker (void (*func) (lang_statement_union_type *),
 	  lang_for_each_statement_worker (func, constructor_list.head);
 	  break;
 	case lang_output_section_statement_enum:
-	  lang_for_each_statement_worker
-	    (func, s->output_section_statement.children.head);
+          if (s->output_section_statement.constraint != -1)
+	    lang_for_each_statement_worker
+	      (func, s->output_section_statement.children.head);
 	  break;
 	case lang_wild_statement_enum:
 	  lang_for_each_statement_worker (func,
@@ -917,6 +949,27 @@ lang_for_each_statement_worker (void (*func) (lang_statement_union_type *),
 	}
     }
 }
+
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+int
+lang_remove_input_file(lang_input_statement_type *);
+int
+lang_remove_input_file(lang_input_statement_type *entry)
+{
+  lang_input_statement_type *f, *prev, *next;
+
+  prev = (lang_input_statement_type *) input_file_chain.head;
+  for (f = prev; f != NULL; f = next) {
+    next = (lang_input_statement_type *) f->next_real_file;
+    if (f == entry) {
+      prev->next_real_file = (void *) next;
+      return 0;
+    }
+  }
+  return 1;
+}
+#endif
+
 
 void
 lang_for_each_statement (void (*func) (lang_statement_union_type *))
@@ -996,6 +1049,9 @@ new_afile (const char *name,
   lang_has_input_file = TRUE;
   p->target = target;
   p->sysrooted = FALSE;
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+  p->optional = FALSE;
+#endif
 
   if (file_type == lang_input_file_is_l_enum
       && name[0] == ':' && name[1] != '\0')
@@ -1030,6 +1086,17 @@ new_afile (const char *name,
       p->just_syms_flag = FALSE;
       p->search_dirs_flag = TRUE;
       break;
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+    case lang_input_file_is_optional_l_enum:
+      p->optional = TRUE;
+      p->is_archive = TRUE;
+      p->filename = name;
+      p->real = TRUE;
+      p->local_sym_name = concat ("-l", name, (const char *) NULL);
+      p->just_syms_flag = FALSE;
+      p->search_dirs_flag = TRUE;
+      break;
+#endif
     case lang_input_file_is_marker_enum:
       p->filename = name;
       p->is_archive = FALSE;
@@ -1047,6 +1114,18 @@ new_afile (const char *name,
       p->just_syms_flag = FALSE;
       p->search_dirs_flag = TRUE;
       break;
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+    case lang_input_file_is_optional_search_file_enum:
+      p->optional = TRUE;
+      p->sysrooted = ldlang_sysrooted_script;
+      p->filename = name;
+      p->is_archive = FALSE;
+      p->real = TRUE;
+      p->local_sym_name = name;
+      p->just_syms_flag = FALSE;
+      p->search_dirs_flag = TRUE;
+      break;
+#endif
     case lang_input_file_is_file_enum:
       p->filename = name;
       p->is_archive = FALSE;
@@ -2189,6 +2268,8 @@ lang_add_section (lang_statement_list_type *ptr,
   bfd_boolean discard;
   lang_input_section_type *new_section;
 
+  flags = bfd_get_section_flags (section->owner, section);
+
   /* Discard sections marked with SEC_EXCLUDE.  */
   discard = (flags & SEC_EXCLUDE) != 0;
 
@@ -2246,8 +2327,26 @@ lang_add_section (lang_statement_list_type *ptr,
       break;
     }
 
-  if (output->bfd_section == NULL)
-    init_os (output, flags);
+  if (output->bfd_section == NULL) {
+      init_os (output, 0);
+  }
+
+#ifdef TARGET_IS_PIC32MX
+      /* Validate the attributes for this input section */
+      {
+        unsigned int input_map  = pic32_attribute_map(section);
+        unsigned int output_map = pic32_attribute_map(output->bfd_section);
+
+        if (!pic32_is_valid_attributes(input_map, 0))
+          einfo (_("%P%F: Link Error: invalid attributes for section \'%s\'\n"),
+                 section->name);
+
+        else if (!pic32_is_valid_attributes((input_map | output_map), 0))
+          einfo (_("%P%F: Link Error: attributes for input section \'%s\'"
+                   " conflict with output section \'%s\'\n"),
+                 section->name, output->bfd_section->name);
+      }
+#endif
 
   /* If SEC_READONLY is not set in the input section, then clear
      it from the output section.  */
@@ -2269,7 +2368,6 @@ lang_add_section (lang_statement_list_type *ptr,
 	}
     }
   output->bfd_section->flags |= flags;
-
   if (!output->bfd_section->linker_has_input)
     {
       output->bfd_section->linker_has_input = 1;
@@ -2295,6 +2393,35 @@ lang_add_section (lang_statement_list_type *ptr,
     output->bfd_section->alignment_power = section->alignment_power;
 
   section->output_section = output->bfd_section;
+
+#ifdef TARGET_IS_PIC32MX
+      /*
+      ** Copy pic32-specific attributes to output section
+      */
+      section->output_section->near = section->near;
+      section->output_section->persistent = section->persistent;
+      section->output_section->absolute = section->absolute;
+      section->output_section->reverse = section->reverse;
+      section->output_section->dma = section->dma;
+      section->output_section->memory = section->memory;
+      section->output_section->heap = section->heap;
+      section->output_section->stack = section->stack;
+
+      /* promote absolute address, unless the output section
+         already has a conflicting one */
+      if (PIC32_IS_ABSOLUTE_ATTR(section)) {
+          if (!section->output_section->user_set_vma) {
+            section->output_section->vma = section->vma;
+            section->output_section->user_set_vma = TRUE;
+          } else if (section->output_section->vma != section->vma)
+            einfo(_("%F: Link Error: address for input section \'%s\'"
+                   " (%lx) conflicts with output section \'%s\' (%lx)\n"),
+                   section->name, section->vma,
+                   section->output_section->name,
+                   section->output_section->vma);
+      }
+#endif
+
 
   if (!link_info.relocatable
       && !stripped_excluded_sections)
@@ -2594,6 +2721,11 @@ load_symbols (lang_input_statement_type *entry,
     return TRUE;
 
   ldfile_open_file (entry);
+
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+  if (entry->the_bfd == 0)
+    return TRUE;
+#endif  
 
   /* Do not process further if the file was missing.  */
   if (entry->missing_file)
@@ -3888,6 +4020,7 @@ print_assignment (lang_assignment_statement_type *assignment,
   bfd_boolean is_dot;
   bfd_boolean computation_is_valid = TRUE;
   etree_type *tree;
+  asection *osec;
 
   for (i = 0; i < SECTION_NAME_MAP_LENGTH; i++)
     print_space ();
@@ -3907,7 +4040,11 @@ print_assignment (lang_assignment_statement_type *assignment,
       computation_is_valid = is_dot || (scan_for_self_assignment (dst, tree) == FALSE);
     }
 
-  exp_fold_tree (tree, output_section->bfd_section, &print_dot);
+  osec = output_section->bfd_section;
+  if (osec == NULL)
+    osec = bfd_abs_section_ptr;
+  exp_fold_tree (tree, osec, &print_dot);
+
   if (expld.result.valid_p)
     {
       bfd_vma value;
@@ -4678,6 +4815,7 @@ os_region_check (lang_output_section_statement_type *os,
     }
 }
 
+
 /* Set the sizes for all the output sections.  */
 
 static bfd_vma
@@ -4703,6 +4841,9 @@ lang_size_sections_1
 	    lang_memory_region_type *r;
 
 	    os = &s->output_section_statement;
+            if (os->constraint == -1)
+              break;
+
 	    /* FIXME: We shouldn't need to zero section vmas for ld -r
 	       here, in lang_insert_orphan, or in the default linker scripts.
 	       This is covering for coff backend linker bugs.  See PR6945.  */
@@ -4717,7 +4858,11 @@ lang_size_sections_1
 		exp_fold_tree (os->addr_tree, bfd_abs_section_ptr, &dot);
 
 		if (expld.result.valid_p)
-		  dot = expld.result.value + expld.result.section->vma;
+                  {
+                    dot = expld.result.value;
+                    if (expld.result.section != NULL)
+                      dot += expld.result.section->vma;
+                  }
 		else if (expld.phase != lang_mark_phase_enum)
 		  einfo (_("%F%S: non constant or forward reference"
 			   " address expression for section %s\n"),
@@ -4814,7 +4959,23 @@ lang_size_sections_1
 						       os->bfd_section));
 		      }
 
+#ifdef TARGET_IS_PIC32MX
+                   if ((strcmp(os->bfd_section->name,".debug_ranges") == 0) ||
+                       (strcmp(os->bfd_section->name,".debug_pubtypes") == 0) ||
+                       (strcmp(os->bfd_section->name,".gnu.attributes") == 0))
+                     {   
+                      newdot = 0; 
+                      if (issue_warning)
+                        { einfo (_("%P: warning: Sections: .debug_ranges, "
+                                   ".debug_pubtypes, and .gnu.attributes "
+                                   "should be mapped in the linker script.\n"));
+                          issue_warning = FALSE;} 
+                     }
+                    else
+		      newdot = os->region->current;
+#else
 		    newdot = os->region->current;
+#endif
 		    align = os->bfd_section->alignment_power;
 		  }
 		else
@@ -4975,7 +5136,12 @@ lang_size_sections_1
 		    || (os->bfd_section->flags & (SEC_ALLOC | SEC_LOAD))))
 	      {
 		os->region->current = dot;
-
+#ifdef TARGET_IS_PIC32MX             
+                if ((strcmp(os->bfd_section->name,".debug_ranges") == 0) ||
+                    (strcmp(os->bfd_section->name,".debug_pubtypes") == 0) ||
+                    (strcmp(os->bfd_section->name,".gnu.attributes") == 0))   
+                    check_regions = FALSE;
+#endif
 		if (check_regions)
 		  /* Make sure the new address is within the region.  */
 		  os_region_check (os, os->region, os->addr_tree,
@@ -5396,8 +5562,11 @@ lang_do_assignments_1 (lang_statement_union_type *s,
 	case lang_data_statement_enum:
 	  exp_fold_tree (s->data_statement.exp, bfd_abs_section_ptr, &dot);
 	  if (expld.result.valid_p)
-	    s->data_statement.value = (expld.result.value
-				       + expld.result.section->vma);
+            {
+              s->data_statement.value = expld.result.value;
+              if (expld.result.section != NULL)
+                s->data_statement.value += expld.result.section->vma;
+            }
 	  else
 	    einfo (_("%F%P: invalid data statement\n"));
 	  {
@@ -5875,7 +6044,7 @@ lang_place_orphans (void)
 		      || unique_section_p (s, NULL))
 		    constraint = SPECIAL;
 
-		  if (!ldemul_place_orphan (s, name, constraint))
+		  if (!ldemul_place_orphan (file, s, name, constraint))
 		    {
 		      lang_output_section_statement_type *os;
 		      os = lang_output_section_statement_lookup (name,
@@ -6294,6 +6463,7 @@ lang_relax_sections (bfd_boolean need_layout)
     }
 }
 
+
 void
 lang_process (void)
 {
@@ -6348,6 +6518,14 @@ lang_process (void)
   /* Size up the common data.  */
   lang_common ();
 
+ /* Create Data initialization Template*/
+#ifdef TARGET_IS_PIC32MX
+   pic32_create_data_init_template();
+   //pic32_create_stack_section();
+   if (pic32_has_fill_option)
+   pic32_create_specific_fill_sections();
+#endif
+
   /* Update wild statements.  */
   update_wild_statements (statement_list.head);
 
@@ -6401,6 +6579,12 @@ lang_process (void)
      everything is.  This is where relaxation is done.  */
   ldemul_after_allocation ();
 
+#if TARGET_IS_PIC32MX
+  /* If the emulation added new output statements, size them now. */
+    lang_reset_memory_regions ();
+    lang_size_sections (NULL, ! RELAXATION_ENABLED);
+#endif
+
   /* Fix any .startof. or .sizeof. symbols.  */
   lang_set_startof ();
 
@@ -6411,7 +6595,7 @@ lang_process (void)
 
   ldemul_finish ();
 
-  /* Make sure that the section addresses make sense.  */
+  /* Make sure that the section addresses make sense.  */ 
   if (command_line.check_section_addresses)
     lang_check_section_addresses ();
 
@@ -6817,7 +7001,7 @@ lang_new_phdr (const char *name,
   n->phdrs = phdrs;
   n->at = at;
   n->flags = flags;
-  
+
   hdrs = n->type == 1 && (phdrs || filehdr);
 
   for (pp = &lang_phdr_list; *pp != NULL; pp = &(*pp)->next)

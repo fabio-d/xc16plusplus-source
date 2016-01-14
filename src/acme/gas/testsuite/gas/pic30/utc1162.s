@@ -1,2 +1,0 @@
-        .section foo,"nx"
-        nop

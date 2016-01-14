@@ -1102,7 +1102,11 @@ emit_mode_wider (void)
       struct mode_data * m2;
 
       for (m2 = m;
+#ifdef _BUILD_C30_
+           m2 && m2 != void_mode && (m2->is_target_pointer == 0);
+#else
 	   m2 && m2 != void_mode;
+#endif
 	   m2 = m2->wider)
 	{
 	  if (m2->bytesize < 2 * m->bytesize)
@@ -1120,7 +1124,11 @@ emit_mode_wider (void)
 
 	  break;
 	}
+#ifdef _BUILD_C30_
+      if ((m2 == void_mode) || (m2 && m2->is_target_pointer == 1))
+#else
       if (m2 == void_mode)
+#endif
 	m2 = 0;
       tagged_printf ("%smode",
 		     m2 ? m2->name : void_mode->name,

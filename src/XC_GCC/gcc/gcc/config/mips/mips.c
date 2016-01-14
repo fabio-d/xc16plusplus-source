@@ -1326,7 +1326,7 @@ mips_far_type_p (const_tree type)
 static bool
 mips_mips16_decl_p (const_tree decl)
 {
-#if defined (MIPS_SUBTARGET_MIPS16_ENABLED) && 0
+#if defined (MIPS_SUBTARGET_MIPS16_ENABLED) && 1
   if (lookup_attribute ("mips16", DECL_ATTRIBUTES (decl)) != NULL)
     {
       return MIPS_SUBTARGET_MIPS16_ENABLED(decl);
@@ -2687,7 +2687,7 @@ mips_emit_call_insn (rtx pattern, rtx orig_addr, rtx addr, bool lazy_p)
   rtx insn, reg;
 
   insn = emit_call_insn (pattern);
-
+  
   if (TARGET_MIPS16 && mips_use_pic_fn_addr_reg_p (orig_addr))
     {
       /* MIPS16 JALRs only take MIPS16 registers.  If the target
@@ -2710,6 +2710,7 @@ mips_emit_call_insn (rtx pattern, rtx orig_addr, rtx addr, bool lazy_p)
                gen_rtx_REG (Pmode, GOT_VERSION_REGNUM));
       emit_insn (gen_update_got_version ());
     }
+    
   return insn;
 }
 
@@ -8336,6 +8337,10 @@ mips_encode_section_info (tree decl, rtx rtl, int first)
           || mips_far_type_p (type))
         SYMBOL_REF_FLAGS (symbol) |= SYMBOL_FLAG_LONG_CALL;
     }
+
+#ifdef MIPS_SUBTARGET_ENCODE_SECTION_INFO
+  MIPS_SUBTARGET_ENCODE_SECTION_INFO (decl, rtl, first);
+#endif
 }
 
 /* Implement TARGET_SELECT_RTX_SECTION.  */
@@ -8364,7 +8369,9 @@ static section *
 mips_function_rodata_section (tree decl)
 {
   if (!TARGET_ABICALLS || TARGET_ABSOLUTE_ABICALLS || TARGET_GPWORD)
-    return default_function_rodata_section (decl);
+    {
+      return default_function_rodata_section (decl); /* TODO */
+    }
 
   if (decl && DECL_SECTION_NAME (decl))
     {
@@ -8389,10 +8396,14 @@ mips_function_rodata_section (tree decl)
 
 /* Implement TARGET_IN_SMALL_DATA_P.  */
 
-static bool
+bool
 mips_in_small_data_p (const_tree decl)
 {
   unsigned HOST_WIDE_INT size;
+#ifdef TARGET_MCHP_PIC32MX
+  tree space_attr = 0;
+  tree address_attr = 0;
+#endif
 
   if (TREE_CODE (decl) == STRING_CST || TREE_CODE (decl) == FUNCTION_DECL)
     return false;
@@ -8407,6 +8418,22 @@ mips_in_small_data_p (const_tree decl)
   if (TARGET_OCTEON && TREE_CODE (decl) == VAR_DECL
       && lookup_attribute ("cvmx_shared", DECL_ATTRIBUTES (decl)))
     return false;
+#endif
+
+#ifdef TARGET_MCHP_PIC32MX
+  if (DECL_P(decl))
+    {
+      space_attr = lookup_attribute ("space", DECL_ATTRIBUTES (decl));
+      if (space_attr && (get_identifier("prog") == (TREE_VALUE(TREE_VALUE(space_attr)))))
+        return false;
+      address_attr = lookup_attribute ("address", DECL_ATTRIBUTES (decl));
+      if (address_attr)
+        return false;
+      if (lookup_attribute ("persistent", DECL_ATTRIBUTES (decl)))
+        return false;
+      if (TREE_READONLY (decl) && TARGET_EMBEDDED_DATA)
+        return false;
+    }
 #endif
 
   if (TREE_CODE (decl) == VAR_DECL && DECL_SECTION_NAME (decl) != 0)
@@ -8435,6 +8462,11 @@ mips_in_small_data_p (const_tree decl)
           && (!DECL_INITIAL (decl) || TREE_CONSTANT (DECL_INITIAL (decl))))
         return false;
     }
+
+#ifdef TARGET_MCHP_PIC32MX
+    if (TREE_READONLY (decl) && TARGET_EMBEDDED_DATA)
+      return false;
+#endif
 
   /* Enforce -mlocal-sdata.  */
   if (!TARGET_LOCAL_SDATA && !TREE_PUBLIC (decl))
@@ -8744,8 +8776,11 @@ mips_output_aligned_decl_common (FILE *stream, tree decl, const char *name,
     {
       if (TREE_PUBLIC (decl) && DECL_NAME (decl))
         targetm.asm_out.globalize_label (stream, name);
-
+#if defined(TARGET_MCHP_PIC32MX)
+      set_section_stack("*", 0);
+#endif
       switch_to_section (readonly_data_section);
+
       ASM_OUTPUT_ALIGN (stream, floor_log2 (align / BITS_PER_UNIT));
       mips_declare_object (stream, name, "",
                            ":\n\t.space\t" HOST_WIDE_INT_PRINT_UNSIGNED "\n",
@@ -9721,12 +9756,7 @@ mips_cfun_might_clobber_call_saved_reg_p (unsigned int regno)
      the rtl.  Incoming values are passed in call-clobbered registers,
      so we can assume that any live call-saved register is set within
      the function.  */
-#ifdef TARGET_MCHP_PIC32MX
-  if (df_regs_ever_live_p (regno)
-      && !cfun->machine->use_shadow_register_set_p)
-#else
   if (df_regs_ever_live_p (regno))
-#endif
     return true;
 
   /* Check for registers that are clobbered by FUNCTION_PROFILER.
@@ -9741,12 +9771,7 @@ mips_cfun_might_clobber_call_saved_reg_p (unsigned int regno)
 
   /* The function's prologue will need to set the frame pointer if
      frame_pointer_needed.  */
-#ifdef TARGET_MCHP_PIC32MX
-  if (regno == HARD_FRAME_POINTER_REGNUM && frame_pointer_needed
-      && !cfun->machine->use_shadow_register_set_p)
-#else
   if (regno == HARD_FRAME_POINTER_REGNUM && frame_pointer_needed)
-#endif
     return true;
 
   /* If a MIPS16 function returns a value in FPRs, its epilogue
@@ -10777,21 +10802,23 @@ mips_output_function_epilogue (FILE *file ATTRIBUTE_UNUSED,
 void
 mips_save_reg (rtx reg, rtx mem)
 {
-
 #if defined(TARGET_MCHP_PIC32MX)
-#  ifndef MIPS_HI_TEMP
-#    define MIPS_HI_TEMP(mode)  gen_rtx_REG (SImode, V1_REGNUM)
-#  endif
-#  ifndef MIPS_LO_TEMP
-#    define MIPS_LO_TEMP(mode) gen_rtx_REG (SImode, V0_REGNUM)
-#  endif
-#else
-#  ifndef MIPS_HI_TEMP
-#    define MIPS_HI_TEMP(mode) MIPS_PROLOGUE_TEMP(mode)
-#  endif
-#  ifndef MIPS_LO_TEMP
-#    define MIPS_LO_TEMP(mode) MIPS_PROLOGUE_TEMP(mode)
-#  endif
+	#define MIPS_PROLOGUE_HI_TEMP_REGNUM \
+	  (cfun->machine->interrupt_handler_p ? V1_REGNUM : GP_REG_FIRST + 3)
+	#define MIPS_PROLOGUE_LO_TEMP_REGNUM \
+	  (cfun->machine->interrupt_handler_p ? V0_REGNUM : GP_REG_FIRST + 3)
+	#define MIPS_EPILOGUE_HI_TEMP_REGNUM               \
+	  (cfun->machine->interrupt_handler_p           \
+	   ? V1_REGNUM                                 \
+	   : GP_REG_FIRST + (TARGET_MIPS16 ? 6 : 8))
+	#define MIPS_EPILOGUE_LO_TEMP_REGNUM               \
+	  (cfun->machine->interrupt_handler_p           \
+	   ? V0_REGNUM                                 \
+	   : GP_REG_FIRST + (TARGET_MIPS16 ? 6 : 8))
+	#define MIPS_PROLOGUE_HI_TEMP(MODE) gen_rtx_REG (MODE, MIPS_PROLOGUE_HI_TEMP_REGNUM)
+	#define MIPS_EPILOGUE_HI_TEMP(MODE) gen_rtx_REG (MODE, MIPS_EPILOGUE_HI_TEMP_REGNUM)
+	#define MIPS_PROLOGUE_LO_TEMP(MODE) gen_rtx_REG (MODE, MIPS_PROLOGUE_LO_TEMP_REGNUM)
+	#define MIPS_EPILOGUE_LO_TEMP(MODE) gen_rtx_REG (MODE, MIPS_EPILOGUE_LO_TEMP_REGNUM)
 #endif
 
   if (GET_MODE (reg) == DFmode && !TARGET_FLOAT64)
@@ -10811,23 +10838,31 @@ mips_save_reg (rtx reg, rtx mem)
     }
   else
     {
+#if defined(TARGET_MCHP_PIC32MX)
       if (REGNO (reg) == HI_REGNUM)
         {
-          mips_emit_save_slot_move (mem, reg, MIPS_HI_TEMP (GET_MODE (reg)));
+          mips_emit_save_slot_move (mem, reg, MIPS_PROLOGUE_HI_TEMP (GET_MODE (reg)));
         }
-#if defined(TARGET_MCHP_PIC32MX)
       else if (REGNO (reg) == LO_REGNUM)
         {
-          mips_emit_save_slot_move (mem, reg, MIPS_LO_TEMP (GET_MODE (reg)));
+          mips_emit_save_slot_move (mem, reg, MIPS_PROLOGUE_LO_TEMP (GET_MODE (reg)));
         }
-#endif
       else
         {
           mips_emit_save_slot_move (mem, reg, MIPS_PROLOGUE_TEMP (GET_MODE (reg)));
         }
+#else
+      mips_emit_save_slot_move (mem, reg, MIPS_PROLOGUE_TEMP (GET_MODE (reg)));
+#endif
     }
-#undef MIPS_HI_TEMP
-#undef MIPS_LO_TEMP
+#undef MIPS_PROLOGUE_HI_TEMP_REGNUM
+#undef MIPS_PROLOGUE_LO_TEMP_REGNUM
+#undef MIPS_EPILOGUE_HI_TEMP_REGNUM
+#undef MIPS_EPILOGUE_HI_TEMP_REGNUM
+#undef MIPS_PROLOGUE_HI_TEMP
+#undef MIPS_EPILOGUE_HI_TEMP
+#undef MIPS_PROLOGUE_LO_TEMP
+#undef MIPS_EPILOGUE_LO_TEMP
 }
 
 /* The __gnu_local_gp symbol.  */
@@ -11185,12 +11220,54 @@ mips_expand_prologue (void)
 void
 mips_restore_reg (rtx reg, rtx mem)
 {
+#if defined(TARGET_MCHP_PIC32MX)
+	#define MIPS_PROLOGUE_HI_TEMP_REGNUM \
+	  (cfun->machine->interrupt_handler_p ? V1_REGNUM : GP_REG_FIRST + 3)
+	#define MIPS_PROLOGUE_LO_TEMP_REGNUM \
+	  (cfun->machine->interrupt_handler_p ? V0_REGNUM : GP_REG_FIRST + 3)
+	#define MIPS_EPILOGUE_HI_TEMP_REGNUM               \
+	  (cfun->machine->interrupt_handler_p           \
+	   ? V1_REGNUM                                 \
+	   : GP_REG_FIRST + (TARGET_MIPS16 ? 6 : 8))
+	#define MIPS_EPILOGUE_LO_TEMP_REGNUM               \
+	  (cfun->machine->interrupt_handler_p           \
+	   ? V0_REGNUM                                 \
+	   : GP_REG_FIRST + (TARGET_MIPS16 ? 6 : 8))
+	#define MIPS_PROLOGUE_HI_TEMP(MODE) gen_rtx_REG (MODE, MIPS_PROLOGUE_HI_TEMP_REGNUM)
+	#define MIPS_EPILOGUE_HI_TEMP(MODE) gen_rtx_REG (MODE, MIPS_EPILOGUE_HI_TEMP_REGNUM)
+	#define MIPS_PROLOGUE_LO_TEMP(MODE) gen_rtx_REG (MODE, MIPS_PROLOGUE_LO_TEMP_REGNUM)
+	#define MIPS_EPILOGUE_LO_TEMP(MODE) gen_rtx_REG (MODE, MIPS_EPILOGUE_LO_TEMP_REGNUM)
+#endif
+
   /* There's no MIPS16 instruction to load $31 directly.  Load into
      $7 instead and adjust the return insn appropriately.  */
   if (TARGET_MIPS16 && REGNO (reg) == RETURN_ADDR_REGNUM)
     reg = gen_rtx_REG (GET_MODE (reg), GP_REG_FIRST + 7);
 
+#if defined(TARGET_MCHP_PIC32MX)
+  if (REGNO (reg) == HI_REGNUM)
+    {
+      mips_emit_save_slot_move (reg, mem, MIPS_EPILOGUE_HI_TEMP (GET_MODE (reg)));
+    }
+  else if (REGNO (reg) == LO_REGNUM)
+    {
+      mips_emit_save_slot_move (reg, mem, MIPS_EPILOGUE_LO_TEMP (GET_MODE (reg)));
+    }
+  else
+    {
+      mips_emit_save_slot_move (reg, mem, MIPS_EPILOGUE_TEMP (GET_MODE (reg)));
+    }
+#else
   mips_emit_save_slot_move (reg, mem, MIPS_EPILOGUE_TEMP (GET_MODE (reg)));
+#endif
+#undef MIPS_PROLOGUE_HI_TEMP_REGNUM
+#undef MIPS_PROLOGUE_LO_TEMP_REGNUM
+#undef MIPS_EPILOGUE_HI_TEMP_REGNUM
+#undef MIPS_EPILOGUE_HI_TEMP_REGNUM
+#undef MIPS_PROLOGUE_HI_TEMP
+#undef MIPS_EPILOGUE_HI_TEMP
+#undef MIPS_PROLOGUE_LO_TEMP
+#undef MIPS_EPILOGUE_LO_TEMP
 }
 
 /* Emit any instructions needed before a return.  */
@@ -13944,7 +14021,7 @@ static const struct mips_builtin_description mips_builtins[] =
   PIC32_BUILTIN (bcc0, PIC32_BUILTIN_BCC0, MIPS_USI_FTYPE_USI_USI_USI),
   PIC32_BUILTIN (bsc0, PIC32_BUILTIN_BSC0, MIPS_USI_FTYPE_USI_USI_USI),
   PIC32_BUILTIN (bcsc0, PIC32_BUILTIN_BCSC0, MIPS_USI_FTYPE_USI_USI_USI_USI),
-  PIC32_EXPAND_BUILTIN (uniqueid, PIC32_BUILTIN_UNIQUEID, MIPS_USI_FTYPE_CONSTSTRING_SI),
+  PIC32_EXPAND_BUILTIN (unique_id, PIC32_BUILTIN_UNIQUEID, MIPS_USI_FTYPE_CONSTSTRING_SI),
 #if 0 /* TODO: Need to fix this so that targetm.builtin_decl gets initialized */
   PIC32_EXPAND_BUILTIN (ittype, PIC32_BUILTIN_ITTYPE, MIPS_USI_FTYPE_TYPE),
 #endif
@@ -14507,7 +14584,7 @@ enum mips_builtinnums
   MIPS_BUILTIN_NUMS_bcc0,
   MIPS_BUILTIN_NUMS_bsc0,
   MIPS_BUILTIN_NUMS_bcsc0,
-  MIPS_BUILTIN_NUMS_uniqueid,
+  MIPS_BUILTIN_NUMS_unique_id,
 
 #if 0 /* TODO */
   MIPS_BUILTIN_NUMS_ittype,
@@ -14651,6 +14728,9 @@ mips_build_function_type (enum mips_function_type type)
 static void
 mips_init_builtins (void)
 {
+#ifdef _BUILD_MCHP_
+  extern void mchp_print_builtin_function (const_tree);
+#endif
   const struct mips_builtin_description *d;
   unsigned int i;
   tree t;
@@ -14669,15 +14749,21 @@ mips_init_builtins (void)
                                 mips_build_function_type (d->function_type),
                                 i, BUILT_IN_MD, NULL, NULL_TREE);
 	     mips_builtin_fndecls[i] = t;
+#ifdef _BUILD_MCHP_
+	     if (TARGET_PRINT_BUILTINS)
+	       mchp_print_builtin_function (t);
+#endif
 	  }
     }
-#ifdef TARGET_MCHP_PIC32MX
+#ifdef _BUILD_MCHP_
   /* We cannot call build_function_type_list for this function because we
      need a prototye that looks like unsigned int foo(...) not one that
      looks like unsigned int foo(void). */
-  add_builtin_function("__builtin_ittype",
+  t = add_builtin_function("__builtin_ittype",
                        build_function_type(unsigned_type_node, NULL_TREE),
                        PIC32_BUILTIN_ITTYPE, BUILT_IN_MD, NULL, NULL_TREE);
+  if (TARGET_PRINT_BUILTINS)
+    mchp_print_builtin_function (t);
 #endif
 }
 
@@ -15607,10 +15693,10 @@ pic32_expand_bcsc0 (enum insn_code icode,
 } /* End BCSC0 */
 
 #if defined(TARGET_MCHP_PIC32MX)
-/* Expand uniqueid */
-/* pic32_expand_uniqueid for unsigned int __builtin_unique_id(const char *fmt, int id) */
+/* Expand unique_id */
+/* pic32_expand_unique_id for unsigned int __builtin_unique_id(const char *fmt, int id) */
 static rtx
-pic32_expand_uniqueid (rtx target,
+pic32_expand_unique_id (rtx target,
                        tree exp)
 {
   tree arg0;
@@ -15674,11 +15760,11 @@ pic32_expand_uniqueid (rtx target,
 
   if (TARGET_MIPS16)
     {
-      emit_insn(gen_pic32_uniqueid_16(target,GEN_INT((ptrdiff_t)label_name), r1));
+      emit_insn(gen_pic32_unique_id_16(target,GEN_INT((ptrdiff_t)label_name), r1));
     }
   else
     {
-      emit_insn(gen_pic32_uniqueid_32(target,GEN_INT((ptrdiff_t)label_name), r1));
+      emit_insn(gen_pic32_unique_id_32(target,GEN_INT((ptrdiff_t)label_name), r1));
     }
 
   return target;
@@ -15694,19 +15780,62 @@ pic32_expand_ittype (tree exp)
   tree arg0;
   int result = 0;
   tree type;
+  gimple statement;
+
+  if (call_expr_nargs(exp) == 0)
+    { 
+      warning (0,"Too few arguments to function \'__builtin_ittype(var)\'");
+      return GEN_INT(0);
+    }
+    
+  if (call_expr_nargs(exp) > 1)
+    { 
+      warning (0,"Too many arguments to function \'__builtin_ittype(var)\'");
+      return GEN_INT(0);
+    }
 
   arg0 = CALL_EXPR_ARG (exp, 0);
   type = TREE_TYPE(arg0);
   switch (TREE_CODE(type))
     {
     case INTEGER_TYPE:
-      if (TREE_CODE(arg0) == NOP_EXPR)
+      /* Get the unit size of the argument */
+      if (TREE_CODE(arg0) == SSA_NAME)
+        {
+          tree base_val0, base_var;
+          statement = SSA_NAME_DEF_STMT(arg0);
+          if (gimple_code (statement) != GIMPLE_ASSIGN)
+            return GEN_INT(0);
+
+          if (gimple_assign_rhs_code (statement) !=  NOP_EXPR)
+            {
+              base_var = gimple_assign_rhs1(statement);
+              if (base_var)
+                {
+                  type = TREE_TYPE(base_var);
+                }
+              else
+                return GEN_INT(0);
+            }
+          else if (gimple_assign_rhs_code (statement) !=  VAR_DECL)
+            {
+              base_val0 = gimple_assign_rhs1(statement);
+              base_var = SSA_NAME_VAR (base_val0);
+              if (base_var)
+                {
+                  type = TREE_TYPE(base_var);
+                }
+              else
+                return GEN_INT(0);
+            }
+        }
+      else if (TREE_CODE(arg0) == NOP_EXPR)
         {
           /* a conversion */
           tree sub_arg0 = TREE_OPERAND(arg0,0);
-
           type = TREE_TYPE(sub_arg0);
         }
+
       if (TYPE_UNSIGNED(type))
         result |= (1 << 4);
       break;
@@ -15719,9 +15848,9 @@ pic32_expand_ittype (tree exp)
     default:
       error("__builtin_ittype() cannot accept an aggregate type");
     }
-  result |= (TYPE_PRECISION(type) /
-		  (((BITS_PER_UNIT/TREE_INT_CST_LOW(TYPE_SIZE_UNIT(type)))
-			*BITS_PER_UNIT) )) - 1;
+
+  result |= TREE_INT_CST_LOW(TYPE_SIZE_UNIT(type)) - 1;
+
   return GEN_INT(result);
 
 }
@@ -15795,7 +15924,7 @@ mips_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 #if defined(TARGET_MCHP_PIC32MX)
       /* unique_id */
     case PIC32_BUILTIN_UNIQUEID:
-      return pic32_expand_uniqueid (target, exp);
+      return pic32_expand_unique_id (target, exp);
 #endif
 
     default:
@@ -17946,6 +18075,7 @@ mips_override_options (void)
       mips_set_architecture (mips_cpu_info_from_isa (MIPS_ISA_DEFAULT));
 #endif
     }
+#endif
 
   if (ABI_NEEDS_64BIT_REGS && !ISA_HAS_64BIT_REGS)
     error ("%<-march=%s%> is not compatible with the selected ABI",
@@ -17957,8 +18087,6 @@ mips_override_options (void)
 
   if (mips_tune_info == 0)
     mips_set_tune (mips_arch_info);
-
-#endif /* end #ifdef TARGET_MCHP_PIC32MX */
 
   if ((target_flags_explicit & MASK_64BIT) != 0)
     {

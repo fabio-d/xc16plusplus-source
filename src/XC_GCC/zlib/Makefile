@@ -18,7 +18,7 @@
 
 CC=/usr/bin/gcc
 
-CFLAGS=-O3 -DUSE_MMAP
+CFLAGS= -DUSE_MMAP
 #CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
 #CFLAGS=-g -DDEBUG
 #CFLAGS=-O3 -Wall -Wwrite-strings -Wpointer-arith -Wconversion \
@@ -33,13 +33,13 @@ SHAREDLIB=libz.dylib
 SHAREDLIBV=libz.1.2.3.dylib
 SHAREDLIBM=libz.1.dylib
 
-AR=ar rc
+AR=ar
 RANLIB=ranlib
 TAR=tar
 SHELL=/bin/sh
 EXE=
 
-prefix =/Users/cawilkie/dev/sandbox/builds/build_20120423/bin/XC16_v1_00_branch-elf-native-xclm//host-libs
+prefix =/Users/cawilkie/dev/builds/build_20120726_1/bin/XC16_v1_10_branch-elf-native-xclm//host-libs
 exec_prefix =${prefix}
 libdir =${exec_prefix}/lib
 includedir =${prefix}/include
@@ -68,7 +68,7 @@ test: all
 	fi
 
 libz.a: $(OBJS) $(OBJA)
-	$(AR) $@ $(OBJS) $(OBJA)
+	$(AR) rc $@ $(OBJS) $(OBJA)
 	-@ ($(RANLIB) $@ || true) >/dev/null 2>&1
 
 match.o: match.S

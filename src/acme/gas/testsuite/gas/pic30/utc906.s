@@ -1,3 +1,0 @@
-	.data
-	.pbyte 1
-	

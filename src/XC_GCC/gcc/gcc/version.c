@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#include "config.h"
 #include "version.h"
 
 /* This is the location of the online document giving instructions for
@@ -36,8 +37,10 @@ const char bug_report_url[] = "<URL:http://www.microchip.com/support>";
    Makefile.  */
 
 /* const char version_string[] = BASEVER DATESTAMP DEVPHASE REVISION; */
+#ifdef _BUILD_C32_
+const char version_string[] = BASEVER " " "MPLAB XC32 Compiler v1.10(TC2)"; /* XC32 */
 
-#ifdef _BUILD_C30_
+#elif defined(_BUILD_C30_)
 #define version2(X) #X
 #define version(X) version2(X)
 
@@ -45,7 +48,7 @@ char *version_string = BASEVER " " "(XC16, Microchip " version(MCHP_VERSION)
                        ") Build date: " __DATE__;
 #else
 
-const char version_string[] = BASEVER " " "MPLAB C Compiler for PIC32 MCUs v2.00(TC1)-20110107";
+const char version_string[] = BASEVER " " "MPLAB XC Compiler v1.10";
 #endif
 
 const char pkgversion_string[] = PKGVERSION;

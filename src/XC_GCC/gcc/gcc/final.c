@@ -207,7 +207,7 @@ static int dialect_number;
 /* Nonnull if the insn currently being emitted was a COND_EXEC pattern.  */
 rtx current_insn_predicate;
 
-/* True if printing into -fdump-final-insns= dump.  */   
+/* True if printing into -fdump-final-insns= dump.  */
 bool final_insns_dump_p;
 
 #ifdef HAVE_ATTR_length
@@ -1473,6 +1473,16 @@ add_debug_prefix_map (const char *arg)
   debug_prefix_maps = map;
 }
 
+#if defined(TARGET_MCHP_PIC32MX)
+static void
+unbackslashify (char *s)
+{
+  while ((s = strchr (s, '\\')) != NULL)
+    *s = '/';
+  return;
+}
+#endif
+
 /* Perform user-specified mapping of debug filename prefixes.  Return
    the new name corresponding to FILENAME.  */
 
@@ -1494,6 +1504,9 @@ remap_debug_filename (const char *filename)
   s = (char *) alloca (name_len + map->new_len);
   memcpy (s, map->new_prefix, map->new_len);
   memcpy (s + map->new_len, name, name_len);
+#if defined(TARGET_MCHP_PIC32MX)
+  unbackslashify (s);
+#endif
   return ggc_strdup (s);
 }
 

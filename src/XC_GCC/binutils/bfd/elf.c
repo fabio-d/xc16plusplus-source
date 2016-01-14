@@ -44,9 +44,13 @@ SECTION
 #include "elf-bfd.h"
 #include "libiberty.h"
 #include "safe-ctype.h"
-
 #ifdef CORE_HEADER
 #include CORE_HEADER
+#endif
+
+#if defined(TARGET_IS_PIC32MX)
+#include "../include/elf/pic32.h"
+#include "pic32-utils.h"
 #endif
 
 static int elf_sort_sections (const void *, const void *);
@@ -848,22 +852,48 @@ _bfd_elf_make_section_from_shdr (bfd *abfd,
     return FALSE;
 
   flags = SEC_NO_FLAGS;
+#if !defined(TARGET_IS_PIC32MX) && !defined(PIC30)
   if (hdr->sh_type != SHT_NOBITS)
+#else
+  if ((hdr->sh_type != SHT_NOBITS) &&
+      (hdr->sh_size > 0))
+#endif
     flags |= SEC_HAS_CONTENTS;
   if (hdr->sh_type == SHT_GROUP)
     flags |= SEC_GROUP | SEC_EXCLUDE;
   if ((hdr->sh_flags & SHF_ALLOC) != 0)
     {
       flags |= SEC_ALLOC;
+#if !defined(PIC30) && !defined(TARGET_IS_PIC32MX)
       if (hdr->sh_type != SHT_NOBITS)
+#else
+      if ((hdr->sh_type != SHT_NOBITS) &&
+          (hdr->sh_type != SHT_NOTE) &&
+          (hdr->sh_flags & SHF_NOLOAD) == 0)
+#endif
 	flags |= SEC_LOAD;
     }
+#if !defined(PIC30)
   if ((hdr->sh_flags & SHF_WRITE) == 0)
     flags |= SEC_READONLY;
+#endif
+
   if ((hdr->sh_flags & SHF_EXECINSTR) != 0)
     flags |= SEC_CODE;
+
+#if defined(TARGET_IS_PIC32MX)
+  else if (((flags & SEC_LOAD) != 0) &&
+           (hdr->sh_type != SHT_NOTE))
+    flags |= SEC_DATA;
+  else if ((hdr->sh_flags & SHF_NOLOAD) &&
+           (hdr->sh_type != SHT_NOTE) &&
+           (hdr->sh_type != SHT_NOBITS))
+    flags |= SEC_DATA;
+#else
   else if ((flags & SEC_LOAD) != 0)
     flags |= SEC_DATA;
+#endif
+
   if ((hdr->sh_flags & SHF_MERGE) != 0)
     {
       flags |= SEC_MERGE;
@@ -941,6 +971,24 @@ _bfd_elf_make_section_from_shdr (bfd *abfd,
 
   if (! bfd_set_section_flags (abfd, newsect, flags))
     return FALSE;
+
+#if defined(TARGET_IS_PIC32MX)
+  if (hdr->sh_type == SHT_NOTE)
+    PIC32_SET_INFO_ATTR(newsect);
+  if (hdr->sh_flags & SHF_NEAR)
+    PIC32_SET_NEAR_ATTR(newsect);
+  if (hdr->sh_flags & SHF_PERSIST)
+    PIC32_SET_PERSIST_ATTR(newsect);
+  if (hdr->sh_flags & SHF_ABSOLUTE)
+    PIC32_SET_ABSOLUTE_ATTR(newsect);
+  if (hdr->sh_flags & SHF_REVERSE)
+    PIC32_SET_REVERSE_ATTR(newsect);
+  if (hdr->sh_flags & SHF_DMA)
+    PIC32_SET_DMA_ATTR(newsect);
+
+  if (hdr->sh_flags & SHF_NOLOAD)  /* do this last */
+    PIC32_SET_NOLOAD_ATTR(newsect);
+#endif
 
   /* We do not parse the PT_NOTE segments as we are interested even in the
      separate debug info files which may have the segments offsets corrupted.
@@ -2310,10 +2358,12 @@ _bfd_elf_make_section_from_phdr (bfd *abfd,
 	      newsect->flags |= SEC_CODE;
 	    }
 	}
+#if !defined (PIC30) && !defined(TARGET_IS_PIC32MX)
       if (!(hdr->p_flags & PF_W))
 	{
 	  newsect->flags |= SEC_READONLY;
 	}
+#endif
     }
 
   if (hdr->p_memsz > hdr->p_filesz)
@@ -2351,8 +2401,10 @@ _bfd_elf_make_section_from_phdr (bfd *abfd,
 	  if (hdr->p_flags & PF_X)
 	    newsect->flags |= SEC_CODE;
 	}
+#if !defined (PIC30) && !defined(TARGET_IS_PIC32MX)
       if (!(hdr->p_flags & PF_W))
 	newsect->flags |= SEC_READONLY;
+#endif
     }
 
   return TRUE;
@@ -2597,8 +2649,15 @@ elf_fake_sections (bfd *abfd, asection *asect, void *failedptrarg)
 
   if ((asect->flags & SEC_ALLOC) != 0)
     this_hdr->sh_flags |= SHF_ALLOC;
+#if defined(TARGET_IS_PIC32MX)
+  if (PIC32_SECTION_IN_DATA_MEMORY(asect))
+    {
+      this_hdr->sh_flags |= SHF_WRITE;
+    }
+#else
   if ((asect->flags & SEC_READONLY) == 0)
     this_hdr->sh_flags |= SHF_WRITE;
+#endif
   if ((asect->flags & SEC_CODE) != 0)
     this_hdr->sh_flags |= SHF_EXECINSTR;
   if ((asect->flags & SEC_MERGE) != 0)
@@ -2633,6 +2692,28 @@ elf_fake_sections (bfd *abfd, asection *asect, void *failedptrarg)
   if (bed->elf_backend_fake_sections
       && !(*bed->elf_backend_fake_sections) (abfd, this_hdr, asect))
     *failedptr = TRUE;
+#if defined(TARGET_IS_PIC32MX)
+
+  /*
+   *
+   * Convert any pic32-specific attributes.
+   *
+   */
+
+  if (PIC32_IS_NEAR_ATTR(asect))
+    this_hdr->sh_flags |= SHF_NEAR;
+  if (PIC32_IS_PERSIST_ATTR(asect))
+    this_hdr->sh_flags |= SHF_PERSIST;
+  if (PIC32_IS_ABSOLUTE_ATTR(asect))
+    this_hdr->sh_flags |= SHF_ABSOLUTE;
+  if (PIC32_IS_REVERSE_ATTR(asect))
+    this_hdr->sh_flags |= SHF_REVERSE;
+  if (PIC32_IS_DMA_ATTR(asect))
+    this_hdr->sh_flags |= SHF_DMA;
+  if (PIC32_IS_NOLOAD_ATTR(asect))
+    this_hdr->sh_flags |= SHF_NOLOAD;
+
+#endif
 
   if (sh_type == SHT_NOBITS && asect->size != 0)
     {
@@ -3159,6 +3240,12 @@ elf_map_symbols (bfd *abfd)
 	  && !ignore_section_sym (abfd, sym))
 	{
 	  asection *sec = sym->section;
+
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+		  if ((sec->output_section == 0) ||
+		      (sec->rawsize == 0))
+		    continue;
+#endif
 
 	  if (sec->owner != abfd)
 	    sec = sec->output_section;
@@ -3769,7 +3856,9 @@ _bfd_elf_map_sections_to_segments (bfd *abfd, struct bfd_link_info *info)
 	      new_segment = FALSE;
 	    }
 	  else if (! writable
-		   && (hdr->flags & SEC_READONLY) == 0
+#if !defined(PIC30) && !defined(TARGET_IS_PIC32MX)
+	       && (hdr->flags & SEC_READONLY) == 0
+#endif
 		   && (((last_hdr->lma + last_size - 1)
 			& ~(maxpagesize - 1))
 		       != (hdr->lma & ~(maxpagesize - 1))))
@@ -3800,7 +3889,13 @@ _bfd_elf_map_sections_to_segments (bfd *abfd, struct bfd_link_info *info)
 
 	  if (! new_segment)
 	    {
-	      if ((hdr->flags & SEC_READONLY) == 0)
+#if defined(PIC30)
+          if (PIC30_SECTION_IN_DATA_MEMORY(hdr))
+#elif defined(TARGET_IS_PIC32MX)
+          if (PIC32_SECTION_IN_DATA_MEMORY(hdr))
+#else
+	  if ((hdr->flags & SEC_READONLY) == 0)
+#endif
 		writable = TRUE;
 	      last_hdr = hdr;
 	      /* .tbss sections effectively have zero size.  */
@@ -3822,7 +3917,13 @@ _bfd_elf_map_sections_to_segments (bfd *abfd, struct bfd_link_info *info)
 	  *pm = m;
 	  pm = &m->next;
 
-	  if ((hdr->flags & SEC_READONLY) == 0)
+#if defined(PIC30)
+      if (PIC30_SECTION_IN_DATA_MEMORY(hdr))
+#elif defined(TARGET_IS_PIC32MX)
+      if (PIC32_SECTION_IN_DATA_MEMORY(hdr))
+#else
+      if ((hdr->flags & SEC_READONLY) == 0)
+#endif
 	    writable = TRUE;
 	  else
 	    writable = FALSE;
@@ -5070,6 +5171,7 @@ _bfd_elf_section_from_bfd_section (bfd *abfd, struct bfd_section *asect)
       && elf_section_data (asect)->this_idx != 0)
     return elf_section_data (asect)->this_idx;
 
+
   if (bfd_is_abs_section (asect))
     sec_index = SHN_ABS;
   else if (bfd_is_com_section (asect))
@@ -5239,7 +5341,7 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd)
        1. It is within the address space of the segment -- we use the LMA
 	  if that is set for the segment and the VMA otherwise,
        2. It is an allocated section or a NOTE section in a PT_NOTE
-	  segment.         
+	  segment.
        3. There is an output section associated with it,
        4. The section has not already been allocated to a previous segment.
        5. PT_GNU_STACK segments do not include any sections.
@@ -5924,7 +6026,7 @@ copy_elf_program_header (bfd *ibfd, bfd *obfd)
       if (map->includes_filehdr && first_section)
 	/* We need to keep the space used by the headers fixed.  */
 	map->header_size = first_section->vma - segment->p_vaddr;
-      
+
       if (!map->includes_phdrs
 	  && !map->includes_filehdr
 	  && map->p_paddr_valid)
@@ -6491,7 +6593,14 @@ Unable to find equivalent output section for symbol '%s' from section '%s'"),
 		    }
 
 		  shndx = _bfd_elf_section_from_bfd_section (abfd, sec2);
+#if defined(PIC30) || defined(TARGET_IS_PIC32MX)
+                  /* is we can't identify the section,
+                     don't emit the symbol */
+                  if (shndx == (bfd_byte)-1)
+                    continue;
+#else
 		  BFD_ASSERT (shndx != SHN_BAD);
+#endif
 		}
 	    }
 
@@ -9086,7 +9195,6 @@ _bfd_elf_rela_local_sym (bfd *abfd,
 {
   asection *sec = *psec;
   bfd_vma relocation;
-
   relocation = (sec->output_section->vma
 		+ sec->output_offset
 		+ sym->st_value);
@@ -9272,7 +9380,7 @@ _bfd_elf_get_synthetic_symtab (bfd *abfd,
       if (p->addend != 0)
 	{
 	  char buf[30], *a;
-	  
+
 	  memcpy (names, "+0x", sizeof ("+0x") - 1);
 	  names += sizeof ("+0x") - 1;
 	  bfd_sprintf_vma (abfd, buf, p->addend);

@@ -1,2 +1,0 @@
-t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: .byte symLO
-t1.o(.text+0x0):fake: Link Error: relocation truncated to fit: .byte symHI

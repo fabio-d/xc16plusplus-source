@@ -10,3 +10,7 @@ pic30-c.o: $(srcdir)/config/pic30/pic30-c.c \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
 	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
+cci-backend.o: $(srcdir)/config/mchp-cci/cci-backend.c \
+  $(srcdir)/config/mchp-cci/cci-backend.h \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
+	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

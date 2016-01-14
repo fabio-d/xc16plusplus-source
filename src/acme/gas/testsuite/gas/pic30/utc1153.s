@@ -1,1 +1,0 @@
-        .lcomm foo,8

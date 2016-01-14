@@ -29,6 +29,10 @@
 
 /* This file handles functionality common to the different MIPS ABI's.  */
 
+#ifndef PIC32
+#define PIC32
+#endif
+
 #include "sysdep.h"
 #include "bfd.h"
 #include "libbfd.h"
@@ -37,7 +41,6 @@
 #include "elfxx-mips.h"
 #include "elf/mips.h"
 #include "elf-vxworks.h"
-
 /* Get the ECOFF swapping routines.  */
 #include "coff/sym.h"
 #include "coff/symconst.h"
@@ -45,6 +48,52 @@
 #include "coff/mips.h"
 
 #include "hashtab.h"
+
+#ifdef TARGET_IS_PIC32MX
+#include "elf/pic32.h"
+#include "pic32-utils.h"
+bfd_boolean pic32_data_init = TRUE;
+bfd_boolean pic32_has_data_init_option = 0;
+bfd_boolean pic32_has_fill_option = 0;
+bfd_boolean pic32_has_stack_option = 0;
+unsigned int pic32_stack_size = 16;
+bfd_boolean pic32_has_stackguard_option = 0;
+unsigned int pic32_stackguard_size = 16;
+bfd_boolean pic32_has_heap_option = 0;
+bfd_boolean pic32_heap_required = 0;
+unsigned int pic32_heap_size = 16;
+extern bfd_boolean pic32_debug;
+bfd *stack_bfd;
+/* Data Structures for the Data Init Template */
+bfd *init_bfd;
+unsigned char *init_data;
+asection *init_template = 0;
+/* Data Structures for Input Data Sections */
+struct pic32_section *data_sections;
+
+
+static void bfd_pic32_process_data_section
+  PARAMS ((asection *, PTR));
+static void bfd_pic32_write_data_header
+  PARAMS ((unsigned char **,  bfd_vma,  bfd_vma, int));
+static void bfd_pic32_clean_section_names
+  PARAMS ((bfd *, asection *, PTR));
+#if 0
+static void pic32_strip_sections
+  PARAMS ((bfd *));
+#endif
+
+/* Data structures for fill option */
+struct pic32_fill_option *pic32_fill_option_list;
+
+/* Data structure for free program memory blocks */
+struct pic32_memory *program_memory_free_blocks;
+
+static void pic32_fill_unused_memory
+  PARAMS ((bfd *, struct pic32_fill_option *));
+
+#endif
+
 
 /* This structure is used to hold information about one GOT entry.
    There are three types of entry:
@@ -2767,6 +2816,7 @@ mips_elf_rel_dyn_section (struct bfd_link_info *info, bfd_boolean create_p)
   dname = MIPS_ELF_REL_DYN_NAME (info);
   dynobj = elf_hash_table (info)->dynobj;
   sreloc = bfd_get_section_by_name (dynobj, dname);
+
   if (sreloc == NULL && create_p)
     {
       sreloc = bfd_make_section_with_flags (dynobj, dname,
@@ -2775,6 +2825,10 @@ mips_elf_rel_dyn_section (struct bfd_link_info *info, bfd_boolean create_p)
 					     | SEC_HAS_CONTENTS
 					     | SEC_IN_MEMORY
 					     | SEC_LINKER_CREATED
+#ifdef TARGET_IS_PIC32MX
+/* TODO: PIC32 should support .rel.dyn section in the future */
+      					     | SEC_EXCLUDE
+#endif
 					     | SEC_READONLY));
       if (sreloc == NULL
 	  || ! bfd_set_section_alignment (dynobj, sreloc,
@@ -5175,7 +5229,7 @@ mips_elf_calculate_relocation (bfd *abfd, bfd *input_bfd,
 	  if (h->call_stub != NULL && h->call_fp_stub != NULL)
 	    {
 	      asection *o;
-	      
+
 	      sec = NULL;
 	      for (o = input_bfd->sections; o != NULL; o = o->next)
 		{
@@ -5792,7 +5846,7 @@ mips_elf_obtain_contents (reloc_howto_type *howto,
 /* It has been determined that the result of the RELOCATION is the
    VALUE.  Use HOWTO to place VALUE into the output file at the
    appropriate position.  The SECTION is the section to which the
-   relocation applies.  
+   relocation applies.
    CROSS_MODE_JUMP_P is true if the relocation field
    is a MIPS16 jump to non-MIPS16 code, or vice versa.
 
@@ -6563,9 +6617,9 @@ _bfd_mips_elf_section_processing (bfd *abfd, Elf_Internal_Shdr *hdr)
 	 are set on .sbss if BFD creates it without reading it from an
 	 input file, and without special handling here the flags set
 	 on it in an input file will be followed.  */
-      if (strcmp (name, ".sdata") == 0
-	  || strcmp (name, ".lit8") == 0
-	  || strcmp (name, ".lit4") == 0)
+      if (strcmp (name, ".sdata") == 0 
+          || strcmp (name, ".lit8") == 0
+          || strcmp (name, ".lit4") == 0)
 	{
 	  hdr->sh_flags |= SHF_ALLOC | SHF_WRITE | SHF_MIPS_GPREL;
 	  hdr->sh_type = SHT_PROGBITS;
@@ -6591,6 +6645,29 @@ _bfd_mips_elf_section_processing (bfd *abfd, Elf_Internal_Shdr *hdr)
 		hdr->sh_size += hdr->sh_addralign - adjust;
 	    }
 	}
+#if defined(TARGET_IS_PIC32MX)
+    if (pic32_data_init)
+    {
+      struct pic32_section *s_sec;
+      for (s_sec = data_sections; s_sec != NULL; s_sec = s_sec->next)
+        {
+          if (s_sec == NULL 
+              || s_sec->sec == NULL 
+              || s_sec->sec->name == NULL)
+            continue;
+          if ((strcmp (name, s_sec->sec->name) == 0) 
+              || (strncmp (name, ".sdata", 6) == 0)
+              || (strncmp (name, ".sbss", 5) == 0)
+              || (strncmp (name, ".pbss", 5) == 0))
+            {
+            /* Add the SHF_NOLOAD flag for sections that have been added to the 
+               dinit template already. */
+               hdr->sh_flags |= SHF_NOLOAD;
+            }
+          
+        }
+     }
+#endif
     }
 
   return TRUE;
@@ -7704,14 +7781,14 @@ _bfd_mips_elf_check_relocs (bfd *abfd, struct bfd_link_info *info,
 	{
 	  h = ((struct mips_elf_link_hash_entry *)
 	       sym_hashes[r_symndx - extsymoff]);
-	  
+
 	  /* H is the symbol this stub is for.  */
-	  
+
 	  if (CALL_FP_STUB_P (name))
 	    loc = &h->call_fp_stub;
 	  else
 	    loc = &h->call_stub;
-	  
+
 	  /* If we already have an appropriate stub for this function, we
 	     don't need another one, so we can discard this one.  Since
 	     this function is called before the linker maps input sections
@@ -11940,6 +12017,44 @@ _bfd_mips_elf_use_plts_and_copy_relocs (struct bfd_link_info *info)
 {
   mips_elf_hash_table (info)->use_plts_and_copy_relocs = TRUE;
 }
+#if 0
+/*
+ * ** Strip zero-length sections
+ * */
+static void
+pic32_strip_sections (abfd)
+     bfd *abfd;
+{
+  asection *sec, *prev;
+
+  if (pic32_debug)
+    printf("\nLooking for zero-length sections:\n");
+
+  sec = abfd->sections;
+  if ((sec == NULL) || (sec->next == NULL))
+    return;
+
+  prev = sec;
+  sec = sec->next; /* never strip the first section */
+
+  /* loop through the sections in this bfd */
+  for (; sec != NULL; sec = sec->next)
+    {
+      /* remove sections with size = 0 */
+      if (sec->size == 0)
+        {
+        prev->next = sec->next;
+        abfd->section_count -= 1;
+        if (pic32_debug)
+          printf("  Stripping section %s\n", sec->name);
+        }
+      else
+        prev = sec;
+    }
+  return;
+} /* static void pic32_strip_sections (...)*/
+#endif
+
 
 /* We need to use a special link routine to handle the .reginfo and
    the .mdebug sections.  We need to merge all instances of these
@@ -12038,7 +12153,7 @@ _bfd_mips_elf_final_link (bfd *abfd, struct bfd_link_info *info)
   gptab_data_sec = NULL;
   gptab_bss_sec = NULL;
   for (o = abfd->sections; o != NULL; o = o->next)
-    {
+    { 
       if (strcmp (o->name, ".reginfo") == 0)
 	{
 	  memset (&reginfo, 0, sizeof reginfo);
@@ -12521,10 +12636,98 @@ _bfd_mips_elf_final_link (bfd *abfd, struct bfd_link_info *info)
   if (!bfd_elf_final_link (abfd, info))
     return FALSE;
 
+#ifdef TARGET_IS_PIC32MX
+#if 0 /* TODO */
+  pic32_strip_sections(abfd);
+#endif
+
+  asection *dinit_sec;
+  bfd_size_type dinit_size;
+  file_ptr dinit_offset;
+  unsigned char *dat;
+  struct pic32_section *s_sec;
+   if (pic32_data_init)
+  {
+      dinit_sec = init_template->output_section;
+      dinit_size = init_template->size;
+      dinit_offset = init_template->output_offset;
+
+      if (!dinit_sec)
+        {
+          fprintf( stderr, "Link Error: could not access data template\n");
+          abort();
+        }
+   /* clear SEC_IN_MEMORY flag if inaccurate */
+   if ((dinit_sec->contents == 0) && ((dinit_sec->flags & SEC_IN_MEMORY) != 0))
+        dinit_sec->flags &= ~ SEC_IN_MEMORY;
+    /* get a copy of the (blank) template contents */
+      if (!bfd_get_section_contents (abfd, dinit_sec,
+                                     init_data, dinit_offset, dinit_size))
+        {
+          fprintf( stderr, "Link Error: can't get section %s contents\n",
+                   dinit_sec->name);
+          abort();
+        }
+   /* update the default fill value */
+      dat = init_data;
+      for (i=0; i < dinit_size; i++)
+        *dat++ *= 2;
+
+  /* scan sections and write data records */
+      if (pic32_debug)
+          printf("\nProcessing data sections:\n");
+      dat = init_data;
+      for (s_sec = data_sections; s_sec != NULL; s_sec = s_sec->next)
+         if ((s_sec->sec) && (((s_sec->sec->flags & SEC_EXCLUDE) == 0) && 
+             (s_sec->sec->output_section != bfd_abs_section_ptr)))
+           bfd_pic32_process_data_section(s_sec->sec, &dat);
+
+     /* write zero terminator */
+      *dat++ = 0; *dat++ = 0;
+      *dat++ = 0; *dat++ = 0;
+
+      if (pic32_debug)
+          printf("  last template addr written = %lx\n",
+                 (long unsigned int) dat - 1);
+
+      /* insert buffer into the data template section */
+      if (!bfd_set_section_contents (abfd, dinit_sec,
+                                     init_data, dinit_offset, dinit_size))
+        {
+          fprintf( stderr, "Link Error: can't write section %s contents\n",
+                   dinit_sec->name);
+          abort();
+        }
+  }
+
+   if (pic32_has_fill_option)
+    {
+     struct pic32_fill_option *opt;
+
+     if (pic32_fill_option_list)
+       {
+         for (opt = pic32_fill_option_list->next; opt != NULL; opt = opt->next)
+            {
+              if (opt->fill_section_list)
+                {
+                  pic32_fill_unused_memory(abfd, opt);
+                }
+            }
+       }
+    }
+
+
+    /* clean the section names */
+  if (pic32_debug)
+    printf("\nCleaning section names:\n");
+  bfd_map_over_sections(abfd, &bfd_pic32_clean_section_names, 0);
+
+#endif
+
   /* Now write out the computed sections.  */
 
   if (reginfo_sec != NULL)
-    {
+   {
       Elf32_External_RegInfo ext;
 
       bfd_mips_elf32_swap_reginfo_out (abfd, &reginfo, &ext);
@@ -12572,6 +12775,117 @@ _bfd_mips_elf_final_link (bfd *abfd, struct bfd_link_info *info)
     }
 
   return TRUE;
+}
+
+/*****************************************************************************/
+
+static void
+pic32_fill_unused_memory(bfd *abfd, struct pic32_fill_option *o)
+{
+ unsigned int opb = bfd_octets_per_byte (abfd);
+ struct pic32_section *s;
+ asection *fill_sec;
+ bfd_size_type fill_size;
+ file_ptr fill_offset;
+ unsigned char *fill_data, *p, *value;
+ long long fill_value = 0;
+ long long add_value = 0;
+ int n = 0; 
+ int range_size = 0;
+
+ for (s=o->fill_section_list; s !=NULL; s=s->next)
+   {
+    if (s->sec)
+     {
+      fill_sec = s->sec->output_section;
+      fill_size = s->sec->rawsize;
+      fill_offset = s->sec->output_offset;
+      /* Write data */
+      fill_data = s->sec->contents;
+
+      /* fill with a range of values */
+        if (o->expr.values_range)
+         {
+          value = o->expr.values_range;
+          range_size = o->range_size;
+          p = fill_data;
+          while(p<(fill_data+fill_size))
+           {
+            *p++ = *(value + n); n++;
+            if (n == (range_size * o->fill_width)) n = 0;
+           }
+         }
+        else {
+      /* single value or changing value */
+        fill_value = o->expr.base_value;
+        if (o->expr.addened)
+         add_value = o->expr.addened;
+        p = fill_data;
+        if (o->fill_width == 1){
+         add_value = add_value & 0xFF;
+         *p++ = fill_value & 0xFF;
+         while (p<(fill_data+fill_size))
+          {
+           fill_value += add_value;
+           *p++ = fill_value & 0xFF;
+          }}
+        else if (o->fill_width == 2){
+          add_value = add_value & 0xFFFF;
+          *p++ = fill_value & 0xFF;
+          *p++ = (fill_value >> 8) & 0xFF;
+         while (p<(fill_data+fill_size))
+          {
+           fill_value += add_value;
+           *p++ = fill_value & 0xFF;
+           *p++ = (fill_value >> 8) & 0xFF;
+          }}
+        else if (o->fill_width == 8){
+          add_value = add_value;
+          *p++ = fill_value & 0xFF;
+          *p++ = (fill_value >> 8) & 0xFF;
+          *p++ = (fill_value >> 16) & 0xFF;
+          *p++ = (fill_value >> 24) & 0xFF;
+          *p++ = (fill_value >> 32) & 0xFF;
+          *p++ = (fill_value >> 40) & 0xFF;
+          *p++ = (fill_value >> 48) & 0xFF;
+          *p++ = (fill_value >> 56) & 0xFF;
+         while (p<(fill_data+fill_size))
+          {
+           fill_value += add_value;
+           *p++ = fill_value & 0xFF;
+           *p++ = (fill_value >> 8) & 0xFF;
+           *p++ = (fill_value >> 16) & 0xFF;
+           *p++ = (fill_value >> 24) & 0xFF;
+           *p++ = (fill_value >> 32) & 0xFF;
+           *p++ = (fill_value >> 40) & 0xFF;
+           *p++ = (fill_value >> 48) & 0xFF;
+           *p++ = (fill_value >> 56) & 0xFF;
+          }}
+
+        else {
+         add_value = add_value & 0xFFFFFFFF;
+         *p++ = fill_value & 0xFF;
+         *p++ = (fill_value >> 8) & 0xFF;
+         *p++ = (fill_value >> 16) & 0xFF;
+         *p++ = (fill_value >> 24) & 0xFF;
+         while (p<(fill_data+fill_size)){
+          fill_value += add_value;
+          *p++ = fill_value & 0xFF;
+          *p++ = (fill_value >> 8) & 0xFF;
+          *p++ = (fill_value >> 16) & 0xFF;
+          *p++ = (fill_value >> 24) & 0xFF;}}
+       }
+       fill_sec->flags |= SEC_HAS_CONTENTS;
+
+       if (!bfd_set_section_contents (abfd, fill_sec, fill_data,
+                                      fill_offset*opb, fill_size))
+        {
+          fprintf( stderr, "Link Error: can't write section %s contents\n",
+                   fill_sec->name);
+          abort();
+        }
+     }
+   }
 }
 
 /* Structure for saying that BFD machine EXTENSION extends BASE.  */
@@ -12884,7 +13198,7 @@ _bfd_mips_elf_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
 
       if (bfd_get_arch (obfd) == bfd_get_arch (ibfd)
 	  && (bfd_get_arch_info (obfd)->the_default
-	      || mips_mach_extends_p (bfd_get_mach (obfd), 
+	      || mips_mach_extends_p (bfd_get_mach (obfd),
 				      bfd_get_mach (ibfd))))
 	{
 	  if (! bfd_set_arch_mach (obfd, bfd_get_arch (ibfd),
@@ -13325,3 +13639,176 @@ _bfd_mips_post_process_headers (bfd *abfd, struct bfd_link_info *link_info_parm)
 	i_ehdrp->e_ident[EI_ABIVERSION] = 1;
     }
 }
+
+#ifdef TARGET_IS_PIC32MX
+
+/*
+ * ** Write a data record header
+ * */
+static void
+bfd_pic32_write_data_header(d, addr, len, format)
+     unsigned char **d;
+     bfd_vma addr;
+     bfd_vma len;
+     int format;
+{
+  addr &= 0xFFFFFFFF;
+
+  /* write destination address */
+  *(*d)++ = (unsigned char) (addr & 0xFF);
+  *(*d)++ = (unsigned char) ((addr >> 8) & 0xFF);
+  *(*d)++ = (unsigned char) ((addr >> 16) & 0xFF);
+  *(*d)++ = (unsigned char) ((addr >> 24) & 0xFF);
+
+  /* write destination length */
+  *(*d)++ = (unsigned char) (len & 0xFF);
+  *(*d)++ = (unsigned char) ((len >> 8) & 0xFF);
+  *(*d)++ = (unsigned char) ((len >> 16) & 0xFF);
+  *(*d)++ = (unsigned char) ((len >> 24) & 0xFF);
+
+  /* write format code */
+  *(*d)++ = (unsigned char) (format & 0xFF);
+  *(*d)++ = (unsigned char) ((format >> 8) & 0xFF);
+  *(*d)++ = (unsigned char) ((format >> 16) & 0xFF);
+  *(*d)++ = (unsigned char) ((format >> 24) & 0xFF);
+}
+
+/*
+** If the section is BSS or DATA, write the appropriate
+** record into the data init template.
+**
+** ToDo: If the data section exceeds 64K, break into
+** multiple records.
+*/
+static void
+bfd_pic32_process_data_section(sect, fp)
+     asection *sect;
+     PTR fp;
+{
+  unsigned char *buf,*p;
+  unsigned char **d = (unsigned char **) fp;
+  bfd_vma runtime_size = sect->size;
+  bfd_vma runtime_addr = sect->output_offset + sect->output_section->vma;
+  Elf_Internal_Shdr *this_hdr;
+
+  enum {CLEAR, COPY}; /* note matching definition in crt0.c */
+
+  /* skip persistent or noload data sections */
+  if (PIC32_IS_PERSIST_ATTR(sect) || PIC32_IS_NOLOAD_ATTR(sect))
+    {
+      if (pic32_debug)
+        printf("  %s (skipped), size = %x\n",
+               sect->name, (unsigned int) runtime_size);
+      return;
+    }
+
+  /* process BSS-type sections */
+  if (PIC32_IS_BSS_ATTR(sect) && (sect->size > 0))
+    {
+      if (pic32_debug)
+        printf("  %s (bss), size = %x bytes, template addr = %lx\n",
+               sect->name, (unsigned int) runtime_size,
+               (long unsigned int) *d);
+
+      /* write header only */
+      bfd_pic32_write_data_header(d, runtime_addr, runtime_size, CLEAR);
+    }
+
+   /* process DATA-type sections */
+  if ((PIC32_IS_DATA_ATTR(sect) || PIC32_IS_RAMFUNC_ATTR(sect)) && 
+      (sect->size > 0))
+    {
+      if (pic32_debug)
+        printf("  %s (data), size = %x bytes, template addr = %lx\n",
+               sect->name, (unsigned int) runtime_size,
+               (long unsigned int) *d);
+
+      /*
+      ** load a copy of the section contents
+      **
+      ** Note: We are extracting input section data
+      ** from an output section.
+      */
+      buf = (unsigned char *) malloc (sect->size);
+      if (!buf)
+        {
+          fprintf( stderr, "Link Error: not enough memory for section contents\n");
+          abort();
+        }
+
+      /* Reset the bfd file pointer, because
+        there seems to be a bug with fseek()
+        in Winblows that makes seeking to
+        a position earlier in the file unreliable. */
+      bfd_seek(sect->output_section->owner, 0, SEEK_SET);
+
+      if (!bfd_get_section_contents(sect->output_section->owner,
+                                    sect->output_section,
+                                    buf, sect->output_offset, sect->size))
+
+      {
+          fprintf( stderr, "Link Error: can't load section %s contents\n",
+                   sect->name);
+          abort();
+      }
+
+      { int count = 0;
+          /* write header */
+          bfd_pic32_write_data_header(d, runtime_addr, runtime_size, COPY);
+          for (p = buf; p < (buf + sect->size); )
+            {
+              *(*d)++ = *p++;
+              count ++;
+              if (count == 4)
+                count = 0;
+            }
+          /* fill template with zeroes */
+          if (count) while (count < 4) { *(*d)++ = 0; count++; }
+          //if (count == 4) { *(*d)++ = 0; };
+        }
+
+        free(buf);
+
+      /* make section not LOADable */
+      sect->output_section->flags &= ~ SEC_LOAD;
+      sect->output_section->flags |= SEC_NEVER_LOAD;
+
+      sect->flags &= ~ SEC_LOAD;
+      sect->flags |= SEC_NEVER_LOAD;
+      
+      this_hdr = &elf_section_data (sect->output_section)->this_hdr;
+      this_hdr->sh_flags &= ~(SHF_ALLOC);
+
+    } /* process DATA-type sections */
+
+  return;
+} /* static void bfd_pic32_process_data_section (...)*/
+
+/*
+ * ** bfd_pic32_clean_section_names
+ * **
+ * ** Remove the suffix appended to output section
+ * ** names by the best-fit allocator.
+ * **
+ * ** This routine is called via bfd_map_over_sections().
+ * */
+static void
+bfd_pic32_clean_section_names(abfd, sect, fp)
+     bfd *abfd ATTRIBUTE_UNUSED ;
+     asection *sect;
+     PTR fp ATTRIBUTE_UNUSED ;
+{
+  char *c;
+  Elf_Internal_Shdr *this_hdr ATTRIBUTE_UNUSED ;
+  int shidx ATTRIBUTE_UNUSED ;
+
+  c = strchr(sect->name, '%');
+  if (c) {
+    if (pic32_debug)  printf("  %s",sect->name);
+    *c = '\0';
+    if (pic32_debug)  printf(" --> %s\n",sect->name);
+  }
+  return;
+}
+
+#endif

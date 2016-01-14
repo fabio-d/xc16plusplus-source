@@ -6771,7 +6771,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -f -r conftest*
 
 fi
 
@@ -6792,7 +6792,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -f -r conftest*
 
 fi
 
@@ -11335,7 +11335,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -f -r conftest*
 
 fi
 
@@ -11356,7 +11356,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -f -r conftest*
 
 fi
 
@@ -12705,7 +12705,9 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
  	    LIBS="$LIBS -lgcc_s.10.4"
  	elif test x$host_alias != xi686-mingw32; then
           if test x$host_alias != xi586-mingw32msvc; then
- 	    LIBS="$LIBS -lgcc_s"
+            if test x$host_alias!= xi386-ming32; then
+              LIBS="$LIBS -lgcc_s"
+            fi
           fi
  	fi
 	

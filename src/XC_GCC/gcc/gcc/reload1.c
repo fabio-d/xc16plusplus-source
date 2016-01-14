@@ -3589,7 +3589,9 @@ eliminate_regs_in_insn (rtx insn, int replace)
           /* if we fail to recognize it here, then find_reloads will crap
              out (technical term) because extract_insn cannot extract the
              instruction */
-	  if (new_icode > 0) 
+	  if (new_icode > 0)
+#else
+	  if (new_icode >= 0)
 #endif
             INSN_CODE (insn) = new_icode;
 	}

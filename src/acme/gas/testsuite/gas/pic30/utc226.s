@@ -1,2 +1,0 @@
-	.section foo, "x"
-	.hword 0x7475, 0x3263, 0x3632

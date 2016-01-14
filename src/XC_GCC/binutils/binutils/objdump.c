@@ -71,6 +71,11 @@
 
 #include <sys/stat.h>
 
+#ifdef TARGET_IS_PIC32MX
+extern void pic32_set_attributes
+  PARAMS ((asection *, unsigned int, unsigned char ));
+#endif
+
 /* Internal headers for the ELF .stab-dump code - sorry.  */
 #define	BYTES_IN_WORD	32
 #include "aout/aout64.h"
@@ -457,6 +462,23 @@ dump_section_header (bfd *abfd, asection *section,
   PF (SEC_THREAD_LOCAL, "THREAD_LOCAL");
   PF (SEC_GROUP, "GROUP");
 
+#ifdef TARGET_IS_PIC32MX
+#define PF2(x, y) \
+  if (section->x) { printf ("%s%s", comma, y); comma = ", "; }
+
+  PF2 (near, "NEAR");
+  PF2 (persistent, "PERSIST");
+  PF2 (memory, "MEMORY");
+  PF2 (absolute, "ABSOLUTE");
+  PF2 (reverse, "REVERSE");
+  PF2 (dma, "DMA");
+  PF2 (heap, "HEAP");
+  PF2 (stack, "STACK");
+  PF2 (ramfunc, "RAMFUNC");
+#undef PF2
+#endif
+ 
+ 
   if ((section->flags & SEC_LINK_ONCE) != 0)
     {
       const char *ls;
@@ -3039,6 +3061,39 @@ dump_bfd (bfd *abfd)
   if (! dump_debugging_tags)
     printf (_("\n%s:     file format %s\n"), bfd_get_filename (abfd),
 	    abfd->xvec->name);
+
+#if defined(TARGET_IS_PIC32MX)
+  /* load symbols now */
+  syms = slurp_symtab (abfd);
+
+  /* look for extended attributes, encoded as a symbol */
+  {
+    char *ext_attr_prefix = "__ext_attr_";
+    asymbol **current = syms;
+    const char *sym_name;
+    long count;
+
+    for (count = 0; count < symcount; count++) {
+
+      if (*current) {
+        sym_name = bfd_asymbol_name(*current);
+
+        if (strstr(sym_name, ext_attr_prefix)) {
+          asection *s;
+          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          bfd_vma attr = bfd_asymbol_value(*current);
+
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              pic32_set_attributes(s, attr, 0);
+        }
+        current++;
+      }
+    }
+  }
+#endif
+
+
   if (dump_ar_hdrs)
     print_arelt_descr (stdout, abfd, TRUE);
   if (dump_file_header)

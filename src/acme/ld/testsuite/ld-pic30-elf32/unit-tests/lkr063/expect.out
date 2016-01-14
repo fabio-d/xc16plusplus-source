@@ -1,8 +1,0 @@
-
-excerpt from pic30-objdump (-s option):
-
-Contents of section foo:
-0000fa 111111 0080fa 000006
-Contents of section boo:
-2222 ""  
-

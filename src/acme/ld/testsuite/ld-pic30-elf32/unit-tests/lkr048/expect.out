@@ -1,7 +1,0 @@
-
-excerpt from pic30-objdump (-h option):
-
-  3 foo           00000002  00008100  00000100  0000028c  2**1
-                  CONTENTS, ALLOC, LOAD, READONLY, PSV
-
-total data memory used (should be 0):    0

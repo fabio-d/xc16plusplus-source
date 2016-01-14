@@ -520,6 +520,12 @@ convert_move (rtx to, rtx from, int unsignedp)
       return;
     }
 
+#ifdef TARGET_CONVERT_POINTER
+   if (targetm.valid_pointer_mode(to_mode) ||
+       targetm.valid_pointer_mode(from_mode)) {
+     if (TARGET_CONVERT_POINTER(to,from,unsignedp)) return;
+   }
+#endif
   /* Now both modes are integers.  */
 
   /* Handle expanding beyond a word.  */
@@ -801,6 +807,13 @@ convert_modes (enum machine_mode mode, enum machine_mode oldmode, rtx x, int uns
      non-volatile MEM.  Except for the constant case where MODE is no
      wider than HOST_BITS_PER_WIDE_INT, we must be narrowing the operand.  */
 
+#ifdef _BUILD_C30_
+  /* extended modes may not have a linear address mapping; not sure how
+     to do this in a target_specific_way ... */
+#ifdef TARGET_LINEAR_MODE
+  if (TARGET_LINEAR_MODE(mode))
+#endif
+#endif
   if ((CONST_INT_P (x)
        && GET_MODE_BITSIZE (mode) <= HOST_BITS_PER_WIDE_INT)
       || (GET_MODE_CLASS (mode) == MODE_INT
@@ -7499,6 +7512,19 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
          of the PLUS_EXPR code.  */
       /* Make sure to sign-extend the sizetype offset in a POINTER_PLUS_EXPR
          if sizetype precision is smaller than pointer precision.  */
+#ifdef _BUILD_C30_
+      if (TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(treeop0)))) {
+        enum machine_mode target_mode;
+        tree target_type;
+
+        target_mode = targetm.addr_space.address_mode(
+                        TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(treeop0))));
+        target_type = lang_hooks.types.type_for_mode(target_mode,1);
+  
+        // treeop1 = convert (target_type, treeop1);
+        treeop1 = convert (TREE_TYPE(treeop0), treeop1);
+      } else
+#endif
       if (TYPE_PRECISION (sizetype) < TYPE_PRECISION (type))
 	treeop1 = fold_convert_loc (loc, type,
 				    fold_convert_loc (loc, ssizetype,

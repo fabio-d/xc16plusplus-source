@@ -36,7 +36,7 @@
 
 #if 1 || defined(TARGET_IS_elf32pic32mx)
 bfd_boolean (*mchp_elf_link_check_archive_element)
-  PARAMS ((char *, bfd *, struct bfd_link_info *));
+  PARAMS ((char *, bfd *, struct bfd_link_info *)) __attribute__((weak));
 extern int pic32_debug;
 #endif
 
@@ -3729,7 +3729,7 @@ error_free_dyn:
 	return TRUE;
 
       /* Save the DT_AUDIT entry for the linker emulation code. */
-      elf_dt_audit (abfd) = audit; 
+      elf_dt_audit (abfd) = audit;
     }
 
   /* If this is a dynamic object, we always link against the .dynsym
@@ -4029,7 +4029,7 @@ error_free_dyn:
 		  && h->root.u.undef.abfd)
 		undef_bfd = h->root.u.undef.abfd;
 	    }
-	  
+
 	  if (ever == NULL)
 	    {
 	      if (info->default_imported_symver)
@@ -4522,7 +4522,7 @@ error_free_dyn:
           undefsyms = mchp_undefsym_init(info);
 
         /* create or load a table entry for this symbol */
-        usym = mchp_undefsym_lookup(undefsyms, name, 1, 0); 
+        usym = mchp_undefsym_lookup(undefsyms, name, 1, 0);
       }
 #endif
 
@@ -4976,8 +4976,7 @@ _bfd_elf_archive_symbol_lookup (bfd *abfd,
  * we only call this function if it is a valid pointer
  */
 
-unsigned int (*mchp_force_keep_symbol)(char *, char *);
-void (*mchp_smartio_symbols)(struct bfd_link_info*);
+extern void (*mchp_smartio_symbols)  (struct bfd_link_info*) __attribute__((weak)) ;
 #endif
 
 /* Add symbols from an ELF archive file to the linker hash table.  We
@@ -5042,8 +5041,8 @@ elf_link_add_archive_symbols (bfd *abfd, struct bfd_link_info *info)
 
 #if 1 || defined(TARGET_IS_elf32pic32mx)
   { static int smartio_run=0;
-    
-    if (smartio_run == 0) {
+
+    if ((smartio_run == 0) && mchp_smartio_symbols) {
       /* look through the undef list and adds those symbols that are smartio
          to the undefined list */
       mchp_smartio_symbols(info);
@@ -5133,7 +5132,7 @@ elf_link_add_archive_symbols (bfd *abfd, struct bfd_link_info *info)
 
 #if 1 || defined(TARGET_IS_elf32pic32mx)
           if (mchp_elf_link_check_archive_element &&
-              !mchp_elf_link_check_archive_element (symdef->name, element, 
+              !mchp_elf_link_check_archive_element (symdef->name, element,
                                                      info))
             continue;
 #endif
@@ -8807,15 +8806,24 @@ elf_link_output_extsym (struct elf_link_hash_entry *h, void *data)
 	    sym.st_shndx =
 	      _bfd_elf_section_from_bfd_section (finfo->output_bfd,
 						 input_sec->output_section);
-	    if (sym.st_shndx == SHN_BAD)
+	    if (sym.st_shndx == SHN_BAD) 
 	      {
+#ifdef TARGET_IS_PIC32MX
+               /* If we cannot identify the section because it is a 
+                  zero-size stripped section, don't emit the symbol. FS */
+		if (bfd_section_removed_from_list(finfo->output_bfd,
+                                                 input_sec->output_section))
+                  return FALSE;
+                else
+#endif
+                  {
 		(*_bfd_error_handler)
 		  (_("%B: could not find output section %A for input section %A"),
 		   finfo->output_bfd, input_sec->output_section, input_sec);
 		eoinfo->failed = TRUE;
 		return FALSE;
+		  }
 	      }
-
 	    /* ELF symbols in relocatable files are section relative,
 	       but in nonrelocatable files they are virtual
 	       addresses.  */
@@ -11487,7 +11495,7 @@ _bfd_elf_gc_mark_hook (asection *sec,
 	  if (sec_name && *sec_name != '\0')
 	    {
 	      bfd *i;
-	      
+
 	      for (i = info->input_bfds; i; i = i->link_next)
 		{
 		  sec = bfd_get_section_by_name (i, sec_name);

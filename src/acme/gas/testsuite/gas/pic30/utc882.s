@@ -1,3 +1,0 @@
-	.text
-	.pword foo
-	.end

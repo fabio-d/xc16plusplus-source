@@ -43,6 +43,7 @@
 # OTHER_BSS_SECTIONS - Other output sections to include in the linker
 #                      script after the .bss output section
 #
+# ATTRS_SECTIONS    - at the end
 # OTHER_GOT_SYMBOLS - Symbols defined just before .got
 #
 # OTHER_READONLY_SECTION - Other sections besides the standard read-only
@@ -60,7 +61,7 @@
 #
 # OTHER_TEXT_SECTIONS - Other sections besides the standard text section
 #                       (.text, .stub, .text.*, and .gnu.linkonce.t.*)
-#                       to allocate in the .text section
+#                       to allocate in t he .text section
 #
 # OUTPUT_ARCH - Specifies the particular output architecture to use for
 #               the output file.  If not specified, defaults to either:
@@ -124,6 +125,9 @@ test -z "${ALIGNMENT}" && ALIGNMENT="${ELFSIZE} / 8"
 test -z "${DATA_START_LOAD_SYMBOL}" && DATA_START_LOAD_SYMBOL=_data_image_begin
 test -z "${TDATA_START_LOAD_SYMBOL}" && TDATA_START_LOAD_SYMBOL=_tdata_image_begin
 test -z "${DATA_IMAGE_MEMORY_REGION}" && test ! -z "${CODE_MEMORY_REGION}" && DATA_IMAGE_MEMORY_REGION="AT>${CODE_MEMORY_REGION}"
+test -z "$ATTRS_SECTIONS" && ATTRS_SECTIONS=".gnu.attributes 0 : { KEEP (*(.gnu.attributes)) }"
+
+DISCARDED="/DISCARD/ : { *(.note.GNU-stack) *(.gnu_debuglink) *(.gnu.lto_*) *(.discard) }"
 
 # If WRITABLE_RODATA is set to yes, then the .rodata output section is
 # considered writable and will be placed after the .data section; therefore,
@@ -142,7 +146,7 @@ fi
 RODATA="
   .rodata ${RELOCATING-0} :
   {
-    *(.rodata${RELOCATING+ .rodata.* .gnu.linkonce.r.*})
+    *(${RELOCATING+ .gnu.linkonce.r.*})
     *(.rodata1)
     ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
   } >${RODATA_MEMORY_REGION}
@@ -154,22 +158,24 @@ SDATA="
    * can access them all, and initialized data all before uninitialized, so
    * we can shorten the on-disk segment size.
    */
-  .sdata ALIGN(4) ${RELOCATING-0} :
+  .sdata ALIGN(${ALIGNMENT}) :
   {
     ${RELOCATING+${SDATA_START_SYMBOLS}}
     *(.sdata${RELOCATING+ .sdata.* .gnu.linkonce.s.*})
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
     ${RELOCATING+${SDATA_END_SYMBOLS}}
-  } >${DATA_MEMORY_REGION} ${DATA_IMAGE_MEMORY_REGION}
+  } >${DATA_MEMORY_REGION}
 "
 
 SBSS="
-  .sbss ALIGN(4) ${RELOCATING-0} :
+  .sbss ALIGN(${ALIGNMENT}) :
   {
     ${RELOCATING+${SBSS_START_SYMBOLS}}
     *(.dynsbss)
     *(.sbss${RELOCATING+ .sbss.* .gnu.linkonce.sb.*})
     *(.scommon)
     ${RELOCATING+${SBSS_END_SYMBOLS}}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
   } >${DATA_MEMORY_REGION}
 "
 
@@ -179,7 +185,7 @@ SDATA2="
    * .sdata2 section.  This is different from .sdata, which contains small
    * initialized non-constant global and static data.
    */
-  .sdata2 ALIGN(4) ${RELOCATING-0} :
+  .sdata2 ALIGN(${ALIGNMENT}) :
   {
     *(.sdata2${RELOCATING+ .sdata2.* .gnu.linkonce.s2.*})
     ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
@@ -192,7 +198,7 @@ SBSS2="
    * always be zero).  Again, this is different from .sbss, which contains
    * small non-initialized, non-constant global and static data.
    */
-  .sbss2 ALIGN(4) ${RELOCATING-0} :
+  .sbss2 ALIGN(${ALIGNMENT}) :
   {
     *(.sbss2${RELOCATING+ .sbss2.* .gnu.linkonce.sb2.*})
     ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
@@ -200,10 +206,11 @@ SBSS2="
 "
 
 GOT="
-  .got ALIGN(4) ${RELOCATING-0} :
+  .got ALIGN(${ALIGNMENT}) :
   {
-     *(.got.plt) *(.got)
-  } >${DATA_MEMORY_REGION} ${DATA_IMAGE_MEMORY_REGION}
+    *(.got.plt) *(.got)
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${DATA_MEMORY_REGION} /* ${DATA_IMAGE_MEMORY_REGION} */
 "
 
 STACKNOTE="
@@ -236,72 +243,201 @@ SECTIONS
   /* Boot Sections */
   ${BOOT_SECTION}
 
-  /* Code Sections */
-  .text ${RELOCATING+${TEXT_START_ADDR}}${RELOCATING-0} :
+  /* Code Sections - Note that input sections *(.text) and *(.text.*)
+  ** are not mapped here. Starting in C32 v2.00, the best-fit allocator
+  ** locates them, so that .text may flow around absolute sections
+  ** as needed.
+  */
+  .text :
   {
-    ${RELOCATING+${TEXT_START_SYMBOLS}}
-    *(.text .stub${RELOCATING+ .text.* .gnu.linkonce.t.*})
+    *(.stub${RELOCATING+ .gnu.linkonce.t.*})
     KEEP (*(.text.*personality*))
-    /* .gnu.warning sections are handled specially by elf32.em.  */
-    *(.gnu.warning)
     ${RELOCATING+${OTHER_TEXT_SECTIONS}}
-    ${RELOCATING+${TEXT_END_SYMBOLS}}
-  } >${CODE_MEMORY_REGION} =${NOP-0}
+    *(.gnu.warning)
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  /* Global-namespace object initialization */
+  .init ${RELOCATING-0} :
+  {
+    KEEP (*crti.o(.init))
+    KEEP (*crtbegin.o(.init))
+    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o *crtn.o ).init))
+    KEEP (*crtend.o(.init))
+    KEEP (*crtn.o(.init))
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .fini ${RELOCATING-0} :
+  {
+    KEEP (*(.fini))
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .preinit_array ${RELOCATING-0} :
+  {
+    PROVIDE_HIDDEN (__preinit_array_start = .);
+    KEEP (*(.preinit_array))
+    PROVIDE_HIDDEN (__preinit_array_end = .);
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .init_array ${RELOCATING-0} :
+  {
+    PROVIDE_HIDDEN (__init_array_start = .);
+    KEEP (*(SORT(.init_array.*)))
+    KEEP (*(.init_array))
+    PROVIDE_HIDDEN (__init_array_end = .);
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .fini_array ${RELOCATING-0} :
+  {
+    PROVIDE_HIDDEN (__fini_array_start = .);
+    KEEP (*(SORT(.fini_array.*)))
+    KEEP (*(.fini_array))
+    PROVIDE_HIDDEN (__fini_array_end = .);
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .ctors ${RELOCATING-0} :
+  {
+    /* XC32 uses crtbegin.o to find the start of
+       the constructors, so we make sure it is
+       first.  Because this is a wildcard, it
+       doesn't matter if the user does not
+       actually link against crtbegin.o; the
+       linker won't look for a file to match a
+       wildcard.  The wildcard also means that it
+       doesn't matter which directory crtbegin.o
+       is in.  */
+    KEEP (*crtbegin.o(.ctors))
+    KEEP (*crtbegin?.o(.ctors))
+    /* We don't want to include the .ctor section from
+       the crtend.o file until after the sorted ctors.
+       The .ctor section from the crtend file contains the
+       end of ctors marker and it must be last */
+    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
+    KEEP (*(SORT(.ctors.*)))
+    KEEP (*(.ctors))
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
+  .dtors ${RELOCATING-0} :
+  {
+    KEEP (*crtbegin.o(.dtors))
+    KEEP (*crtbegin?.o(.dtors))
+    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
+    KEEP (*(SORT(.dtors.*)))
+    KEEP (*(.dtors))
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${CODE_MEMORY_REGION}
+
   /* Read-only sections */
   ${WRITABLE_RODATA-${RODATA}}
   ${CREATE_SHLIB-${SDATA2}}
   ${CREATE_SHLIB-${SBSS2}}
   ${OTHER_READONLY_SECTIONS}
-  .eh_frame_hdr : { *(.eh_frame_hdr) }
-  .eh_frame     ${RELOCATING-0} : ONLY_IF_RO { KEEP (*(.eh_frame)) }
 
+  .eh_frame_hdr ${RELOCATING-0} : 
+  {
+    *(.eh_frame_hdr) 
+  } >${CODE_MEMORY_REGION}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  .eh_frame ${RELOCATING-0} : ONLY_IF_RO 
+  { 
+    KEEP (*(.eh_frame))
+  } >${CODE_MEMORY_REGION}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  .gcc_except_table ${RELOCATING-0} : ONLY_IF_RO
+  {
+    *(.gcc_except_table .gcc_except_table.*)
+  } >${CODE_MEMORY_REGION}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
   ${NO_SMALL_DATA+${GOT}}
 
   .dbg_data (NOLOAD) :
   {
     . += (DEFINED (_DEBUGGER) ? 0x200 : 0x0);
   } >${DATA_MEMORY_REGION}
-  
-  /* Persistent data */
-  .persist :
+
+  .jcr ${RELOCATING-0} :
+  {
+    KEEP (*(.jcr))
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${DATA_MEMORY_REGION}
+
+  ${WRITABLE_RODATA+${RODATA}}
+  .eh_frame ${RELOCATING-0}  : ONLY_IF_RW 
+  {
+    KEEP (*(.eh_frame)) 
+  } >${DATA_MEMORY_REGION}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  .gcc_except_table ${RELOCATING-0}  : ONLY_IF_RW 
+  {
+    *(.gcc_except_table .gcc_except_table.*)
+  } >${DATA_MEMORY_REGION}
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  /* Persistent data - Use the new C 'persistent' attribute instead. */
+  .persist ${RELOCATING-0} :
   {
     _persist_begin = .;
     *(.persist .persist.*)
+    *(.pbss .pbss.*)
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
     _persist_end = .;
   } >${DATA_MEMORY_REGION}
 
+  /*
+   * Note that input sections named .data* are no longer mapped here.
+   * Starting in C32 v2.00, the best-fit allocator locates them, so
+   * that they may flow around absolute sections as needed.
+   */
   .data ${RELOCATING-0} :
   {
-    ${RELOCATING+${DATA_START_SYMBOLS}}
-    *(.data${RELOCATING+ .data.* .gnu.linkonce.d.*})
-    KEEP (*(.gnu.linkonce.d.*personality*))
+    *(${RELOCATING+ .gnu.linkonce.d.*})
+    ${CONSTRUCTING+SORT(CONSTRUCTORS)}
     *(.data1)
-  } >${DATA_MEMORY_REGION} ${DATA_IMAGE_MEMORY_REGION}
-  ${DATA_START_LOAD_SYMBOL} = LOADADDR(.data) ;
+    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+  } >${DATA_MEMORY_REGION}
 
-  ${WRITABLE_RODATA+${RODATA}}
-  .eh_frame     ${RELOCATING-0} : ONLY_IF_RW { KEEP (*(.eh_frame)) }
   ${OTHER_READWRITE_SECTIONS}
   ${RELOCATING+${OTHER_GOT_SYMBOLS}}
   ${NO_SMALL_DATA-${GOT}}
   ${OTHER_GOT_SECTIONS}
   ${CREATE_SHLIB+${SDATA2}}
   ${CREATE_SHLIB+${SBSS2}}
+
+  /*
+   * Note that "small" data sections are still mapped in the linker
+   * script. This ensures that they are grouped together for
+   * gp-relative addressing. Absolute sections are allocated after
+   * the "small" data sections so small data cannot flow around them.
+   */
+
   ${NO_SMALL_DATA-${SDATA}}
   ${OTHER_SDATA_SECTIONS}
   ${RELOCATING+${BSS_START_SYMBOLS}}
   ${NO_SMALL_DATA-${SBSS}}
-  .bss ${RELOCATING-0} :
+
+  /*
+   * Align here to ensure that the .bss section occupies space up to
+   * _end.  Align after .bss to ensure correct alignment even if the
+   * .bss section disappears because there are no input sections.
+   *
+   * Note that input sections named .bss* are no longer mapped here.
+   * Starting in C32 v2.00, the best-fit allocator locates them, so
+   * that they may flow around absolute sections as needed.
+   *
+   */
+  .bss   ${RELOCATING-0} :
   {
     *(.dynbss)
-    *(.bss${RELOCATING+ .bss.* .gnu.linkonce.b.*})
     *(COMMON)
-    /*
-     * Align here to ensure that the .bss section occupies space up to
-     * _end.  Align after .bss to ensure correct alignment even if the
-     * .bss section disappears because there are no input sections.
-     */
-    ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
+   /* Align here to ensure that the .bss section occupies space up to
+      _end.  Align after .bss to ensure correct alignment even if the
+      .bss section disappears because there are no input sections. */
+   ${RELOCATING+. = ALIGN(. != 0 ? ${ALIGNMENT} : 1);}
   } >${DATA_MEMORY_REGION}
   ${OTHER_BSS_SECTIONS}
   ${RELOCATING+. = ALIGN(${ALIGNMENT}) ;}
@@ -317,7 +453,7 @@ SECTIONS
   .stab.indexstr 0 : { *(.stab.indexstr) }
 
   .comment       0 : { *(.comment) }
-  
+
   /* DWARF debug sections.
      Symbols in the DWARF debugging sections are relative to the beginning
      of the section so we begin them at 0.  */
@@ -349,10 +485,16 @@ SECTIONS
   .debug_typenames 0 : { *(.debug_typenames) }
   .debug_varnames  0 : { *(.debug_varnames) }
 
+  .debug_pubtypes 0 : { *(.debug_pubtypes) }
+  .debug_ranges   0 : { *(.debug_ranges) }
+
   ${OTHER_DEBUG_SECTIONS}
   ${OTHER_GOT_RELOC_SECTIONS}
-  
+
+  ${ATTRS_SECTIONS}
+
   ${RELOCATING+${OTHER_END_SYMBOLS}}
   ${RELOCATING+${STACKNOTE}}
+  ${RELOCATING+${DISCARDED}}
 }
 EOF

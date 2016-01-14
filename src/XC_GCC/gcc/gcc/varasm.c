@@ -128,16 +128,20 @@ static void asm_output_aligned_bss (FILE *, tree, const char *,
 #endif /* BSS_SECTION_ASM_OP */
 static void mark_weak (tree);
 static void output_constant_pool (const char *, tree);
+section * mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
+			  unsigned HOST_WIDE_INT align ATTRIBUTE_UNUSED,
+			  unsigned int flags ATTRIBUTE_UNUSED);
+bool bss_initializer_p (const_tree decl);
 
 /* Well-known sections, each one associated with some sort of *_ASM_OP.  */
-section *text_section;
-section *data_section;
-section *readonly_data_section;
-section *sdata_section;
-section *ctors_section;
-section *dtors_section;
-section *bss_section;
-section *sbss_section;
+section *text_section = NULL;
+section *data_section = NULL;
+section *readonly_data_section = NULL;
+section *sdata_section = NULL;
+section *ctors_section = NULL;
+section *dtors_section = NULL;
+section *bss_section = NULL;
+section *sbss_section = NULL;
 
 /* Various forms of common section.  All are guaranteed to be nonnull.  */
 section *tls_comm_section;
@@ -577,7 +581,7 @@ get_section (const char *name, unsigned int flags, tree decl)
   flags |= SECTION_NAMED;
   if (*slot == NULL)
     {
-      sect = GGC_NEW (section);
+      sect = (section*)GGC_NEW (section);
       sect->named.common.flags = flags;
       sect->named.name = ggc_strdup (name);
       sect->named.decl = decl;
@@ -855,6 +859,9 @@ hot_function_section (tree decl)
 section *
 function_section (tree decl)
 {
+#if 1 /* defined(_PIC30_H_) || defined(TARGET_MCHP_PIC32MX) */
+  return (*targetm.asm_out.select_section) (decl, 0, DECL_ALIGN (decl));
+#else
   int reloc = 0;
 
   if (first_function_block_is_cold)
@@ -870,11 +877,18 @@ function_section (tree decl)
 #else
   return reloc ? unlikely_text_section () : hot_function_section (decl);
 #endif
+#endif
 }
 
-section *
+section * 
 current_function_section (void)
 {
+#if defined(_PIC30_H_) || defined(TARGET_MCHP_PIC32MX)
+    return targetm.asm_out.select_section (current_function_decl,
+					   0,
+					   DECL_ALIGN (current_function_decl));
+#else
+
 #ifdef USE_SELECT_SECTION_FOR_FUNCTIONS
   if (current_function_decl != NULL_TREE
       && DECL_SECTION_NAME (current_function_decl) != NULL_TREE)
@@ -889,6 +903,7 @@ current_function_section (void)
   return (in_cold_section_p
 	  ? unlikely_text_section ()
 	  : hot_function_section (current_function_decl));
+#endif
 #endif
 }
 
@@ -956,7 +971,8 @@ default_no_function_rodata_section (tree decl ATTRIBUTE_UNUSED)
 
 /* Return the section to use for string merging.  */
 
-static section *
+/* static */
+section *
 mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
 			  unsigned HOST_WIDE_INT align ATTRIBUTE_UNUSED,
 			  unsigned int flags ATTRIBUTE_UNUSED)
@@ -1155,7 +1171,7 @@ decode_reg_name (const char *name)
 
 /* Return true if DECL's initializer is suitable for a BSS section.  */
 
-static bool
+/* static */ bool
 bss_initializer_p (const_tree decl)
 {
   return (DECL_INITIAL (decl) == NULL
@@ -1228,11 +1244,13 @@ align_variable (tree decl, bool dont_output_data)
    section should be used wherever possible.  */
 
 static section *
-get_variable_section (tree decl, bool prefer_noswitch_p)
+get_variable_section (tree decl, bool prefer_noswitch_p ATTRIBUTE_UNUSED)
 {
   addr_space_t as = ADDR_SPACE_GENERIC;
   int reloc;
-
+  char *sectionname;
+  sectionname = DECL_SECTION_NAME (decl);
+  
   if (TREE_TYPE (decl) != error_mark_node)
     as = TYPE_ADDR_SPACE (TREE_TYPE (decl));
 
@@ -1262,6 +1280,11 @@ get_variable_section (tree decl, bool prefer_noswitch_p)
     reloc = 0;
 
   resolve_unique_section (decl, reloc, flag_data_sections);
+
+#if defined(TARGET_MCHP_PIC32MX)
+  return targetm.asm_out.select_section (decl, reloc, DECL_ALIGN (decl));
+#else
+
   if (IN_NAMED_SECTION (decl))
     return get_named_section (decl, NULL, reloc);
 
@@ -1277,6 +1300,7 @@ get_variable_section (tree decl, bool prefer_noswitch_p)
     }
 
   return targetm.asm_out.select_section (decl, reloc, DECL_ALIGN (decl));
+#endif
 }
 
 /* Return the block into which object_block DECL should be placed.  */
@@ -1651,7 +1675,11 @@ get_cdtor_priority_section (int priority, bool constructor_p)
 	      order; constructors are run from right to left, and the
 	      linker sorts in increasing order.  */
 	   MAX_INIT_PRIORITY - priority);
+#if 0 && defined(TARGET_MCHP_PIC32MX) || defined(_BUILD_C32_) 
+  return get_section (buf, SECTION_CODE, NULL);
+#else
   return get_section (buf, SECTION_WRITE, NULL);
+#endif
 }
 
 void
@@ -1663,7 +1691,13 @@ default_named_section_asm_out_destructor (rtx symbol, int priority)
     sec = get_cdtor_priority_section (priority,
 				      /*constructor_p=*/false);
   else
-    sec = get_section (".dtors", SECTION_WRITE, NULL);
+    {
+#if 0 && defined(TARGET_MCHP_PIC32MX) || defined(_BUILD_C32_)
+      sec = get_section (".dtors", SECTION_CODE, NULL);
+#else
+      sec = get_section (".dtors", SECTION_WRITE, NULL);
+#endif
+    }
 
   assemble_addr_to_section (symbol, sec);
 }
@@ -1703,7 +1737,13 @@ default_named_section_asm_out_constructor (rtx symbol, int priority)
     sec = get_cdtor_priority_section (priority,
 				      /*constructor_p=*/true);
   else
+  {
+#if 0 && defined(TARGET_MCHP_PIC32MX) || defined(_BUILD_C32_)
+    sec = get_section (".ctors", SECTION_CODE, NULL);
+#else  
     sec = get_section (".ctors", SECTION_WRITE, NULL);
+#endif
+  }
 
   assemble_addr_to_section (symbol, sec);
 }
@@ -1820,7 +1860,6 @@ assemble_start_function (tree decl, const char *fnname)
      aligned.  This is necessary here in the case where the function
      has both hot and cold sections, because we don't want to re-set
      the alignment when the section switch happens mid-function.  */
-
   if (flag_reorder_blocks_and_partition)
     {
       switch_to_section (unlikely_text_section ());
@@ -1858,7 +1897,6 @@ assemble_start_function (tree decl, const char *fnname)
   in_cold_section_p = first_function_block_is_cold;
 
   /* Switch to the correct text section for the start of the function.  */
-
   switch_to_section (function_section (decl));
   if (flag_reorder_blocks_and_partition
       && !hot_label_written)
@@ -1924,8 +1962,9 @@ assemble_end_function (tree decl, const char *fnname ATTRIBUTE_UNUSED)
 {
 #ifdef ASM_DECLARE_FUNCTION_SIZE
   /* We could have switched section in the middle of the function.  */
-  if (flag_reorder_blocks_and_partition)
+  if (flag_reorder_blocks_and_partition) {
     switch_to_section (function_section (decl));
+  }
   ASM_DECLARE_FUNCTION_SIZE (asm_out_file, fnname, decl);
 #endif
   if (! CONSTANT_POOL_BEFORE_FUNCTION)
@@ -2680,7 +2719,6 @@ assemble_trampoline_template (void)
     return initial_trampoline;
 
   /* By default, put trampoline templates in read-only data section.  */
-
 #ifdef TRAMPOLINE_SECTION
   switch_to_section (TRAMPOLINE_SECTION);
 #else
@@ -6368,6 +6406,9 @@ enum section_category
 categorize_decl_for_section (const_tree decl, int reloc)
 {
   enum section_category ret;
+#if defined(_BUILD_C32_)
+  const char *name;
+#endif
 
   if (TREE_CODE (decl) == FUNCTION_DECL)
     return SECCAT_TEXT;
@@ -6391,9 +6432,18 @@ categorize_decl_for_section (const_tree decl, int reloc)
 	     do something.  If so, we wish to segregate the data in order to
 	     minimize cache misses inside the dynamic linker.  */
 	  if (reloc & targetm.asm_out.reloc_rw_mask ())
-	    ret = reloc == 1 ? SECCAT_DATA_REL_LOCAL : SECCAT_DATA_REL;
+	    {
+	      ret = reloc == 1 ? SECCAT_DATA_REL_LOCAL : SECCAT_DATA_REL;
+	    }
 	  else
-	    ret = SECCAT_DATA;
+	    {
+#if defined(_BUILD_C32_)
+	      name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
+	      if (strstr(name, "DW.ref.__gxx_personality_v0"))
+	        return SECCAT_RODATA;
+#endif
+	      ret = SECCAT_DATA;
+	    }
 	}
       else if (reloc & targetm.asm_out.reloc_rw_mask ())
 	ret = reloc == 1 ? SECCAT_DATA_REL_RO_LOCAL : SECCAT_DATA_REL_RO;
@@ -6557,6 +6607,8 @@ default_unique_section (tree decl, int reloc)
   const char *prefix, *name, *linkonce;
   char *string;
 
+  name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
+
   /* if there is a section name on the decl, we use that as the prefix;
      otherwise, we figure out the prefix based on the decl itself */
   if (DECL_SECTION_NAME (decl) != NULL)
@@ -6569,7 +6621,14 @@ default_unique_section (tree decl, int reloc)
 	  switch (categorize_decl_for_section (decl, reloc))
 		{
 		case SECCAT_TEXT:
+#if defined(TARGET_MCHP_PIC32MX)
+		  if (mchp_ramfunc_type_p(decl))
+		    prefix = one_only ? ".rf" : ".ramfunc";
+		  else
+		    prefix = one_only ? ".t" : ".text";
+#else
 		  prefix = one_only ? ".t" : ".text";
+#endif
 		  break;
 		case SECCAT_RODATA:
 		case SECCAT_RODATA_MERGE_STR:
@@ -6940,7 +6999,6 @@ file_end_indicate_exec_stack (void)
   unsigned int flags = SECTION_DEBUG;
   if (trampolines_created)
     flags |= SECTION_CODE;
-
   switch_to_section (get_section (".note.GNU-stack", flags, NULL));
 }
 
@@ -6975,13 +7033,19 @@ switch_to_section (section *new_section)
 	  && strcmp (new_section->named.name,
 		     UNLIKELY_EXECUTED_TEXT_SECTION_NAME) == 0)
 	crtl->subsections.unlikely_text_section_name = UNLIKELY_EXECUTED_TEXT_SECTION_NAME;
-
+#if defined(TARGET_MCHP_PIC32MX)
+      if (set_section_stack(new_section->named.name, 0) == 0) 
+        return;
+#endif
       targetm.asm_out.named_section (new_section->named.name,
 				     new_section->named.common.flags,
 				     new_section->named.decl);
       break;
 
     case SECTION_UNNAMED:
+#if defined(TARGET_MCHP_PIC32MX)
+      set_section_stack("*", 0);
+#endif
       new_section->unnamed.callback (new_section->unnamed.data);
       break;
 

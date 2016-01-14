@@ -386,4 +386,6 @@ extern const char* pic32_output_mtc0_32 (rtx value, int srcreg, int srcsel);
 
 extern int mchp_check_for_conversion(rtx);
 
+extern bool mips_in_small_data_p (const_tree decl);
+
 #endif /* ! GCC_MIPS_PROTOS_H */

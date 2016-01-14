@@ -1,6 +1,0 @@
-.text
-.fillvalue 0xFF
-.fillupper 0x56
-.byte 0x12
-.align 2, 0x34
-

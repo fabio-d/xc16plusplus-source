@@ -1310,7 +1310,7 @@ print_filtered_help (unsigned int include_flags,
 		    {
 		      if (* (const char **) option->flag_var != NULL)
 			snprintf (new_help + strlen (new_help),
-				  sizeof (new_help) - strlen (new_help),
+				  sizeof (new_help) - strlen (new_help), "%s",
 				  * (const char **) option->flag_var);
 		    }
 		  else

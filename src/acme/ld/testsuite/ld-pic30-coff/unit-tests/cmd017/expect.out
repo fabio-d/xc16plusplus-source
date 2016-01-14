@@ -1,7 +1,0 @@
-
-t.exe:     file format xxx-pic30
-
-Disassembly of section .isr:
-
-00000104 <__DefaultInterrupt>:
- 104:	00 00 fe    	reset     

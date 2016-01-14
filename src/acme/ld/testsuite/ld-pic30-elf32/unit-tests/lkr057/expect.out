@@ -1,8 +1,0 @@
-
-excerpt from pic30-readelf (-S option):
-
-  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
-  [ 4] data_merge        PROGBITS        00000800 000290 000008 02 WAMo  0   0  2
-Key to Flags:
-  W (write), A (alloc), X (execute), M (merge), S (strings)
-

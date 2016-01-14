@@ -383,12 +383,17 @@ CODE_FRAGMENT
 .  {* Bits used by various backends.  The generic code doesn't touch
 .     these fields.  *}
 .
-.  unsigned int sec_flg0:1;
-.  unsigned int sec_flg1:1;
-.  unsigned int sec_flg2:1;
-.  unsigned int sec_flg3:1;
-.  unsigned int sec_flg4:1;
-.  unsigned int sec_flg5:1;
+.  unsigned int near:1;
+.  unsigned int persistent:1;
+.  unsigned int absolute:1;
+.  unsigned int reverse:1;
+.  unsigned int unordered:1;
+.  unsigned int dma:1;
+.  unsigned int memory:1;
+.  unsigned int heap:1;
+.  unsigned int stack:1;
+.  unsigned int ramfunc:1;
+
 .
 .  {* End of internal packed boolean fields.  *}
 .
@@ -517,12 +522,12 @@ CODE_FRAGMENT
 .} asection;
 .
 .{* Relax table contains information about instructions which can
-.   be removed by relaxation -- replacing a long address with a 
+.   be removed by relaxation -- replacing a long address with a
 .   short address.  *}
 .struct relax_table {
 .  {* Address where bytes may be deleted. *}
 .  bfd_vma addr;
-.  
+.
 .  {* Number of bytes to be deleted.  *}
 .  int size;
 .};
@@ -659,9 +664,12 @@ CODE_FRAGMENT
 .  {* sec_info_type, use_rela_p,                                    *}	\
 .     0,             0,							\
 .									\
-.  {* sec_flg0, sec_flg1, sec_flg2, sec_flg3, sec_flg4, sec_flg5,   *}	\
+.  {* near, persistent, absolute, reverse, unordered, dma,          *}  \
 .     0,        0,        0,        0,        0,        0,		\
 .									\
+.  {* memory, heap, stack, ramfunc,                                 *}  \
+.     0,        0,     0,       0,                                      \
+.                                                                       \
 .  {* vma, lma, size, rawsize, relax, relax_count,                  *}	\
 .     0,   0,   0,    0,       0,     0,				\
 .									\
@@ -1424,7 +1432,7 @@ bfd_get_section_contents (bfd *abfd,
       return TRUE;
     }
 
-  sz = section->rawsize ? section->rawsize : section->size;
+  sz =  section->rawsize? section->rawsize : section->size;
   if ((bfd_size_type) offset > sz
       || count > sz
       || offset + count > sz
@@ -1455,7 +1463,7 @@ bfd_get_section_contents (bfd *abfd,
 	  bfd_set_error (bfd_error_invalid_operation);
 	  return FALSE;
 	}
-      
+
       memcpy (location, section->contents + offset, (size_t) count);
       return TRUE;
     }

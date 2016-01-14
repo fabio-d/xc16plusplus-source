@@ -1,2 +1,0 @@
-	.text
-	.pbyte paddr(foo)

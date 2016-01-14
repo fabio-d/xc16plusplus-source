@@ -1,3 +1,0 @@
-section   PC address   byte address   length (w/pad)   actual length  (dec)
--------   ----------   ------------   --------------   --------------------
-.eedata     0x7ff000       0xffe000             0x20            0x10  (16)

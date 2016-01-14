@@ -10508,7 +10508,7 @@ output_die (dw_die_ref die)
 	      }
 
 	    dw2_asm_output_data (HOST_BITS_PER_WIDE_INT / HOST_BITS_PER_CHAR,
-				 first, name);
+				 first, "%s", name);
 	    dw2_asm_output_data (HOST_BITS_PER_WIDE_INT / HOST_BITS_PER_CHAR,
 				 second, NULL);
 	  }
@@ -18102,6 +18102,12 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	{
 	  dw_loc_descr_ref op = new_loc_descr (DW_OP_call_frame_cfa, 0, 0);
 	  add_AT_loc (subr_die, DW_AT_frame_base, op);
+          /* Compute a displacement from the "steady-state frame pointer" to
+	     the CFA.  The former is what all stack slots and argument slots
+	     will reference in the rtl; the later is what we've told the
+	     debugger about.  We'll need to adjust all frame_base references
+	     by this displacement.  */
+          compute_frame_pointer_to_fb_displacement (cfa_fb_offset);
 	}
       else
 	{
@@ -18133,17 +18139,19 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	  dw_loc_list_ref list = convert_cfa_to_fb_loc_list (cfa_fb_offset);
 	  if (list->dw_loc_next)
 	    add_AT_loc_list (subr_die, DW_AT_frame_base, list);
-	  else
+ 	  else
 	    add_AT_loc (subr_die, DW_AT_frame_base, list->expr);
 #endif
-	}
-
-      /* Compute a displacement from the "steady-state frame pointer" to
-	 the CFA.  The former is what all stack slots and argument slots
-	 will reference in the rtl; the later is what we've told the
-	 debugger about.  We'll need to adjust all frame_base references
-	 by this displacement.  */
-      compute_frame_pointer_to_fb_displacement (cfa_fb_offset);
+       }
+	    
+#if !defined(_BUILD_MCHP_)
+       /* Compute a displacement from the "steady-state frame pointer" to
+	  the CFA.  The former is what all stack slots and argument slots
+	  will reference in the rtl; the later is what we've told the
+	  debugger about.  We'll need to adjust all frame_base references
+	  by this displacement.  */
+       compute_frame_pointer_to_fb_displacement (cfa_fb_offset);
+#endif
 
       if (cfun->static_chain_decl)
 	add_AT_location_description (subr_die, DW_AT_static_link,
@@ -20231,6 +20239,16 @@ lookup_filename (const char *file_name)
   return created;
 }
 
+#if defined(TARGET_MCHP_PIC32MX)
+static void
+unbackslashify (char *s)
+{
+  while ((s = strchr (s, '\\')) != NULL)
+    *s = '/';
+  return;
+}
+#endif
+
 /* If the assembler will construct the file table, then translate the compiler
    internal file table number into the assembler file table number, and emit
    a .file directive if we haven't already emitted one yet.  The file table
@@ -20249,10 +20267,17 @@ maybe_emit_file (struct dwarf_file_data * fd)
       last_emitted_file = fd;
 
       if (DWARF2_ASM_LINE_DEBUG_INFO)
-	{
+	{ 
+	  char *str;
 	  fprintf (asm_out_file, "\t.file %u ", fd->emitted_number);
+	  str = xstrdup (remap_debug_filename (fd->filename));
+
+#if defined(TARGET_MCHP_PIC32MX)
+	  /* MPLAB IDE currently expects only forward slashes in .file filename */
+	  unbackslashify (str);
+#endif
 	  output_quoted_string (asm_out_file,
-				remap_debug_filename (fd->filename));
+				str);
 	  fputc ('\n', asm_out_file);
 	}
     }
@@ -20552,7 +20577,7 @@ dwarf2out_source_line (unsigned int line, const char *filename,
     {
       int file_num = maybe_emit_file (lookup_filename (filename));
 
-      switch_to_section (current_function_section ());
+      switch_to_section (current_function_section ()); /* TODO */
 
       /* If requested, emit something human-readable.  */
       if (flag_debug_asm)
@@ -20648,7 +20673,6 @@ dwarf2out_start_source_file (unsigned int lineno, const char *filename)
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
       int file_num = maybe_emit_file (lookup_filename (filename));
-
       switch_to_section (debug_macinfo_section);
       dw2_asm_output_data (1, DW_MACINFO_start_file, "Start new file");
       dw2_asm_output_data_uleb128 (lineno, "Included from line number %d",
@@ -20802,6 +20826,7 @@ dwarf2out_init (const char *filename ATTRIBUTE_UNUSED)
 			       DEBUG_LINE_SECTION_LABEL, 0);
   ASM_GENERATE_INTERNAL_LABEL (ranges_section_label,
 			       DEBUG_RANGES_SECTION_LABEL, 0);
+
   switch_to_section (debug_abbrev_section);
   ASM_OUTPUT_LABEL (asm_out_file, abbrev_section_label);
   switch_to_section (debug_info_section);
@@ -20825,7 +20850,6 @@ dwarf2out_init (const char *filename ATTRIBUTE_UNUSED)
       switch_to_section (cold_text_section);
       ASM_OUTPUT_LABEL (asm_out_file, cold_text_section_label);
     }
-
 }
 
 /* Called before cgraph_optimize starts outputtting functions, variables
@@ -21554,7 +21578,7 @@ dwarf2out_finish (const char *filename)
     add_sibling_attributes (node->die);
   for (ctnode = comdat_type_list; ctnode != NULL; ctnode = ctnode->next)
     add_sibling_attributes (ctnode->root_die);
-
+    
   /* Output a terminator label for the .text section.  */
   switch_to_section (text_section);
   targetm.asm_out.internal_label (asm_out_file, TEXT_END_LABEL, 0);
@@ -21738,7 +21762,11 @@ dwarf2out_finish (const char *filename)
   /* If we emitted any DW_FORM_strp form attribute, output the string
      table too.  */
   if (debug_str_hash)
-    htab_traverse (debug_str_hash, output_indirect_string, NULL);
+    {
+      switch_to_section (debug_str_section);
+      htab_traverse (debug_str_hash, output_indirect_string, NULL);
+      switch_to_section (text_section);
+    }
 }
 #else
 

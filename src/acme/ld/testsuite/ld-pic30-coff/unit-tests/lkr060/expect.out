@@ -1,8 +1,0 @@
-
-excerpt from pic30-objdump (-h option):
-
-  5 .const        00000002  00008104  00000104  00000348  2**1
-                  CONTENTS, ALLOC, LOAD, READONLY, PSV
-
-size of section .dinit (should be 2):    2
-total data memory used (should be 0):    0

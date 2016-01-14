@@ -1,2 +1,0 @@
-	.data
-	.word handle(foo)

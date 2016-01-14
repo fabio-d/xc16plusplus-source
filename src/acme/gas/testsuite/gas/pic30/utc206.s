@@ -1,2 +1,0 @@
-	.text
-	.asciz "utc206"

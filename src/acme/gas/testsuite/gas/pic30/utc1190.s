@@ -1,3 +1,0 @@
-        .section foo,bss,ymemory
-        
-        

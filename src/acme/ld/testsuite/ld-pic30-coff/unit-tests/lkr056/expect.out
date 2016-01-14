@@ -1,6 +1,0 @@
-
-excerpt from pic30-objdump (-h option):
-
-foo 00000006 00008100 00000100
-CONTENTS, ALLOC, READONLY, NEVER_LOAD, PSV
-

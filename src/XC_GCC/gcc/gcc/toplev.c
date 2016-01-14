@@ -930,8 +930,9 @@ void
 warn_deprecated_use (tree node, tree attr)
 {
   const char *msg;
-#ifdef _BUILD_C30_
+#ifdef _BUILD_MCHP_
   int unsafe = 0;
+  tree deprecated = NULL_TREE;
   tree unsupported = NULL_TREE;
 #endif
 
@@ -940,44 +941,63 @@ warn_deprecated_use (tree node, tree attr)
 
   if (!attr)
     {
-      if (DECL_P (node))
-	attr = DECL_ATTRIBUTES (node);
-      else if (TYPE_P (node))
-	{
-	  tree decl = TYPE_STUB_DECL (node);
-	  if (decl)
-	    attr = lookup_attribute ("deprecated",
-				     TYPE_ATTRIBUTES (TREE_TYPE (decl)));
+	  if (DECL_P (node))
+	    {
+	      attr = DECL_ATTRIBUTES (node);
+#ifdef _BUILD_MCHP_
+	      unsupported = lookup_attribute("unsupported", attr);
+	          if (!unsupported)
+	              unsupported = lookup_attribute ("__unsupported__", attr);
+	      deprecated = lookup_attribute ("deprecated", attr);
+#ifdef _BUILD_C30_
+	      unsafe = (lookup_attribute(
+	                IDENTIFIER_POINTER(pic30_identUnsupported[0]), attr) != 0);
+#endif
+#endif
+	    }
+	  else if (TYPE_P (node))
+	    {
+	      tree decl = TYPE_STUB_DECL (node);
+	      if (decl)
+	        {
+	          attr = lookup_attribute ("deprecated",
+	                 TYPE_ATTRIBUTES (TREE_TYPE (decl)));
+#ifdef _BUILD_MCHP_
+	          unsupported = lookup_attribute ("unsupported",
+	                       TYPE_ATTRIBUTES (TREE_TYPE (decl)));
+	          if (!unsupported)
+	              unsupported = lookup_attribute ("__unsupported__",
+	                 TYPE_ATTRIBUTES (TREE_TYPE (decl)));
+	          deprecated = lookup_attribute ("deprecated", attr);
+#ifdef _BUILD_C30_
+	          unsafe = (lookup_attribute(
+	                IDENTIFIER_POINTER(pic30_identUnsupported[0]), attr) != 0);
+#endif
+#endif
+            }
 	}
     }
 
-  if (attr) {
-#ifdef _BUILD_C30_
-    unsafe = (lookup_attribute(IDENTIFIER_POINTER(pic30_identUnsafe[0]),
-                                  attr) != 0);
-    unsupported =lookup_attribute(IDENTIFIER_POINTER(pic30_identUnsupported[0]),
-                                  attr);
+#ifdef _BUILD_MCHP_
+  if (deprecated)
+    msg = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (deprecated)));
+  else if (unsupported)
+    msg = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (unsupported)));
 #endif
-    attr = lookup_attribute ("deprecated", attr);
-  }
-
-  if (attr)
-    msg = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (attr)));
   else
     msg = NULL;
 
   if (DECL_P (node))
     {
       expanded_location xloc = expand_location (DECL_SOURCE_LOCATION (node));
-#ifdef _BUILD_C30_
+#ifdef _BUILD_MCHP_
       if (unsafe) {
         warning (0,"%qs access is not safe to use within C",
                IDENTIFIER_POINTER (DECL_NAME (node)));
         return;
       } else if (unsupported) {
         warning (0, "%qs is unsupported: %s",
-         IDENTIFIER_POINTER (DECL_NAME (node)),
-         TREE_STRING_POINTER (TREE_VALUE(TREE_VALUE(unsupported))));
+          IDENTIFIER_POINTER (DECL_NAME (node)), msg);
         return;
       }
 #endif
@@ -987,7 +1007,7 @@ warn_deprecated_use (tree node, tree attr)
 		 node, xloc.file, xloc.line, msg);
       else
 	warning (OPT_Wdeprecated_declarations,
-		 "%qD is deprecated (declared at %s:%d)",
+		 "%qD is deprecated or unsupported (declared at %s:%d)",
 		 node, xloc.file, xloc.line);
     }
   else if (TYPE_P (node))
@@ -1008,15 +1028,15 @@ warn_deprecated_use (tree node, tree attr)
 	{
 	  expanded_location xloc
 	    = expand_location (DECL_SOURCE_LOCATION (decl));
-#ifdef _BUILD_C30_
+#ifdef _BUILD_MCHP_
           if (unsafe) {
              warning (0,"%qs access is not safe to use within C",
                        IDENTIFIER_POINTER (DECL_NAME (node)));
              return;
           } else if (unsupported) {
              warning (0, "%qs is unsupported: %s",
-              IDENTIFIER_POINTER (DECL_NAME (node)),
-              TREE_STRING_POINTER (TREE_VALUE(TREE_VALUE(unsupported))));
+               IDENTIFIER_POINTER (DECL_NAME (node)),
+               msg);
              return;
           }
 #endif
@@ -1028,8 +1048,8 @@ warn_deprecated_use (tree node, tree attr)
 			 what, xloc.file, xloc.line, msg);
 	      else
 		warning (OPT_Wdeprecated_declarations,
-			 "%qE is deprecated (declared at %s:%d)", what,
-			 xloc.file, xloc.line);
+			 "%qE is deprecated or unsupported (declared at %s:%d)",
+                         what, xloc.file, xloc.line);
 	    }
 	  else
 	    {
@@ -1039,21 +1059,22 @@ warn_deprecated_use (tree node, tree attr)
 			 xloc.file, xloc.line, msg);
 	      else
 		warning (OPT_Wdeprecated_declarations,
-			 "type is deprecated (declared at %s:%d)",
+
+			 "type is deprecated or unsupported (declared at %s:%d)",
 			 xloc.file, xloc.line);
 	    }
 	}
       else
 	{
-#ifdef _BUILD_C30_
+#ifdef _BUILD_MCHP_
 	   if (unsafe) {
               warning (0,"%qs access is not safe to use within C",
                IDENTIFIER_POINTER (DECL_NAME (node)));
               return;
             } else if (unsupported) {
               warning (0, "%qs is unsupported: %s",
-               IDENTIFIER_POINTER (DECL_NAME (node)),
-               TREE_STRING_POINTER (TREE_VALUE(TREE_VALUE(unsupported))));
+                IDENTIFIER_POINTER (DECL_NAME (node)),
+                msg);
               return;
             }
 #endif
@@ -1063,7 +1084,7 @@ warn_deprecated_use (tree node, tree attr)
 		warning (OPT_Wdeprecated_declarations, "%qE is deprecated: %s",
 			 what, msg);
 	      else
-		warning (OPT_Wdeprecated_declarations, "%qE is deprecated", what);
+		warning (OPT_Wdeprecated_declarations,"%qE is deprecated",what);
 	    }
 	  else
 	    {
@@ -2377,11 +2398,33 @@ lang_dependent_init (const char *name)
 void
 target_reinit (void)
 {
+  struct rtl_data saved_x_rtl;
+  rtx *saved_regno_reg_rtx;
+
+  /* Save *crtl and regno_reg_rtx around the reinitialization
+     to allow target_reinit being called even after prepare_function_start.  */
+  saved_regno_reg_rtx = regno_reg_rtx;
+  if (saved_regno_reg_rtx)
+    {  
+      saved_x_rtl = *crtl;
+      memset (crtl, '\0', sizeof (*crtl));
+      regno_reg_rtx = NULL;
+    }
+
   /* Reinitialize RTL backend.  */
   backend_init_target ();
 
   /* Reinitialize lang-dependent parts.  */
   lang_dependent_init_target ();
+
+  /* And restore it at the end, as free_after_compilation from
+     expand_dummy_function_end clears it.  */
+  if (saved_regno_reg_rtx)
+    {
+      *crtl = saved_x_rtl;
+      regno_reg_rtx = saved_regno_reg_rtx;
+      saved_regno_reg_rtx = NULL;
+    }
 }
 
 void
