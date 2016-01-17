@@ -15,18 +15,21 @@ case $OS in
              CC="gcc"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-darwin"
+             HOST="i386-darwin"
              EXE=""
              ;;
   CYGWIN*) OS="Windows/Cygwin"
              CC="i686-pc-mingw32-gcc"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-pc-mingw32"
+             HOST="i386-pc-mingw32"
              EXE=".exe"
              ;;
   *)       OS="Linux/Unknown"
              CC="gcc"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-linux"
+             HOST="i386-linux"
              EXE=""
              ;;
 esac
@@ -62,7 +65,7 @@ mkdir bin
     (
        cd gcc-${OMF}-native
        export EXTRA_CFLAGS
-       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=i686-pc-mingw32-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v1.23
+       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=$HOST-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v1.23
        cp gcc/gcc/xgcc${EXE} ${install_dir}/bin/bin/${OMF}-gcc${EXE}
        cp gcc/gcc/cc1${EXE} ${install_dir}/bin/bin/${OMF}-cc1${EXE}
        cp gcc/gcc/cpp${EXE} ${install_dir}/bin/bin/${OMF}-cpp${EXE}
