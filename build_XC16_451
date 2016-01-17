@@ -237,7 +237,7 @@ mkdir -p zlib
   # note to self: I think the configure will now set AR=,CC= and such for me
 
   # if [ "$CROSS" != "" ]; then
-    make CFLAGS="$EXTRA_CFLAGS $OPT" RANLIB="${ZLIB_TOOLS}-ranlib" LDSBARED="${ZLIB_TOOLS}-gcc" AR="${ZLIB_TOOLS}-ar" CC="${ZLIB_TOOLS}-gcc"  prefix=$WORKING_DIR//host-libs install
+    make CFLAGS="$EXTRA_CFLAGS $OPT" prefix=$WORKING_DIR//host-libs install
   # else
   #   make install
   # fi
