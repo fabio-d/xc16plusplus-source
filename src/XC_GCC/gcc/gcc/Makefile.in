@@ -1802,7 +1802,7 @@ cpp$(exeext): $(GCC_OBJS) cppspec.o version.o intl.o prefix.o \
 
 # Dump a specs file to make -B./ read these specs over installed ones.
 $(SPECS): xgcc$(exeext)
-	$(GCC_FOR_TARGET) -dumpspecs > tmp-specs
+	./xgcc$(exeext) -dumpspecs > tmp-specs
 	mv tmp-specs $(SPECS)
 
 # We do want to create an executable named `xgcc', so we can use it to

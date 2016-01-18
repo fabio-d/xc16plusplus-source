@@ -6,6 +6,7 @@ OS=`uname -s`
 
 export OS
 export CC
+export CXX
 export EXTRA_CFLAGS
 export ACME_CONFIGURE
 export EXE
@@ -13,6 +14,7 @@ export EXE
 case $OS in
   Darwin)  OS="OS/X"
              CC="gcc"
+             CXX="g++"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-darwin"
              HOST="i386-darwin"
@@ -20,6 +22,7 @@ case $OS in
              ;;
   CYGWIN*) OS="Windows/Cygwin"
              CC="i686-pc-mingw32-gcc"
+             CXX="i686-pc-mingw32-g++"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-pc-mingw32"
              HOST="i386-pc-mingw32"
@@ -27,6 +30,7 @@ case $OS in
              ;;
   *)       OS="Linux/Unknown"
              CC="gcc"
+             CXX="g++"
              EXTRA_CFLAGS=""
              ACME_CONFIGURE="--target=pic30-@omf --host=i386-linux"
              HOST="i386-linux"
