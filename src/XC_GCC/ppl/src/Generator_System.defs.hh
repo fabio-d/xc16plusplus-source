@@ -33,6 +33,7 @@ site: http://www.cs.unipr.it/ppl/ . */
 #include "Poly_Con_Relation.defs.hh"
 #include "Grid.types.hh"
 #include <iosfwd>
+#include <cstddef>
 
 namespace Parma_Polyhedra_Library {
 
@@ -250,7 +251,7 @@ public:
   class const_iterator
     : public std::iterator<std::forward_iterator_tag,
 			   Generator,
-			   ptrdiff_t,
+			   std::ptrdiff_t,
 			   const Generator*,
 			   const Generator&> {
   public:

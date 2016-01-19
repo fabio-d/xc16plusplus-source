@@ -312,7 +312,7 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   if (!emit_p)
     return;
 
-  if (TARGET_USE_LOCAL_THUNK_ALIAS_P (function))
+  if (0 && TARGET_USE_LOCAL_THUNK_ALIAS_P (function))
    alias = make_alias_for_thunk (function);
   else
    alias = function;
