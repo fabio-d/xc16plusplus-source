@@ -151,6 +151,19 @@ if [ "$BUILD_OS" != "i386-darwin" ]; then
   CXX_STATIC_LIBGCC=-static-libgcc
 fi
 
+# The official XC16 releases have no PPL/CLOOG features (xc16-gcc -v shows that
+# gcc's configure script was given internal paths for both libraries by this
+# script, but they must have been invalid builds). On OSX the same applies to
+# ZLIB too: gcc's configure was given an internal zlib path by this script, but
+# the final executables are dynamically linked to the system one. To match this
+# behavior and to save some compilation time, let's not even attempt to build
+# such libraries:
+BUILD=$(echo $BUILD | sed -e 's/ppl//' -e 's/cloog//')
+if [ "$TARGET_OS" = "i386-darwin" ]; then
+  BUILD=$(echo $BUILD | sed -e 's/zlib//')
+fi
+echo "BUILD=$BUILD"
+
 if ( echo $EXTRA_CFLAGS | grep -q -e "cover" ); then
   OPT=
 else
