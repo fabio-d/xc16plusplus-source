@@ -1,7 +1,7 @@
 lkr003: Interrupt vector tables:
 
 The objective of this test is to verify that
-primary and alternate interrupt vector tables
+primary and alternate interrupt vector sections
 are constructed properly.
 
 How to execute the test:

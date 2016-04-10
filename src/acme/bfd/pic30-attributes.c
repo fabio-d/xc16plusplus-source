@@ -72,7 +72,8 @@ char * pic30_section_size_string
                        | 1<<heap     \
                        | 1<<stack    \
                        | 1<<auxflash \
-                       | 1<<packedflash)
+                       | 1<<packedflash \
+                       | 1<<auxpsv)
 
 #define INFO_ATTR_MASK ( 1<<info )
 
@@ -82,14 +83,6 @@ char * pic30_section_size_string
 
 #define FIRST_EXT_ATTRIBUTE heap
 
-
-/*****************************************************************************/
-unsigned int pic30_auxpsv_attribute = (1<<auxflash)+(1<<page);
-
-unsigned int pic30_is_auxpsv()
-{
-  return pic30_auxpsv_attribute;
-}
 /*****************************************************************************/
 
 
@@ -239,7 +232,7 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
 
   /* special case for .const,"r" */
   if (SECTION(.const) && ((sec->flags & SEC_READONLY) == SEC_READONLY) &&
-      (sec->psv == 0)) {
+      (sec->psv == 0) && (sec->auxpsv == 0)) {
     PIC30_SET_PSV_ATTR(sec);
     map = pic30_attribute_map(sec);
     if (flag_debug)
@@ -297,7 +290,11 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
           result = !(quiet); }                                            \
       else {                                                              \ 
 	  /* possibly report the conflict */                              \
-          if (!section_name_seen) result = -1;                            \
+          if (!section_name_seen) {                                       \
+            if (SECTION(.const) && PIC30_IS_AUXPSV_ATTR(sec))             \
+              result = 0;                                                 \
+            else result = -1;                                             \
+          }                                                               \
       }                                                                   \
       section_name_seen = 1;                                              \
   }
@@ -359,10 +356,10 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK1(a,b,c,d,e,f,g,h,i,j,k)                                \
+#define MASK1(a,b,c,d,e,f,g,h,i,j,k,l)                          \
    type_mask = (1<<a)|(1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)        \
-               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k);
-#define MAX_TYPES 25
+               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l);
+#define MAX_TYPES 28
 #include "pic30-attributes.h"
  
    type = mask & type_mask;
@@ -399,11 +396,11 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)                  \
+#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r)                  \
    if (type == (1<<a)) {                                      \
      attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)           \
                  |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)   \
-                 |(1<<m)|(1<<n)|(1<<o)|(1<<p);                       \
+                 |(1<<m)|(1<<n)|(1<<o)|(1<<p)|(1<<q)|(1<<r);            \
      if (flag_debug)                                          \
        printf ("    pic30_is_valid_attributes::modifier_mask = %x\n",   \
                attr_mask);                                    \
@@ -423,11 +420,11 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o)                        \
+#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q)                  \
    key = (1<<a);                                                  \
    attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)                 \
                |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)|(1<<m)  \
-               |(1<<n)|(1<<o);                                           \
+               |(1<<n)|(1<<o)|(1<<p)|(1<<q);                      \
    if ((key & mask) &&                                            \
        ((mask & ~ (key | type_mask | attr_mask)) != 0))           \
      invalid_combo |= 1;;

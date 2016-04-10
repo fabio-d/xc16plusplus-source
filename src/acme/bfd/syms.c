@@ -288,6 +288,9 @@ CODE_FRAGMENT
 .  {* This symbol is thread local.  Used in ELF.  *}
 .#define BSF_THREAD_LOCAL  0x40000
 .
+.  {* This symbol is shared among Co-resident applications *}
+.#define BSF_SHARED  0x80000
+.
 .  flagword flags;
 .
 .  {* A pointer to the section to which this symbol is

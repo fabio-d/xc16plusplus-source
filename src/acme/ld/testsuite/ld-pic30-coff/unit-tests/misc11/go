@@ -8,10 +8,10 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -W"
-GLD30=$PIC30_CD/bin/pic30-ld
-AR30=$PIC30_CD/bin/pic30-ar
-OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GAS30="$PIC30_CD/bin/xc16-as -W"
+GLD30=$PIC30_CD/bin/xc16-ld
+AR30=$PIC30_CD/bin/xc16-ar
+OBJDUMP=$PIC30_CD/bin/xc16-objdump
 
 
 #

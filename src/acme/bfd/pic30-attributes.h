@@ -5,13 +5,13 @@
 #define ATTR_IS(a,b)
 #endif
 #if !defined(MASK1)
-#define MASK1(a,b,c,d,e,f,g,h,i,j,k)
+#define MASK1(a,b,c,d,e,f,g,h,i,j,k,l)
 #endif
 #if !defined(MASK2)
-#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r)
 #endif
 #if !defined(MASK3)
-#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o)
+#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q)
 #endif
 #if !defined(MASK4)
 #define MASK4(a,b,c,d)
@@ -94,6 +94,9 @@ ATTR( page,    0, PIC30_SET_PAGE_ATTR(sec) )
 ATTR( auxflash,0, PIC30_SET_AUXFLASH_ATTR(sec) )
 ATTR(packedflash, 0, PIC30_SET_PACKEDFLASH_ATTR(sec))
 ATTR(keep, 0, PIC30_SET_KEEP_ATTR(sec))
+ATTR(shared, 0, PIC30_SET_SHARED_ATTR(sec))
+ATTR(preserved, 0, PIC30_SET_PRESERVED_ATTR(sec))
+ATTR(auxpsv, 0, PIC30_SET_AUXPSV_ATTR(sec))
 
 /*
  * ATTR_IS: Testing Section Attributes
@@ -133,53 +136,57 @@ ATTR_IS( page,    PIC30_IS_PAGE_ATTR(sec) )
 ATTR_IS( auxflash,PIC30_IS_AUXFLASH_ATTR(sec) )
 ATTR_IS( packedflash, PIC30_IS_PACKEDFLASH_ATTR(sec))
 ATTR_IS( keep, PIC30_IS_KEEP_ATTR(sec))
-
-
+ATTR_IS( shared, PIC30_IS_SHARED_ATTR(sec))
+ATTR_IS( preserved, PIC30_IS_PRESERVED_ATTR(sec))
+ATTR_IS(auxpsv, PIC30_IS_AUXPSV_ATTR(sec))
 
 /*
  * MASK1: Attributes that represent section types
  */
 MASK1( code, data, bss, persist, psv, eedata, memory, heap, stack, auxflash, \
-       packedflash)
+       packedflash, auxpsv)
 
 
 /*
  * MASK2: Attributes that modify section types
  *
- * MASK2( type, modifier1, ... modifier14 )
+ * MASK2( type, modifier1, ... modifier17 )
  */
-MASK2( code, address, 0, 0, 0, 0, align, noload, merge, info, 0, boot, secure, 0, page, keep )
-MASK2( data, address, near, xmemory, ymemory, reverse, align, noload, merge, info, dma, 0, 0, eds, page, keep )
-MASK2( bss, address, near, xmemory, ymemory, reverse, align, noload, 0, info, dma, boot, secure, eds, page, keep )
-MASK2( persist, address, near, xmemory, ymemory, reverse, align, noload, 0, 0, dma, 0, 0, eds, page, keep )
-MASK2( psv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep )
-MASK2( eedata, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, 0, keep )
-MASK2( memory, address, 0, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, 0, 0, keep )
-MASK2( heap, address, xmemory, ymemory, 0, 0, align, 0, 0, 0, 0, 0, 0, eds, 0, keep )
-MASK2( stack, address, 0, 0, 0, 0, align, 0, 0, 0, 0, 0, 0, 0, 0, keep )
-MASK2( auxflash, address, 0, 0, 0, 0, align, noload, merge, info, 0, 0, 0, 0, page, keep )
-MASK2( packedflash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep) 
+MASK2( code, address, 0, 0, 0, 0, align, noload, merge, info, 0, boot, secure, 0, page, keep, shared, preserved )
+MASK2( data, address, near, xmemory, ymemory, reverse, align, noload, merge, info, dma, 0, 0, eds, page, keep, shared, preserved )
+MASK2( bss, address, near, xmemory, ymemory, reverse, align, noload, 0, info, dma, boot, secure, eds, page, keep, shared, preserved )
+MASK2( persist, address, near, xmemory, ymemory, reverse, align, noload, 0, 0, dma, 0, 0, eds, page, keep, shared, preserved )
+MASK2( psv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep, shared, preserved )
+MASK2( eedata, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, 0, keep, shared, preserved )
+MASK2( memory, address, 0, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
+MASK2( heap, address, xmemory, ymemory, 0, 0, align, 0, 0, 0, 0, 0, 0, eds, 0, keep, shared, preserved )
+MASK2( stack, address, 0, 0, 0, 0, align, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
+MASK2( auxflash, address, 0, 0, 0, 0, align, noload, merge, info, 0, 0, 0, 0, page, keep, shared, preserved )
+MASK2( packedflash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
+MASK2( auxpsv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep, shared, preserved )
+
 /*
  * MASK3: Attributes that may be used in combination
  *
- * MASK3( key, attr1, ... attr13)
+ * MASK3( key, attr1, ... attr16)
  */
-MASK3( address, near, xmemory, ymemory, 0, 0, noload, 0, 0, dma, boot, secure, eds, page, keep )
-MASK3( near, address, xmemory, ymemory, reverse, align, noload, merge, 0, 0, 0, 0, 0, 0, keep )
-MASK3( xmemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep )
-MASK3( ymemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep )
-MASK3( reverse, 0, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep )
-MASK3( align, address, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep )
-MASK3( noload, address, near, xmemory, ymemory, reverse, align, 0, 0, dma, boot, secure, eds, page, keep )
-MASK3( merge, 0, near, xmemory, ymemory, reverse, align, 0, 0, 0, 0, 0, eds, page, keep )
-MASK3( dma, address, 0, 0, 0,  reverse, align, noload, 0, 0, 0, 0, eds, page, keep )
-MASK3( boot, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep )
-MASK3( secure, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep )
-MASK3( eds, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, page, keep )
-MASK3( page, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, eds, keep )
-MASK3( info, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep )
-MASK3(keep,address, near, xmemory, ymemory, reverse, align, noload, merge, dma, boot, secure, eds, page, info)
-
+MASK3( address, near, xmemory, ymemory, 0, 0, noload, 0, 0, dma, boot, secure, eds, page, keep, shared, preserved )
+MASK3( near, address, xmemory, ymemory, reverse, align, noload, merge, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
+MASK3( xmemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep, shared, preserved )
+MASK3( ymemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep, shared, preserved )
+MASK3( reverse, 0, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep, shared, preserved )
+MASK3( align, address, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep, shared, preserved )
+MASK3( noload, address, near, xmemory, ymemory, reverse, align, 0, 0, dma, boot, secure, eds, page, keep, shared, preserved )
+MASK3( merge, 0, near, xmemory, ymemory, reverse, align, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved )
+MASK3( dma, address, 0, 0, 0,  reverse, align, noload, 0, 0, 0, 0, eds, page, keep, shared, preserved )
+MASK3( boot, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved)
+MASK3( secure, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved )
+MASK3( eds, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, page, keep, shared, preserved )
+MASK3( page, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, eds, keep, shared, preserved )
+MASK3( info, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
+MASK3(keep,address, near, xmemory, ymemory, reverse, align, noload, merge, dma, boot, secure, eds, page, info, shared, preserved)
+MASK3(shared, address, near, xmemory, ymemory, reverse, align, noload, merge, dma, boot, secure, eds, page, info, keep, preserved)
+MASK3(preserved, address, near, xmemory, ymemory, reverse, align, noload, merge,dma, boot, secure, eds, page, info, keep, shared)
 /*
  * MASK4: Reserved section names with implied attributes
  *
@@ -205,6 +212,5 @@ MASK4( .dconst,  0, data, 0 )
 MASK4( .ybss,    0, bss, ymemory )
 MASK4( .ydata,   0, data, ymemory )
 MASK4( .const,   0, psv, 0 )
-MASK4( .const,   0, auxflash, page )
 MASK4( .eedata,  0, eedata, 0 )
 

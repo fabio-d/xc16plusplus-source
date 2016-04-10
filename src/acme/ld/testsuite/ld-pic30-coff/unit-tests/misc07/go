@@ -1,12 +1,12 @@
 rm -f t1.o t2.o t3.o t.exe t.map t.hex UartOut.txt
 
-$PIC30_CD/bin/pic30-as -W -o t1.o t1.s
-$PIC30_CD/bin/pic30-as -W -o t2.o t2.s
-$PIC30_CD/bin/pic30-as -W -o t3.o t3.s
+$PIC30_CD/bin/xc16-as -W -o t1.o t1.s
+$PIC30_CD/bin/xc16-as -W -o t2.o t2.s
+$PIC30_CD/bin/xc16-as -W -o t3.o t3.s
 
-$PIC30_CD/bin/pic30-ld -o t.exe t1.o t2.o t3.o -Map=t.map
+$PIC30_CD/bin/xc16-ld -o t.exe t1.o t2.o t3.o -Map=t.map
 
-$PIC30_CD/bin/pic30-bin2hex t.exe > /dev/null 
+$PIC30_CD/bin/xc16-bin2hex t.exe > /dev/null 
 
 $PIC30_CD/bin/sim30 run.cmd >/dev/null
 

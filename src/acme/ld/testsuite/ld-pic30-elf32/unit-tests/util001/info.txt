@@ -4,19 +4,19 @@ The objective of this test is to verify the
 basic functionality of the following binary
 utilities:
 
-  pic30-ar
-  pic30-objdump
-  pic30-bin2hex
-  pic30-nm
-  pic30-ranlib
-  pic30-size
-  pic30-strings
-  pic30-strip
+  xc16-ar
+  xc16-objdump
+  xc16-bin2hex
+  xc16-nm
+  xc16-ranlib
+  xc16-size
+  xc16-strings
+  xc16-strip
 
 How to execute the test:
 
 1. Set the environment variable $PIC30_CD
-    to your pic30 tools CD image directory
+    to your xc16 tools CD image directory
 2. Export $PIC30_CD
 3. Execute "go"
 

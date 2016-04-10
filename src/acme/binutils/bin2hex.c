@@ -36,6 +36,7 @@ void print_symbol(asymbol *sym);
 void init_section_list (struct pic30_section **);
 void build_section_list (bfd *, asection *, PTR);
 void write_section_list (bfd *, PTR, struct pic30_section *);
+void write_section_image_list (bfd *, PTR, struct pic30_section *);
 void free_section_list (struct pic30_section **);
 
 /* The BFD object file format.  */
@@ -49,6 +50,10 @@ static long long int offset_address_by = 0;
 static int sort_by_address = 0;
 static int upper_case = 0;
 static struct pic30_section *outputs;
+static char *subordinate_image = 0;
+
+#define MAX_ROW 16384
+static long subordinate_image_row = 0;
 
 char *program_name;
 
@@ -59,6 +64,8 @@ void help(char **argv) {
   printf("\n  usage: %s file [options]\n\n", argv[0]);
   printf("  options:\n");
   printf("    -a          sort sections by address\n");
+  printf("    --image f   write a loadable subordinate image to f.s\n");
+  printf("    --row   n   write n instructions per block in image\n");
   printf("    -u          use upper-case hex digits\n");
   printf("    -v          print verbose messages\n");
   printf("\n");
@@ -95,8 +102,24 @@ main (argc, argv)
           // extended option
           if (strcmp(argv[arg],"--offset") == 0) {
             offset_address_by = strtoll(argv[arg+1],0,0);
+            arg++;
+          } else if (strcmp(argv[arg],"--image") == 0) {
+            subordinate_image = strdup(argv[arg+1]);
+            arg++;
+          } else if (strcmp(argv[arg],"--row") == 0) {
+            subordinate_image_row = strtol(argv[arg+1],0,0);
+            if ((subordinate_image_row <= 0) || 
+                (subordinate_image_row > MAX_ROW)) {
+               fprintf(stderr,"illegal row size: min %d, max %d\n", 1, MAX_ROW);
+               help(argv);
+               return 1;
+            }
+            arg++;
+          } else {
+            fprintf(stderr,"Unknown option `%s'.\n", argv[arg]);
+            help(argv);
+            return 1;
           }
-          arg++;
           break;
         case 'a':
           sort_by_address = 1;
@@ -130,6 +153,30 @@ main (argc, argv)
     }
   }
 
+  if (subordinate_image) {
+    int valid_name = 1;
+    char *c;
+
+    if (((*subordinate_image < 'A') && (*subordinate_image > 'Z')) &&
+        ((*subordinate_image < 'a') && (*subordinate_image > 'z')) &&
+        (*subordinate_image != '_')) {
+      valid_name = 0;
+    }
+    for (c = subordinate_image+1; *c; c++) {
+      if (((*subordinate_image < 'A') && (*subordinate_image > 'Z')) &&
+          ((*subordinate_image < 'a') && (*subordinate_image > 'z')) &&
+          ((*subordinate_image < '0') && (*subordinate_image > '9')) &&
+          (*subordinate_image != '_')) {
+        valid_name = 0;
+      }
+    }
+    if (valid_name == 0) {
+      fprintf(stderr,"--image name '%s' must be a valid C identifier\n", 
+              subordinate_image);
+      subordinate_image = 0;
+    }
+  }
+
   bfd_init ();
 
   abfd = bfd_openr (file, target);
@@ -151,6 +198,11 @@ main (argc, argv)
   if (verbose) {
     printf("\n");
     printf("Offsetting addresses by 0x%16.16llx\n", offset_address_by);
+  }
+
+  if (subordinate_image) {
+     /* write a subordinate image along with hex file */
+     write_image_file(subordinate_image, abfd);
   }
 
   /* strip extension from filename if present */
@@ -215,6 +267,68 @@ write_hex_file(char *name, bfd *abfd) {
            actual_prog_used, actual_prog_used);
 
   return rc;
+}
+
+
+int
+write_image_file(char *name, bfd *abfd) {
+  FILE *fp;
+  int rc = 1;
+  char *filename;
+  time_t current_time;
+
+  time(&current_time);
+
+  filename = xmalloc(strlen(name)+2);
+  if (filename == 0) {
+    printf("Error: could not create file\n");
+    return 0;
+  }
+  sprintf(filename,"%s.h", name);
+  fp = fopen(filename, "w");
+  if (!fp) {
+    printf("Error: could not open file %s for writing!\n", filename);
+    return 0;
+  }
+  fprintf(fp,"/* %s.h - interface for image */\n", name);
+  fprintf(fp,"/* Generated: %s */",ctime(&current_time));
+  fprintf(fp,"\n");
+  fprintf(fp,"extern __psv__ char * %s[];\n", name);
+  fclose(fp);
+
+  sprintf(filename,"%s.s", name);
+
+  fp = fopen(filename, "w");
+  if (!fp) {
+    printf("Error: could not open file %s for writing!\n", filename);
+    return 0;
+  }
+
+  fprintf(fp,";\n");
+  fprintf(fp,"; %s generated on %s\n", name, ctime(&current_time));
+  fprintf(fp,";\n");
+  fprintf(fp,"\t.section %s_image,code,page\n",name);
+  fprintf(fp,"\t.global _%s\n",name);
+  fprintf(fp,"_%s:\n\n",name);
+  
+  /* write each section */
+  if (1) {
+    init_section_list(&outputs);
+    bfd_map_over_sections(abfd, &build_section_list, outputs);
+    write_section_image_list (abfd, fp, outputs);
+    free_section_list(&outputs);
+  }
+ 
+  /* write terminator */
+  /*  only the first word is read */
+  fprintf(fp,"       ; terminator\n");
+  fprintf(fp,"       .word 0x0000\n");
+  fprintf(fp,";      .word 0x0000\n");
+  fprintf(fp,";      .word 0x0000\n");
+
+  fclose(fp);
+
+  return 1;
 }
 
 
@@ -285,6 +399,17 @@ write_section_list (bfd *abfd, PTR fp, struct pic30_section *p)
     }
 }
 
+void
+write_section_image_list (bfd *abfd, PTR fp, struct pic30_section *p)
+{
+  struct pic30_section *s;
+
+  for (s = p; s != NULL; s = s->next) {
+      if (s->sec)
+        write_section_image(abfd, s->sec, fp);
+    }
+}
+
 
 void
 free_section_list(lst)
@@ -349,6 +474,13 @@ write_section(bfd *abfd, asection *sect, PTR fp) {
     /* report correct size of EEDATA sections */
     if (PCstart >= EEDATA_BASE_ADDR)
       actual = total / 2;
+
+    /* clear flags so that bfd_get_section_contents does not attempt to
+         reformat the data */
+    sect->psv = 0;
+    sect->flags &= ~SEC_READONLY;
+    sect->auxpsv = 0;
+    sect->eedata = 0;
 
     if (verbose)
       printf(upper_case ? "%-10s%#10lX%#15lX%#17lX%#16lX  (%ld)\n" :
@@ -422,6 +554,103 @@ void write_extended_address_record(file_ptr base_address, PTR fp) {
 
 } /* write_extended_address_record */
 
+void
+write_section_image(bfd *abfd, asection *sect, PTR fp) {
+#define DATA_LINE_WIDTH 4
+
+  /* row-size in instructions word width 
+     5 -> 15 bytes of instruction data
+          20 bytes including the phantom byte */
+
+  bfd_size_type row_size=(subordinate_image_row ? subordinate_image_row:0x200);
+
+  FILE *imagefile=fp;
+  unsigned char dat[MAX_ROW*4];
+  unsigned char *p;
+  file_ptr  PCstart, start, offset, raw_offset;
+  bfd_size_type total, actual;
+  unsigned int   num_rows,last_row,i,j;
+  unsigned short low_addr;
+  int data_line_width = 0;
+
+  p = &dat[0];
+  offset = 0;
+  total = 0;
+  raw_offset = 0;
+
+  /* if section is load-able and has contents */
+  /*   use real machine addresses here */
+  if ((sect->flags & SEC_LOAD) && (sect->flags & SEC_HAS_CONTENTS))
+  {
+
+    fprintf(imagefile,"\t; %s\n", sect->name);
+
+    /* print section header */
+    PCstart = sect->lma;
+    if (PCstart < 0x800000)
+      start = PCstart + offset_address_by;
+    else
+      start = PCstart;
+
+    total = sect->_raw_size;
+    actual = (total * 3) / 4;
+
+    /* report correct size of EEDATA sections */
+    if (PCstart >= EEDATA_BASE_ADDR)
+      actual = total / 2;
+
+    num_rows = actual / (row_size * 3);
+    last_row = (actual % (row_size * 3))/3;
+
+    for (i = 0; i < num_rows + 1; i++) {
+      /* first write the full records */
+      int write_row_size;
+
+      if (i < num_rows) {
+        write_row_size = row_size;
+      } else {
+        write_row_size = last_row;
+      }
+      low_addr = (unsigned short) (start+(offset*2/3));
+
+      fprintf(imagefile,"\t; record start\n");
+      fprintf(imagefile,"\t.word 0x%4.4x ; destination\n", 
+          low_addr & 0x7FFF | ((low_addr >> 15) ? 0x8000 : 0x0000));
+      fprintf(imagefile,"\t.word 0x%4.4x ; len\n", write_row_size);
+      fprintf(imagefile,"\t.word 0x%4.4x ; page | format\n",
+          0x1F | ((low_addr >> 15) << 7));
+      fprintf(imagefile,"\t; data start\n");
+         
+      if (bfd_get_section_contents(abfd,sect,p,raw_offset,write_row_size*4)== 0)
+      {
+        fprintf(stderr,"*** Error %d: could not get section contents %s\n", 
+                bfd_get_error(), sect->name);
+      } else {
+        /* raw includes a phantom byte */
+        raw_offset += write_row_size*4;
+        offset += write_row_size*3;
+        for (j=0; j < write_row_size; j++) {  
+          /* fill in data */
+          if (data_line_width++ == 0) {
+            fprintf(imagefile, "	.pbyte ");
+          }
+      
+          fprintf(imagefile, 
+                    upper_case ? 
+                       "0x%2.2X,0x%2.2X,0x%2.2X" : 
+                       "0x%2.2x,0x%2.2x,0x%2.2x", 
+                  dat[j*4], dat[j*4+1], dat[j*4+2]);
+          if ((data_line_width != DATA_LINE_WIDTH) && (j+1 < write_row_size)) {
+            fprintf(imagefile, ", ");
+          } else { 
+            fprintf(imagefile, "\n");
+            data_line_width = 0;
+          }
+        }
+      }
+    }
+  } /* if ((sect->flags & SEC_LOAD) && (sect->flags & SEC_HAS_CONTENTS)) */
+}
 
 int
 dump_symbols(bfd *abfd) {

@@ -43,11 +43,11 @@ MPLAB XC16 ASSEMBLY Listing:  t1.s 			page 1
   35 000028  95 B3 E5 	        flim.v w6, [w5], w7
   36              	
   37              	;;DIV
-  38 00002a  26 10 D9 	        divf2 w2, w6
+  38 00002a  A6 10 D9 	        divf2 w2, w6
   39 00002c  67 3B D8 		div2.sd w6, w7
-  40 00002e  A7 02 D8 		div2.sw w5, w7
+  40 00002e  A7 32 D8 		div2.sw w5, w7
   41 000030  67 BB D8 		div2.ud w6, w7
-  42 000032  A7 82 D8 		div2.uw w5, w7
+  42 000032  A7 B2 D8 		div2.uw w5, w7
   43              	
   44              	;;MINAB
   45 000034  00 20 CE 	        min A

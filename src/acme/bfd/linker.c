@@ -1007,7 +1007,6 @@ _bfd_generic_link_add_archive_symbols (abfd, info, checkfn)
 #endif
 
 #if PIC30
-#if defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1)
   { static smartio_run=0;
 
     if (smartio_run == 0) {
@@ -1016,7 +1015,6 @@ _bfd_generic_link_add_archive_symbols (abfd, info, checkfn)
       pic30_smartio_symbols(info);
     }
   }
-#endif
 #endif
 
   if (! bfd_has_map (abfd))
@@ -1406,6 +1404,14 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
     return FALSE;
   }
 
+  /* Temporary check for instruction set compatibility. xc16-783*/
+   if ((global_PROCESSOR != 0) &&
+       (abfd->arch_info->mach != 0) &&
+       (global_PROCESSOR != abfd->arch_info))
+     if (!pic30_is_dsp_machine(global_PROCESSOR) &&
+          pic30_is_dsp_machine(abfd->arch_info))
+       return FALSE;
+
   if (! generic_link_read_symbols (abfd))
     return FALSE;
 
@@ -1438,7 +1444,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
  
       /* P is a symbol we are looking for.  */
 
-#if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
       /* we may need to pull this symbol in because it is a SMARTIO fn */
       if (pic30_force_keep_symbol && 
           pic30_force_keep_symbol(p->name, abfd->filename)) {
@@ -1468,7 +1473,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
             return TRUE;
           }
       }
-#endif
 
 #ifdef PIC30
       /* check this element against target-specific rules */
@@ -1581,6 +1585,8 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
   unsigned int signature_pairs = 0;
   unsigned int signature_mask = 0;
   unsigned int signature_set = 0;
+  ivt_record_type *r;
+  ivt_record_type *next;
 #endif
 
 #ifdef PIC30
@@ -1773,6 +1779,59 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
 #endif
 
 	}
+
+#if 1
+        for (r = ivt_records_list; r != NULL; r = next) {
+          next = r->next;
+          if (r->name && (strcmp(r->name, p->name+1) == 0)) {
+            asection *ivt_sec;
+            char *sec_name;
+           
+            if (p->flags & BSF_DEBUGGING != 0) {
+              break;
+            }
+            r->flags |= ivt_seen;
+            if (r->is_alternate_vector) {
+                if (pic30_has_floating_aivt) {
+                  break;
+                }
+                else 
+                {
+                  sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+                  (void) sprintf(sec_name, ".aivt.%s", r->name);
+                }
+            }
+            else {
+              sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+              (void) sprintf(sec_name, ".ivt.%s", r->name);
+            }
+            r->sec_name = sec_name;
+            ivt_sec = bfd_make_section(abfd, sec_name);
+            ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD |
+                             SEC_CODE | SEC_ALLOC | SEC_KEEP);
+            PIC30_SET_ABSOLUTE_ATTR(ivt_sec);
+            ivt_sec->linker_generated = 1;
+            ivt_sec->_raw_size = ivt_sec->_cooked_size = 4;
+            r->ivt_sec = ivt_sec;
+            if ((r->is_alternate_vector) && (pic30_has_fixed_aivt)) {
+              if (aivt_base == 0) {
+                 fprintf(stderr,"Link Error: can't locate alternate vector "
+                                "table base address\n");
+                 abort();
+              }
+              bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
+            } else {
+              if (ivt_base == 0) {
+                 fprintf(stderr,"Link Error: can't locate vector "
+                                "table base address\n");
+                 abort();
+              }
+              bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
+            }
+          }
+        }
+#endif
+
     }
 
   return TRUE;
@@ -1832,17 +1891,17 @@ enum link_action
 /* The state table itself.  The first index is a link_row and the
    second index is a bfd_link_hash_type.  */
 
-static const enum link_action link_action[8][8] =
+static const enum link_action link_action[8][10] =
 {
   /* current\prev    new    undef  undefw def    defw   com    indr   warn  */
-  /* UNDEF_ROW 	*/  {UND,   NOACT, UND,   REF,   REF,   NOACT, REFC,  WARNC },
-  /* UNDEFW_ROW	*/  {WEAK,  NOACT, NOACT, REF,   REF,   NOACT, REFC,  WARNC },
-  /* DEF_ROW 	*/  {DEF,   DEF,   DEF,   MDEF,  DEF,   CDEF,  MDEF,  CYCLE },
-  /* DEFW_ROW 	*/  {DEFW,  DEFW,  DEFW,  NOACT, NOACT, NOACT, NOACT, CYCLE },
-  /* COMMON_ROW	*/  {COM,   COM,   COM,   CREF,  COM,   BIG,   REFC,  WARNC },
-  /* INDR_ROW	*/  {IND,   IND,   IND,   MDEF,  IND,   CIND,  MIND,  CYCLE },
-  /* WARN_ROW   */  {MWARN, WARN,  WARN,  CWARN, CWARN, WARN,  CWARN, NOACT },
-  /* SET_ROW	*/  {SET,   SET,   SET,   SET,   SET,   SET,   CYCLE, CYCLE }
+  /* UNDEF_ROW 	*/  {UND,   NOACT, UND,   REF,   REF,   NOACT, REFC,  WARNC, REF, REF },
+  /* UNDEFW_ROW	*/  {WEAK,  NOACT, NOACT, REF,   REF,   NOACT, REFC,  WARNC, REF, REF },
+  /* DEF_ROW 	*/  {DEF,   DEF,   DEF,   MDEF,  DEF,   CDEF,  MDEF,  CYCLE, MDEF, DEF },
+  /* DEFW_ROW 	*/  {DEFW,  DEFW,  DEFW,  NOACT, NOACT, NOACT, NOACT, CYCLE, NOACT, NOACT },
+  /* COMMON_ROW	*/  {COM,   COM,   COM,   CREF,  COM,   BIG,   REFC,  WARNC, CREF, COM },
+  /* INDR_ROW	*/  {IND,   IND,   IND,   MDEF,  IND,   CIND,  MIND,  CYCLE, MDEF, IND },
+  /* WARN_ROW   */  {MWARN, WARN,  WARN,  CWARN, CWARN, WARN,  CWARN, NOACT, CWARN, CWARN },
+  /* SET_ROW	*/  {SET,   SET,   SET,   SET,   SET,   SET,   CYCLE, CYCLE, SET, SET }
 };
 
 /* Most of the entries in the LINK_ACTION table are straightforward,
@@ -2023,10 +2082,22 @@ _bfd_generic_link_add_one_symbol (info, abfd, name, flags, section, value,
 
 	    /* Define a symbol.  */
 	    oldtype = h->type;
-	    if (action == DEFW)
-	      h->type = bfd_link_hash_defweak;
-	    else
-	      h->type = bfd_link_hash_defined;
+	    if (action == DEFW) {
+#ifdef PIC30
+              if (flags & BSF_SHARED)
+                h->type = bfd_link_hash_shared_defweak;
+              else
+#endif
+	        h->type = bfd_link_hash_defweak;
+            }
+	    else {
+#ifdef PIC30
+              if (flags & BSF_SHARED)
+                h->type = bfd_link_hash_shared_defined;
+              else
+#endif
+	        h->type = bfd_link_hash_defined;
+            }
 	    h->u.def.section = section;
 	    h->u.def.value = value;
 
@@ -2222,6 +2293,21 @@ _bfd_generic_link_add_one_symbol (info, abfd, name, flags, section, value,
 	  /* Fall through.  */
 	case MDEF:
 	  /* Handle a multiple definition.  */
+#ifdef PIC30
+          if (PIC30_IS_SHARED_ATTR(section) &&
+              PIC30_IS_SHARED_ATTR(h->u.def.section) &&
+              ((section->linked == 1) || (h->u.def.section->linked == 1)) &&
+              section->_raw_size == h->u.def.section->_raw_size &&
+              strcmp(section->name, h->u.def.section->name) == 0) {
+            /* these are the same symbol, in the same section, and the same
+               size... allow the user to redefine them in this special
+               circumstance.   But ensure that they are allocated at the same
+               place */
+            h->u.def.section->vma = section->vma;
+            h->u.def.section->lma = section->lma;
+            PIC30_SET_ABSOLUTE_ATTR(h->u.def.section);
+          } else 
+#endif
 	  if (!info->allow_multiple_definition)
 	    {
 	      asection *msec = NULL;
@@ -2571,10 +2657,11 @@ generic_add_output_symbol (output_bfd, psymalloc, sym)
 #if defined(PIC30ELF)
   if (sym && !(sym->section->flags & SEC_EXCLUDE))
 #endif
-{
-  bfd_get_outsymbols (output_bfd) [bfd_get_symcount (output_bfd)] = sym;
-  if (sym != NULL)
-    ++ bfd_get_symcount (output_bfd);}
+  {
+    bfd_get_outsymbols (output_bfd) [bfd_get_symcount (output_bfd)] = sym;
+    if (sym != NULL)
+      ++ bfd_get_symcount (output_bfd);
+  }
 
   return TRUE;
 }
@@ -2640,6 +2727,22 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 
       h = NULL;
       sym = *sym_ptr;
+#if defined(PIC30) && 0
+      /* not the right way to do this, but checking to see if this is the
+           right time */
+      if ( (sym->flags & BSF_GLOBAL) &&
+          !(sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM | BSF_FILE))) {
+        struct elf_link_hash_entry *h;
+
+        sym->flags &= ~BSF_GLOBAL;
+        sym->flags |= BSF_WEAK;
+        h = elf_link_hash_lookup ((struct elf_link_hash_table *)info->hash,
+                                     sym->name, FALSE, FALSE, TRUE);
+        if (h) h->root.type = bfd_link_hash_defweak;
+
+        fprintf(stderr,"weaken: %s %p\n", sym->name, h);
+      }
+#endif
       if ((sym->flags & (BSF_INDIRECT
 			 | BSF_WARNING
 			 | BSF_GLOBAL
@@ -2702,7 +2805,6 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 		  
 		}
 #endif
-
 	      switch (h->root.type)
 		{
 		default:
@@ -2721,7 +2823,17 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 #endif
 		  /* fall through */
 		case bfd_link_hash_defined:
+#if defined(PIC30ELF) /* Co-resident */
+                  if (PIC30_IS_SHARED_ATTR(sym->section)) {
+		    sym->flags |= BSF_GLOBAL;
+                  } else {
+                    h->root.type = bfd_link_hash_defweak;
+                    sym->flags |= BSF_WEAK;
+                    sym->flags &= ~BSF_GLOBAL;
+                  }
+#else
 		  sym->flags |= BSF_GLOBAL;
+#endif
 		  sym->flags &=~ BSF_CONSTRUCTOR;
 		  sym->value = h->root.u.def.value;
 		  sym->section = h->root.u.def.section;
@@ -2732,6 +2844,22 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 		  sym->value = h->root.u.def.value;
 		  sym->section = h->root.u.def.section;
 		  break;
+#ifdef PIC30
+                case bfd_link_hash_shared_defweak:
+                  sym->flags |= BSF_WEAK | BSF_SHARED;
+                  sym->flags &=~ BSF_CONSTRUCTOR;
+                  sym->value = h->root.u.def.value;
+                  sym->section = h->root.u.def.section;
+                  break;
+                case bfd_link_hash_shared_defined:
+                  h->root.type = bfd_link_hash_shared_defweak;
+                  sym->flags &= ~BSF_GLOBAL;
+                  sym->flags |= BSF_WEAK | BSF_SHARED;
+                  sym->flags &=~ BSF_CONSTRUCTOR;
+                  sym->value = h->root.u.def.value;
+                  sym->section = h->root.u.def.section;
+                  break;
+#endif
 		case bfd_link_hash_common:
 		  sym->value = h->root.u.c.size;
 		  sym->flags |= BSF_GLOBAL;
@@ -2840,6 +2968,31 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 	
       if (output)
 	{
+#if 0 /* we don't add application id to section ames anymore */
+          char *ext_attr_prefix = "__ext_attr_";
+          if (strstr(sym->name, ext_attr_prefix)) {
+            extern bfd_boolean pic30_application_id;
+            extern char *application_id;
+            char *sec_name = &sym->name[strlen(ext_attr_prefix)];
+            if (pic30_application_id) {
+              char *new_name;
+              asection *s;
+              for (s = input_bfd->sections ; s!= NULL; s = s->next)
+                 if ((strcmp(s->name, sec_name) == 0) && (s->linked == 0)) {
+                   new_name = (char *)xmalloc(strlen(ext_attr_prefix) +
+                                              strlen(application_id) +
+                                              strlen(sec_name) + 2);
+                   if (sec_name[0] == '.')
+                     (void) sprintf(new_name, "%s%s%s", ext_attr_prefix,
+                                               application_id, sec_name);
+                   else
+                     (void) sprintf(new_name, "%s%s.%s", ext_attr_prefix,
+                                                application_id, sec_name);
+                   sym->name = new_name;
+                }
+           }
+         }
+#endif
 	  if (! generic_add_output_symbol (output_bfd, psymalloc, sym))
 	    return FALSE;
 	  if (h != NULL)
@@ -2892,6 +3045,16 @@ set_symbol_from_hash (sym, h)
       break;
     case bfd_link_hash_defweak:
       sym->flags |= BSF_WEAK;
+      sym->section = h->u.def.section;
+      sym->value = h->u.def.value;
+      break;
+    case bfd_link_hash_shared_defined:
+      sym->flags |= BSF_SHARED;
+      sym->section = h->u.def.section;
+      sym->value = h->u.def.value;
+      break;
+    case bfd_link_hash_shared_defweak:
+      sym->flags |= BSF_WEAK | BSF_SHARED;
       sym->section = h->u.def.section;
       sym->value = h->u.def.value;
       break;

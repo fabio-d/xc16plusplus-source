@@ -359,7 +359,8 @@ pic30_print_insn (memaddr, info)
    int opb = info->octets_per_byte;
    int status;
    int i,j;
-   int is_ecore = pic30_is_ecore_machine(bfd_lookup_arch(info->arch,info->mach));
+   int is_ecore= pic30_is_ecore_machine(bfd_lookup_arch(info->arch,info->mach));
+   int is_isav4= pic30_is_isav4_machine(bfd_lookup_arch(info->arch,info->mach));
 
    pic30_disassembly_address = memaddr; /* make insn address visible */
 
@@ -416,6 +417,7 @@ pic30_print_insn (memaddr, info)
       for (i = 0; i < pic30_num_opcodes; i++)
       {
 	
+	 if ((pic30_opcodes[i].flags & F_ISAV4) && !is_isav4) continue;
 	 if ((pic30_opcodes[i].flags & F_ECORE) && !is_ecore) continue;
          if ((pic30_opcodes[i].flags & F_FCORE) && is_ecore) continue;
 

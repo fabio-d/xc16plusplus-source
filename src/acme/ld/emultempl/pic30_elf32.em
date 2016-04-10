@@ -64,6 +64,9 @@ extern unsigned char *handle_data;
 extern struct handle_hash_table *handles;
 extern struct pic30_section *data_sections;
 extern struct pic30_section *packed_sections;
+extern struct pic30_section *shared_data_sections;
+extern struct pic30_section *shared_dinit_sections;
+extern bfd_vma inherited_shared_dinit_address;
 
 extern char *pic30_startup0_file;
 extern char *pic30_startup1_file;
@@ -79,6 +82,18 @@ extern bfd_boolean dma_end_defined;
 extern bfd *init_bfd;
 extern unsigned char *init_data;
 extern asection *init_template;
+
+extern bfd *init_shared_bfd;
+extern unsigned char *init_shared_data;
+extern asection *init_shared_template;
+
+extern bfd *rom_usage_bfd;
+extern unsigned char *rom_usage_data;
+extern asection *rom_usage_template;
+
+extern bfd *ram_usage_bfd;
+extern unsigned char *ram_usage_data;
+extern asection *ram_usage_template;
 
 extern bfd *isr_bfd;
 extern unsigned char *isr_data;
@@ -122,12 +137,12 @@ extern bfd_vma pic30_codeguard_setting_address(void *s);
 extern int pic30_add_selected_codeguard_option(void *);
 extern void pic30_dump_selected_codeguard_options(FILE *);
 extern char * pic30_unique_selected_configword_names(void);
-extern int pic30_have_CG_settings(void);
-extern int pic30_decode_CG_settings(char *, unsigned short, int);
+extern int pic30_decode_CG_settings(char *, bfd_vma, unsigned short, int);
 extern unsigned short pic30_encode_CG_settings(char *);
 extern void pic30_set_extended_attributes(asection *,
                                           unsigned int, unsigned char );
 extern void pic30_get_aivt_settings(const bfd_arch_info_type *, int);
+extern void pic30_get_ivt(const bfd_arch_info_type *, int);
 
 extern const bfd_arch_info_type * global_PROCESSOR;
 
@@ -136,6 +151,9 @@ extern unsigned int pic30_attribute_map
 
 extern int pic30_set_implied_attributes
   PARAMS ((asection *, unsigned char));
+
+extern void bfd_pic30_clean_section_names
+  PARAMS ((bfd *, asection *, PTR));
 
 void pic30_set_output_section_flags
   PARAMS ((lang_output_section_statement_type *));
@@ -157,7 +175,13 @@ static void pic30_build_section_list
 static void pic30_build_psv_section_list
   PARAMS ((bfd *, asection *, PTR));
 
+static void pic30_build_auxpsv_section_list
+  PARAMS ((bfd *, asection *, PTR));
+
 static void pic30_build_code_section_list
+  PARAMS ((bfd *, asection *, PTR));
+
+static void pic30_build_auxflash_section_list
   PARAMS ((bfd *, asection *, PTR));
 
 static void allocate_memory
@@ -224,6 +248,12 @@ static bfd * bfd_pic30_create_jump_table_bfd
   PARAMS ((bfd *));
 
 static bfd * bfd_pic30_create_data_init_bfd
+  PARAMS ((bfd *));
+
+static bfd * bfd_pic30_create_rom_usage_bfd
+  PARAMS ((bfd *));
+
+static bfd * bfd_pic30_create_ram_usage_bfd
   PARAMS ((bfd *));
 
 static bfd * bfd_pic30_create_default_isr_bfd
@@ -359,7 +389,11 @@ static void pic30_create_unused_auxflash_sections
 static void bfd_pic30_memory_summary
   PARAMS ((char *));
 
+static void bfd_pic30_pad_flash
+  PARAMS ((char *));
+
 int fill_section_count = 0;
+int pad_section_count = 0;
 unsigned int enable_fixed = 0;
 
 static void gld${EMULATION_NAME}_before_parse PARAMS ((void));
@@ -445,13 +479,12 @@ static bfd_boolean has_full_eds_memory_model = FALSE;
 /* Section Lists */
 static struct pic30_section *pic30_section_list;
 static struct pic30_section *psv_sections, *code_sections;
+static struct pic30_section *auxpsv_sections, *auxflash_sections;
 
 struct pic30_section *unassigned_sections;
 static struct pic30_section *alloc_section_list;
 
 /* Movable AIVT information */
-bfd_boolean aivt_enabled = FALSE; 
-bfd_vma aivt_address = 0;
 bfd_vma fbslim_address = 0;
 bfd_vma aivt_len = 0;
 
@@ -467,6 +500,7 @@ struct pic30_memory
 #endif
 
 static struct pic30_memory *free_blocks, *data_memory_free_blocks;
+static struct pic30_memory *shared_data_memory_blocks;
 
 /* Symbol Lists */
 struct pic30_symbol
@@ -499,16 +533,6 @@ static char * valid_cg_section_names[] = {
   "__FBS.sec",
   "__FSS.sec",
   "__FGS.sec",
-  ".config_GCP",
-  ".config_GSS",
-  ".config_GSS0",
-  ".config_BSS",
-  ".config_RBS",
-  ".config_SSS",
-  ".config_RSS",
-  ".config_EBS",
-  ".config_ESS",
-  ".config_CSS",
   0, };
 
 /* The Upper Limit of Region "Program" */
@@ -521,60 +545,11 @@ static bfd_vma last_program_address = 0;
 /*
 ** smart_io Data Structure
 **
-** The following data structure is used to identify
-** I/O function pairs that have redundant functionality.
-** The "full_set" function is a standard I/O function
-** such as printf(). The "reduced_set" function has the
-** same type and parameter list but supports a reduced
-** feature set, such as the integer-only _iprintf().
-**
-** If both members of a function pair are defined,
-** the reduced_set function is considered redundant.
-** The --smart-io option causes the linker to merge
-** the two functions in order to conserve memory.
-**
 ** Function merging is performed by the _after_open()
 ** emulation entry point, after all the input BFDs
 ** have been opened, but before memory is allocated.
 **
-** Function merging consists of several steps:
-**
-** 1. Lookup both function names in the Global Linker
-**    Hash Table and load pointers to the corresponding
-**    hash table entries.
-**
-** 2. Copy the (value) and (section) fields from the
-**    full_set hash table entry to the reduced_set hash
-**    table entry. This causes the reduced_set function
-**    name to be a synonym for the full_set function name.
-**
-**    This operation is valid because:
-**
-**    (section) is a pointer into a BFD data structure.
-**    When a BFD is opened, it remains locked in memory
-**    until it is closed at the completion of the link.
-**    Pointers into a BFD data structure are guaranteed
-**    not to move.
-**
-**    (value) is an offset into an input section. Offsets
-**    within an input section are determined by the
-**    assembler and do not change during the link.
-**
-** 3. Loop through each input statement in the linker script
-**    and find the BFD associated with the reduced_set
-**    function, based on its module_name.
-**
-** 4. Traverse the Global Linker Hash Table and change the
-**    type of any symbols that are defined and owned by
-**    the reduced_set BFD to "undefined".
-**
-** 5. For each section attached to the reduced_set BFD,
-**    set the SEC_NEVER_LOAD section flag and set the
-**    section size to zero. This causes the reduced_set
-**    function to be omitted from the final link.
 */
-
-#if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
 struct reduced_set_list {
   char *reduced_set;
   char *module_name;
@@ -588,7 +563,7 @@ struct function_pair_type
   struct reduced_set_list *rsl;
 };
 
-  /* With RULES == 2 we put flags after the function name, almost like
+  /* We put flags after the function name, almost like
      C++ encoding.  We need to select the function with the minimum set of
      extra flags at the end */
 struct function_pair_type function_pairs[] =
@@ -654,74 +629,6 @@ struct function_pair_type function_pairs[] =
     /* null terminator */
     { 0, 0, 0 },
   };
-#else
-struct function_pair_type
-{
-  char *full_set;
-  char *reduced_set;
-  char *module_name;
-};
-
-const struct function_pair_type function_pairs[] =
-  {
-    /* iprintf() */
-    { "_printf",    "__iprintf",   "printf.eio"    },
-    { "__Printf",   "___iPrintf",  "xprintf.eio"   },
-    { "__Putfld",   "___iPutfld",  "xputfld.eio"   },
-
-    { "__dprintf",  "__iprintf",   "printf.eio"    },
-    { "___dPrintf", "___iPrintf",  "xprintf.eio"   },
-    { "___dPutfld", "___iPutfld",  "xputfld.eio"   },
-
-    /* ifprintf() */
-    { "_fprintf",   "__ifprintf",  "fprintf.eio"   },
-    { "__dfprintf", "__ifprintf",  "fprintf.eio"   },
-
-    /* isprintf() */
-    { "_sprintf",   "__isprintf",  "sprintf.eio"   },
-    { "__dsprintf", "__isprintf",  "sprintf.eio"   },
-
-    /* ivprintf() */
-    { "_vprintf",   "__ivprintf",  "vprintf.eio"   },
-    { "__dvprintf", "__ivprintf",  "vprintf.eio"   },
-
-    /* ivfprintf() */
-    { "_vfprintf",  "__ivfprintf",  "vfprintf.eio" },
-    { "__dvfprintf","__ivfprintf",  "vfprintf.eio" },
-
-    /* ivsprintf() */
-    { "_vsprintf",  "__ivsprintf",  "vsprintf.eio" },
-    { "__dvsprintf","__ivsprintf",  "vsprintf.eio" },
-
-    /* isnprintf() */
-    { "_snprintf",  "__isnprintf",  "snprintf.eio" },
-    { "__dsnprintf","__isnprintf",  "snprintf.eio" },
-
-    /* ivsnprintf() */
-    { "_vsnprintf", "__ivsnprintf", "vsnprint.eio" },
-    { "__dvsnprintf","__ivsnprintf","vsnprint.eio" },
-
-    /* iscanf() */
-    { "_scanf",     "__iscanf",     "scanf.eio"    },
-    { "__Scanf",    "___iSscanf",   "xscanf.eio"   },
-    { "__Getfld",   "___iGetfld",   "xgetfld.eio"  },
-
-    { "__dscanf",   "__iscanf",     "scanf.eio"    },
-    { "___dScanf",  "___iSscanf",   "xscanf.eio"   },
-    { "___dGetfld", "___iGetfld",   "xgetfld.eio"  },
-
-    /* ifscanf() */
-    { "_fscanf",    "__ifscanf",    "fscanf.eio"   },
-    { "__dfscanf",  "__ifscanf",    "fscanf.eio"   },
-
-    /* isscanf() */
-    { "_sscanf",    "__isscanf",    "sscanf.eio"   },
-    { "__dsscanf",  "__isscanf",    "sscanf.eio"   },
-
-    /* null terminator */
-    { 0, 0, 0 },
-  };
-#endif
 
 /*****************************************************************************/
 
@@ -729,10 +636,10 @@ const struct function_pair_type function_pairs[] =
 ** Prototypes that use local structure definitions
 */
 
-static void pic30_init_section_list
+void pic30_init_section_list
   PARAMS ((struct pic30_section **));
 
-static void pic30_append_section_to_list
+void pic30_append_section_to_list
   PARAMS ((struct pic30_section *, lang_input_statement_type *, asection *));
 
 static bfd_boolean pic30_name_in_section_list
@@ -1075,7 +982,7 @@ handle_hash_free (table)
 **
 ** - first item is null
 */
-static void
+void
 pic30_init_section_list(lst)
      struct pic30_section **lst;
 {
@@ -1091,7 +998,7 @@ pic30_init_section_list(lst)
 /*
 ** Append a section to a list
 */
-static void
+void
 pic30_append_section_to_list (struct pic30_section *lst,
                               lang_input_statement_type *file,
                               asection *sec)
@@ -1480,6 +1387,57 @@ pic30_build_psv_section_list (abfd, sect, p)
     }
 } /* static void pic30_build_psv_section_list (...) */
 
+/*
+** Build a list of AUXPSV sections
+**  in order of decreasing size
+**
+** - this function is called via bfd_map_over_sections()
+*/
+static void
+pic30_build_auxpsv_section_list (abfd, sect, p)
+     bfd *abfd ATTRIBUTE_UNUSED ;
+     asection *sect;
+     PTR p;
+{
+  struct lma_adjust_info *info = (struct lma_adjust_info *) p;
+  struct pic30_section *new, *s, *prev;
+  int done = 0;
+
+  /*
+  ** exit if not AUXPSV, or below threshold, or above limit
+  */
+  int isAUXPSV = PIC30_IS_AUXPSV_ATTR(sect);
+  if (!isAUXPSV || (sect->lma < info->base) || (sect->lma > info->limit))
+    return;
+
+  /*
+  ** create a new element
+  */
+  new = ((struct pic30_section *)
+         xmalloc(sizeof(struct pic30_section)));
+  new->sec  = sect;
+
+  /* insert it at the right spot */
+  prev = auxpsv_sections;
+  for (s = prev; s != NULL; s = s->next)
+    {
+      if (s->sec && (new->sec->_raw_size > s->sec->_raw_size))
+        {
+          prev->next = new;
+          new->next = s;
+          done++;
+          break;
+        }
+      prev = s;
+    }
+
+  if (!done)
+    {
+      prev->next = new;
+      new->next = NULL;
+    }
+} /* static void pic30_build_auxpsv_section_list (...) */
+
 
 /*
 ** Build a list of CODE sections
@@ -1530,6 +1488,54 @@ pic30_build_code_section_list (abfd, sect, p)
     }
 } /* static void pic30_build_code_section_list (...) */
 
+/*
+** Build a list of AUXFLASH sections
+**  in order of decreasing size
+**
+** - this function is called via bfd_map_over_sections()
+*/
+static void
+pic30_build_auxflash_section_list (abfd, sect, p)
+     bfd *abfd ATTRIBUTE_UNUSED ;
+     asection *sect;
+     PTR p;
+{
+  struct lma_adjust_info *info = (struct lma_adjust_info *) p;
+  struct pic30_section *new, *s, *prev;
+  int done = 0;
+
+  /*
+  ** exit if not AUXFLASH, or below threshold, or above limit
+  */
+  int isCODE = PIC30_IS_AUXFLASH_ATTR(sect);
+  if (!isCODE || (sect->lma < info->base) || (sect->lma >= info->limit))
+    return;
+
+  /* create a new element */
+  new = ((struct pic30_section *)
+         xmalloc(sizeof(struct pic30_section)));
+  new->sec  = sect;
+
+  /* insert it at the right spot */
+  prev = auxflash_sections;
+  for (s = prev; s != NULL; s = s->next)
+    {
+      if (s->sec && (new->sec->_raw_size > s->sec->_raw_size))
+        {
+          prev->next = new;
+          new->next = s;
+          done++;
+          break;
+        }
+      prev = s;
+    }
+
+  if (!done)
+    {
+      prev->next = new;
+      new->next = NULL;
+    }
+} /* static void pic30_build_auxflash_section_list (...) */
 
 /*
 ** Create a list of free memory blocks
@@ -2335,6 +2341,207 @@ bfd_pic30_create_data_init_bfd (parent)
   return abfd;
 } /* static bfd * bfd_pic30_create_data_init_bfd (...)*/
 
+static bfd *
+bfd_pic30_create_shared_data_init_bfd (parent)
+     bfd *parent ATTRIBUTE_UNUSED;
+{
+  bfd_size_type size;
+  bfd *abfd;
+  asection *sec;
+  struct pic30_section *s;
+  char *oname;
+  int flags, align;
+
+  /* create a bare-bones bfd */
+  oname = (char *) bfd_alloc (output_bfd, 20);
+  sprintf (oname, "shared_data_init");
+  abfd = bfd_create (oname, parent);
+  bfd_find_target ("${OUTPUT_FORMAT}", abfd);
+  bfd_make_writable (abfd);
+
+  bfd_set_format (abfd, bfd_object);
+  bfd_set_arch_mach (abfd, bfd_arch_pic30, 0);
+
+  /* create a symbol table (room for 1 entry) */
+  symptr = 0;
+#if 0
+  if (pic30_inherit_application_info)
+    symtab = (asymbol **) bfd_alloc (output_bfd, 2*sizeof (asymbol *));
+  else
+#endif
+    symtab = (asymbol **) bfd_alloc (output_bfd, sizeof (asymbol *));
+
+  /*
+  ** create a bare-bones section for .shared.dinit
+  */
+  flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
+  align = 1; /* 2^1 */
+  sec = bfd_pic30_create_section (abfd, ".shared.dinit", flags, align);
+  size = 0; /* will update later */
+  bfd_set_section_size (abfd, sec, size);
+
+  /* allocate .shared.dinit at the same address where previous .shared.dinit
+     was allocated */
+    if (pic30_inherit_application_info) {
+      for (s = inherited_sections; s!= NULL; s = s->next) {
+         if (s->sec && strcmp(s->sec->name, ".shared.dinit") == 0) {
+           PIC30_SET_ABSOLUTE_ATTR(sec);
+           bfd_set_section_vma(abfd, sec, s->sec->vma);
+         }
+      }
+    }
+
+#if 0 /* Keeping this in case it is needed */
+  if (pic30_exclude_application) {
+    flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
+    align = 1; /* 2^1 */
+    sec = bfd_pic30_create_section (abfd, ".shared.dinit$", flags, align);
+    size = 4;
+    bfd_set_section_size (abfd, sec, size);
+    for (s = inherited_sections; s!= NULL; s = s->next) {
+       if (s->sec && strcmp(s->sec->name, ".shared.dinit") == 0)
+         inherited_shared_dinit_address = sec->vma = sec->lma = s->sec->vma;
+    }
+    PIC30_SET_ABSOLUTE_ATTR(sec);
+  }
+#endif
+
+  /* put in the symbol table */
+  bfd_set_symtab (abfd, symtab, symptr);
+
+  /* will add section contents later */
+
+  /* finish it */
+  if (!bfd_make_readable (abfd))
+    {
+      fprintf( stderr, "Link Error: can't make data init readable\n");
+      abort();
+    }
+
+  return abfd;
+} 
+
+static bfd *
+bfd_pic30_create_rom_usage_bfd (parent)
+     bfd *parent ATTRIBUTE_UNUSED;
+{
+  bfd_size_type size;
+  bfd *abfd;
+  asection *sec;
+  char *oname;
+  int flags, align;
+  
+  LANG_FOR_EACH_INPUT_STATEMENT (f)
+  {
+    for (sec = f->the_bfd->sections;
+         sec != (asection *) NULL;
+         sec = sec->next)
+      if (strcmp(sec->name,".rom_usage") == 0)
+        sec->flags |= SEC_EXCLUDE;
+  }
+
+  /* create a bare-bones bfd */
+  oname = (char *) bfd_alloc (output_bfd, 20);
+  sprintf (oname, "rom_usage_bfd");
+  abfd = bfd_create (oname, parent);
+  bfd_find_target ("${OUTPUT_FORMAT}", abfd);
+  bfd_make_writable (abfd);
+
+  bfd_set_format (abfd, bfd_object);
+  bfd_set_arch_mach (abfd, bfd_arch_pic30, 0);
+
+  /* create a symbol table (room for 1 entry) */
+  symptr = 0;
+  symtab = (asymbol **) bfd_alloc (output_bfd, sizeof (asymbol *));
+
+  /*
+  ** create a bare-bones section for .rom_usage
+  */
+  flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
+  align = 1; /* 2^1 */
+  sec = bfd_pic30_create_section (abfd, ".rom_usage", flags, align);
+  size = 0; /* will update later */
+  bfd_set_section_size (abfd, sec, size);
+
+    /* create global label at offset zero */
+  bfd_pic30_create_symbol (abfd, "__ROM_USAGE", sec,
+                           BSF_GLOBAL | BSF_WEAK, 0);
+
+  /* put in the symbol table */
+  bfd_set_symtab (abfd, symtab, symptr);
+
+  /* will add section contents later */
+
+  /* finish it */
+  if (!bfd_make_readable (abfd))
+    {
+      fprintf( stderr, "Link Error: can't make rom usage readable\n");
+      abort();
+    }
+
+  return abfd;
+}
+
+static bfd *
+bfd_pic30_create_ram_usage_bfd (parent)
+     bfd *parent ATTRIBUTE_UNUSED;
+{
+  bfd_size_type size;
+  bfd *abfd;
+  asection *sec;
+  char *oname;
+  int flags, align;
+
+  LANG_FOR_EACH_INPUT_STATEMENT (f)
+  {
+    for (sec = f->the_bfd->sections;
+         sec != (asection *) NULL;
+         sec = sec->next)
+      if (strcmp(sec->name,".ram_usage") == 0)
+        sec->flags |= SEC_EXCLUDE;
+  }
+
+  /* create a bare-bones bfd */
+  oname = (char *) bfd_alloc (output_bfd, 20);
+  sprintf (oname, "ram_usage_bfd");
+  abfd = bfd_create (oname, parent);
+  bfd_find_target ("${OUTPUT_FORMAT}", abfd);
+  bfd_make_writable (abfd);
+
+  bfd_set_format (abfd, bfd_object);
+  bfd_set_arch_mach (abfd, bfd_arch_pic30, 0);
+
+  /* create a symbol table (room for 1 entry) */
+  symptr = 0;
+  symtab = (asymbol **) bfd_alloc (output_bfd, sizeof (asymbol *));
+
+  /*
+  ** create a bare-bones section for .ram_usage
+  */
+  flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
+  align = 1; /* 2^1 */
+  sec = bfd_pic30_create_section (abfd, ".ram_usage", flags, align);
+  size = 0; /* will update later */
+  bfd_set_section_size (abfd, sec, size);
+
+    /* create global label at offset zero */
+  bfd_pic30_create_symbol (abfd, "__RAM_USAGE", sec,
+                           BSF_GLOBAL | BSF_WEAK, 0);
+
+  /* put in the symbol table */
+  bfd_set_symtab (abfd, symtab, symptr);
+
+  /* will add section contents later */
+
+  /* finish it */
+  if (!bfd_make_readable (abfd))
+    {
+      fprintf( stderr, "Link Error: can't make ram usage readable\n");
+      abort();
+    }
+
+  return abfd;
+}
 
 /*
 ** Create a bfd for the default interrupt handler
@@ -2876,7 +3083,8 @@ bfd_pic30_scan_data_section (sect, p)
       /*
       ** issue a warning if DATA values are present
       */
-      if ((sect->flags & SEC_DATA) && (sect->_raw_size > 0))
+      if ((sect->flags & SEC_DATA) && (sect->_raw_size > 0) &&
+          (sect->linked == 0))
         einfo(_("%P: Warning: initial values were specified for a non-loadable"
                 " data section (%s). These values will be ignored.\n"),
               sect->name);
@@ -3143,7 +3351,7 @@ bfd_pic30_remove_archive_module (name)
 }
 
 void
-get_aivt_address ()
+get_aivt_base ()
 {
     bfd_size_type len;
     int i, count = 0;
@@ -3186,18 +3394,18 @@ get_aivt_address ()
             {
               for (i = 0; i < 3; i++) {
                 unsigned int val = contents[i+(aivtloc_ptr - sec->vma)];
-                aivt_address |= val << (i * 8);
+                aivt_base |= val << (i * 8);
               }
-              aivt_address = ~(aivt_address);
-              aivt_address &= aivtloc_mask;
-              fbslim_address = aivt_address * 1024;
+              aivt_base = ~(aivt_base);
+              aivt_base &= aivtloc_mask;
+              fbslim_address = aivt_base * 1024;
               if (((fbslim_address < program_base_address()) ||
                    (fbslim_address >= program_end_address())) &&
-                  (fbslim_address != 0)) /* If BSLIM[12:0] is set to all ‘1’s
+                  (fbslim_address != 0)) /* If BSLIM[12:0] is set to all 1s
                                             Active Boot Segment size is zero.*/ 
                 einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));
-              aivt_address -= 1;
-              aivt_address *= 1024;
+              aivt_base -= 1;
+              aivt_base *= 1024;
               /* CAW - this should be recorded in the resource information? */
               aivt_len = 0x400; /* The device requires that the entire page
                                    where the vector table resides
@@ -3582,9 +3790,11 @@ bfd_pic30_process_bfd_after_open (abfd, info)
 
     /* if section has STACK attribute, record that fact */
     if (PIC30_IS_STACK_ATTR(sec) && (sec->_raw_size > 0)) {
-      if (stack_section_defined)
+      if (stack_section_defined && (stack_bfd == abfd) &&  (sec->linked == 0))
         einfo(_("%P%X: Error: Multiple stack sections defined\n"));
       else {
+        if (!pic30_coresident_app && (sec->linked == 1))
+          continue;
         stack_section_defined = TRUE;
         stack_bfd = sec->owner;
         if ((pic30_stack_size > 0) &&
@@ -3849,11 +4059,12 @@ bfd_pic30_adjust_psv_sections(void)
   bfd_vma next_page;
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   struct lma_adjust_info info;
-  lang_memory_region_type *prog;
+  lang_memory_region_type *prog, *auxflash;
   bfd_size_type actual_size;
   struct pic30_section *s;
   struct pic30_memory *b;
-  int reallocate = 0;
+  int reallocate_program = 0;
+  int reallocate_auxflash = 0;
 
   /*
   ** build an ordered list of output sections
@@ -3875,7 +4086,7 @@ bfd_pic30_adjust_psv_sections(void)
   */
   for (s = pic30_section_list; s != NULL; s = s->next)
   {
-    if (s->sec && PIC30_IS_PSV_ATTR(s->sec) &&
+    if (s->sec && (PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) &&
         (s->sec->_raw_size > 0))
     {
         /*
@@ -3908,7 +4119,10 @@ bfd_pic30_adjust_psv_sections(void)
               printf("  section %s needs blocking at %lx\n",
                      s->sec->name, s->sec->lma);
             info.base = s->sec->lma;
-            reallocate++;
+            if (PIC30_IS_PSV_ATTR(s->sec))
+              reallocate_program++;
+            else if (PIC30_IS_AUXPSV_ATTR(s->sec))
+              reallocate_auxflash++;
             break;
           }
         else
@@ -3921,179 +4135,349 @@ bfd_pic30_adjust_psv_sections(void)
   /*
   ** exit if there's nothing else to do
   */
-  if (!reallocate)
+  if (!reallocate_program && !reallocate_auxflash)
     return;
 
   /*
   ** determine the upper limit of available memory
   */
-  prog = lang_memory_region_lookup ("program");
-#define DEFAULT_PROG_LIMIT 0x80000
-  if (prog->length == ~(bfd_size_type) 0) /* if no program region specified */
-  {
-      info.limit = DEFAULT_PROG_LIMIT;
-      einfo(_("%P: Warning: program memory region not specified."
-              " Using default upper limit of 0x%v\n"), info.limit);
-  }
-  else
-    info.limit = prog->origin + prog->length;
-
-  /*
-  ** build a list of PSV sections above the threshold
-  */
-  pic30_init_section_list (&psv_sections);
-  bfd_map_over_sections (output_bfd, &pic30_build_psv_section_list, &info);
-
-  /*
-  ** build a list of CODE sections above the threshold
-  */
-  pic30_init_section_list (&code_sections);
-  bfd_map_over_sections (output_bfd, &pic30_build_code_section_list, &info);
-
-  if (pic30_debug)
-  {
-      printf("\nPSV sections:\n");
-      for (s = psv_sections; s != NULL; s = s->next)
-        if (s->sec)
+  if (reallocate_program) {
+    prog = lang_memory_region_lookup ("program");
+  #define DEFAULT_PROG_LIMIT 0x80000
+    if (prog->length == ~(bfd_size_type) 0) /* if no program region specified */
+    {
+        info.limit = DEFAULT_PROG_LIMIT;
+        einfo(_("%P: Warning: program memory region not specified."
+                " Using default upper limit of 0x%v\n"), info.limit);
+    }
+    else
+      info.limit = prog->origin + prog->length;
+  
+    /*
+    ** build a list of PSV sections above the threshold
+    */
+    pic30_init_section_list (&psv_sections);
+    bfd_map_over_sections (output_bfd, &pic30_build_psv_section_list, &info);
+  
+    /*
+    ** build a list of CODE sections above the threshold
+    */
+    pic30_init_section_list (&code_sections);
+    bfd_map_over_sections (output_bfd, &pic30_build_code_section_list, &info);
+  
+    if (pic30_debug)
+    {
+        printf("\nPSV sections:\n");
+        for (s = psv_sections; s != NULL; s = s->next)
+          if (s->sec)
+            {
+              printf("  section %s %lx %lx %x %s\n",
+                     s->sec->name, s->sec->lma,
+                     s->sec->_raw_size/opb, s->sec->alignment_power,
+                     s->sec->user_set_vma ? "(fixed)" : "");
+            }
+        printf("\nCODE sections:\n");
+        for (s = code_sections; s != NULL; s = s->next)
+        {
+          if (s->sec)
           {
-            printf("  section %s %lx %lx %x %s\n",
-                   s->sec->name, s->sec->lma,
-                   s->sec->_raw_size/opb, s->sec->alignment_power,
-                   s->sec->user_set_vma ? "(fixed)" : "");
+              printf("  section %s %lx %lx %x %s\n",
+                     s->sec->name, s->sec->lma,
+                     s->sec->_raw_size/opb, s->sec->alignment_power,
+                     s->sec->user_set_vma ? "(fixed)" : "");
           }
-      printf("\nCODE sections:\n");
-      for (s = code_sections; s != NULL; s = s->next)
+        }
+    }
+  
+    pic30_append_section_lists (psv_sections, code_sections);
+  
+    /*
+    ** build the Freelist: free memory blocks above the threshold
+    */
+    pic30_init_memory_list (&free_blocks);
+    pic30_add_to_memory_list (free_blocks, info.base, (info.limit - info.base));
+  
+    if (pic30_debug)
       {
-        if (s->sec)
-        {
-            printf("  section %s %lx %lx %x %s\n",
-                   s->sec->name, s->sec->lma,
-                   s->sec->_raw_size/opb, s->sec->alignment_power,
-                   s->sec->user_set_vma ? "(fixed)" : "");
-        }
+        printf("\nFree memory blocks:\n");
+        for (b = free_blocks; b != NULL; b = b->next)
+          if (b->size)
+            printf("  block %lx %lx\n", b->addr, b->size);
       }
+  
+    if (pic30_debug)
+      printf("\nRe-allocating program memory range %lx to %lx\n",
+             info.base, info.limit);
+  
+    /*
+    ** allocate static sections
+    */
+    for (s = psv_sections; s != NULL; s = s->next)
+    {
+      if ((s->sec) && (s->sec->user_set_vma))
+      {
+          b = pic30_static_assign_memory (free_blocks, s->sec->_raw_size/opb,
+                                          s->sec->lma);
+          if (!b)
+  	{
+            if ((s->sec->flags & SEC_NEVER_LOAD) ||
+  	      (command_line.check_section_addresses == FALSE))
+  	  {
+  	        /* OK, don't report as error */;
+  	  }
+  	  else
+              einfo(_("%P%X: Error: Could not allocate section %s at %lx\n"),
+                      s->sec->name, s->sec->lma);
+  	}
+          else
+          {
+              /* add new free block(s) for any remainder space */
+              if (b->offset)
+                pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
+  
+              if ((b->offset + s->sec->_raw_size/opb) < b->size)
+                {
+                  bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
+                  pic30_add_to_memory_list (free_blocks, new_addr,
+                                         b->size - b->offset - s->sec->_raw_size/opb);
+                }
+              /*
+  	    ** remove the block we just used
+  	    */
+              pic30_remove_from_memory_list (free_blocks, b);
+          }
+      }
+    }
+    /*
+    ** allocate relocatable sections
+    */
+    for (s = psv_sections; s != NULL; s = s->next)
+    {
+      if ((s->sec) && (s->sec->user_set_vma == 0))
+      {
+          b = pic30_best_fit_memory (free_blocks, s->sec->_raw_size/opb,
+                                     s->sec->alignment_power,
+                                     TRUE);
+          if (!b)
+            einfo(_("%P%X: Error: Not enough contiguous memory"
+                    " for section %s.\n"), s->sec->name);
+          else
+            {
+              bfd_vma old_address = s->sec->lma;
+  
+              /* update the section header info */
+              s->sec->lma = b->addr + b->offset;
+              if (PIC30_IS_PSV_ATTR(s->sec))
+  	    {
+                s->sec->vma = PSV_BASE + (s->sec->lma & 0x7FFF);
+  	    }
+              else
+  	    {
+                s->sec->vma = s->sec->lma;
+  	    }
+  
+              if (pic30_debug)
+                printf("  moving section %s from %lx to %lx\n",
+                       s->sec->name, old_address, s->sec->lma);
+  
+              /* add new free block(s) for any remainder space */
+              if (b->offset)
+                pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
+  
+              if ((b->offset + s->sec->_raw_size/opb) < b->size)
+                {
+                  bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
+                  pic30_add_to_memory_list (free_blocks, new_addr,
+                                         b->size - b->offset - s->sec->_raw_size/opb);
+                }
+              /* remove the block we just used */
+              pic30_remove_from_memory_list (free_blocks, b);
+            }
+      }
+    }
+    if (pic30_debug)
+    {
+        printf("\nFree memory blocks:\n");
+        for (b = free_blocks; b != NULL; b = b->next)
+          if (b->size)
+            printf("  block %lx %lx\n", b->addr, b->size);
+    }
+  
+    /*
+    ** this frees both A & B lists
+    */
+    pic30_free_section_list (&psv_sections);
+    pic30_free_memory_list  (&free_blocks);
   }
 
-  pic30_append_section_lists (psv_sections, code_sections);
-
-  /*
-  ** build the Freelist: free memory blocks above the threshold
-  */
-  pic30_init_memory_list (&free_blocks);
-  pic30_add_to_memory_list (free_blocks, info.base, (info.limit - info.base));
-
-  if (pic30_debug)
+  if (reallocate_auxflash) {
+    auxflash = lang_memory_region_lookup ("auxflash");
+  #define DEFAULT_AUXFLASH_LIMIT 0x7FFFFA
+    if (auxflash->length == ~(bfd_size_type) 0) /* if no auxflash region specified */
     {
-      printf("\nFree memory blocks:\n");
-      for (b = free_blocks; b != NULL; b = b->next)
-        if (b->size)
-          printf("  block %lx %lx\n", b->addr, b->size);
+        info.limit = DEFAULT_AUXFLASH_LIMIT;
+        einfo(_("%P: Warning: auxflash memory region not specified."
+                " Using default upper limit of 0x%v\n"), info.limit);
     }
-
-  if (pic30_debug)
-    printf("\nRe-allocating program memory range %lx to %lx\n",
-           info.base, info.limit);
-
-  /*
-  ** allocate static sections
-  */
-  for (s = psv_sections; s != NULL; s = s->next)
-  {
-    if ((s->sec) && (s->sec->user_set_vma))
+    else
+      info.limit = auxflash->origin + auxflash->length;
+  
+    /*
+    ** build a list of AUXPSV sections above the threshold
+    */
+    pic30_init_section_list (&auxpsv_sections);
+    bfd_map_over_sections (output_bfd, &pic30_build_auxpsv_section_list, &info);
+  
+    /*
+    ** build a list of AUXFLASH sections above the threshold
+    */
+    pic30_init_section_list (&auxflash_sections);
+    bfd_map_over_sections (output_bfd, &pic30_build_auxflash_section_list, &info);
+  
+    if (pic30_debug)
     {
-        b = pic30_static_assign_memory (free_blocks, s->sec->_raw_size/opb,
-                                        s->sec->lma);
-        if (!b)
-	{
-          if ((s->sec->flags & SEC_NEVER_LOAD) ||
-	      (command_line.check_section_addresses == FALSE))
-	  {
-	        /* OK, don't report as error */;
-	  }
-	  else
-            einfo(_("%P%X: Error: Could not allocate section %s at %lx\n"),
-                    s->sec->name, s->sec->lma);
-	}
-        else
+        printf("\nAUXPSV sections:\n");
+        for (s = auxpsv_sections; s != NULL; s = s->next)
+          if (s->sec)
+            {
+              printf("  section %s %lx %lx %x %s\n",
+                     s->sec->name, s->sec->lma,
+                     s->sec->_raw_size/opb, s->sec->alignment_power,
+                     s->sec->user_set_vma ? "(fixed)" : "");
+            }
+        printf("\nAUXFLASH sections:\n");
+        for (s = auxflash_sections; s != NULL; s = s->next)
         {
-            /* add new free block(s) for any remainder space */
-            if (b->offset)
-              pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
-
-            if ((b->offset + s->sec->_raw_size/opb) < b->size)
-              {
-                bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
-                pic30_add_to_memory_list (free_blocks, new_addr,
-                                       b->size - b->offset - s->sec->_raw_size/opb);
-              }
-            /*
-	    ** remove the block we just used
-	    */
-            pic30_remove_from_memory_list (free_blocks, b);
+          if (s->sec)
+          {
+              printf("  section %s %lx %lx %x %s\n",
+                     s->sec->name, s->sec->lma,
+                     s->sec->_raw_size/opb, s->sec->alignment_power,
+                     s->sec->user_set_vma ? "(fixed)" : "");
+          }
         }
     }
-  }
-  /*
-  ** allocate relocatable sections
-  */
-  for (s = psv_sections; s != NULL; s = s->next)
-  {
-    if ((s->sec) && (s->sec->user_set_vma == 0))
+  
+    pic30_append_section_lists (auxpsv_sections, auxflash_sections);
+  
+    /*
+    ** build the Freelist: free memory blocks above the threshold
+    */
+    pic30_init_memory_list (&free_blocks);
+    pic30_add_to_memory_list (free_blocks, info.base, (info.limit - info.base));
+  
+    if (pic30_debug)
+      {
+        printf("\nFree memory blocks:\n");
+        for (b = free_blocks; b != NULL; b = b->next)
+          if (b->size)
+            printf("  block %lx %lx\n", b->addr, b->size);
+      }
+  
+    if (pic30_debug)
+      printf("\nRe-allocating program memory range %lx to %lx\n",
+             info.base, info.limit);
+  
+    /*
+    ** allocate static sections
+    */
+    for (s = auxpsv_sections; s != NULL; s = s->next)
     {
-        b = pic30_best_fit_memory (free_blocks, s->sec->_raw_size/opb,
-                                   s->sec->alignment_power,
-                                   TRUE);
-        if (!b)
-          einfo(_("%P%X: Error: Not enough contiguous memory"
-                  " for section %s.\n"), s->sec->name);
-        else
+      if ((s->sec) && (s->sec->user_set_vma))
+      {
+          b = pic30_static_assign_memory (free_blocks, s->sec->_raw_size/opb,
+                                          s->sec->lma);
+          if (!b)
+  	{
+            if ((s->sec->flags & SEC_NEVER_LOAD) ||
+  	      (command_line.check_section_addresses == FALSE))
+  	  {
+  	        /* OK, don't report as error */;
+  	  }
+  	  else
+              einfo(_("%P%X: Error: Could not allocate section %s at %lx\n"),
+                      s->sec->name, s->sec->lma);
+  	}
+          else
           {
-            bfd_vma old_address = s->sec->lma;
-
-            /* update the section header info */
-            s->sec->lma = b->addr + b->offset;
-            if (PIC30_IS_PSV_ATTR(s->sec))
-	    {
-              s->sec->vma = PSV_BASE + (s->sec->lma & 0x7FFF);
-	    }
-            else
-	    {
-              s->sec->vma = s->sec->lma;
-	    }
-
-            if (pic30_debug)
-              printf("  moving section %s from %lx to %lx\n",
-                     s->sec->name, old_address, s->sec->lma);
-
-            /* add new free block(s) for any remainder space */
-            if (b->offset)
-              pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
-
-            if ((b->offset + s->sec->_raw_size/opb) < b->size)
-              {
-                bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
-                pic30_add_to_memory_list (free_blocks, new_addr,
-                                       b->size - b->offset - s->sec->_raw_size/opb);
-              }
-            /* remove the block we just used */
-            pic30_remove_from_memory_list (free_blocks, b);
+              /* add new free block(s) for any remainder space */
+              if (b->offset)
+                pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
+  
+              if ((b->offset + s->sec->_raw_size/opb) < b->size)
+                {
+                  bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
+                  pic30_add_to_memory_list (free_blocks, new_addr,
+                                         b->size - b->offset - s->sec->_raw_size/opb);
+                }
+              /*
+  	    ** remove the block we just used
+  	    */
+              pic30_remove_from_memory_list (free_blocks, b);
           }
+      }
     }
-  }
-  if (pic30_debug)
-  {
-      printf("\nFree memory blocks:\n");
-      for (b = free_blocks; b != NULL; b = b->next)
-        if (b->size)
-          printf("  block %lx %lx\n", b->addr, b->size);
-  }
-
-  /*
-  ** this frees both A & B lists
-  */
-  pic30_free_section_list (&psv_sections);
-  pic30_free_memory_list  (&free_blocks);
-
+    /*
+    ** allocate relocatable sections
+    */
+    for (s = auxpsv_sections; s != NULL; s = s->next)
+    {
+      if ((s->sec) && (s->sec->user_set_vma == 0))
+      {
+          b = pic30_best_fit_memory (free_blocks, s->sec->_raw_size/opb,
+                                     s->sec->alignment_power,
+                                     TRUE);
+          if (!b)
+            einfo(_("%P%X: Error: Not enough contiguous memory"
+                    " for section %s.\n"), s->sec->name);
+          else
+            {
+              bfd_vma old_address = s->sec->lma;
+  
+              /* update the section header info */
+              s->sec->lma = b->addr + b->offset;
+              if (PIC30_IS_AUXPSV_ATTR(s->sec))
+  	    {
+                s->sec->vma = PSV_BASE + (s->sec->lma & 0x7FFF);
+  	    }
+              else
+  	    {
+                s->sec->vma = s->sec->lma;
+  	    }
+  
+              if (pic30_debug)
+                printf("  moving section %s from %lx to %lx\n",
+                       s->sec->name, old_address, s->sec->lma);
+  
+              /* add new free block(s) for any remainder space */
+              if (b->offset)
+                pic30_add_to_memory_list (free_blocks, b->addr, b->offset);
+  
+              if ((b->offset + s->sec->_raw_size/opb) < b->size)
+                {
+                  bfd_vma new_addr = b->addr + b->offset + s->sec->_raw_size/opb;
+                  pic30_add_to_memory_list (free_blocks, new_addr,
+                                         b->size - b->offset - s->sec->_raw_size/opb);
+                }
+              /* remove the block we just used */
+              pic30_remove_from_memory_list (free_blocks, b);
+            }
+      }
+    }
+    if (pic30_debug)
+    {
+        printf("\nFree memory blocks:\n");
+        for (b = free_blocks; b != NULL; b = b->next)
+          if (b->size)
+            printf("  block %lx %lx\n", b->addr, b->size);
+    }
+  
+    /*
+    ** this frees both A & B lists
+    */
+    pic30_free_section_list (&auxpsv_sections);
+    pic30_free_memory_list  (&free_blocks);
+ }
 } /* static void bfd_pic30_adjust_psv_sections()*/
 
 
@@ -4192,6 +4576,7 @@ bfd_pic30_finish(void)
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   struct bfd_link_hash_entry *h;
   int FLASH_mask = pic30_is_eds_machine(global_PROCESSOR) ? 0x200 : 0x000;
+  char *alias_name = 0;
 
   const char **psname;
   const char *pic30_codesecs[] =
@@ -4208,12 +4593,17 @@ bfd_pic30_finish(void)
   */
   pic30_strip_sections(output_bfd);
 
+  if (pic30_application_id) {
+    alias_name = xmalloc(1+ strlen(application_id) + 80);
+  }
+
   /*
   ** mark the (synthetic) code sections:
   ** - CODE
   ** - alignment = 2^1
   */
   for (psname = pic30_codesecs; psname[0]; ++psname)
+        /* not sure why we exclude info sections */
   {
     sec = bfd_get_section_by_name(output_bfd, psname[0]);
     if (sec)
@@ -4320,11 +4710,13 @@ bfd_pic30_finish(void)
   /* If a stack was not defined as a section, or by symbols,
      allocate one from remaining memory */
   if (!stack_section_defined && !user_defined_stack) {
-
-    if (pic30_debug)
-      printf("\nCreating stack from remaining data memory...\n");
-
-    allocate_default_stack();
+    if (!pic30_coresident_app) {
+      if (pic30_debug)
+        printf("\nCreating stack from remaining data memory...\n");
+      allocate_default_stack();
+    }
+    else einfo("%F%X Error: When linking with --coresident"
+               " a user defined stack must be created\n");
   }
 
   /* Range check the stack, no matter how it was created */
@@ -4365,14 +4757,26 @@ bfd_pic30_finish(void)
     }
   }
 
+#define link_add_one_symbol(link_info, output_bfd, name, \
+                            type, section, heap_base, name2, a,b,c) \
+  _bfd_generic_link_add_one_symbol(link_info, output_bfd, name, \
+                                   type, section, heap_base, name2, a,b,c); \
+  if (pic30_application_id) { \
+    (void)sprintf(alias_name, "_%s%s", application_id, name); \
+    _bfd_generic_link_add_one_symbol(link_info, output_bfd, alias_name, \
+                          type, section, heap_base, alias_name, a,b,c); \
+  }
+
+                        
+
   if (pic30_debug)
     printf("Creating __heap = %x\n", heap_base);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__heap",
+  link_add_one_symbol (&link_info, output_bfd, "__heap",
                                     BSF_GLOBAL, bfd_abs_section_ptr,
                                     heap_base, "__heap", 1, 0, 0);
   if (pic30_debug)
     printf("Creating __eheap = %x\n", heap_limit);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__eheap",
+  link_add_one_symbol (&link_info, output_bfd, "__eheap",
                                     BSF_GLOBAL, bfd_abs_section_ptr,
                                     heap_limit, "__eheap", 1, 0, 0);
 
@@ -4383,25 +4787,25 @@ bfd_pic30_finish(void)
     {
       if (pic30_debug)
         printf("Creating __SP_init = %x\n", stack_base);
-      _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__SP_init",
+      link_add_one_symbol (&link_info, output_bfd, "__SP_init",
                                         BSF_GLOBAL, bfd_abs_section_ptr,
                                         stack_base, "__SP_init", 1, 0, 0);
       if (pic30_debug)
         printf("Creating __SPLIM_init = %x\n", stack_limit);
-      _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__SPLIM_init",
+      link_add_one_symbol (&link_info, output_bfd, "__SPLIM_init",
                                         BSF_GLOBAL, bfd_abs_section_ptr,
                                         stack_limit, "__SPLIM_init", 1, 0, 0);
     }
 
   if (pic30_debug)
     printf("Creating __MIN_STACK_SIZE = %x\n", pic30_stack_size);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__MIN_STACK_SIZE",
+  link_add_one_symbol (&link_info, output_bfd, "__MIN_STACK_SIZE",
                                     BSF_GLOBAL, bfd_abs_section_ptr,
                                     pic30_stack_size, "__MIN_STACK_SIZE", 1, 0, 0);
 
   if (pic30_debug)
     printf("Creating __STACKGUARD_SIZE = %x\n", pic30_stackguard_size);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd, "__STACKGUARD_SIZE",
+  link_add_one_symbol (&link_info, output_bfd, "__STACKGUARD_SIZE",
                                     BSF_GLOBAL, bfd_abs_section_ptr,
                                pic30_stackguard_size, "__STACKGUARD_SIZE", 1, 0, 0);
 
@@ -4409,6 +4813,7 @@ bfd_pic30_finish(void)
   ** Set tblpage, tbloffset symbols for data init template
   **   so the C startup module can find it.
   */
+
   if (pic30_data_init)
     {
       sec = init_template->output_section;  /* find the template's output sec */
@@ -4420,17 +4825,30 @@ bfd_pic30_finish(void)
           unsigned int tbloffset = dinit_addr & 0xFFFF;
           if (pic30_debug)
             printf("Creating __dinit_tblpage = %x\n", tblpage);
-          _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+          link_add_one_symbol (&link_info, output_bfd,
                                             "__dinit_tblpage", BSF_GLOBAL,
                                             bfd_abs_section_ptr, tblpage, 
                                             "__dinit_tblpage", 1, 0, 0);
           if (pic30_debug)
             printf("Creating __dinit_tbloffset = %x\n", tbloffset);
-          _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+          link_add_one_symbol (&link_info, output_bfd,
                                             "__dinit_tbloffset", BSF_GLOBAL,
                                             bfd_abs_section_ptr, tbloffset,
                                             "__dinit_tbloffset", 1, 0, 0);
         }
+      sec = init_shared_template->output_section;  /* find the shared */
+                                                   /* template's output sec */
+      if (sec)
+       {  bfd_vma shared_dinit_addr = sec->lma + init_shared_template->output_offset;
+          if (pic30_debug)
+            printf("Creating __shared_dinit_addr = %x\n", shared_dinit_addr);
+          link_add_one_symbol (&link_info, output_bfd,
+                                            "__shared_dinit_addr",
+                                            BSF_GLOBAL | BSF_WEAK,
+                                            bfd_abs_section_ptr,
+                                            shared_dinit_addr,
+                                            "__shared_dinit_addr", 1, 0, 0);
+       }
     }
 
   /*
@@ -4443,20 +4861,20 @@ bfd_pic30_finish(void)
 
   if (pic30_debug)
     printf("Creating __const_psvpage = %x\n", const_psvpage);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__const_psvpage", BSF_GLOBAL,
                                     bfd_abs_section_ptr, const_psvpage, 
                                     "__const_psvpage", 1, 0, 0);
   if (pic30_debug)
     printf("Creating __const_length = %x\n", const_length);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__const_length", BSF_GLOBAL,
                                     bfd_abs_section_ptr, const_length,
                                     "__const_length", 1, 0, 0);
 
   if (pic30_debug)
     printf("Creating __enable_fixed = %x\n", enable_fixed);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__enable_fixed", BSF_GLOBAL,
                                     bfd_abs_section_ptr, enable_fixed,
                                     "__enable_fixed", 1, 0, 0);
@@ -4465,13 +4883,13 @@ bfd_pic30_finish(void)
   */
   if (pic30_debug)
     printf("Creating __bootconst_psvpage = %x\n", boot_const_psvpage);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__bootconst_psvpage", BSF_GLOBAL,
                                     bfd_abs_section_ptr, boot_const_psvpage, 
                                     "__bootconst_psvpage", 1, 0, 0);
   if (pic30_debug)
     printf("Creating __secureconst_psvpage = %x\n", secure_const_psvpage);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__secureconst_psvpage", BSF_GLOBAL,
                                     bfd_abs_section_ptr, secure_const_psvpage, 
                                     "__secureconst_psvpage", 1, 0, 0);
@@ -4488,13 +4906,13 @@ bfd_pic30_finish(void)
     
     if (pic30_debug)
       printf("Creating __has_user_init = 1\n");
-    _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+    link_add_one_symbol (&link_info, output_bfd,
                                       "__has_user_init", BSF_GLOBAL,
                                       bfd_abs_section_ptr, 1, 
                                       "__has_user_init", 1, 0, 0);
     if (pic30_debug)
       printf("Creating __user_init = %lx\n", addr);
-    _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+    link_add_one_symbol (&link_info, output_bfd,
                                       "__user_init", BSF_GLOBAL,
                                       bfd_abs_section_ptr, addr, 
                                       "__user_init", 1, 0, 0);
@@ -4503,16 +4921,77 @@ bfd_pic30_finish(void)
   /*
   ** Set a symbol for the last address used in memory region "program"
   */
+  h = bfd_link_hash_lookup (link_info.hash, "__PROGRAM_END", FALSE, FALSE, TRUE);
+  if (h) {
   upper_limit_program = program_end_address();
 
   bfd_map_over_sections(output_bfd, &record_last_program_address, NULL);
   if (pic30_debug)
     printf("Creating __PROGRAM_END = %lx\n", last_program_address);
-  _bfd_generic_link_add_one_symbol (&link_info, output_bfd,
+  link_add_one_symbol (&link_info, output_bfd,
                                     "__PROGRAM_END", BSF_GLOBAL,
                                     bfd_abs_section_ptr, last_program_address, 
                                     "__PROGRAM_END", 1, 0, 0);
+  }
 
+  /* clean the section names */
+  if (pic30_debug)
+    printf("\nCleaning section names:\n");
+  bfd_map_over_sections(output_bfd, &bfd_pic30_clean_section_names, 0);
+
+  asection *s;
+
+  for (s = output_bfd->sections; s != NULL; s= s->next) {
+    if ((strcmp(s->name, ".shared.dinit") == 0) &&
+        ((s->flags & SEC_EXCLUDE) == 0))
+      pic30_append_section_to_list(shared_dinit_sections, 0, s);
+  } 
+#if 0
+  /* change output section_names to have application id */
+  if (pic30_application_id) {
+    for (s = output_bfd->sections; s != NULL; s= s->next) {
+      if (s->linked == 0) {
+      char *alias_name;
+      alias_name = xmalloc( strlen(s->name) + strlen(application_id) + 2);
+      if (s->name[0] == '.')
+        (void) sprintf(alias_name, "%s%s", application_id, s->name);
+      else
+        (void) sprintf(alias_name, "%s.%s", application_id, s->name);
+      s->name = alias_name;
+      }
+    }
+  }
+#endif
+  /* Create linked section symbol after changing output section names */
+  for (s = output_bfd->sections; s != NULL; s= s->next) {
+#if 0
+     if (!PIC30_IS_INFO_ATTR(s)) 
+        /* not sure why we exclude info sections */
+#else
+     if (1) 
+#endif
+     {
+       if (s->linked == 0) {
+         //s->linked = 1;  /* Don't set it in the bfd now it will be set */
+                           /* in subsequent links using the symbol */
+         char *name;
+         char *linked_prefix = "__linked_";
+
+         name = xmalloc (strlen(s->name) + strlen(linked_prefix) + 1);
+         (void) sprintf(name, "%s%s", linked_prefix, s->name);
+
+          link_add_one_symbol (&link_info, output_bfd,
+                                            name, BSF_GLOBAL,
+                                            bfd_abs_section_ptr, 1,
+                                            name, 1, 0, 0);
+         if ((PIC30_IS_DATA_ATTR(s) || PIC30_IS_BSS_ATTR(s)) &&
+              !PIC30_IS_SHARED_ATTR(s))
+           continue;
+         else
+            PIC30_SET_ABSOLUTE_ATTR(s);
+       }
+     }
+  }
 } /* static void bfd_pic30_finish () */
 
 
@@ -4780,24 +5259,19 @@ config_word_name(const char *secname)
   return p;
 }
 
-/*
-** Extract aaa from a string like .config_aaa
-*/
-static char *
-pragma_config_word_name(const char *secname)
+static int
+is_valid_config_word_section(bfd_vma address)
 {
-  char *p,*p2;
-
-  if (strncmp(secname, ".config_", 8) == 0) {
-    p = xmalloc(strlen(secname)+1);
-    p = strcpy(p, secname+8);
-    return p;
+  fuse_setting_type *f;
+  codeguard_setting_type *s;
+  for (f = fuse_settings; f != NULL; f = f->next) {
+     if (f->name && (f->address == address)) 
+       for (s = CG_settings; s ; s = s->next )
+          if (s && s->name && strstr(s->name, f->name)) 
+            return 1;
   }
-  else 
-    return (char *) secname;
+  return 0;
 }
-
-
 
 /*****************************************************************************/
 
@@ -4849,8 +5323,6 @@ gld${EMULATION_NAME}_set_output_arch()
             " linker script\n"), global_PROCESSOR->printable_name);
 }
 
-
-#if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
 /* match against pic30_smartio_symbol, sorry for the global variable :( */
 char *pic30_smartio_symbol;
 
@@ -4988,7 +5460,7 @@ smartio_symbols(struct bfd_link_info *info) {
        if (smartio_fn_list) {
          int letter;
          int s = 1;
-         char buffer_map_to[256];
+         //char buffer_map_to[256];
 
          if (smartio_fn_list->cum_mask > 1) {
            /* this means that we have an accumulated suffix that includes
@@ -5003,8 +5475,11 @@ smartio_symbols(struct bfd_link_info *info) {
          } else {
            sprintf(suffix, "_0");
          }
-         sprintf(buffer_map_to, "%s%s", function_pairs[i].prefix,
-                 suffix);
+         char *buffer_map_to = xmalloc(strlen(function_pairs[i].prefix) +
+                                       strlen(suffix) + 1);
+         if (buffer_map_to)
+           sprintf(buffer_map_to, "%s%s", function_pairs[i].prefix,
+                   suffix);
          if (undefs) {
            /* in this mode we are adding undefined symbols to the end of
               the list so that the regular mechanism can pull them in */
@@ -5061,7 +5536,6 @@ smartio_symbols(struct bfd_link_info *info) {
 
 unsigned int (*pic30_force_keep_symbol)(char *, char *) = force_keep_symbol;
 void (*pic30_smartio_symbols)(struct bfd_link_info *) = smartio_symbols;
-#endif
 
 /*
 ** Create a bfd for the fill templates
@@ -5378,6 +5852,141 @@ void pic30_create_specific_fill_sections(void)
     }
 }
 
+static bfd *
+bfd_pic30_create_pad_bfd (parent)
+     bfd *parent ATTRIBUTE_UNUSED;
+{
+  bfd_size_type size;
+  bfd *abfd;
+  asection *sec;
+  char *oname;
+  int flags, align;
+  const char *sname;
+
+  /* create a bare-bones bfd */
+  oname = (char *) bfd_alloc (output_bfd, 20);
+  sprintf (oname, "pad%d", pad_section_count);
+  abfd = bfd_create (oname, parent);
+  bfd_find_target ("${OUTPUT_FORMAT}", abfd);
+  bfd_make_writable (abfd);
+
+  bfd_set_format (abfd, bfd_object);
+  bfd_set_arch_mach (abfd, bfd_arch_pic30, 0);
+
+  /* create a symbol table (room for 1 entry) */
+  symptr = 0;
+  symtab = (asymbol **) bfd_alloc (output_bfd, sizeof (asymbol *));
+
+  /*
+  ** create a bare-bones section for
+  */
+  /* get unique section name */
+  sname = bfd_get_unique_section_name (abfd, "pad$", &pad_section_count);
+  flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY;
+  align = 1; /* 2^1 */
+  sec = bfd_pic30_create_section (abfd, sname, flags, align);
+  size = 0; /* will update later */
+  bfd_set_section_size (abfd, sec, size);
+
+  /* put in the symbol table */
+  bfd_set_symtab (abfd, symtab, symptr);
+  /* finish it */
+  if (!bfd_make_readable (abfd))
+    {
+      fprintf( stderr, "Link Error: can't make pad readable\n");
+      abort();
+    }
+  return abfd;
+}
+
+void pic30_pad_flash() {
+
+  asection * sec;
+  struct pic30_memory *b, *next;
+  bfd *pad_bfd;
+  unsigned char *pad_data;
+  struct pic30_section *s;
+  struct memory_region_struct *region;
+  bfd_vma size = 0;
+  bfd_vma addr = 0;
+  bfd_vma len = 0;
+  bfd_vma limit = 0;
+  bfd_vma pad_to = 0;   /* instruction words */
+
+  if (pad_flash_arg)
+    pad_to = pad_flash_arg;
+  else einfo(_("%P%F: Error: Flash padding size is not available.\n" ));
+
+  if (program_memory_free_blocks) {
+    region = region_lookup ("program");
+    pad_to = pad_to * 2;   /* PC-units */
+    limit = region->origin;
+    for (b = program_memory_free_blocks; b != NULL; b = next)
+      {
+        next = b->next;
+        if ((b->addr == 0) && (b->size == 0))
+          continue;
+        if (b->addr % pad_to) {
+          addr = b->addr;
+          len = pad_to - (b->addr % pad_to);
+        }
+        else if (b->next && (b->size % pad_to)) {
+          len = b->size % pad_to;
+          addr = b->addr + b->size - len;
+          b->offset = addr - b->addr;
+        }
+        else len = 0;
+        if (len) {     
+          size = len * 2;
+          pad_bfd = bfd_pic30_create_pad_bfd(output_bfd);
+          bfd_pic30_add_bfd_to_link (pad_bfd, pad_bfd->filename);
+
+          pad_bfd->sections->vma = pad_bfd->sections->lma = addr;
+          pad_bfd->sections->_raw_size = size;
+          pad_bfd->sections->_cooked_size = size;
+
+          /* create a pic30_section */
+          pic30_init_section_list(&s);
+          s->sec = pad_bfd->sections;
+          LANG_FOR_EACH_INPUT_STATEMENT (file)
+          {
+           if (strcmp(file->filename, pad_bfd->filename) == 0)
+           s->file = (PTR) file;
+          }
+          /* allocate memory for the template */
+          pad_data = (unsigned char *) bfd_alloc (output_bfd, size);
+          if (!pad_data)
+           {
+            fprintf( stderr, "Link Error: not enough memory for data template\n");
+            abort();
+           }
+
+           /* fill the template with a default value */
+           pad_data = memset(pad_data, 0x11, size);
+
+           /* attach it to the input section */
+           sec = bfd_get_section_by_name(pad_bfd, pad_bfd->sections->name);
+           if (sec)
+            {
+             sec->_raw_size = size;
+             sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE);
+             sec->contents = pad_data;
+             bfd_set_section_size (pad_bfd, sec, size);
+             pad_bfd->sections = sec;  /* save a copy for later */
+            }
+           else
+            if (pic30_debug)
+              printf("after_open: section %s not found\n", sec->name);
+
+           update_section_info(addr, s, region);
+           create_remainder_blocks(program_memory_free_blocks, b, len);
+           pic30_remove_from_memory_list(program_memory_free_blocks, b);
+           next = program_memory_free_blocks->next;
+         }
+     }
+  }
+}
+
 #if 1
 void pic30_create_data_init_template(void) {
   struct pic30_section *s;
@@ -5440,9 +6049,178 @@ void pic30_create_data_init_template(void) {
         if (s->sec)
           bfd_pic30_skip_data_section(s->sec, &total_data);
     }
-#endif
 }
 
+void pic30_create_shared_data_init_template(void) {
+  struct pic30_section *s;
+  int total_data = 0;
+  asection *sec;
+  /*
+  ** If data init support is enabled, create a BFD
+  ** for section .dinit and add it to the link.
+  */
+  if (pic30_data_init)
+    {
+      init_shared_bfd = bfd_pic30_create_shared_data_init_bfd (output_bfd);
+      bfd_pic30_add_bfd_to_link (init_shared_bfd, init_shared_bfd->filename);
+
+       /* Compute size of data init template */
+      for (s = shared_data_sections; s != NULL; s = s->next)
+        if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+          bfd_pic30_scan_data_section(s->sec, &total_data);
+
+      total_data += 4; /* zero terminated */
+
+      if (pic30_debug)
+        {
+          printf("  null terminator, template += 1 pword\n");
+          printf("\nTotal initialized data %s: %x pwords\n",
+                 pic30_pack_data ? "(packed)" : "(not packed)",
+                 total_data / 4);
+        }
+
+      /* allocate memory for the template */
+      init_shared_data = (unsigned char *) bfd_alloc (output_bfd, total_data);
+      if (!init_shared_data)
+        {
+          fprintf( stderr, "Link Error: not enough memory for data template\n");
+          abort();
+        }
+
+      /* fill the template with a default value */
+      init_shared_data = memset( init_shared_data, 0x11, total_data);
+
+      /* attach it to the input section */
+      sec = bfd_get_section_by_name(init_shared_bfd, ".shared.dinit");
+      if (sec)
+        {
+          sec->_raw_size = total_data;
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
+          sec->contents = init_shared_data;
+          bfd_set_section_size (init_shared_bfd, sec, total_data);
+          init_shared_template = sec;  /* save a copy for later */
+        }
+      else
+        if (pic30_debug)
+          printf("after_open: section .shared.dinit not found\n");
+
+    } /* if (pic30_data_init) */
+  else
+    {
+      /* warn if initial data values will be ignored */
+      for (s = shared_data_sections; s != NULL; s = s->next)
+        if (s->sec)
+          bfd_pic30_skip_data_section(s->sec, &total_data);
+    }
+}
+#endif
+
+void pic30_create_rom_usage_template(void) {
+  struct pic30_section *s;
+  int rom_usage_size= 0;
+  asection *sec;
+
+      rom_usage_bfd = bfd_pic30_create_rom_usage_bfd (output_bfd);
+      bfd_pic30_add_bfd_to_link (rom_usage_bfd, rom_usage_bfd->filename);
+       /* Compute size of flash usage template */
+
+      LANG_FOR_EACH_INPUT_STATEMENT (f)
+      {
+        for (sec = f->the_bfd->sections;
+             sec != (asection *) NULL;
+             sec = sec->next)
+          if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
+              (REPORT_AS_PROGRAM(sec) || REPORT_AS_AUXFLASH(sec))) {
+            if ((strcmp(sec->name, ".init") == 0) ||
+                (strcmp(sec->name, ".user_init") == 0) ||
+                (strcmp(sec->name, ".handle") == 0) ||
+                (strncmp(sec->name, ".isr", 4) == 0) ||
+                (strncmp(sec->name, ".lib", 4) == 0))
+              continue;
+            else
+              rom_usage_size += 8;
+          }
+      }
+      rom_usage_size += 8; /* .text section in linker script */
+      rom_usage_size += 16; /* count for .rom_usage and .ram_usage */
+      rom_usage_size += 4; /* zero terminated */
+
+
+      /* allocate memory for the template */
+      rom_usage_data = (unsigned char *) bfd_alloc (output_bfd, rom_usage_size);
+      if (!rom_usage_data)
+        {
+          fprintf( stderr, "Link Error: not enough memory for rom usage template\n");
+          abort();
+        }
+
+      /* fill the template with a default value */
+      rom_usage_data = memset( rom_usage_data, 0x11, rom_usage_size);
+      /* attach it to the input section */
+      sec = bfd_get_section_by_name(rom_usage_bfd, ".rom_usage");
+      if (sec)
+        {
+          sec->_raw_size = rom_usage_size;
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
+          sec->contents = rom_usage_data;
+          bfd_set_section_size (rom_usage_bfd, sec, rom_usage_size);
+          rom_usage_template = sec;  /* save a copy for later */
+        }
+      else
+        if (pic30_debug)
+          printf("after_open: section .rom_usage not found\n");
+
+}
+
+void pic30_create_ram_usage_template(void) {
+  struct pic30_section *s;
+  int ram_usage_size= 0;
+  asection *sec;
+
+      ram_usage_bfd = bfd_pic30_create_ram_usage_bfd (output_bfd);
+      bfd_pic30_add_bfd_to_link (ram_usage_bfd, ram_usage_bfd->filename);
+
+       /* Compute size of flash usage template */
+
+      LANG_FOR_EACH_INPUT_STATEMENT (f)
+      {
+        for (sec = f->the_bfd->sections;
+             sec != (asection *) NULL;
+             sec = sec->next)
+          if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
+              REPORT_AS_DATA(sec))
+            ram_usage_size += 8;
+      }
+
+      ram_usage_size += 4; /* zero terminated */
+
+
+      /* allocate memory for the template */
+      ram_usage_data = (unsigned char *) bfd_alloc (output_bfd, ram_usage_size);
+      if (!ram_usage_data)
+        {
+          fprintf( stderr, "Link Error: not enough memory for ram usage template\n");
+          abort();
+        }
+
+      /* fill the template with a default value */
+      ram_usage_data = memset( ram_usage_data, 0x11, ram_usage_size);
+
+      /* attach it to the input section */
+      sec = bfd_get_section_by_name(ram_usage_bfd, ".ram_usage");
+      if (sec)
+        {
+          sec->_raw_size = ram_usage_size;
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
+          sec->contents = ram_usage_data;
+          bfd_set_section_size (ram_usage_bfd, sec, ram_usage_size);
+          ram_usage_template = sec;  /* save a copy for later */
+        }
+      else
+        if (pic30_debug)
+          printf("after_open: section .ram_usage not found\n");
+
+}
 
 /*
 ** after_open() is called after all input BFDS
@@ -5482,6 +6260,115 @@ gld${EMULATION_NAME}_after_open()
   struct pic30_section *s;
   int total_data = 0;
   asection *sec;
+  ivt_record_type *r, *next;
+  asection *ivt_sec;
+  char *sec_name;
+
+  /* Mark ivt records defined in this link or a previous link as seen
+     now before creating the default ones. */
+
+  for (r = ivt_records_list; r != NULL; r = next) {
+     next = r->next;
+     if (r->name == 0) continue;
+     if ((r->flags & ivt_seen) == 0) {
+       if (r->is_alternate_vector) {
+         sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+         (void) sprintf(sec_name, ".aivt.%s", r->name);
+       } else {
+         sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+         (void) sprintf(sec_name, ".ivt.%s", r->name);
+       }
+       r->sec_name = sec_name;
+       LANG_FOR_EACH_INPUT_STATEMENT (f)
+       {
+        for (sec = f->the_bfd->sections;
+             sec != (asection *) NULL;
+             sec = sec->next)
+          if (strcmp(sec->name, sec_name) == 0) {
+            r->flags = ivt_seen;
+            break;
+          }
+       }
+     }
+  }
+
+  /*
+  ** Load the set of valid CodeGuard options, based on device
+  */
+#if 1
+  if (global_PROCESSOR) {
+    if (pic30_has_floating_aivt)
+      get_aivt_base();
+  }
+#endif
+  /*
+  ** create sections for the rest of the ivts if we need too
+  */
+  if (pic30_isr) {
+
+    for (r = ivt_records_list; r != NULL; r = next) {
+      next = r->next;
+      if (r->name == 0) continue;
+      if ((r->flags & ivt_seen) == 0) {
+        if (r->is_alternate_vector) {
+          if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
+              (!pic30_has_floating_aivt && !pic30_has_fixed_aivt)) {
+            /* if we have a floating aivt and its not enabled, then
+               we don't need to generate an aivt section */
+            continue;
+          }
+          sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+          (void) sprintf(sec_name, ".aivt.%s", r->name);
+        } else {
+          sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+          (void) sprintf(sec_name, ".ivt.%s", r->name);
+        }
+        r->sec_name = sec_name;
+
+        /* this has not yet been seen, so it will be filled in with the default
+        ** handler entry
+        */
+        r->flags |= ivt_default;
+
+        ivt_sec = bfd_make_section(output_bfd, sec_name);
+        ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD | SEC_CODE |
+                           SEC_ALLOC | SEC_KEEP);
+        PIC30_SET_ABSOLUTE_ATTR(ivt_sec);
+        ivt_sec->linker_generated = 1;
+        ivt_sec->_raw_size = ivt_sec->_cooked_size = 4;
+        r->ivt_sec = ivt_sec;
+        if (r->is_alternate_vector) {
+          if (aivt_base == 0) {
+            fprintf(stderr,"Link Error: can't locate alternate vector "
+                           "table base address\n");
+            abort();
+          }
+          bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
+        } else {
+          if (ivt_base == 0) {
+            fprintf(stderr,"Link Error: can't locate vector "
+                           "table base address\n");
+            abort();
+          }
+          bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
+        }
+      } else {
+        /* clear the flag for the next pass */
+        if (r->is_alternate_vector) {
+          if (r->ivt_sec) {
+            if (aivt_base) {
+              /* fill in the base, which is available now */
+              bfd_set_section_vma(abfd, r->ivt_sec, aivt_base + r->offset);
+            } else {
+              r->ivt_sec->flags = 0;
+            }
+          }
+        }
+        r->flags &= ~ivt_seen;
+      }
+    }
+  }
+
 
   /*
   ** SSR# 26079: If ICD2 option has been selected,
@@ -5494,28 +6381,19 @@ gld${EMULATION_NAME}_after_open()
                                       1, icd2ram, 1, 0, 0);
 
   /*
-  ** Load the set of valid CodeGuard options, based on device
-  */
-  if (global_PROCESSOR) {
-    pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
-    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
-    if (pic30_has_floating_aivt)
-      get_aivt_address();
-  }
-
-  /*
   ** Validate CodeGuard settings in object code, if present.
   */
   if (pic30_debug)
     printf("\nLooking for CodeGuard settings in object code:\n");
 
-  if (pic30_have_CG_settings()) 
+  if (pic30_has_CG_settings) 
   {
     LANG_FOR_EACH_INPUT_STATEMENT (is) {
 
       for (sec = (is)->the_bfd->sections; sec != 0; sec = sec->next) {
 
-        if (sec && is_valid_config_word_section_name(sec->name)) {
+        if (sec && (is_valid_config_word_section(sec->vma) || 
+                    is_valid_config_word_section_name(sec->name))) {
           unsigned short val;
 
           if (!bfd_get_section_contents((is)->the_bfd, sec, &val, 0, 2))
@@ -5534,10 +6412,8 @@ gld${EMULATION_NAME}_after_open()
           ** a list. If no valid settings are found,
           ** report an error.
           */
-          if (((!pic30_decode_CG_settings(config_word_name(sec->name),
-                                        val, pic30_debug)) &&
-              (!pic30_decode_CG_settings(pragma_config_word_name(sec->name),
-                                        val, pic30_debug))))
+          if (!pic30_decode_CG_settings(config_word_name(sec->name), sec->vma,
+                                        val, pic30_debug))
             einfo(_("%P%F: Error: Settings in \'%s\' are not valid"
                     " for target device %s\n" ),
                   sec->name, global_PROCESSOR ?
@@ -5641,39 +6517,7 @@ gld${EMULATION_NAME}_after_open()
       if (pic30_debug)
         printf("\nMerging smart-io functions:\n");
 
-#if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
       pic30_smartio_symbols(0);
-#else
-      while ( function_pairs[i].full_set )
-
-        {
-          struct bfd_link_hash_entry *full, *reduced;
-          char *func1, *func2;
-
-          func1 = function_pairs[i].full_set;
-          func2 = function_pairs[i].reduced_set;
-          if (pic30_debug)
-            printf("\nLooking for (%s, %s) ...", func1, func2);
-
-          if ((full = bfd_pic30_is_defined_global_symbol (func1)) &&
-              (reduced = bfd_pic30_is_defined_global_symbol (func2)))
-            {
-              if (pic30_debug)
-                printf("Found\n\nRedirecting %s -> %s\n", func2, func1);
-
-              /* redirect reduced_set function to full_set function */
-              reduced->u.def.value = full->u.def.value;
-              reduced->u.def.section = full->u.def.section;
-
-              /* remove the reduced_set module */
-              bfd_pic30_remove_archive_module (function_pairs[i].module_name);
-            }
-          else
-            if (pic30_debug)
-              printf("Not Found\n");
-          i++;
-        }
-#endif
     }
 
   /* prepare a list for sections in user-defined regions */
@@ -5748,6 +6592,8 @@ gld${EMULATION_NAME}_after_open()
 
   /* init list of input data sections */
   pic30_init_section_list(&data_sections);
+  pic30_init_section_list(&shared_data_sections);
+  pic30_init_section_list(&shared_dinit_sections);
 
   /*
    * Loop through all input sections and
@@ -5759,9 +6605,13 @@ gld${EMULATION_NAME}_after_open()
         for (sec = f->the_bfd->sections;
              sec != (asection *) NULL;
              sec = sec->next)
-          if ((sec->_raw_size > 0) &&
-              (PIC30_IS_BSS_ATTR(sec) || PIC30_IS_DATA_ATTR(sec)))
-            pic30_append_section_to_list(data_sections, f, sec);
+          if ((sec->_raw_size > 0) && (sec->linked == 0) &&
+              (PIC30_IS_BSS_ATTR(sec) || PIC30_IS_DATA_ATTR(sec))) {
+            if (sec->shared == 1)
+              pic30_append_section_to_list(shared_data_sections, f, sec);
+            else
+              pic30_append_section_to_list(data_sections, f, sec);
+            }
       }
   }
 
@@ -5895,13 +6745,19 @@ gld${EMULATION_NAME}_after_open()
     struct bfd_link_hash_entry *h;
     if ((h = bfd_pic30_is_defined_global_symbol("__reset"))) /* implies strong */
       {
-        if (pic30_debug)
+        if (h->u.def.section != bfd_abs_section_ptr) {
+          if (pic30_debug)
             printf("\nFound a user-defined startup module\n");
-        if (pic30_startup0_file)
-          bfd_pic30_remove_archive_module (pic30_startup0_file);
-        if (pic30_startup1_file)
-          bfd_pic30_remove_archive_module (pic30_startup1_file);
-        pic30_has_user_startup = 1;
+          /* for user-defined __reset, the linker script needs
+             to be modified to use the user-defined startup module */
+          if (pic30_startup0_file &&
+              strcmp(pic30_startup0_file, h->u.def.section->owner->filename))
+            bfd_pic30_remove_archive_module (pic30_startup0_file);
+          if (pic30_startup1_file &&
+              strcmp(pic30_startup1_file, h->u.def.section->owner->filename))
+            bfd_pic30_remove_archive_module (pic30_startup1_file);
+          pic30_has_user_startup = 1;
+        }
       }
   }
 
@@ -6098,7 +6954,7 @@ pic30_set_output_section_flags(lang_output_section_statement_type *os)
 static void  
 gld${EMULATION_NAME}_before_allocation()
 {
-  extern bfd_vma aivt_address;
+  extern bfd_vma aivt_base;
   extern bfd_boolean aivt_enabled;
   extern bfd_vma aivt_len;
 
@@ -6125,7 +6981,7 @@ gld${EMULATION_NAME}_before_allocation()
       (fbslim_address >= program_base_address() && 
        fbslim_address <= program_end_address())){
      /* we have movable aivt section - adjust the start address of the
-        program region to be aivt_address + aivt_len */
+        program region to be aivt_base + aivt_len */
     lang_memory_region_type *region;
 
     region = lang_memory_region_lookup ("program");
@@ -6326,6 +7182,9 @@ gld${EMULATION_NAME}_after_allocation()
     }
 #endif
   }
+  if (pic30_pad_flash_option)
+    pic30_pad_flash();
+
   if (pic30_has_fill_option)
     pic30_create_fill_templates();
 } /* static void gld${EMULATION_NAME}_after_allocation ()*/
@@ -6386,7 +7245,9 @@ gld${EMULATION_NAME}_finish()
     pic30_report_external_symbols (config.map_file);
   }
   if (pic30_report_mem)
-    bfd_pic30_report_memory_usage (stdout);
+    if ((!pic30_mafrlcsj)&&(!pic30_mafrlcsj2)) {
+      bfd_pic30_report_memory_usage (stdout);
+    }
 
   if (pic30_memory_summary) 
      bfd_pic30_memory_summary(memory_summary_arg);
@@ -6439,8 +7300,14 @@ region_lookup( name )
       region->origin = 0x7FFC00;  /* works with all devices */
       upper_limit    = 0x7FFFFE;
     }
-    else
+    else if (pic30_debug) {
       einfo("Memory region %s does not exist\n", name);
+    }
+
+    /* CAW - setting region to 0 requires that all callers of region_lookup
+       check the return value... none of them do.
+
+       returning to the old behaviour for safety */
 
     if (use_default) {
       einfo(_("%P: Warning: %s memory region not defined,"
@@ -6452,7 +7319,6 @@ region_lookup( name )
   }
   return region;
 }
-
 
 /*
 ** place_orphan()
@@ -6471,6 +7337,7 @@ gld${EMULATION_NAME}_place_orphan( file, sec)
   lang_input_statement_type *file;
   asection *sec;
 {
+  struct pic30_section *s;
   lang_output_section_statement_type *os = 0;
   static int orphan_cnt = 0;
   int was_placed = 0;
@@ -6516,7 +7383,16 @@ gld${EMULATION_NAME}_place_orphan( file, sec)
       printf("%sRecording unmapped section: \"%s\", attr = %x\n",
              orphan_cnt++ ? "" : "\n", sec->name,
              pic30_attribute_map(sec));
-
+    if (PIC30_IS_PRESERVED_ATTR(sec)) {
+      for (s = inherited_sections; s != NULL; s= s->next) {
+         if (s->sec && (strcmp(sec->name, s->sec->name) == 0) &&
+             (sec->_raw_size == s->sec->_raw_size)) {
+           PIC30_SET_ABSOLUTE_ATTR(sec);
+           bfd_set_section_vma(sec->owner, sec, s->sec->vma);
+         }
+      }
+    }
+         
     if (!unassigned_sections)
       pic30_init_section_list(&unassigned_sections);
 
@@ -6569,8 +7445,20 @@ elf_link_check_archive_element (name, abfd, info)
                                           &signature_set);
   if (((global_PROCESSOR) &&
       (bfd_default_compatible(abfd->arch_info, global_PROCESSOR) == 0)) ||
-      (bfd_default_compatible(abfd->arch_info, output_bfd->arch_info) == 0))
+      (bfd_default_compatible(abfd->arch_info, output_bfd->arch_info) == 0)) {
+    if (pic30_debug) {
+       printf("\n%s failed bfd_default_compatible\n", abfd->filename);
+    }
     return FALSE;
+  }
+
+  /* Temporary check for instruction set compatibility. xc16-783*/
+   if ((global_PROCESSOR != 0) &&
+       (abfd->arch_info->mach != 0) &&
+       (global_PROCESSOR != abfd->arch_info))
+     if (!pic30_is_dsp_machine(global_PROCESSOR) &&
+          pic30_is_dsp_machine(abfd->arch_info))
+       return FALSE;
 
   if (strcmp(name, CRT0_KEY) == 0) {
     if (pic30_data_init == 0) {
@@ -6679,11 +7567,9 @@ elf_link_check_archive_element (name, abfd, info)
   }
   if (result == FALSE) return FALSE;
 
-#if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
   /* we may need to pull this symbol in because it is a SMARTIO fn */
   if (pic30_force_keep_symbol)
       (void) pic30_force_keep_symbol(name, abfd->filename);
-#endif
   return TRUE;
 } 
 

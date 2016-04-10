@@ -9,7 +9,7 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 
-XGCC=$PIC30_CD/bin/pic30-gcc
+XGCC=$PIC30_CD/bin/xc16-gcc
 INC_PATH=$PIC30_CD/include
 LIB_PATH=$PIC30_CD/lib
 
@@ -39,7 +39,7 @@ fi
 
 if [ $vflag = "on" ]; then
     echo
-    echo "Output from pic30-gcc:"
+    echo "Output from xc16-gcc:"
     echo
     cat temp
 fi

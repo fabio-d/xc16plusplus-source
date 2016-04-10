@@ -245,7 +245,7 @@
 
 (define_predicate "pic30_DI_indirect_mem_operand"
   (and (match_code "mem")
-       (match_code "post_inc,pre_inc,reg" "0")
+       (match_code "post_inc,reg" "0")
        (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
 
 (define_predicate "pic30_unified_indirect_mem_operand"
@@ -1233,6 +1233,14 @@
   (UNSPEC_ADDR                 97)
   (UNSPECV_PWRSAV              98)
   (UNSPECV_CLRWDT              99)
+  (UNSPEC_ACCL                 100)
+  (UNSPEC_ACCH                 101)
+  (UNSPEC_ACCU                 102)
+  (UNSPECV_ASSERT_PSV          103)
+  (UNSPECV_SACD                104) ; __builtin_sacd
+  (UNSPECV_LACD                105) ; __builtin_lacd
+  (UNSPEC_EDSCONSTADDR         106)
+  (UNSPECV_WRITEWRLOCK         107)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -1375,7 +1383,7 @@
              (match_operand: HI 1 "pic30_mode3_operand"       " rRS<>")
              (match_operand: HI 2 "immediate_operand"         " Z"))
            (match_operand:HI    3 "pic30_accumulator_operand" " 0")))]
-  "(INTVAL(operands[2]) >= 0)"
+  "((INTVAL(operands[2]) >= 0) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]),'Z')))"
   "add %1, #%2, %0"
   [
     (set_attr "cc" "unchanged")
@@ -1392,7 +1400,7 @@
            (match_operand:HI    3 "pic30_accumulator_operand" " 0,0")))
    (clobber (match_scratch: HI  4                             "=X,r"))
   ]
-  "(INTVAL(operands[2]) >= 0)"
+  "((INTVAL(operands[2]) >= 0) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]),'Z')))"
   "@
    add %1, #%2, %0
    mov %1,%4\;add %4,#%2,%0"
@@ -1408,7 +1416,7 @@
            (ashift:HI (match_operand: HI 1 "pic30_mode3_operand"       " RS<>r")
                       (match_operand: HI 2 "immediate_operand"         " i"))
            (match_operand:HI    3 "pic30_accumulator_operand"          "0")))]
-  "(INTVAL(operands[2]) >= 0)"
+  "((INTVAL(operands[2]) >= 0) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]),'Z')))"
   "add %1, #%J2, %0"
   [
     (set_attr "cc" "unchanged")
@@ -1502,7 +1510,7 @@
            (ashiftrt:HI 
              (match_operand: HI 1 "pic30_mode3_operand"       " RS<>r")
              (match_operand: HI 2 "immediate_operand"         " Z"))))]
-  "((INTVAL(operands[2]) >= 0) && !(pic30_errata_mask & psv_errata))"
+  "((INTVAL(operands[2]) >= 0) && !(pic30_errata_mask & psv_errata) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')))"
   "add %1, #%2, %0"
   [
     (set_attr "cc" "unchanged")
@@ -1519,7 +1527,7 @@
              (match_operand: HI 2 "immediate_operand"         " Z,Z"))))
    (clobber (match_scratch:HI   3                             "=X,r"))
   ]
-  "((INTVAL(operands[2]) >= 0) && (pic30_errata_mask & psv_errata))"
+  "((INTVAL(operands[2]) >= 0) && (pic30_errata_mask & psv_errata) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')))"
   "@
    add %1, #%2, %0
    mov %1,%3\;add %3,#%2,%0"
@@ -1727,8 +1735,34 @@
          (match_operand: HI 2 "immediate_operand"         " Z")
        ] UNSPECV_LAC))
   ]
-  "(!(pic30_errata_mask & psv_errata))"
+  "(!(pic30_errata_mask & psv_errata) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')))"
   "lac %1, #%2, %0"
+  [
+    (set_attr "cc" "unchanged")
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_insn "lac_si"
+  [
+  (set (match_operand:HI    0 "pic30_accumulator_operand" "=w")
+       (unspec:HI [
+         (match_operand: SI 1 "pic30_mode3_operand"       " rRS<>")
+         (match_operand: HI 2 "immediate_operand"         " Z")
+       ] UNSPECV_LACD))
+  ]
+  "(!(pic30_errata_mask & psv_errata) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')))"
+  "*
+   {
+     int n = INTVAL(operands[2]);
+     if(n == 0) {
+       return \"lac %d1, #0, %0\;mov %1,%m0L\";
+     } else {
+       return \"lac %d1, #0, %0\;mov %1,%m0L\;sftac %0,#%2\";
+     }
+   }
+  "
+
   [
     (set_attr "cc" "unchanged")
     (set_attr "type" "defuse")
@@ -1743,7 +1777,7 @@
          (match_operand: HI 2 "immediate_operand"         " Z")
        ] UNSPECV_LAC))
   ]
-  ""
+  "CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')"
   "*
    {
      error(\"Argument 0 should not be an accumulator register\");
@@ -1761,7 +1795,7 @@
        ] UNSPECV_LAC))
   (clobber (match_scratch:HI 3                            "=X,r"))
   ]
-  "(pic30_errata_mask & psv_errata)"
+  "((pic30_errata_mask & psv_errata) && CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z'))"
   "@
    lac %1, #%2, %0
    mov %1,%3\;lac %3,#%2,%0"
@@ -1771,34 +1805,177 @@
   ]
 )
 
-(define_insn "sac_gen_hi"
+(define_insn "lac_si_errata"
   [
-   (set (match_operand: HI 0 "pic30_mode3_operand" "=RS<>r")
-        (unspec:HI [
-                     (match_operand: HI 1 "pic30_accumulator_operand" "w")
-                     (match_operand: HI 2 "immediate_operand" "Z")
-                   ] UNSPECV_SAC))
+  (set (match_operand:HI    0 "pic30_accumulator_operand" "=w,w")
+       (unspec:HI [
+         (match_operand: SI 1 "pic30_mode3_operand"       " r,RS<>")
+         (match_operand: HI 2 "immediate_operand"         " Z,Z")
+       ] UNSPECV_LACD))
+  (clobber (match_scratch:SI 3                            "=X,&r"))
   ]
-  ""
-  "sac %1, #%2, %0"
+  "((pic30_errata_mask & psv_errata) && CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z'))"
+  "*
+   {
+     int n = INTVAL(operands[2]);
+     switch(which_alternative) {
+       default: gcc_assert(0);
+
+       case 0:
+         if(n == 0) {
+           return \"lac %d1, #0, %0\;mov %1,%m0L\";
+         } else {
+           return \"lac %d1, #0, %0\;mov %1,%m0L\;sftac %0,#%2\";
+         }
+         break;
+       case 1:
+         if(n == 0) {
+           return \"mov.d %1, %3\;lac %d1, #0, %0\;mov %1,%m0L\";
+         } else {
+           return \"mov.d %1, %3\;lac %d3, #0, %0\;mov %3,%m0L\;sftac %0,#%2\";
+         }
+         break;
+
+     }
+  }"
   [
     (set_attr "cc" "unchanged")
+    (set_attr "type" "etc,defuse")
+  ]
+)
+
+(define_insn "acclhi"
+  [
+   (set (match_operand: HI 0 "pic30_register_operand" "=r")
+        (unspec:HI [
+                     (match_operand: HI 1 "pic30_accumulator_operand" "w")
+                   ] UNSPEC_ACCL))
+  ]
+  ""
+  "mov %m1L,%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_insn "acchhi"
+  [
+   (set (match_operand: HI 0 "pic30_register_operand" "=r")
+        (unspec:HI [
+                     (match_operand: HI 1 "pic30_accumulator_operand" "w")
+                   ] UNSPEC_ACCH))
+  ]
+  ""
+  "mov %m1H,%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_insn "accuhi"
+  [
+   (set (match_operand: HI 0 "pic30_register_operand" "=r")
+        (unspec:HI [
+                     (match_operand: HI 1 "pic30_accumulator_operand" "w")
+                   ] UNSPEC_ACCU))
+  ]
+  ""
+  "mov %m1U,%0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_insn "sac_gen_hi"
+  [
+   (set (match_operand: HI 0 "pic30_mode3_operand"                    "=RS<>r")
+        (unspec:HI [
+                     (match_operand: HI 1 "pic30_accumulator_operand" "w")
+                     (match_operand: HI 2 "immediate_operand"         "Z")
+                   ] UNSPECV_SAC))
+  ]
+  "CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')"
+  "sac %1, #%2, %0"
+  [
+    (set_attr "cc" "change0")
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_insn "sac_si"
+  [
+   (set (match_operand: SI 0 "pic30_mode3_operand"       "=a,=RS<>r,=RS<>r")
+      (unspec:SI [
+        (match_operand: HI 1 "pic30_accumulator_operand" " w,w     ,w")
+        (match_operand: HI 2 "immediate_operand"         " Z,Z     ,Z")
+      ] UNSPECV_SACD))
+   (clobber
+        (match_scratch: HI 3                             "=X,a     ,r"))
+  ]
+  "CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')"
+  "*
+   {
+     int n = INTVAL(operands[2]);
+     if(n == 0) {
+       return \"mov %m1L,%0\;mov %m1H,%d0\";
+     } else if(n == -1) {
+       return \"sac %1,#%2,%d0\;\"
+              \"sl %m1L,%0\";
+     } else if (n < -1) {
+       return \"sac %1,#%2,%d0\;\"
+              \"mov %m1L,%0\;\"
+              \"sl %0,#%J2,%0\";
+     } else if (n == 1) {
+       switch(which_alternative) {
+         default: gcc_assert(0);
+      
+         case 0: return \"lsr %m1H,%0\;\"
+                        \"mov %m1L,%0\;\"
+                        \"rrc %0,%0\;\"
+                        \"sac %1,#1,%d0\";
+
+         case 1: return \"lsr %m1H,%3\;\"
+                        \"mov %m1L,%0\;\"
+                        \"rrc %0,%0\;\"
+                        \"sac %1,#1,%d0\";
+
+         case 2: return \"mov %m1H,%3\;\"
+                        \"lsr %3,%3\;\"
+                        \"mov %m1L,%0\;\"
+                        \"rrc %0,%0\;\"
+                        \"sac %1,#1,%d0\";
+       }
+     } else if (n > 1) {
+       return \"mov %m1H, %d0\;\"
+              \"sl %d0,#16-%2,%0\;\"
+              \"mov %m1L, %d0\;\"
+              \"lsr %d0,#%2,%d0\;\"
+              \"ior %d0,%0,%0\;\"
+              \"sac %1,#%2,%d0\";
+     }
+   }
+  "
+  [
+    (set_attr "cc" "unchanged, change0, change0")
     (set_attr "type" "defuse")
   ]
 )
 
 (define_insn "sacr_gen_hi"
   [
-   (set (match_operand: HI 0 "pic30_mode3_operand" "=RS<>r")
+   (set (match_operand: HI 0 "pic30_mode3_operand"                    "=RS<>r")
         (unspec:HI [
                      (match_operand: HI 1 "pic30_accumulator_operand" "w")
-                     (match_operand: HI 2 "immediate_operand" "Z")
+                     (match_operand: HI 2 "immediate_operand"         "Z")
                    ] UNSPECV_SACR))
   ]
-  ""
+  "CONST_OK_FOR_LETTER_P(INTVAL(operands[2]), 'Z')"
   "sac.r %1, #%2, %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "defuse")
   ]
 )
@@ -1807,10 +1984,10 @@
   [(set (match_operand: HI 0 "pic30_accumulator_operand"  "=w,w,w,w,w,w,w,w,w")
         (plus:HI 
           (match_operand: HI 1 "pic30_accumulator_operand" "0,0,0,0,0,0,0,0,0")
-          (unspec:HI [
+          (mult:HI 
             (match_operand:HI 2 "pic30_mac_input_operand"  "z,z,z,z,z,z,z,z,z")
             (match_operand:HI 3 "pic30_mac_input_operand"  "z,z,z,z,z,z,z,z,z")
-            ] UNSPECV_DSPMULT)))
+            )))
    (set (match_operand: HI 4 "pic30_mac_input_operand"    "=z,B,B,z,z,z,z,z,B")
         (mem:HI
           (match_operand: HI 5 "pic30_xprefetch_operand"   "x,B,B,x,x,x,x,x,B")))
@@ -2013,6 +2190,11 @@
     (set_attr "type" "defuse,defuse,defuse,defuse,defuse,defuse,defuse,defuse,etc")
   ]
 )
+
+;      (unspec:HI [
+;          (match_operand:HI 1 "pic30_mac_input_operand"  " z,z,z,z,z,z,z,z,z")
+;          (match_operand:HI 2 "pic30_mac_input_operand"  " z,z,z,z,z,z,z,z,z")
+;        ] UNSPECV_DSPMULT))
 
 (define_insn "mpy_gen_hi"
   [(set (match_operand: HI 0 "pic30_accumulator_operand" "=w,w,w,w,w,w,w,w,w")
@@ -2570,7 +2752,7 @@
   ""
   "tblrdl.w [%1], %0"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "def")
   ]
 )
 
@@ -2583,7 +2765,7 @@
   ""
   "tblrdl.b [%1], %0"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "def")
   ]
 )
 
@@ -2596,7 +2778,7 @@
   ""
   "tblrdh.w [%1], %0"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "def")
   ]
 )
 
@@ -2608,6 +2790,9 @@
     )]
   ""
   "tblrdh.b [%1], %0"
+  [
+    (set_attr "type" "def")
+  ]
 )
 
 (define_insn "tblwtl"
@@ -2619,7 +2804,7 @@
   ""
   "tblwtl.w %1, [%0]"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "use")
   ]
 )
 
@@ -2632,7 +2817,7 @@
   ""
   "tblwtl.b %1, [%0]"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "use")
   ]
 )
 
@@ -2645,7 +2830,7 @@
   ""
   "tblwth.w %1, [%0]"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "use")
   ]
 )
 
@@ -2658,7 +2843,7 @@
   ""
   "tblwth.b %1, [%0]"
   [
-    (set_attr "type" "defuse")
+    (set_attr "type" "use")
   ]
 )
 
@@ -2938,7 +3123,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "use")
+   (set_attr "type" "defuse")
   ]
 )
 
@@ -2966,8 +3151,8 @@
    }
   "
   [
-   (set_attr "cc" "unchanged")
-   (set_attr "type" "def,defuse,def,def")
+   (set_attr "cc" "change0, change0, change0, change0")
+   (set_attr "type" "defuse,defuse,defuse,defuse")
   ]
 )
 
@@ -2995,7 +3180,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "defuse,use")
+   (set_attr "type" "defuse,defuse")
   ]
 )
 
@@ -3013,7 +3198,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "use")
+   (set_attr "type" "defuse")
   ]
 )
 
@@ -3030,7 +3215,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "use")
+   (set_attr "type" "defuse")
   ]
 )
 
@@ -3047,7 +3232,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "use")
+   (set_attr "type" "defuse")
   ]
 )
    
@@ -3064,7 +3249,7 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "use")
+   (set_attr "type" "defuse")
   ]
 )
 
@@ -3202,14 +3387,22 @@
         (match_operand:SI 0 "pic30_register_operand" "r"))]
   ""
   "sub %0,#0,[w15]\;subb %d0,#0,[w15]"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "etc")
+  ]
+)
 
 (define_insn "tstdi"
   [(set (cc0)
         (match_operand:DI 0 "pic30_register_operand" "r"))]
   ""
   "sub %0,#0,[w15]\;subb %d0,#0,[w15]\;subb %t0,#0,[w15]\;subb %q0,#0,[w15]"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "etc")
+  ]
+)
 
 ; With dsPIC30 floats, testing the most significant word does not suffice,
 ; since -0.0 == 0.0
@@ -3865,6 +4058,7 @@
    cp.b %0,%1"
   [
     (set_attr "cc" "set")
+    (set_attr "type" "etc")
   ])
 
 (define_expand "cmpqi"
@@ -3978,17 +4172,24 @@
   "@
    cp %0
    sub %0,%1,[w15]"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+  ]
+)
 
 ;        (compare (match_operand:HI 0 "pic30_reg_or_near_operand" "Ur")
 
 (define_insn "cmpzhi_sfr0"
   [(set (cc0)
-        (compare (match_operand:HI 0 "pic30_mode2_or_near_operand" "R<>Ur")
+        (compare (match_operand:HI 0 "pic30_mode2_or_near_operand" "R<>,Ur")
                     (const_int 0)))]
   ""
   "cp0 %0"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "use,etc")
+  ]
+)
 
 (define_insn "cmphi_DATA"
   [(set (cc0)
@@ -4256,7 +4457,10 @@
 	         (clobber (match_scratch:HI 2                "=&r"))]
   "((1<INTVAL(operands[1])) && (INTVAL(operands[1])<65536))"
   "mov #%1,%2\;sub %0,%2,[w15]\;subb %d0,#0,[w15]"
-  [(set_attr "cc" "clobber")])
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
 
 (define_insn "*cmpsihi3"
   [(set (cc0)
@@ -4360,7 +4564,7 @@
    mov.d %1,%0
    mov.d %1,%0"
   [
-    (set_attr "type" "def,defuse,use,use")
+    (set_attr "type" "def,defuse,etc,use")
   ]
 )
 
@@ -4375,7 +4579,7 @@
    mov.d %1,%0
    mov.d %1,%0"
   [
-    (set_attr "type" "def,defuse,use,use")
+    (set_attr "type" "def,defuse,etc,use")
   ]
 )
 
@@ -4409,34 +4613,34 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_insn "zero_extendqihi2_DATA"
-  [(set (match_operand:HI    0 "pic30_register_operand" "=r")
+  [(set (match_operand:HI    0 "pic30_register_operand" "=r,r")
         (zero_extend:HI 
-           (match_operand:QI 1 "pic30_mode2_operand"     "rR<>")))
+           (match_operand:QI 1 "pic30_mode2_operand"     "r,R<>")))
   ]
   ""
   "ze %1,%0"
   [
    (set_attr "cc" "math")
-   (set_attr "type" "def")
+   (set_attr "type" "def,defuse")
   ]
 )
 
 (define_insn "zero_extendqihi2_APSV"
-  [(set (match_operand:HI   0 "pic30_register_operand"  "=r")
+  [(set (match_operand:HI   0 "pic30_register_operand"  "=r,r")
         (zero_extend:HI 
-          (match_operand:QI 1 "pic30_mode2_APSV_operand" "rR<>")))]
+          (match_operand:QI 1 "pic30_mode2_APSV_operand" "r,R<>")))]
   ""
   "ze %1,%0"
   [
    (set_attr "cc" "math")
-   (set_attr "type" "def")
+   (set_attr "type" "defuse")
   ]
 )
 
 (define_expand "zero_extendqihi2"
-  [(set (match_operand:HI 0 "pic30_register_operand"                   "=r,r")
+  [(set (match_operand:HI 0 "pic30_register_operand"       "=r,r")
         (zero_extend:HI 
-           (match_operand:QI 1 "pic30_mode2_APSV_operand" "r,R<>")) )]
+           (match_operand:QI 1 "pic30_mode2_APSV_operand"  " r,R<>")) )]
   ""
   "
 {
@@ -4457,28 +4661,28 @@
 }")
 
 (define_insn "zero_extendqisi2"
-  [(set (match_operand:SI   0 "pic30_register_operand" "=r")
+  [(set (match_operand:SI   0 "pic30_register_operand" "=r,r")
         (zero_extend:SI 
-          (match_operand:QI 1 "pic30_mode2_operand" " rR<>")))
+          (match_operand:QI 1 "pic30_mode2_operand"    " r,R<>")))
   ]
   ""
   "ze %1,%0\;clr %d0"
   [
     (set_attr "cc" "math")
-    (set_attr "type" "def")
+    (set_attr "type" "def,defuse")
   ]
 )
 
 (define_insn "zero_extendqidi2"
-  [(set (match_operand:DI   0 "pic30_register_operand" "=r")
+  [(set (match_operand:DI   0 "pic30_register_operand" "=r,r")
         (zero_extend:DI 
-          (match_operand:QI 1 "pic30_register_operand" " r<>R")))
+          (match_operand:QI 1 "pic30_register_operand" " r,<>R")))
   ]
   ""
   "ze %1,%0\;clr %d0\;mul.uu %t0,#0,%t0"
   [
     (set_attr "cc" "clobber")
-    (set_attr "type" "def")
+    (set_attr "type" "def,defuse")
   ]
 )
 
@@ -4747,28 +4951,28 @@
 }")
 
 (define_insn "extendqisi2"
-  [(set (match_operand:SI   0 "pic30_register_operand" "=r,r,r")
+  [(set (match_operand:SI   0 "pic30_register_operand" "=r,r")
         (sign_extend:SI 
-          (match_operand:QI 1 "pic30_mode2_operand"  "r,R,<>")))
+          (match_operand:QI 1 "pic30_mode2_operand"     "r,R<>")))
   ]
   ""
   "se %1,%0\;asr %0,#15,%d0"
   [
     (set_attr "cc" "clobber")
-    (set_attr "type" "def")
+    (set_attr "type" "def,defuse")
   ]
 )
 
 (define_insn "extendqidi2"
-  [(set (match_operand:DI   0 "pic30_register_operand" "=r")
+  [(set (match_operand:DI   0 "pic30_register_operand" "=r,r")
         (sign_extend:DI 
-          (match_operand:QI 1 "pic30_mode2_operand" " rR<>")))
+          (match_operand:QI 1 "pic30_mode2_operand"    " r,R<>")))
   ]
   ""
   "se %1,%0\;asr %0,#15,%d0\;mul.su %d0,#1,%t0"
   [
     (set_attr "cc" "clobber")
-    (set_attr "type" "def")
+    (set_attr "type" "def,defuse")
   ]
 )
 
@@ -4877,10 +5081,60 @@
   ]
 )
 
+;(define_insn "extendhip32eds2"
+;  [(set (match_operand: P32EDS 0 "pic30_register_operand"    "=r")
+;        (sign_extend:P32EDS
+;          (match_operand:HI 1    "pic30_register_operand"    "r" )))]
+;  ""
+;  "lsr %1,#15,%d0\;btss _SR,#2\;mov #__const_psvpage,%d0\;mov %1,%0"
+;  [
+;    (set_attr "cc" "clobber")
+;    (set_attr "type" "def")
+;  ]
+;)
+
 (define_insn "extendhip32eds2"
   [(set (match_operand: P32EDS 0 "pic30_register_operand"    "=r")
         (sign_extend:P32EDS
           (match_operand:HI 1    "pic30_register_operand"    " r")))]
+  ""
+  "mul.uu %1,#1,%0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendhip32eds2_const"
+  [(set (match_operand: P32EDS 0 "pic30_register_operand"         "=r,r,r")
+        (unspec: P32EDS [
+          (match_operand:HI 1    "pic30_reg_or_symbolic_address"  " 0,r,q")
+        ] UNSPEC_EDSCONSTADDR))]
+  ""
+  "@
+   mov #edspage(.const),%d0
+   mov %1,%0\;mov #edspage(.const),%d0
+   mov #edsoffset(%1),%0\;mov #edspage(.const),%d0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+;(define_insn "extendhip32peds2"
+;  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r")
+;        (sign_extend:P32PEDS
+;          (match_operand:HI 1    "pic30_register_operand"    "r" )))]
+;  ""
+;  "lsr %1,#15,%d0\;btss _SR,#2\;mov #__const_psvpage,%d0\;mov %1,%0"
+;  [
+;    (set_attr "cc" "clobber")
+;    (set_attr "type" "def")
+;  ]
+;)
+
+(define_insn "extendhip32peds2"
+  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r")
+        (sign_extend:P32PEDS
+          (match_operand:HI 1    "pic30_register_operand"     " r")))]
   ""
   "mul.su %1,#1,%0"
   [
@@ -4888,15 +5142,18 @@
   ]
 )
 
-(define_insn "extendhip32peds2"
-  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r")
-        (sign_extend:P32PEDS
-          (match_operand:HI 1    "pic30_register_operand"    " r")))]
-  ""
-  "mul.su %1,#1,%0"
-  [
-    (set_attr "type" "def")
-  ]
+(define_insn "extendhip32peds2_const"
+  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r,r")
+        (unspec: P32PEDS [
+          (match_operand:HI 1    "pic30_register_operand"    " 0,r")
+        ] UNSPEC_EDSCONSTADDR))]
+   ""
+   "@
+    mov #edspage(.const),%d0
+    mov %1,%0\;mov #edspage(.const),%d0"
+   [
+     (set_attr "type" "def")
+   ]
 )
 
 (define_insn "extendhidi2"
@@ -4998,7 +5255,7 @@
    }"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   (set_attr "type" "def,defuse")
   ]
 )
 
@@ -5038,30 +5295,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_insn "*movqi_const0"
-  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int 0))]
   ""
   "@
    clr.b %0
-   clr.b %0
    clr.b %0"
   [
-    (set_attr "cc" "change0,change0,change0")
-    (set_attr "type" "def,use,use")
+    (set_attr "cc" "change0,change0")
+    (set_attr "type" "def,etc")
   ]
 )
 
 (define_insn "*movqi_const1"
-  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:QI 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int -1))]
   ""
   "@
    setm.b %0
-   setm.b %0
    setm.b %0"
   [
-    (set_attr "cc" "change0,change0,change0")
-    (set_attr "type" "def,use,use")
+    (set_attr "cc" "change0,change0")
+    (set_attr "type" "def,etc")
   ]
 )
 
@@ -5071,7 +5326,7 @@
   ""
   "clr.b %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -5081,7 +5336,7 @@
   ""
   "setm.b %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -5130,9 +5385,9 @@
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,change0,change0")
    (set_attr "type"
-	"def,use,defuse,use,def,use,defuse,use,etc,use,def,etc,def")
+	"def,etc,defuse,use,def,etc,defuse,use,etc,def,def,etc,def")
   ]
 )
 
@@ -5170,9 +5425,9 @@
 }
 "
   [(set_attr "cc"
-        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,unchanged,change0")
+        "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,change0,change0")
    (set_attr "type"
-        "def,use,defuse,use,def,use,defuse,use,etc,use,defuse,etc,def")
+        "def,etc,defuse,use,def,etc,defuse,use,etc,defuse,def,etc,def")
   ]
 )
 
@@ -5202,7 +5457,7 @@
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0")
    (set_attr "type"
 	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc")
   ]
@@ -5236,7 +5491,7 @@
 }
 "
   [(set_attr "cc"
-	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,unchanged")
+	"change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,change0")
    (set_attr "type"
 	"def,etc,defuse,use,def,etc,defuse,use,etc,defuse,etc")
   ]
@@ -5395,7 +5650,7 @@
   ""
   "clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "etc")
   ]
 )
@@ -5406,64 +5661,60 @@
   ""
   "setm %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "etc")
   ]
 )
 
 (define_insn "movhi_const0"
-  [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int 0))]
   ""
   "@
    clr %0
-   clr %0
    clr %0"
   [
-   (set_attr "cc" "change0,change0,change0")
-   (set_attr "type" "def,use,defuse")
+   (set_attr "cc" "change0,change0")
+   (set_attr "type" "def,etc")
   ]
 )
 
 (define_insn "movp16apsv_const0"
-  [(set (match_operand:P16APSV 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:P16APSV 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int 0))]
   ""
   "@
    clr %0
-   clr %0
    clr %0"
   [
-   (set_attr "cc" "change0,change0,change0")
-   (set_attr "type" "def,use,defuse")
+   (set_attr "cc" "change0,change0")
+   (set_attr "type" "def,etc")
   ]
 )
 
 (define_insn "*movhi_const1"
-  [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int -1))]
   ""
   "@
    setm %0
-   setm %0
    setm %0"
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "def,use,defuse")
+   (set_attr "type" "def,etc")
   ]
 )
 
 (define_insn "*movp16apsv_const1"
-  [(set (match_operand:P16APSV 0 "pic30_mode2_operand" "=r,R,<>")
+  [(set (match_operand:P16APSV 0 "pic30_mode2_operand" "=r,R<>")
 	(const_int -1))]
   ""
   "@
    setm %0
-   setm %0
    setm %0"
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "def,use,defuse")
+   (set_attr "type" "def,etc")
   ]
 )
 
@@ -5989,7 +6240,8 @@
   [
     (set_attr "cc"
               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,change0")
-   (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def,etc")
+   (set_attr "type" 
+             "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def,etc")
   ]
 )
 
@@ -6041,7 +6293,8 @@
   [
     (set_attr "cc"
               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
+    (set_attr "type" 
+              "defuse,use,def,use,use,use,use,defuse,def,etc,def")
   ]
 )
 
@@ -6093,7 +6346,8 @@
   [
     (set_attr "cc"
               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
+    (set_attr "type" 
+              "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
   ])
 
 (define_insn "movP16PMP_gen_APSV"
@@ -6119,7 +6373,8 @@
   [
     (set_attr "cc"
               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
+    (set_attr "type" 
+              "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
   ])
 
 
@@ -6792,6 +7047,18 @@
       if (pic30_eds_target()) return \"mov %0,_DSRPAG\";
       return \"mov %0,_PSVPAG\";
     }"
+   [
+     (set_attr "type" "etc")
+   ]
+)
+
+(define_insn "assert_psv"
+   [(set (reg:HI PSVPAG)
+            (match_operand:HI 0 "pic30_register_operand" "r"))
+    (clobber (match_operand:HI 1 "pic30_register_operand" "=B"))]
+   ""
+   "
+   \; assert PSV page"
    [
      (set_attr "type" "etc")
    ]
@@ -9901,20 +10168,180 @@
 ;   zero -> 0 in upper bit 1 otherwise ... set carry 
 ;   shift it in
 
+; (define_insn "addp32eds3_lit"
+;   [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,r")
+;         (plus: P32EDS
+;           (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
+;           (match_operand:P32EDS  2 "pic30_OJM_operand"       "J,M")))]
+;   ""
+;   "@
+;    sl %1,%0\;add #%o2,%0\;bset _SR,#1\;addc %d1,#0,%d0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
+;    sl %1,%0\;sub #%O2,%0\;bset _SR,#1\;subb %d1,#0,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
+;   [
+;     (set_attr "type" "def")
+;   ]
+; )
+
+; (define_insn "addp32eds3_lit"
+;   [(set (match_operand: P32EDS   0 "pic30_register_operand" "=&r, &r, &r")
+;         (plus: P32EDS
+;           (match_operand:P32EDS  1 "pic30_register_operand" " r, r, r")
+;           (match_operand:P32EDS  2 "pic30_OJM_operand"      " P, J, M")))
+;    (clobber (match_scratch:HI  3                            "=&r,&r,&r"))
+;   ]
+;   ""
+;   "*
+;    {
+;      if(REGNO(operands[0])!=REGNO(operands[1])) {
+;        if(pic30_ecore_target() && optimize_size) {
+;          switch(which_alternative) {
+;            default: gcc_assert(0);
+;   
+;            case 0: return \"mov %d1,%d0\;\"
+;                           \"add %1,#%2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;   
+;            case 1: return \"mov %1,%0\;\"
+;                           \"mov %d1,%d0\;\"
+;                           \"add #%2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;   
+;            case 2: return \"mov %1,%0\;\"
+;                           \"mov %d1,%d0\;\"
+;                           \"sub #%J2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;   
+;          }
+;        } else {
+;          switch(which_alternative) {
+;            default: gcc_assert(0);
+;   
+;            case 0: return \"mov %d1,%d0\;\"
+;                           \"add %1,#%2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;   
+;            case 1: return \"mov %1,%0\;\"
+;                           \"mov %d1,%d0\;\"
+;                           \"add #%2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;   
+;            case 2: return \"mov %1,%0\;\"
+;                           \"mov %d1,%d0\;\"
+;                           \"sub #%J2,%0\;\"
+;                           \"xor %1,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;   
+;          }
+;        }
+;      } else {
+;        if(pic30_ecore_target() && optimize_size) {
+;          switch(which_alternative) {
+;            default: gcc_assert(0);
+;   
+;            case 0: return \"mov %1,%3\;\"
+;                           \"add %1,#%2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;   
+;            case 1: return \"mov %1,%3\;\"
+;                           \"add #%2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;   
+;            case 2: return \"mov %1,%3\;\"
+;                           \"sub #%J2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"bset %0,#15\;\"
+;                           \"btsc _SR,#3\;\"
+;                           \"inc %d0,%d0\";
+;          }
+;        } else {
+;          switch(which_alternative) {
+;            default: gcc_assert(0);
+;   
+;            case 0: return \"mov %1,%3\;\"
+;                           \"add %1,#%2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;   
+;            case 1: return \"mov %1,%3\;\"
+;                           \"add #%2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;   
+;            case 2: return \"mov %1,%3\;\"
+;                           \"sub #%J2,%0\;\"
+;                           \"xor %3,%0,[w15]\;\"
+;                           \"bra NN,.LE%=\;\"
+;                           \"bset %0,#15\;\"
+;                           \"inc %d0,%d0\;\"
+;                           \".LE%=:\";
+;          }
+;        }
+;      }
+;    }
+;   "
+;   [
+;     (set_attr "cc" "clobber")
+;     (set_attr "type" "def")
+;   ]
+; )
+
 (define_insn "addp32eds3_lit"
-  [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,r")
+  [(set (match_operand: P32EDS  0 "pic30_register_operand" "=r,r")
         (plus: P32EDS
-          (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
-          (match_operand:P32EDS  2 "pic30_OJM_operand"       "J,M")))]
+          (match_operand:P32EDS 1 "pic30_register_operand" " 0,0")
+          (match_operand:P32EDS 2 "pic30_OJM_operand"      " PJ,M")))
+   (clobber (match_scratch:HI   3                          "=&r,&r"))
+  ]
   ""
   "@
-   sl %1,%0\;add #%o2,%0\;bset _SR,#1\;addc %d1,#0,%d0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
-   sl %1,%0\;sub #%O2,%0\;bset _SR,#1\;subb %d1,#0,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
+   mov %1,%3\;add #%2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0
+   mov %1,%3\;sub #%J2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0"
   [
+    (set_attr "cc" "clobber")
     (set_attr "type" "def")
   ]
 )
-
+   
+     
+          
 (define_insn "addp32eds3_r"
   [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,&r")
         (plus: P32EDS
@@ -9931,6 +10358,22 @@
     (set_attr "type" "def")
   ]
 )
+
+
+; (define_insn "addp32eds3_r"
+;   [(set (match_operand: P32EDS  0 "pic30_register_operand" "=r, r")
+;         (plus: P32EDS
+;           (match_operand:P32EDS 1 "pic30_register_operand" "  0, 0")
+;           (match_operand:P32EDS 2 "pic30_mode2_operand"    "  r, R")))
+;    (clobber (match_scratch:HI   3                          "=&r,&r"))
+;   ]
+;   ""
+;   "mov %1,%3\;add %1,%2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0"
+;   [
+;     (set_attr "cc" "clobber")
+;     (set_attr "type" "def")
+;   ]
+; )
 
 (define_expand "addp32eds3"
   [(set (match_operand:P32EDS 0 "pic30_register_operand" "")
@@ -15819,7 +16262,7 @@
   ""
   "clr %0\;clr %0+2"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "etc")
   ]
 )
@@ -15830,7 +16273,7 @@
   ""
   "setm %0\;setm %0+2"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "etc")
   ]
 )
@@ -18098,7 +18541,7 @@
            (zero_extend:SI 
               (match_operand:HI 1 "pic30_register_operand" "r,r,r,r,r"))
            (match_operand:SI 2 "pic30_mode2_operand"       "r,0,>,0,R")))
-   (clobber (match_scratch:HI 3                           "=X,r,r,r,r"))
+   (clobber (match_scratch:HI 3                           "=X,&r,&r,&r,&r"))
   ]
   ""
   "@
@@ -18119,7 +18562,7 @@
            (sign_extend:SI
               (match_operand:HI 1 "pic30_register_operand" "r,r,r,r,r"))
            (match_operand:SI 2 "pic30_mode2_operand"       "r,0,>,0,R")))
-   (clobber (match_scratch:HI 3                           "=r,r,r,r,r"))
+   (clobber (match_scratch:HI 3                           "=&r,&r,&r,&r,&r"))
   ]
   ""
   "@
@@ -22796,9 +23239,16 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #18-1\;div.sw %1,%2
-   repeat #18-1\;div.sw %1,%2\;exch w0,w1"
+  "*
+   switch (which_alternative) {
+     default: gcc_assert(0);
+     case 0:  return \"repeat #18-1\;div.sw %1,%2\";
+     case 1:  if (pic30_errata_mask & exch_errata) {
+                return \"repeat #18-1\;div.sw %1,%2\;push w1\;mov w0,w1\;pop w0\";
+              } else {
+                return \"repeat #18-1\;div.sw %1,%2\;exch w0,w1\";
+              }
+  }"
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -22817,9 +23267,16 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #18-1\;div.uw %1,%2
-   repeat #18-1\;div.uw %1,%2\;exch w0,w1"
+  "*
+   switch (which_alternative) {
+     default: gcc_assert(0);
+     case 0:  return \"repeat #18-1\;div.uw %1,%2\";
+     case 1:  if (pic30_errata_mask & exch_errata) {
+                return \"repeat #18-1\;div.uw %1,%2\;push w1\;mov w0,w1\;pop w0\";
+              } else {
+                return \"repeat #18-1\;div.uw %1,%2\;exch w0,w1\";
+              }
+  }"
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -23080,13 +23537,13 @@
 ;;;;;;;;;;;;;
 
 (define_insn "bitsetqi"
-  [(set (match_operand:QI 0 "pic30_mode2_operand"        "=r,R,<>")
-        (ior:QI (match_operand:QI 1 "pic30_mode2_operand" "0,0,0")
-                (match_operand 2 "const_int_operand"      "i,i,i")))]
+  [(set (match_operand:QI 0 "pic30_mode2_operand"        "=r,R<>")
+        (ior:QI (match_operand:QI 1 "pic30_mode2_operand" "0,0")
+                (match_operand 2 "const_int_operand"      "i,i")))]
   "(pic30_one_bit_set_p(INTVAL(operands[2])&0x00ff))"
   "bset.b %0,#%b2"
   [
-   (set_attr "type" "def,use,defuse")
+   (set_attr "type" "def,etc")
   ]
 )
 
@@ -23125,7 +23582,7 @@
   "(pic30_one_bit_set_p((~INTVAL (operands[1])) & 0x00ff))"
   "bclr.b %0,#%B1"
   [
-    (set_attr "type" "etc")
+    (set_attr "type" "use")
   ]
 )
 
@@ -23153,7 +23610,7 @@
   "pic30_one_bit_set_p(INTVAL(operands[1]) & 0x00ff)"
   "btg.b %0,#%b1"
   [
-    (set_attr "type" "etc")
+    (set_attr "type" "use")
   ]
 )
 
@@ -23169,7 +23626,11 @@
   "@
    btst %0,#%b1
    btst.b %0,#%b1"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "etc,use")
+  ]
+)
  
           
 (define_insn "newbittstqi"
@@ -23184,7 +23645,11 @@
   "@
    btst %0,#%1
    btst.b %0,#%1"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "etc,use")
+  ]
+)
 
 (define_insn "*bittstqi"
   [(set (cc0)
@@ -23195,7 +23660,11 @@
   "@
    btst %0,#%1
    btst.b %0,#%1"
-  [(set_attr "cc" "set")])
+  [
+    (set_attr "cc" "set")
+    (set_attr "type" "etc,use")
+  ]
+)
 
 ;;;;;;;;;;;;;;;;;;
 ;; Half integer ;;
@@ -23233,7 +23702,7 @@
        return \"bset.b %0,#%b1\";
    }"
   [
-    (set_attr "type" "etc")
+    (set_attr "type" "use")
   ]
 )
 
@@ -23270,7 +23739,7 @@
        return \"bclr.b %0,#%B1\";
    }"
   [
-    (set_attr "type" "etc")
+    (set_attr "type" "use")
   ]
 )
 
@@ -23306,7 +23775,7 @@
        return \"btg.b %0,#%b1\";
    }"
   [
-    (set_attr "type" "etc")
+    (set_attr "type" "use")
   ]
 )
 
@@ -30994,11 +31463,15 @@
        set_psv = pic30_set_for_tracking;
      }
      if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
-       sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-       psv_page = gen_reg_rtx(HImode);
-       emit(
-         gen_save_const_psv(psv_page, sfr)
-       );
+       psv_page = pic30_get_set_psv_value(0);
+
+       if (psv_page == 0) {
+         sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
+         psv_page = gen_reg_rtx(HImode);
+         emit(
+           gen_save_const_psv(psv_page, sfr)
+         );
+       } 
        emit(
          gen_set_psv(psv_page)
        );
@@ -31207,11 +31680,15 @@
        set_psv = pic30_set_for_tracking;
      }
      if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
-       sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-       psv_page = gen_reg_rtx(HImode);
-       emit(
-         gen_save_const_psv(psv_page, sfr)
-       );
+       psv_page = pic30_get_set_psv_value(0);
+
+       if (psv_page == 0) {
+         sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
+         psv_page = gen_reg_rtx(HImode);
+         emit(
+           gen_save_const_psv(psv_page, sfr)
+         );
+       }
        emit(
          gen_set_psv(psv_page)
        );
@@ -31410,11 +31887,15 @@
     set_psv = pic30_set_for_tracking;
   }
   if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
-    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-    psv_page = gen_reg_rtx(HImode);
-    emit(
-      gen_save_const_psv(psv_page, sfr)
-    );
+    psv_page = pic30_get_set_psv_value(0);
+
+    if (psv_page == 0) {
+      sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
+      psv_page = gen_reg_rtx(HImode);
+      emit(
+        gen_save_const_psv(psv_page, sfr)
+      );
+    }
     emit(
       gen_set_psv(psv_page)
     );
@@ -31525,27 +32006,33 @@
 ;; link
 ;;
 (define_insn "lnk"
-  [(set (reg:HI SPREG)
-        (match_operand 0 "immediate_operand" "i"))
-   (clobber (reg:HI FPREG))
-   (use (reg:HI FPREG))
-   (use (reg:HI SPREG))
-  ]
-  "reload_completed"
-  "lnk #%0"
-  [
-   (set_attr "cc" "change0")
-   (set_attr "type" "def")
-  ]
+ [
+    (set (mem:HI (post_inc:HI (reg:HI SPREG)))
+         (reg:HI FPREG))
+    (set (reg:HI FPREG)
+         (reg:HI SPREG))
+    (set (reg:HI SPREG)
+         (plus:HI (reg:HI SPREG)
+                  (match_operand 0 "immediate_operand" "i")))
+ ]
+ "reload_completed"
+ "lnk #%0"
+ [
+  (set_attr "cc" "change0")
+  (set_attr "type" "def")
+ ]
 )
 
 ;;
 ;; unlink
 ;;
 (define_insn "ulnk"
-  [(set (reg:HI SPREG)
-        (reg:HI FPREG))
-   (clobber (reg:HI FPREG))]
+  [
+     (set (reg:HI SPREG) 
+          (reg:HI FPREG))
+     (set (reg:HI FPREG)
+          (mem:HI (pre_dec:HI (reg:HI SPREG))))
+  ]
   "reload_completed"
   "ulnk"
   [
@@ -31553,6 +32040,8 @@
    (set_attr "type" "def")
   ]
 )
+
+  
 
 ;;
 ;; disi
@@ -31694,14 +32183,14 @@
       (match_operand:HI 3 "pic30_register_operand" "r,r")
       (match_operand:HI 4 "pic30_R_operand"        "R,R")
     ] UNSPECV_WRITEPWMCON)
-    (clobber (match_scratch: HI  5                "=X,r"))
+    (clobber (match_scratch: HI  5                "=X,&r"))
   ]
   ""
   "@
    mov %3,%4\;mov %2,%4\;mov %1,%0
    mov #%0,%5\;mov %3,%4\;mov %2,%4\;mov %1,[%5]"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
     (set_attr "type" "use,etc")
   ]
 )
@@ -31741,6 +32230,18 @@
          ] UNSPECV_WRITERTCWEN))]
   ""
   "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bset _RCFGCAL,#13"
+  [
+    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "write_wrlock"
+  [(set (match_operand:HI 0 "pic30_register_operand" "=&r")
+        (unspec_volatile [
+           (match_operand:HI 1 "pic30_register_operand" "0")
+         ] UNSPECV_WRITEWRLOCK))]
+  ""
+  "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bclr _RTCCON1L,#11"
   [
     (set_attr "type" "etc")
   ]
@@ -31968,8 +32469,8 @@
   [(unspec_volatile [
       (match_operand:HI 0 "pic30_register_operand" "r")
     ] UNSPECV_SET_ISR_STATE)
-   (clobber (match_scratch:HI 1                    "=r"))
-   (clobber (match_scratch:HI 2                    "=r"))]
+   (clobber (match_scratch:HI 1                    "=&r"))
+   (clobber (match_scratch:HI 2                    "=&r"))]
   ""
   "mov _SR,%1\;and.b #0x1F,%1\;ior %1,%0,%1\;mov %1,_SR"
   [(set_attr "cc" "clobber")]
@@ -36508,7 +37009,7 @@
   [(set (match_operand:QI     0 "pic30_register_operand" "=&r")
         (fract_convert:QI
           (match_operand:ACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -36607,7 +37108,7 @@
   [(set (match_operand:HI     0 "pic30_register_operand" "=&r")
         (fract_convert:HI
           (match_operand:ACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;se %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -36702,7 +37203,7 @@
   [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
         (fract_convert:QI
           (match_operand:UACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -36801,7 +37302,7 @@
   [(set (match_operand:HI      0 "pic30_register_operand" "=&r")
         (fract_convert:HI
           (match_operand:UACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI  2                           "=r"))
+   (clobber (match_scratch:HI  2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;ze %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -38162,7 +38663,7 @@
   [(set (match_operand:QI     0 "pic30_register_operand" "=&r")
         (unsigned_fract_convert:QI
           (match_operand:ACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -38261,7 +38762,7 @@
   [(set (match_operand:HI     0 "pic30_register_operand" "=&r")
         (unsigned_fract_convert:HI
           (match_operand:ACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;se %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -38356,7 +38857,7 @@
   [(set (match_operand:QI      0 "pic30_register_operand" "=&r")
         (unsigned_fract_convert:QI
           (match_operand:UACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI 2                           "=r"))
+   (clobber (match_scratch:HI 2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -38455,7 +38956,7 @@
   [(set (match_operand:HI      0 "pic30_register_operand" "=&r")
         (unsigned_fract_convert:HI
           (match_operand:UACC  1 "pic30_register_operand"   "r")))
-   (clobber (match_scratch:HI  2                           "=r"))
+   (clobber (match_scratch:HI  2                           "=&r"))
   ]
   ""
   "sl %d1,%2\;rlc %t1,%0\;ze %0,%0\;sl %2,%2\;ior %2,%1,[w15]\;btst.c %d1,#14\;btsc _SR,#1\;bclr _SR,#0\;addc %0,#0,%0"
@@ -39544,7 +40045,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -39555,7 +40056,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -39566,7 +40067,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -39577,7 +40078,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -42277,7 +42778,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -42288,7 +42789,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -42299,7 +42800,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -42310,7 +42811,7 @@
   ""
   "mov %1,%d0\;clr %0"
   [
-    (set_attr "cc" "unchanged")
+    (set_attr "cc" "change0")
   ]
 )
 
@@ -42326,7 +42827,7 @@
    mov.d %1,%0
    ; nop"
   [
-    (set_attr "cc" "unchanged,unchanged")
+    (set_attr "cc" "change0,unchanged")
   ]
 )
 
@@ -42339,7 +42840,7 @@
    mov.d %1,%0
    ; nop"
   [
-    (set_attr "cc" "unchanged,unchanged")
+    (set_attr "cc" "change0,unchanged")
   ]
 )
 
@@ -42352,7 +42853,7 @@
    mov.d %1,%0
    ; nop"
   [
-    (set_attr "cc" "unchanged,unchanged")
+    (set_attr "cc" "change0,unchanged")
   ]
 )
 
@@ -42365,7 +42866,7 @@
    mov %1,%0
    ; nop"
   [
-    (set_attr "cc" "unchanged,unchanged")
+    (set_attr "cc" "change0,unchanged")
   ]
 )
 
@@ -42378,7 +42879,7 @@
    mov %1,%0
    ; nop"
   [
-    (set_attr "cc" "unchanged,unchanged")
+    (set_attr "cc" "change0,unchanged")
   ]
 )
 
@@ -43671,7 +44172,7 @@
         (ashiftrt:QUQ15
           (match_operand:QUQ15 1 "pic30_register_operand"   "r,r,r")
           (match_operand:HI    2 "pic30_reg_or_imm_operand" "K,i,r")))
-   (clobber (match_scratch:HI  3                          "=&r,r,r"))
+   (clobber (match_scratch:HI  3                          "=&r,&r,&r"))
   ]
   ""
   "*

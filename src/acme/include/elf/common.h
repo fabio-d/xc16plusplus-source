@@ -442,6 +442,7 @@
 #define STB_LOOS	10		/* OS-specific semantics */
 #define STB_HIOS	12		/* OS-specific semantics */
 #define STB_LOPROC	13		/* Application-specific semantics */
+#define STB_MIDPROC     14              /* Application-specific semantics */
 #define STB_HIPROC	15		/* Application-specific semantics */
 
 #define STT_NOTYPE	0		/* Symbol type is unspecified */

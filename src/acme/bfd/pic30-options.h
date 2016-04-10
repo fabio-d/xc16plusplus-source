@@ -41,6 +41,8 @@ extern bfd_boolean pic30_has_user_default_interrupt;
 extern bfd_boolean pic30_allocate;
 extern bfd_boolean pic30_has_allocate_option;
 extern bfd_boolean pic30_report_mem;
+extern bfd_boolean pic30_mafrlcsj;
+extern bfd_boolean pic30_mafrlcsj2;
 extern bfd_boolean pic30_isr;
 extern bfd_boolean pic30_has_isr_option;
 extern bfd_boolean pic30_has_fill_upper_option;
@@ -64,7 +66,18 @@ extern bfd_boolean pic30_eds_stack;
 extern bfd_boolean pic30_partition_flash;
 extern bfd_boolean pic30_memory_summary;
 extern char *memory_summary_arg;
-
+#ifdef PIC30ELF
+extern bfd_boolean pic30_memory_usage;
+extern bfd_boolean pic30_reserve_const;
+extern unsigned long reserve_const_arg;
+extern bfd_boolean pic30_pad_flash_option;
+extern bfd_vma pad_flash_arg;
+extern bfd_boolean pic30_application_id;
+extern char *application_id;
+extern bfd_boolean pic30_coresident_app;
+extern bfd_boolean pic30_inherit_application_info;
+extern char *inherited_application;
+#endif
 /* --fill option specific definitions */
 extern bfd_boolean pic30_has_fill_option;
 extern struct pic30_fill_option *pic30_fill_option_list; 
@@ -137,6 +150,8 @@ enum pic30_options {
   ALLOC_OPTION,
   NO_ALLOC_OPTION,
   REPORT_MEM_OPTION,
+  REPORT_MAFRLCSJ_OPTION,
+  REPORT_MAFRLCSJ2_OPTION,
   ISR_OPTION,
   NO_ISR_OPTION,
   FILL_UPPER_OPTION,
@@ -156,7 +171,13 @@ enum pic30_options {
   NO_LOCAL_STACK_OPTION,
   PSV_OVERRIDE_OPTION,
   PARTITION_FLASH,
-  MEMORY_SUMMARY
+  MEMORY_SUMMARY,
+  MEMORY_USAGE,
+  RESERVE_CONST,
+  PAD_FLASH,
+  APPLICATION_ID,
+  CORESIDENT,
+  INHERIT_APPLICATION_INFO
 };
 
 static struct option longopts[] = 
@@ -175,6 +196,8 @@ static struct option longopts[] =
   { "alloc", no_argument, NULL, ALLOC_OPTION },
   { "no-alloc", no_argument, NULL, NO_ALLOC_OPTION },
   { "report-mem", no_argument, NULL, REPORT_MEM_OPTION },
+  { "mafrlcsj", no_argument, NULL, REPORT_MAFRLCSJ_OPTION },
+  { "mafrlcsj2", no_argument, NULL, REPORT_MAFRLCSJ2_OPTION },
   { "isr", no_argument, NULL, ISR_OPTION },
   { "no-isr", no_argument, NULL, NO_ISR_OPTION },
   { "fill-upper", required_argument, NULL, FILL_UPPER_OPTION },
@@ -197,5 +220,11 @@ static struct option longopts[] =
   { "psv-override", no_argument, NULL, PSV_OVERRIDE_OPTION },
   { "partition", no_argument, NULL, PARTITION_FLASH },
   { "memorysummary", required_argument, NULL, MEMORY_SUMMARY },
+  { "memory-usage",  no_argument, NULL, MEMORY_USAGE },
+  { "reserve-const", optional_argument, NULL, RESERVE_CONST },
+  { "pad-flash", optional_argument, NULL, PAD_FLASH },
+  { "application-id", required_argument, NULL, APPLICATION_ID },
+  { "coresident", no_argument, NULL, CORESIDENT },
+  { "inherit-application-info", required_argument, NULL, INHERIT_APPLICATION_INFO },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

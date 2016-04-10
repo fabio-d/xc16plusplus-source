@@ -10,12 +10,13 @@ OMF=elf
 TARGET_OS=native
 UNAME=`uname -s | sed -e 's/[^a-zA-Z].*$//' | tr "[:upper:]" "[:lower:]"`
 BUILD_OS="i386-$UNAME"
-EXTRA_DEFINES=
+EXTRA_DEFINES="-DRESOURCE_MISMATCH_OK"
 EXTRA_OPTS=
 CROSS=
 STATIC=
 BUILD_SHA=
 INSTALL_DIR=  
+XCLM_DIR=
 
 BUGURL="http://www.microchip.com/support"
 
@@ -98,9 +99,9 @@ while [ "$DONE" = "0" ]; do
          echo "    -build=<module>"
          echo "    -D  specify extra defines for build"
          echo
-         exit;;
+         exit 1;;
       *) echo "Unknown option $1";
-         exit;;
+         exit 1;;
     esac
   fi
 done
@@ -148,7 +149,7 @@ if [ "$BUILD_SHA" = "1" ]; then
    BUILT_SHA=`${TMP:-/tmp}/build_sha $INSTALL_DIR/xclm/install/client/bin/xclm${EXE_SUFFIX} 2>&1`
    if ( echo $BUILT_SHA | grep -q -i "Error:" ); then
       echo "$BUILT_SHA"
-      exit
+      exit 1
    fi
    BUILD_SHA="-DMCHP_XCLM_SHA256_DIGEST_VAL=$BUILT_SHA"
 fi
@@ -268,6 +269,18 @@ mkdir -p zlib
 )
 fi
 
+if [ $SUFFIX == "-xclm" ] || [ $SUFFIX == "-exlm" ]; then
+  XCLM_DIR=`find $SRC_DIR/../ -iname xclm_public.h -exec dirname {} \;`
+  if [ ! -f $XCLM_DIR/xclm_public.h ]; then
+    echo "**** cannot find dir containing xclm_public.h"
+    exit 1
+  fi
+  XCLM_DIR="-I $XCLM_DIR"
+else
+  echo "**** not building with XCLM"
+fi
+
+  
 if ( echo $BUILD | grep -q -i gcc ); then
 echo
 echo "*********** GCC"
@@ -281,7 +294,7 @@ mkdir -p gcc
     EXTRA_OPTS="$EXTRA_OPTS -I $C30_RESOURCE_DIR"
   else
     echo "***** cannot find c30_resource"
-    exit
+    exit 1
   fi
 
   case $SUFFIX in
@@ -294,7 +307,7 @@ mkdir -p gcc
   fi
 
   echo "{"
-  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
+  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
   echo "}"
 
   CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"

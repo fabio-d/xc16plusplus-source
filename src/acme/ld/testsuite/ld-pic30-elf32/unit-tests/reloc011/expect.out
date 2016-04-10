@@ -4,14 +4,14 @@ t.exe:     file format elf32-pic30
 Disassembly of section .text:
 
 00000100 <__reset>:
-     100:	00 00 37    	bra       0x102
+     100:	00 00 37    	bra       0x102 <here>
 
 00000102 <here>:
-     102:	ff 7f 37    	bra       0x10102
+     102:	ff 7f 37    	bra       0x10102 <everywhere>
 
 00000104 <there>:
 	...
 
 00010102 <everywhere>:
-   10102:	00 80 37    	bra       0x104
+   10102:	00 80 37    	bra       0x104 <there>
    10104:	ff ff 37    	bra       .

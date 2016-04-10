@@ -22,28 +22,28 @@ done
 rm -f t1.o t.exe t.hex test.out
 
 # assemble the source file
-$PIC30_CD/bin/pic30-as -W -o t1.o t1.s
+$PIC30_CD/bin/xc16-as -W -o t1.o t1.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-as -W -o t1.o t1.s"
+    echo "$PIC30_CD/bin/xc16-as -W -o t1.o t1.s"
     echo $err
 fi
 
 # link it
-$PIC30_CD/bin/pic30-ld -o t.exe t1.o
+$PIC30_CD/bin/xc16-ld -o t.exe t1.o
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-ld -o t.exe t1.o"
+    echo "$PIC30_CD/bin/xc16-ld -o t.exe t1.o"
     echo $err
 fi
 
 # create a hex file
-$PIC30_CD/bin/pic30-bin2hex t.exe > /dev/null
+$PIC30_CD/bin/xc16-bin2hex t.exe > /dev/null
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-bin2hex t.exe"
+    echo "$PIC30_CD/bin/xc16-bin2hex t.exe"
     echo $err
 fi
 

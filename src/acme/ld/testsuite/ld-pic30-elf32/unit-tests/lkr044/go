@@ -8,7 +8,7 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30="$PIC30_CD/bin/pic30-gcc -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 
 #
 # END CONFIGURATION

@@ -7,7 +7,7 @@ detected and an internal error is reported.
 How to execute the test:
 
 1. Set the environment variable $PIC30_CD
-    to your pic30 tools binary directory
+    to your xc16 tools binary directory
 2. Export $PIC30_CD
 3. Execute "go"
 

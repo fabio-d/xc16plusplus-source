@@ -942,7 +942,7 @@ warn_deprecated_use (tree node, tree attr)
 
   if (!attr)
     {
-	  if (DECL_P (node))
+	  if ((DECL_P (node)) || TYPE_P(node))
 	    {
 	      attr = DECL_ATTRIBUTES (node);
 #ifdef _BUILD_MCHP_
@@ -954,35 +954,14 @@ warn_deprecated_use (tree node, tree attr)
               if (!as_error) 
                 as_error = lookup_attribute("__target_error__", attr);
 #ifdef _BUILD_C30_
-              unsafe = (lookup_attribute(
-	                IDENTIFIER_POINTER(pic30_identUnsafe[0]), attr) != 0);
+              unsafe = lookup_attribute(
+                         IDENTIFIER_POINTER(pic30_identUnsafe[0]), attr) != 0;
+              if (!unsafe) 
+                unsafe = lookup_attribute(
+	                    IDENTIFIER_POINTER(pic30_identUnsafe[1]),attr) != 0;
 #endif
 #endif
 	    }
-	  else if (TYPE_P (node))
-	    {
-	      tree decl = TYPE_STUB_DECL (node);
-	      if (decl)
-	        {
-	          attr = lookup_attribute ("deprecated",
-	                 TYPE_ATTRIBUTES (TREE_TYPE (decl)));
-#ifdef _BUILD_MCHP_
-	          unsupported = lookup_attribute ("unsupported",
-	                       TYPE_ATTRIBUTES (TREE_TYPE (decl)));
-	          if (!unsupported)
-	              unsupported = lookup_attribute ("__unsupported__",
-	                 TYPE_ATTRIBUTES (TREE_TYPE (decl)));
-	          deprecated = lookup_attribute ("deprecated", attr);
-                  as_error = lookup_attribute("target_error", attr);
-                  if (!as_error) 
-                    as_error = lookup_attribute("__target_error__", attr);
-#ifdef _BUILD_C30_
-	          unsafe = (lookup_attribute(
-	                IDENTIFIER_POINTER(pic30_identUnsafe[0]), attr) != 0);
-#endif
-#endif
-            }
-	}
     }
 
 #ifdef _BUILD_MCHP_

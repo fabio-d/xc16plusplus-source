@@ -3709,6 +3709,8 @@ coff_write_object_contents (abfd)
         section.s_flags |= STYP_BOOT;
       if (current->secure)
         section.s_flags |= STYP_SECURE;
+      if (current->linker_generated) 
+        /* no effect of flags */ ;
 #endif
 
 #ifdef I960

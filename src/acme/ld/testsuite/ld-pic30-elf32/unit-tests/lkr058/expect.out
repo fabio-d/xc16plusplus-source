@@ -1,7 +1,7 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
-foo 00000006 00000000 00000000
+foo 00000005 00000000 00000000
 
 
 size of section .dinit (should be 2):    2

@@ -1,13 +1,13 @@
 cmd010: --no-data-init selects a smaller startup module:
 
 The objective of this test is to verify that
-a smaller startup module is loaded from libpic30.a
+a smaller startup module is loaded from libxc16.a
 when the --no-data-init option is specified.
 
 How to execute the test:
 
 1. Set the environment variable $ACME_BIN
-    to your pic30 tools binary directory
+    to your xc16 tools binary directory
 2. Export $ACME_BIN
 3. Edit the Configuration section of file "go"
 4. Execute "go"

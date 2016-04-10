@@ -1341,7 +1341,8 @@ const struct pic30_opcode pic30_opcodes[] =
    { "bra",       BRA_CC,     2, { BRANCH_ON_CONDITION_OPERAND,
                                    BRANCH_LABEL }, F_HAS_BRANCH_FLAG |
                                                    F_CANNOT_FOLLOW_REPEAT },
-   { "bra",      BRAWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "bra",      BRAWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
+                                         F_ISAV4 },
    { "bra",      BRAW,       1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
   
    /***************************************************************************
@@ -1415,7 +1416,8 @@ const struct pic30_opcode pic30_opcodes[] =
     ***************************************************************************/
    { "call",      CALLW,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_NONE },
    { "call",      CALL,       1, { CALL_OPERAND }, F_CANNOT_FOLLOW_REPEAT },
-   { "call.l",    CALL_L,     1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "call.l",    CALL_L,     1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
+                                         F_ISAV4 },
 
    /***************************************************************************
     * CLR.b
@@ -1501,7 +1503,8 @@ const struct pic30_opcode pic30_opcodes[] =
     * CP.b
     ***************************************************************************/
    { "cp.b",      CPLS_B,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_FCORE }, 
-   { "cp.b",      CPLS8_B,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE },
+   { "cp.b",      CPLS8_B,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE |
+                                         F_ISAV4 },
    { "cp.b",      CPF_B,      1, { FILE_REG_BYTE }, F_NONE },
    { "cp.b",      CP_B,       2, { BASE_REG, P_SRC_REG }, F_NONE },
 
@@ -1509,7 +1512,8 @@ const struct pic30_opcode pic30_opcodes[] =
     * CP.w
     ***************************************************************************/
    { "cp.w",      CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },
-   { "cp.w",      CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD | F_ECORE },
+   { "cp.w",      CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD |
+                                         F_ISAV4 | F_ECORE },
    { "cp.w",      CPF_W,      1, { FILE_REG }, F_WORD },
    { "cp.w",      CP_W,       2, { BASE_REG, P_SRC_REG }, F_WORD },
 
@@ -1517,13 +1521,15 @@ const struct pic30_opcode pic30_opcodes[] =
     * CP
     ***************************************************************************/
    { "cp",        CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },
-   { "cp",        CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD | F_ECORE },
+   { "cp",        CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD |
+                                         F_ISAV4 | F_ECORE },
    { "cp",        CPF_W,      1, { FILE_REG }, F_WORD },
    { "cp",        CP_W,       2, { BASE_REG, P_SRC_REG }, F_WORD },
    
    /***************************************************************************
     * CPB.b
-    ***************************************************************************/   { "cpb.b",     CPBLS8_B,   2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE },
+    ***************************************************************************/   { "cpb.b",     CPBLS8_B,   2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE |
+                                         F_ISAV4 },
    { "cpb.b",     CPBLS_B,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_FCORE }, 
    { "cpb.b",     CPBF_B,     1, { FILE_REG_BYTE }, F_NONE },
    { "cpb.b",     CPB_B,      2, { BASE_REG, P_SRC_REG }, F_NONE },
@@ -1532,7 +1538,8 @@ const struct pic30_opcode pic30_opcodes[] =
     * CPB.w
     ***************************************************************************/
    { "cpb.w",     CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },   
-   { "cpb.w",     CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD | F_ECORE },
+   { "cpb.w",     CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD |
+                                         F_ISAV4 | F_ECORE },
    { "cpb.w",     CPBF_W,     1, { FILE_REG }, F_WORD },
    { "cpb.w",     CPB_W,      2, { BASE_REG, P_SRC_REG }, F_WORD },
 
@@ -1540,7 +1547,8 @@ const struct pic30_opcode pic30_opcodes[] =
     * CPB
     ***************************************************************************/
    { "cpb",       CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },   
-   { "cpb",       CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD | F_ECORE },
+   { "cpb",       CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD |
+                                         F_ISAV4 | F_ECORE },
    { "cpb",       CPBF_W,     1, { FILE_REG }, F_WORD },
    { "cpb",       CPB_W,      2, { BASE_REG, P_SRC_REG }, F_WORD },
 
@@ -1566,45 +1574,49 @@ const struct pic30_opcode pic30_opcodes[] =
     * CPBEQ
     ***************************************************************************/
    { "cpbeq.b",   CPWBEQ_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT },
+                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT |
+                                         F_ISAV4 },
    { "cpbeq.w",   CPWBEQ_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_WORD | F_ISAV4 |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpbeq",     CPWBEQ_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_WORD | F_ISAV4 |
                                                F_CANNOT_FOLLOW_REPEAT },
    /***************************************************************************
     * CPBGT
     ***************************************************************************/
    { "cpbgt.b",   CPWBGT_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT },
+                                             F_ECORE | F_ISAV4 |
+                                             F_CANNOT_FOLLOW_REPEAT },
    { "cpbgt.w",   CPWBGT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpbgt",     CPWBGT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
    /***************************************************************************
     * CPBLT
     ***************************************************************************/
    { "cpblt.b",   CPWBLT_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT },
+                                             F_ECORE | F_ISAV4 |
+                                             F_CANNOT_FOLLOW_REPEAT },
    { "cpblt.w",   CPWBLT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpblt",     CPWBLT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
    /***************************************************************************
     * CPBNEQ
     ***************************************************************************/
    { "cpbne.b",   CPWBNE_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT },
+                                             F_ECORE | F_ISAV4 |
+                                             F_CANNOT_FOLLOW_REPEAT },
    { "cpbne.w",   CPWBNE_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpbne",     CPWBNE_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD |
+                                               F_ECORE | F_ISAV4 | F_WORD |
                                                F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
@@ -1617,56 +1629,62 @@ const struct pic30_opcode pic30_opcodes[] =
                                                F_CANNOT_FOLLOW_REPEAT },
 
    { "cpseq.b",   CPWSEQ_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
-                                                     F_ECORE },
+                                                      F_ECORE | F_ISAV4 },
    { "cpseq.w",   CPWSEQ_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    { "cpseq",     CPWSEQ_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
     * CPSGT
     ***************************************************************************/
-   { "cpsgt.b",   CPWSGT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
+   { "cpsgt.b",   CPWSGT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
+                                                    F_FCORE },
    { "cpsgt.w",   CPWSGT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpsgt",     CPWSGT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
 
-   { "cpsgt.b",   CPWSGT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "cpsgt.b",   CPWSGT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
+                                                      F_ECORE | F_ISAV4 },
    { "cpsgt.w",   CPWSGT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    { "cpsgt",     CPWSGT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
     * CPSLT
     ***************************************************************************/
-   { "cpslt.b",   CPWSLT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |F_FCORE },
+   { "cpslt.b",   CPWSLT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
+                                                    F_FCORE },
    { "cpslt.w",   CPWSLT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpslt",     CPWSLT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
 
-   { "cpslt.b",   CPWSLT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |F_ECORE },
+   { "cpslt.b",   CPWSLT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
+                                                      F_ISAV4 | F_ECORE },
    { "cpslt.w",   CPWSLT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    { "cpslt",     CPWSLT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
     * CPSNE
     ***************************************************************************/
-   { "cpsne.b",   CPWSNE_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
+   { "cpsne.b",   CPWSNE_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
+                                                    F_FCORE },
    { "cpsne.w",   CPWSNE_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
    { "cpsne",     CPWSNE_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
                                                F_CANNOT_FOLLOW_REPEAT },
 
-   { "cpsne.b",   CPWSNE_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "cpsne.b",   CPWSNE_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
+                                                      F_ISAV4 | F_ECORE },
    { "cpsne.w",   CPWSNE_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    { "cpsne",     CPWSNE_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    /***************************************************************************
     * CTXTSWP
     ***************************************************************************/
@@ -1786,7 +1804,7 @@ const struct pic30_opcode pic30_opcodes[] =
                                                F_IS_2_WORD_INSN | F_FCORE },
    { "do",        DOE,         2, { LITERAL_15BIT,
                                    DO_LABEL }, F_CANNOT_FOLLOW_REPEAT |
-                                               F_IS_DSP_INSN |
+                                               F_IS_DSP_INSN | F_ISAV4 |
                                                F_IS_2_WORD_INSN | F_ECORE },
 
    /***************************************************************************
@@ -1846,9 +1864,11 @@ const struct pic30_opcode pic30_opcodes[] =
     * GOTO
     ***************************************************************************/
    { "goto",      GOTOW,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
-   { "goto",      GOTOWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "goto",      GOTOWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | 
+                                           F_ISAV4 | F_ECORE },
    { "goto",      GOTO,       1, { CALL_OPERAND }, F_CANNOT_FOLLOW_REPEAT },
-   { "goto.l",    GOTOW_L,      1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "goto.l",    GOTOW_L,      1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | 
+                                              F_ISAV4 | F_ECORE },
 
    /***************************************************************************
     * INC.b
@@ -1974,7 +1994,7 @@ const struct pic30_opcode pic30_opcodes[] =
     * LDSLV
     ***************************************************************************/
    { "ldslv",     LDSLV,      3, { P_SRC_REG, IND_DST_REG_POST_INC, LITERAL_2BIT},
-                                   F_WORD | F_IS_DSP_INSN | F_ISAV4 },  
+                                   F_WORD | F_ISAV4 },  
    /***************************************************************************
     * LNK
     ***************************************************************************/
@@ -2231,8 +2251,9 @@ const struct pic30_opcode pic30_opcodes[] =
    { "mov",       STWLO_W,    2, { REG, LO_DST_REG }, F_WORD },
    { "mov",       STW,        2, { REG, FILE_REG_WORD_WITH_DST }, F_WORD },
    { "mov",       LDW,        2, { FILE_REG_WORD_WITH_DST, REG }, F_WORD },
-   { "movpag",   MOVPAG_W,   2, { REG, PAGE_REG}, F_ECORE },
-   { "movpag",    MOVPAG,     2, { LITERAL_10BIT_NO_SHIFT, PAGE_REG}, F_ECORE },
+   { "movpag",   MOVPAG_W,   2, { REG, PAGE_REG}, F_ECORE | F_ISAV4 },
+   { "movpag",    MOVPAG,     2, { LITERAL_10BIT_NO_SHIFT, PAGE_REG}, F_ECORE |
+                                                                      F_ISAV4 },
   
 
    /***************************************************************************
@@ -2286,7 +2307,7 @@ const struct pic30_opcode pic30_opcodes[] =
    { "mul.ss",    MUL_SS_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
                                      ECORE_ACCUMULATOR_SELECT },
-                                     F_ECORE | F_IS_DSP_INSN },
+                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN },
 
    { "mul.ss",    MUL_SS,       3,  { BASE_REG,
                                       P_SRC_REG,
@@ -2294,16 +2315,17 @@ const struct pic30_opcode pic30_opcodes[] =
  
    { "mulw.ss",   MULW_SS,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ECORE },
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
   
    { "mul.su",    MULLS_SU_ACC, 3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ECORE | F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ECORE | F_ISAV4 | 
+                                                      F_IS_DSP_INSN },
 
    { "mul.su",    MUL_SU_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
                                      ECORE_ACCUMULATOR_SELECT },
-                                     F_ECORE | F_IS_DSP_INSN },
+                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN },
 
    { "mul.su",    MULLS_SU,     3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
@@ -2316,20 +2338,22 @@ const struct pic30_opcode pic30_opcodes[] =
 
    { "mulw.su",   MULLSW_SU,    3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     W_MUL_DST_REG }, F_ECORE }, 
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE }, 
 
    { "mulw.su",   MULW_SU,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ECORE },
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
   
   
    { "mul.uu",    MULLS_UU_ACC, 3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ECORE | F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ISAV4 | F_ECORE | 
+                                                      F_IS_DSP_INSN },
 
    { "mul.uu",    MUL_UU_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ECORE | F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ISAV4 | F_ECORE | 
+                                                      F_IS_DSP_INSN },
    
    { "mul.uu",    MULLS_UU,     3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
@@ -2341,24 +2365,24 @@ const struct pic30_opcode pic30_opcodes[] =
 
    { "mulw.uu",   MULLSW_UU,    3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     W_MUL_DST_REG }, F_ECORE },
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
 
    { "mulw.uu",   MULW_UU,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG },F_ECORE },
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
 
 
    { "mul.us",    MUL_US_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
-                                     ECORE_ACCUMULATOR_SELECT  },                                                                                               F_ECORE | F_IS_DSP_INSN },
-
+                                     ECORE_ACCUMULATOR_SELECT  },
+                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN }, 
    { "mul.us",    MUL_US,       3, { BASE_REG,
                                      P_SRC_REG,
                                      DBL_MUL_DST_REG }, F_WORD },
 
    { "mulw.us",   MULW_US,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ECORE },
+                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
 
    /***************************************************************************
     * NEG.b
@@ -2442,15 +2466,18 @@ const struct pic30_opcode pic30_opcodes[] =
     * RCALL
     ***************************************************************************/
    { "rcall",     RCALLW,     1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
-   { "rcall",     RCALLWE,    1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "rcall",     RCALLWE,    1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | 
+                                          F_ECORE },
    { "rcall",     RCALL,      1, { BRANCH_LABEL }, F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
     * REPEAT
     ***************************************************************************/
    { "repeat",    REPEATW,    1, { REG }, F_CANNOT_FOLLOW_REPEAT },
-   { "repeat",    REPEAT,     1, { LITERAL_14BIT }, F_CANNOT_FOLLOW_REPEAT| F_FCORE },
-   { "repeat",    REPEATE,     1, { LITERAL_15BIT }, F_CANNOT_FOLLOW_REPEAT | F_ECORE },
+   { "repeat",    REPEAT,     1, { LITERAL_14BIT }, F_CANNOT_FOLLOW_REPEAT | 
+                                                    F_FCORE },
+   { "repeat",    REPEATE,     1, { LITERAL_15BIT }, F_CANNOT_FOLLOW_REPEAT | 
+                                                     F_ISAV4 | F_ECORE },
 
    /***************************************************************************
     * RESET
@@ -4222,16 +4249,46 @@ pic30_extract_offset (insn, info, flags, opnd, err)
      long min = 0;
      long max = info->num_symbols;
      long thisplace;
-     long sym_found = 0;
+     bfd_boolean sym_found = FALSE;
      asymbol *sym = 0;
-
+     bfd_vma try;     
+     int i;
+#if 0 
+     int i;
+     for (i = 0; i < info->num_symbols; i++)
+        fprintf(stderr, "%s\t%d\n", info->symbols[i]->name, bfd_asymbol_value(info->symbols[i]));
+#endif
      /* Perform a binary search of the range (min, max).  */
-     if (info->num_symbols > 0)
+     if (info->num_symbols > 0) {
+       for (i = 0; i < info->num_symbols; i++) {
+         sym = info->symbols[i];
+         try = bfd_asymbol_value (sym);
+         if ((try == info->target) &&
+               PIC30_DISPLAY_AS_PROGRAM_MEMORY(sym->section)) {
+           sym_found = TRUE;
+           break;
+         }
+        }
+        sprintf(rc, "0x%lx", info->target);
+        if (sym_found) {
+          int y = 0;
+          for (y = i; y < info->num_symbols; y++) {
+            sym = info->symbols[y];
+            try = bfd_asymbol_value (sym);
+            if (try == info->target) {
+              strcat(rc, " <");
+              strcat(rc, bfd_asymbol_name(sym));
+              strcat(rc, ">");
+            } else break;
+           }
+        }
+      }
+
+#if 0
        while (min + 1 < max) {
-         bfd_vma try;
 
          thisplace = (max + min) / 2;
-         thisplace = min + 1;
+         //thisplace = min + 1;
          sym = info->symbols[thisplace];
          try = bfd_asymbol_value (sym);
 
@@ -4240,7 +4297,7 @@ pic30_extract_offset (insn, info, flags, opnd, err)
          else if (try < info->target)
            min = thisplace;
          else {
-           if ((try == info->target) &&
+           if ((try == info->target) && 
                PIC30_DISPLAY_AS_PROGRAM_MEMORY(sym->section))
              sym_found = thisplace;
            break;
@@ -4248,10 +4305,18 @@ pic30_extract_offset (insn, info, flags, opnd, err)
        }
      sprintf(rc, "0x%lx", info->target);
      if (sym_found) {
-       strcat(rc, " <");
-       strcat(rc, bfd_asymbol_name(sym));
-       strcat(rc, ">");
+       while (sym_found >= min) {
+         sym = info->symbols[sym_found];
+         try = bfd_asymbol_value (sym);
+         if ((try == info->target) && sym->section != bfd_abs_section_ptr) {
+           strcat(rc, " <");
+           strcat(rc, bfd_asymbol_name(sym));
+           strcat(rc, ">");
+         }
+         sym_found--;
+       }
      } 
+#endif
    }
    else
      sprintf(rc, ".");

@@ -1,10 +1,10 @@
 
 Excerpt from link map:
 
-section        address   length (PC units)   length (bytes) (dec)
-section        address   length (PC units)   length (bytes) (dec)
--------        -------   -----------------   --------------------
--------        -------   -----------------   --------------------
-.eedata       0x7ff000                0x10            0x10  (16)
+section                    address   length (PC units)   length (bytes) (dec)
+section                    address   length (PC units)   length (bytes) (dec)
+-------                    -------   -----------------   --------------------
+-------                    -------   -----------------   --------------------
+.eedata                   0x7ff000                0x10            0x10  (16)
 .eedata             0xf000         0x10 load address 0x7ff000  
 

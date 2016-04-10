@@ -9,6 +9,4 @@ _iprintf("The value of 2 is %d\n", i);
 i++;
 printf("The value of 3 is %d\n", i);
 i++;
-printf("The value of 4.0 is %f\n", (float) i);
-
 }

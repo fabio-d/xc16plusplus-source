@@ -430,6 +430,9 @@ dump_section_header (abfd, section, ignored)
   PF2 (page, "PAGE");
   PF2 (auxflash, "AUXFLASH");
   PF2 (packedflash, "PACKEDFLASH");
+  PF2 (shared, "SHARED");
+  PF2 (preserved, "PRESERVED");
+  PF2 (auxpsv, "AUXPSV");
 #undef PF2
 #endif
 

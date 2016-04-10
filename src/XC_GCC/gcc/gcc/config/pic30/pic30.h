@@ -87,12 +87,14 @@ enum pic30_builtins
    PIC30_BUILTIN_EDAC,
    PIC30_BUILTIN_FBCL,
    PIC30_BUILTIN_LAC,
+   PIC30_BUILTIN_LACD,
    PIC30_BUILTIN_MAC,
    PIC30_BUILTIN_MOVSAC,
    PIC30_BUILTIN_MPY,
    PIC30_BUILTIN_MPYN,
    PIC30_BUILTIN_MSC,
    PIC30_BUILTIN_SAC,
+   PIC30_BUILTIN_SACD,
    PIC30_BUILTIN_SACR,
    PIC30_BUILTIN_SFTAC,
    PIC30_BUILTIN_SUBAB,
@@ -102,6 +104,7 @@ enum pic30_builtins
    PIC30_BUILTIN_WRITEOSCCONL,
    PIC30_BUILTIN_WRITEOSCCONH,
    PIC30_BUILTIN_WRITERTCWEN,
+   PIC30_BUILTIN_WRITEWRLOCK,
    PIC30_BUILTIN_WRITENVM,
    PIC30_BUILTIN_WRITENVM_SECURE,
    PIC30_BUILTIN_TBLRDLB,
@@ -135,7 +138,10 @@ enum pic30_builtins
    PIC30_BUILTIN_ADDR,
    PIC30_BUILTIN_PWRSAV,
    PIC30_BUILTIN_CLRWDT,
-   PIC30_BUILTIN_STATICASSERT
+   PIC30_BUILTIN_STATICASSERT,
+   PIC30_BUILTIN_ACCL,
+   PIC30_BUILTIN_ACCH,
+   PIC30_BUILTIN_ACCU
 };
 
 #define       TARGET_USE_PA   1
@@ -1034,7 +1040,7 @@ enum reg_class
 /*
  * USED CONSTRAINT LETTERS:
   
- =   - result
+ =   - result/ output
  +   - read/write
  &   - early clobber
  *   - ignore constraint
@@ -1801,10 +1807,11 @@ typedef struct pic30_args
 #define PIC30_SECURE_FLAG     PIC30_EXTENDED_FLAG "sec"
 #define PIC30_AUXFLASH_FLAG   PIC30_EXTENDED_FLAG "aux"     PIC30_EXTENDED_FLAG
 #define PIC30_AUXPSV_FLAG     PIC30_EXTENDED_FLAG "xpsv"    PIC30_EXTENDED_FLAG
-#define PIC30_PACKEDFLASH_FLAG PIC30_EXTENDED_FLAG "pf"      PIC30_EXTENDED_FLAG
+#define PIC30_PACKEDFLASH_FLAG PIC30_EXTENDED_FLAG "pf"     PIC30_EXTENDED_FLAG
 #define PIC30_KEEP_FLAG       PIC30_EXTENDED_FLAG "keep"    PIC30_EXTENDED_FLAG
 #define PIC30_QLIBFN_FLAG     PIC30_EXTENDED_FLAG "qlib"    PIC30_EXTENDED_FLAG
-#define PIC30_DATAFLASH_FLAG  PIC30_EXTENDED_FLAG "df"     PIC30_EXTENDED_FLAG
+#define PIC30_DATAFLASH_FLAG  PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
+#define PIC30_CO_SHARED_FLAG  PIC30_EXTENDED_FLAG "cshrd"   PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -2151,7 +2158,7 @@ if (pic30_near_operand(OP1, GET_MODE(OP1)))         \
 ** Dwarf 2 line debug info sections. This will result in much more compact
 ** line number tables, and hence is desirable if it works.
 */
-#define   DWARF2_ASM_LINE_DEBUG_INFO   0
+#define   DWARF2_ASM_LINE_DEBUG_INFO   1
 
 /*
 ** The size in bytes of a DWARF field indicating an offset or length
@@ -3009,6 +3016,9 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define SECTION_PACKEDFLASH     (PIC30_LL(SECTION_MACH_DEP) << 19)    /* 45 */
 #define SECTION_KEEP            (PIC30_LL(SECTION_MACH_DEP) << 20)    /* 46 */
 #define SECTION_CONST_NAME      (PIC30_LL(SECTION_MACH_DEP) << 21)    /* 47 */
+#define SECTION_CO_SHARED       (PIC30_LL(SECTION_MACH_DEP) << 22)    /* 48 */
 
 #endif
+
+#define CLEAR_RATIO(speed) 2
 

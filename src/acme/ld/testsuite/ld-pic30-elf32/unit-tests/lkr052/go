@@ -8,12 +8,12 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30="$PIC30_CD/bin/pic30-gcc -omf=elf"
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
-BIN2HEX="$PIC30_CD/bin/pic30-bin2hex -omf=elf"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -62,13 +62,13 @@ if [ $vflag = "on" ]; then
 fi
 
 LINE1=`awk '/bss_1000/ { print $2,$3,$4,$5 }' temp`
-LINE2=`awk '/ABSOLUTE/ { print $1,$2,$3,$4,$5 }' temp`
+LINE2=`awk '/ALLOC, ABSOLUTE/ { print $1,$2,$3,$4,$5 }' temp`
 LINE3=`awk '/bss_xmem/ { print $2,$3,$4,$5 }' temp`
-LINE4=`awk '/XMEMORY/ { print $1,$2,$3,$4,$5 }' temp`
+LINE4=`awk '/ALLOC, XMEMORY/ { print $1,$2,$3,$4,$5 }' temp`
 
 {
 echo
-echo "excerpt from pic30-objdump (-h option):"
+echo "excerpt from xc16-objdump (-h option):"
 echo
 echo "$LINE1"
 echo "$LINE2"

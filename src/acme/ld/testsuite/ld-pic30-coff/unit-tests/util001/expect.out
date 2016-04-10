@@ -1,7 +1,7 @@
-pic30-ar      PASS
-pic30-objdump PASS
-pic30-bin2hex PASS
-pic30-nm      PASS
-pic30-ranlib  PASS
-pic30-strings PASS
-pic30-strip   PASS
+xc16-ar      PASS
+xc16-objdump PASS
+xc16-bin2hex PASS
+xc16-nm      PASS
+xc16-ranlib  PASS
+xc16-strings PASS
+xc16-strip   PASS

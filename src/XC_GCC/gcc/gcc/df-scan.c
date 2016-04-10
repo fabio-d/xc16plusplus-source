@@ -3812,6 +3812,7 @@ df_get_regular_block_artificial_uses (bitmap regular_block_artificial_uses)
     }
   /* The all-important stack pointer must always be live.  */
   bitmap_set_bit (regular_block_artificial_uses, STACK_POINTER_REGNUM);
+  bitmap_set_bit (regular_block_artificial_uses, 19);
 
 #ifdef EH_USES
   /* EH_USES registers are used:

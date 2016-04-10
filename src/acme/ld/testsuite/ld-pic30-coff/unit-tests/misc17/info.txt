@@ -6,12 +6,12 @@ take up space in the application memory map.
 
 Note that section .comment should have contents
 in the linked object file, but should not appear
-in a hex file produced by pic30-bin2hex.
+in a hex file produced by xc16-bin2hex.
 
 How to execute the test:
 
 1. Set the environment variable $ACME_BIN
-    to your pic30 tools binary directory
+    to your xc16 tools binary directory
 2. Export $ACME_BIN
 3. Execute "go"
 

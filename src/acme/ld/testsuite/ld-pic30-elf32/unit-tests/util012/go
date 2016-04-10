@@ -8,10 +8,10 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-BIN2HEX="$PIC30_CD/bin/pic30-bin2hex -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
 #
 # END CONFIGURATION
@@ -48,7 +48,7 @@ if [ $vflag = "on" ]; then
     echo $err
 fi
 
-# verify pic30-bin2hex
+# verify xc16-bin2hex
 $BIN2HEX t.exe -v > temp
 if [ $vflag = "on" ]; then
     echo

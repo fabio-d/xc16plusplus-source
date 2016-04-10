@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -W"
-GLD30=$PIC30_CD/bin/pic30-ld
-OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GAS30="$PIC30_CD/bin/xc16-as -W"
+GLD30=$PIC30_CD/bin/xc16-ld
+OBJDUMP=$PIC30_CD/bin/xc16-objdump
 LIB_PATH=$PIC30_CD/lib
 
 #

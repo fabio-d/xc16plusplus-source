@@ -25,53 +25,61 @@ static void
 pic30_list_options (file) 
      FILE * file; 
 { 
-  fprintf (file, _("  --boot LIST          Specify options for boot segment\n"));
-  fprintf (file, _("  --data-init          Initialize data memory (default)\n")); 
-  fprintf (file, _("  --no-data-init       Don't initialize data memory\n")); 
-  fprintf (file, _("  -D,--debug           Produce linker debugging messages\n")); 
-  fprintf (file, _("  --handles            Create jump table for"
+  fprintf (file, _("  --boot LIST            Specify options for boot segment\n"));
+  fprintf (file, _("  --data-init            Initialize data memory (default)\n")); 
+  fprintf (file, _("  --no-data-init         Don't initialize data memory\n")); 
+  fprintf (file, _("  -D,--debug             Produce linker debugging messages\n")); 
+  fprintf (file, _("  --handles              Create jump table for"
                    " function pointers (default)\n")); 
-  fprintf (file, _("  --no-handles         Don't create jump table for"
+  fprintf (file, _("  --no-handles           Don't create jump table for"
                    " function pointers\n")); 
-  fprintf (file, _("  --fill-upper VALUE   Set fill value for upper byte of data"
+  fprintf (file, _("  --fill-upper VALUE     Set fill value for upper byte of data"
                    " (default = 0)\n")); 
-  fprintf (file, _("  --force-link         Force linking of objects that may not"
+  fprintf (file, _("  --force-link           Force linking of objects that may not"
                    " be compatible\n")); 
-  fprintf (file, _("  --no-force-link      Don't force linking (default)\n")); 
-  fprintf (file, _("  --general LIST       Specify options for general segment\n")); 
-  fprintf (file, _("  --heap SIZE          Create heap of SIZE bytes\n")); 
-  fprintf (file, _("  --isr                Create interrupt function for unused"
+  fprintf (file, _("  --no-force-link        Don't force linking (default)\n")); 
+  fprintf (file, _("  --general LIST         Specify options for general segment\n")); 
+  fprintf (file, _("  --heap SIZE            Create heap of SIZE bytes\n")); 
+  fprintf (file, _("  --isr                  Create interrupt function for unused"
                    " vectors (default)\n")); 
-  fprintf (file, _("  --no-isr             Don't create interrupt function for"
+  fprintf (file, _("  --no-isr               Don't create interrupt function for"
                    " unused vectors\n")); 
-  fprintf (file, _("  -p,--processor PROC  Specify the target processor"
+  fprintf (file, _("  -p,--processor PROC    Specify the target processor"
                    " (e.g., 30F2010)\n")); 
-  fprintf (file, _("  --pack-data          Use upper byte of program memory"
+  fprintf (file, _("  --pack-data            Use upper byte of program memory"
                    " to store data (default)\n")); 
-  fprintf (file, _("  --no-pack-data       Don't use upper byte of program memory"
+  fprintf (file, _("  --no-pack-data         Don't use upper byte of program memory"
                    " to store data\n")); 
-  fprintf (file, _("  --report-mem         Report memory usage to console\n")); 
-  fprintf (file, _("  --secure LIST        Specify options for secure segment\n"));
+  fprintf (file, _("  --report-mem           Report memory usage to console\n")); 
+  fprintf (file, _("  --secure LIST          Specify options for secure segment\n"));
 #if 1
-  fprintf (file, _("  --select-objects     Select library objects based on"
+  fprintf (file, _("  --select-objects       Select library objects based on"
                    " options (default)\n"));
-  fprintf (file, _("  --no-select-objects  Don't select library objects based"
+  fprintf (file, _("  --no-select-objects    Don't select library objects based"
                    " on options\n")); 
 #endif
-  fprintf (file, _("  --smart-io           Merge I/O library functions (default)\n")); 
-  fprintf (file, _("  --no-smart-io        Don't merge I/O library functions\n")); 
-  fprintf (file, _("  --stack SIZE         Set minimum stack to SIZE bytes"
+  fprintf (file, _("  --smart-io             Merge I/O library functions (default)\n")); 
+  fprintf (file, _("  --no-smart-io          Don't merge I/O library functions\n")); 
+  fprintf (file, _("  --stack SIZE           Set minimum stack to SIZE bytes"
                    " (default=16)\n")); 
-  fprintf (file, _("  --stackguard SIZE    Set stack guardband to SIZE bytes"
+  fprintf (file, _("  --stackguard SIZE      Set stack guardband to SIZE bytes"
                    " (default=16)\n")); 
-  fprintf (file, _("  --psv-override       Override PSV safegaurds when"
-                   " allocating data memory"));
-  fprintf (file, _("  --local-stack        Prevent allocating the stack in"
+  fprintf (file, _("  --psv-override         Override PSV safegaurds when"
+                   " allocating data memory\n"));
+  fprintf (file, _("  --local-stack          Prevent allocating the stack in"
                    " extended data space memory (default)\n"));
-  fprintf (file, _("  --no-local-stack     Allow allocating the stack in"
-                   " extended data space memory\n"));
-  fprintf (file, _("  --partition          Specify that a memory partition"
+  fprintf (file, _("  --no-local-stack       Allow allocating the stack in"
+			  " extended data space memory\n"));
+  fprintf (file, _("  --partition            Specify that a memory partition"
                    " is being used\n"));
+  fprintf (file, _("  --application-id=name  duplicate external symbols for"
+                   " application <name>\n"));
+  fprintf (file, _("  --memory-usage         generate static tables with"
+                   " memory usage for current application\n"));
+  fprintf (file, _("  --reserve-const=size   reserve up to size bytes for"
+                   " const section (max 32K)\n"));
+  fprintf (file, _("  --pad-flash[=size]     pad output flash pages\n"));
+  fprintf (file, _("  --coresident           link for coresident application\n"));
 } /* static void pic30_list_options () */
 
 
@@ -548,6 +556,12 @@ pic30_parse_args (argc, argv)
     case REPORT_MEM_OPTION:
       pic30_report_mem = TRUE;
       break;
+    case REPORT_MAFRLCSJ_OPTION:
+      pic30_mafrlcsj = TRUE;
+      break;
+    case REPORT_MAFRLCSJ2_OPTION:
+      pic30_mafrlcsj2 = TRUE;
+      break;
     case ISR_OPTION:
       if (pic30_has_isr_option && (!pic30_isr))
         einfo(_("%P%F: Error: %s%s"), isr_option_err, option_err);
@@ -660,9 +674,46 @@ pic30_parse_args (argc, argv)
       pic30_memory_summary = TRUE;
       memory_summary_arg = optarg;
       break;
+#ifdef PIC30ELF
+    case MEMORY_USAGE:
+      pic30_memory_usage = TRUE;
+      break;
+    case RESERVE_CONST:
+      pic30_reserve_const = TRUE;
+      if (optarg)
+      {
+        if ((strstr(optarg, "0x") == 0) && (strstr(optarg, "0X") == 0))
+          reserve_const_arg = atol(optarg);
+        else
+          (void) sscanf(optarg, "%x", &reserve_const_arg);
+      }
+      break;
+    case PAD_FLASH:
+      pic30_pad_flash_option = TRUE;
+      if (optarg)
+      {
+        if ((strstr(optarg, "0x") == 0) && (strstr(optarg, "0X") == 0))
+          pad_flash_arg = atol(optarg);
+        else
+          (void) sscanf(optarg, "%x", &pad_flash_arg);
+      }
+      break;
+    case APPLICATION_ID:
+      pic30_application_id = TRUE;
+      application_id = optarg;
+      break;
+    case CORESIDENT:
+      pic30_coresident_app = TRUE;
+      break;
+    case INHERIT_APPLICATION_INFO:
+      pic30_inherit_application_info = TRUE;
+      inherited_application = optarg;
+      lang_add_input_file (optarg, lang_input_file_is_file_enum,
+                               (char *) NULL);
+      break;
+#endif
     }
     
-  
   return 1; 
 } /* static int pic30_parse_args ()*/
 

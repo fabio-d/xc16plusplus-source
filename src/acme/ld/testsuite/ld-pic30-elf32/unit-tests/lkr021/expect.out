@@ -1,6 +1,8 @@
 
-Excerpt from pic30-objdump output:
+Excerpt from xc16-objdump output:
 
  Name          Size
 .dinit        00000002
+.dinit 00000002
+.shared.dinit 00000002
 

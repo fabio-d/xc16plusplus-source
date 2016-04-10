@@ -3,7 +3,7 @@ misc14: Non-aligned relocations:
 The objective of this test is to verify that
 non-aligned relocations are handled correctly.
 In CODE sections, only valid PC offsets should
-by displayed by pic30-objdump [-r option]. In
+by displayed by xc16-objdump [-r option]. In
 READONLY and DATA sections, normal data addresses
 should be displayed. Finally, the output of the
 link is checked to make sure all the non-aligned
@@ -12,7 +12,7 @@ bytes have been relocated properly.
 How to execute the test:
 
 1. Set the environment variable $ACME_BIN
-    to your pic30 tools binary directory
+    to your xc16 tools binary directory
 2. Export $ACME_BIN
 3. Edit the Configuration section of file "go"
 4. Execute "go"

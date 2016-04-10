@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/pic30-gcc
-GLD30=$PIC30_CD/bin/pic30-ld
-OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GCC30=$PIC30_CD/bin/xc16-gcc
+GLD30=$PIC30_CD/bin/xc16-ld
+OBJDUMP=$PIC30_CD/bin/xc16-objdump
 
 SIM30=$PIC30_CD/bin/sim30
 

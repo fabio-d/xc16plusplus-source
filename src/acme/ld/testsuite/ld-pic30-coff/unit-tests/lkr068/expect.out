@@ -1,5 +1,5 @@
 
-Excerpt from pic30-objdump output:
+Excerpt from xc16-objdump output:
 
 Idx Name          Size      VMA       LMA
   2 low_data      00000008  00000080  00000080

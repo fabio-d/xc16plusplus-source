@@ -3,7 +3,7 @@
 ;;      
 ;; Note that sections are positioned so that .const crosses a PSV
 ;; page boundary. This forces the memory re-allocation stage in
-;; pic30-ld v1.20, which demonstrates the FLUKE problem.
+;; xc16-ld v1.20, which demonstrates the FLUKE problem.
 ;;
 ;; The custom linker script for this test is derived from p30f6014.gld
 ;; 

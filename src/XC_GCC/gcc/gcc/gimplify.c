@@ -3609,6 +3609,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
   enum gimplify_status ret;
   VEC(constructor_elt,gc) *elts;
 
+
   gcc_assert (TREE_CODE (TREE_OPERAND (*expr_p, 1)) == CONSTRUCTOR);
 
   if (!notify_temp_creation)

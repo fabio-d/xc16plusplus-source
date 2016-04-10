@@ -1206,6 +1206,16 @@ elf_slurp_symbol_table (abfd, symptrs, dynamic)
 	    case STB_WEAK:
 	      sym->symbol.flags |= BSF_WEAK;
 	      break;
+            case STB_LOPROC:
+              sym->symbol.flags |= BSF_LOCAL | BSF_SHARED;
+              break;
+            case STB_MIDPROC:
+              if (isym->st_shndx != SHN_UNDEF && isym->st_shndx != SHN_COMMON)
+                sym->symbol.flags |= BSF_GLOBAL | BSF_SHARED;
+              break;
+            case STB_HIPROC:
+              sym->symbol.flags |= BSF_WEAK | BSF_SHARED;
+              break; 
 	    }
 
 	  switch (ELF_ST_TYPE (isym->st_info))

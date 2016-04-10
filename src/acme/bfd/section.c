@@ -400,8 +400,6 @@ CODE_FRAGMENT
 .  unsigned int need_finalize_relax:1;
 .
 .  {* Usused bits.  *}
-.  unsigned int flag12:1;
-
 
 .
 .  {* dsPIC-specific bits *}
@@ -424,6 +422,10 @@ CODE_FRAGMENT
 .  unsigned int stack:1;
 .  unsigned int auxflash:1;
 .  unsigned int packedflash:1;
+.  unsigned int linked:1;
+.  unsigned int shared:1;
+.  unsigned int preserved:1;
+.  unsigned int auxpsv:1;
 .
 .  {* End of internal packed boolean fields.  *}
 .
@@ -636,13 +638,13 @@ static const asymbol global_syms[] =
     { NAME,  IDX, 0,     NULL, FLAGS, 0,            0,			\
 									\
     /* linker_mark, linker_has_input, gc_mark, segment_mark,         */	\
-       0,           0,                1,       0,			\
+       0,           0,                1,       0,                       \
 									\
     /* sec_info_type, use_rela_p, has_tls_reloc, need_finalize_relax, flag12,     */ \
-       0,	      0,	  0,		 0,		      0,		\
-									\
-    /* packedflash, auxflash,                                               */ \
-       0,      0,   	  		                                \
+       0,	      0,	  0,		 0,		      0, \
+                                                                         \
+    /* packedflash, auxflash, shared, preserved, auxpsv, linker_generated */ \
+       0,           0,        0,      0,         0,      0,             \
 									\
     /* near, persistent, xmemory, ymemory, psv, eedata, absolute,    */ \
        0,    0,          0,       0,       0,   0,      0,	    	\

@@ -8,9 +8,10 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+CC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
 
 #
@@ -27,34 +28,23 @@ do
     shift
 done
 
-rm -f t1.o
-$GAS30 -o t1.o t1.s
+rm -f t1.o t.exe
+$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld -save-temps
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GAS30 -o t1.o t1.s"
+    echo "$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld"
     echo $err
 fi
-
-
-rm -f t.exe
-$GLD30 -o t.exe t1.o || exit 99
-err=$?
-if [ $vflag = "on" ]; then
-    echo
-    echo "$GLD30 -o t.exe t1.o"
-    echo $err
-fi
-
 
 rm -f test.out
 if [ $vflag = "on" ]; then
     echo
-    $OBJDUMP -d -j .ivt t.exe
-    $OBJDUMP -d -j .aivt t.exe
+    $OBJDUMP -s t.exe | grep ".ivt"
+    $OBJDUMP -s t.exe | grep ".aivt"
 fi
-$OBJDUMP -d -j .ivt t.exe > test.out
-$OBJDUMP -d -j .aivt t.exe >> test.out
+$OBJDUMP -h t.exe | grep -w "\.ivt" > test.out
+$OBJDUMP -h t.exe | grep -w "\.aivt" >> test.out
 
 echo
 echo `head -1 info.txt`

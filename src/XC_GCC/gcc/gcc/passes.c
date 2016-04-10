@@ -1080,6 +1080,11 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_convert_to_eh_region_ranges);
 	  NEXT_PASS (pass_shorten_branches);
 	  NEXT_PASS (pass_set_nothrow_function_flags);
+#if defined(_BUILD_C30_)
+#if 0
+	  NEXT_PASS (pass_rtl_dse3);
+#endif
+#endif
 	  NEXT_PASS (pass_final);
 	}
       NEXT_PASS (pass_df_finish);

@@ -904,13 +904,13 @@ bfd_default_compatible (a, b)
   if (!a || !b)
     return NULL;
 #if 1
-  //if (a->mach != 0)
-  //{
-  if ((pic30_is_ecore_machine(a) && !pic30_is_ecore_machine(b)) ||
-      (pic30_is_ecore_machine(b) && !pic30_is_ecore_machine(a))) 
-      
-    return NULL;
-  //}
+#define MATCH(target_machine,a,b)                                      \
+  if ((target_machine(a) && !target_machine(b)) ||                     \
+      (target_machine(b) && !target_machine(a)))  return NULL
+
+
+  MATCH(pic30_is_ecore_machine,a,b);
+  MATCH(pic30_is_isav4_machine,a,b);
 #endif
   if (a->arch != b->arch)
     return NULL;

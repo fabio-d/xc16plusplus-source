@@ -23,10 +23,10 @@
   (PIC30_SECTION_IN_DATA_MEMORY(s) || PIC30_IS_MEMORY_ATTR(s))
 
 #define REPORT_AS_EEDATA(s) \
-  (PIC30_IS_EEDATA_ATTR(sect))
+  (PIC30_IS_EEDATA_ATTR(s))
 
 #define REPORT_AS_AUXFLASH(s) \
-  (PIC30_IS_AUXFLASH_ATTR(sect) || PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
+  (PIC30_IS_AUXFLASH_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
 
 /*****************************************************************************/
 
@@ -100,8 +100,10 @@ bfd_pic30_report_program_sections (asection *sect, FILE *fp) {
       c = strchr(name, '%');
       if (c) *c = '\x0';
 
-      fprintf( fp, "%-24s%#10lx%#20lx%#16lx  (%ld)\n", name,
+      if (fp) {
+        fprintf( fp, "%-24s%#10lx%#20lx%#16lx  (%ld)\n", name,
              start, PCunits, actual, actual);
+      }
       actual_prog_memory_used += (total * .75);
 
       free(name);
@@ -208,9 +210,10 @@ bfd_pic30_report_data_sections (asection *sect, FILE *fp) {
       /* clean the name of GAP_ID or %n.GAPID */
       c = strchr(name, '%');
       if (c) *c = '\x0';
-
-      fprintf( fp, "%-24s%#10lx%#20x%#16lx  (%ld)\n", name,
+      if (fp) {
+        fprintf( fp, "%-24s%#10lx%#20x%#16lx  (%ld)\n", name,
              start, gaps, total, total);
+      }
       data_memory_used += total;
 
       free(name);
@@ -272,7 +275,6 @@ report_percent_used (bfd_vma used, bfd_vma max, FILE *fp) {
     fprintf( fp, "<1%%");
 }
 
-
 static int
 in_bounds (asection *sec, lang_memory_region_type *region) {
   bfd_vma start;
@@ -297,7 +299,6 @@ in_bounds (asection *sec, lang_memory_region_type *region) {
   return result;
 }
 
-
 /*
 ** Utility routine: bfd_pic30_report_memory_usage
 **
@@ -309,6 +310,10 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   lang_memory_region_type *region;
   struct pic30_section *s;
   int has_eedata = 0;
+  char *program_regions[] = { "program", "ivt", "aivt", 0 };
+  int r;
+  char *region_name;
+  int header_printed=0;
 
   /* clear the counters */
   actual_prog_memory_used = 0;
@@ -322,53 +327,97 @@ bfd_pic30_report_memory_usage (FILE *fp) {
 
   fprintf(fp,"\n\nxc16-ld %s", pic30_resource_version); 
 
-  region = region_lookup("program");
-  /* print code header */
-  fprintf( fp, "\n\nProgram Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
-           region->origin, region->length);
-  fprintf( fp, "section                    address   length (PC units)"
-           "   length (bytes) (dec)\n");
-  fprintf( fp, "-------                    -------   -----------------"
-           "   --------------------\n");
+  for (r = 0; program_regions[r]; r++) {
+  
+    header_printed=0;
+    region_name = strdup(program_regions[r]);
+    region_name[0] = region_name[0] - 0x20;
 
-  /* report code sections */
-  for (s = pic30_section_list; s != NULL; s = s->next)
-    if ((s->sec) && in_bounds(s->sec, region))
-      bfd_pic30_report_program_sections (s->sec, fp);
+    region = region_lookup(program_regions[r]);
+    if ((region) && (region->length < 0xFFFFFFFFUL)) {
+      bfd_boolean hidden;
+      if (strcmp(region->name, "program") == 0) {
+        program_origin = region->origin;
+        program_length = region->length;
+      }
 
-  /* print code summary */
-  fprintf( fp, "\n                     Total program memory used (bytes):"
-           "     %#10lx  (%ld) ",
-         actual_prog_memory_used, actual_prog_memory_used);
-  report_percent_used((actual_prog_memory_used * 2)/3,
-                      region->length, fp);
-  fprintf( fp, "\n");
+      /* report code sections */
+      for (s = pic30_section_list; s != NULL; s = s->next)
+        if ((s->sec) && in_bounds(s->sec, region)) {
+
+          hidden = FALSE;
+          /* CAW movable vector tables are in program space ... */
+          if (r >= 0) {
+            /* for ivt or aivt sections, check to see if this has been
+                 filled in with the defualt handler */
+            ivt_record_type *l;
+            for (l = ivt_records_list; l; l = l->next) {
+              if (l->sec_name == 0) {
+                /* this can happen on devices with movable aivt's and none
+                   defind... there is a record, but we haven't filled one in */
+              } else if (strcmp(l->sec_name, s->sec->name) == 0) {
+                if (l->flags & ivt_default) hidden = TRUE;
+                break;
+              }
+            }
+          }
+          if (!hidden) {
+            if (header_printed == 0) {
+              /* print code header */
+              fprintf(fp, "\n\n%s Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
+                      region_name, region->origin, region->length);
+              fprintf(fp, "section                    address   length (PC units)"
+                      "   length (bytes) (dec)\n");
+              fprintf(fp, "-------                    -------   -----------------"
+                   "   --------------------\n");
+              header_printed++;
+            }
+            bfd_pic30_report_program_sections (s->sec, fp);
+          }
+        }
+    }
+
+    if (r == 0) {
+      /* print code summary */
+      fprintf(fp, "\n                 Total program memory used (bytes):"
+              "     %#10lx  (%ld) ",
+              actual_prog_memory_used, actual_prog_memory_used);
+      report_percent_used((actual_prog_memory_used * 2)/3,
+                          region->length, fp);
+      fprintf( fp, "\n");
+    }
+  }
  
   /* auxflash section */
-  if (pic30_is_auxflash_machine(global_PROCESSOR)) {
+  if (global_PROCESSOR && pic30_is_auxflash_machine(global_PROCESSOR)) {
     region = region_lookup("auxflash");
-    /* print auxflash header */
-    fprintf( fp, "\n\nAuxflash Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
-             region->origin, region->length);
-    fprintf( fp, "section                    address   length (PC units)"
-             "   length (bytes) (dec)\n");
-    fprintf( fp, "-------                    -------   -----------------"
-             "   --------------------\n");
+    if ((region) && (region->length < 0xFFFFFFFFUL)) {
+      auxflash_origin = region->origin;
+      auxflash_length = region->length;
+      /* print auxflash header */
+      fprintf( fp, "\n\nAuxflash Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
+               region->origin, region->length);
+      fprintf( fp, "section                    address   length (PC units)"
+               "   length (bytes) (dec)\n");
+      fprintf( fp, "-------                    -------   -----------------"
+               "   --------------------\n");
 
-    /* report auxflash sections */
-    for (s = pic30_section_list; s != NULL; s = s->next)
-      if ((s->sec) && in_bounds(s->sec, region))
-        bfd_pic30_report_auxflash_sections (s->sec, fp);
-
-    /* print auxflash summary */
-    fprintf( fp, "\n                     Total auxflash memory used (bytes):"
-             "     %#10lx  (%ld) ",
-           actual_auxflash_memory_used, actual_auxflash_memory_used);
-    report_percent_used((actual_auxflash_memory_used * 2)/3,
-                        region->length, fp);
-    fprintf( fp, "\n");
+      /* report auxflash sections */
+      for (s = pic30_section_list; s != NULL; s = s->next)
+        if ((s->sec) && in_bounds(s->sec, region))
+          bfd_pic30_report_auxflash_sections (s->sec, fp);
+  
+      /* print auxflash summary */
+      fprintf( fp, "\n                     Total auxflash memory used (bytes):"
+               "     %#10lx  (%ld) ",
+             actual_auxflash_memory_used, actual_auxflash_memory_used);
+      report_percent_used((actual_auxflash_memory_used * 2)/3,
+                          region->length, fp);
+      fprintf( fp, "\n");
+    } else {
+      fprintf(fp, "\nMEMORY region 'auxflash' not defined in linker script.\n");
+    }
   }
-
  
   /* the eedata report is optional */
   for (s = pic30_section_list; s != NULL; s = s->next)
@@ -391,7 +440,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
         bfd_pic30_report_eedata_sections (s->sec, fp);
 
     /* print eedata summary */
-    fprintf( fp, "\n                        Total data EEPROM used (bytes):"
+    fprintf( fp, "\n                 Total data EEPROM used (bytes):"
              "     %#10lx  (%ld) ",
              actual_eedata_memory_used, actual_eedata_memory_used);
   report_percent_used(actual_eedata_memory_used, region->length, fp);
@@ -413,7 +462,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
       bfd_pic30_report_data_sections (s->sec, fp);
 
   /* print data summary */
-  fprintf( fp, "\n                        Total data memory used (bytes):"
+  fprintf( fp, "\n                 Total data memory used (bytes):"
            "     %#10lx  (%ld) ",
          data_memory_used, data_memory_used);
   if (data_memory_used > 0)
@@ -444,7 +493,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   }
 
   /* print dynamic summary */
-  fprintf( fp, "\n                        Maximum dynamic memory (bytes):"
+  fprintf( fp, "\n                 Maximum dynamic memory (bytes):"
            " %#14lx  (%ld)\n\n",
          (max_heap + max_stack), (max_heap + max_stack));
 
@@ -476,7 +525,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
           bfd_pic30_report_memory_sections (region_name, s->sec, fp);
 
       /* print summary for this region */
-      fprintf( fp, "\n                    Total external memory used (bytes):"
+      fprintf( fp, "\n                 Total external memory used (bytes):"
                "     %#10lx  (%ld) ",
               external_memory_used, external_memory_used);
       if (external_memory_used > 0)
@@ -548,7 +597,8 @@ pic30_build_program_symbol_list(struct bfd_link_hash_entry *h, PTR p) {
       (!(h->u.def.section->flags & SEC_EXCLUDE) &&
       (PIC30_IS_CODE_ATTR(h->u.def.section) ||
        PIC30_IS_PSV_ATTR(h->u.def.section) ||
-       PIC30_IS_AUXFLASH_ATTR(h->u.def.section)))) {
+       PIC30_IS_AUXFLASH_ATTR(h->u.def.section) ||
+       PIC30_IS_AUXPSV_ATTR(h->u.def.section)))) {
 
     bfd_vma value = LINK_HASH_VALUE(h);
     pic30_add_to_symbol_list( list, h->root.string, value);

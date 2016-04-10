@@ -1,5 +1,5 @@
 /*
-** Linker Script for pic30
+** Linker Script for xc16
 */
 
 OUTPUT_ARCH("pic30")

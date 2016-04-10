@@ -1,8 +1,8 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
-  6 foo           00000002  0000f000  007ff000  0000027c  2**1
-                  CONTENTS, ALLOC, LOAD, EEDATA
+  5 foo           00000002  0000f000  007ff000  000000b0  2**1
+                  CONTENTS, ALLOC, LOAD, EEDATA, ABSOLUTE
 
 size of section .dinit (should be 2):    2
 total data memory used (should be 0):    0

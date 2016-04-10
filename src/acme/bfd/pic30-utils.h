@@ -40,7 +40,12 @@
   (sec)->lma = 0;                 \
   (sec)->entsize = 0;             \
   (sec)->auxflash = 0;            \
-  (sec)->packedflash = 0;}
+  (sec)->packedflash = 0;         \
+  (sec)->shared = 0;              \
+  (sec)->keep = 0;                \
+  (sec)->preserved = 0;           \
+  (sec)->auxpsv = 0;              \
+  (sec)->linker_generated = 0;}
 
 /*
 ** Macros used to set section attributes
@@ -111,6 +116,13 @@
   (sec)->page = 1;
 #define PIC30_SET_KEEP_ATTR(sec) \
   (sec)->flags |= SEC_KEEP;
+#define PIC30_SET_SHARED_ATTR(sec) \
+  (sec)->shared = 1;
+#define PIC30_SET_PRESERVED_ATTR(sec) \
+  (sec)->preserved = 1;
+#define PIC30_SET_AUXPSV_ATTR(sec) \
+  { (sec)->auxpsv = 1;             \
+  (sec)->flags |= (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_READONLY); }
 
 /* UNORDERED is used internally by the assembler
    and is not encoded in the object file */
@@ -133,7 +145,8 @@
   ((((sec)->flags & (SEC_ALLOC|SEC_LOAD|SEC_CODE|SEC_DATA|SEC_HAS_CONTENTS)) == SEC_ALLOC) && \
    ((sec)->persistent == 1))
 #define PIC30_IS_PSV_ATTR(sec) \
-  (((sec)->psv == 1) || (((sec)->flags & SEC_READONLY) == SEC_READONLY))
+  (((sec)->psv == 1) || ((((sec)->flags & SEC_READONLY) == SEC_READONLY)   \
+                         && sec->auxpsv != 1))
 #define PIC30_IS_EEDATA_ATTR(sec) \
   ((sec)->eedata == 1)
 #define PIC30_IS_MEMORY_ATTR(sec) \
@@ -178,6 +191,13 @@
   ((sec)->page == 1)
 #define PIC30_IS_KEEP_ATTR(sec) \
   (((sec)->flags & SEC_KEEP) == SEC_KEEP)
+#define PIC30_IS_SHARED_ATTR(sec) \
+  ((sec)->shared == 1)
+#define PIC30_IS_PRESERVED_ATTR(sec) \
+  ((sec)->preserved == 1)
+#define PIC30_IS_AUXPSV_ATTR(sec) \
+  (((sec)->auxpsv == 1) || ((((sec)->flags & SEC_READONLY) == SEC_READONLY) \
+                        &&  ((sec)->psv != 1)))
 
 /* UNORDERED is used internally by the assembler
    and is not encoded in the object file */
@@ -297,8 +317,63 @@ struct pic30_section
   asection *sec;
 };
 
+typedef struct pic30_codeguard_setting {
+  char *name;
+  unsigned int flags;
+  unsigned int mask;
+  unsigned int value;
+  bfd_vma address;
+  struct pic30_codeguard_setting *next;
+} codeguard_setting_type;
+
+typedef struct fuse_setting {
+  char *name;
+  bfd_vma address;
+  struct fuse_setting *next;
+} fuse_setting_type;
+
+enum pic30_ivt_record_flags {
+  ivt_seen =    1 << 0,                 /* this entry has been defined in the
+                                           linked application */
+  ivt_default = 1 << 1,                 /* this slot has been filled with the
+                                           default handler */
+};
+
+typedef struct pic30_ivt_record {
+  char *name;
+  char *sec_name;
+  bfd_vma offset;
+  bfd_boolean is_alternate_vector;
+  enum pic30_ivt_record_flags flags;
+  asection *ivt_sec;
+  struct pic30_ivt_record *next;
+} ivt_record_type;
+
 extern bfd_boolean pic30_has_fill_option;
 extern bfd_boolean pic30_partition_flash;
+extern bfd_boolean pic30_memory_usage;
+extern bfd_boolean pic30_pad_flash_option;
+extern bfd_vma pad_flash_arg;
+extern bfd_vma program_origin;
+extern bfd_vma auxflash_origin;
+extern bfd_vma program_length;
+extern bfd_vma auxflash_length;
+extern fuse_setting_type *fuse_settings;
+extern codeguard_setting_type *CG_settings;
+extern bfd_boolean pic30_has_CG_settings;
+extern bfd_vma aivt_base;
+extern bfd_vma ivt_base;
+extern ivt_record_type *ivt_records_list;
+extern const bfd_arch_info_type * global_PROCESSOR;
+extern char *application_id;
+extern bfd_vma ivt_base;
+extern bfd_vma aivt_base;
+extern struct pic30_section *inherited_sections;
+extern bfd_boolean pic30_inherit_application_info;
+extern char *inherited_application;
+extern bfd_boolean aivt_enabled;
+extern bfd_boolean pic30_has_floating_aivt;
+extern bfd_boolean pic30_has_fixed_aivt;
 
 /*****************************************************************************/
 

@@ -91,13 +91,16 @@ bfd_vma pic30_codeguard_setting_address(void *s);
 int pic30_add_selected_codeguard_option(void *);
 void pic30_dump_selected_codeguard_options(FILE *);
 char * pic30_unique_selected_configword_names(void);
-int pic30_decode_CG_settings(char *, unsigned short, int);
+int pic30_decode_CG_settings(char *, bfd_vma, unsigned short, int);
 unsigned short pic30_encode_CG_settings(char *);
 void pic30_get_aivt_settings(const bfd_arch_info_type *, int);
+bfd_boolean pic30_has_GSSK(void);
+void pic30_get_ivt(const bfd_arch_info_type *, int);
 
 #define ARCH_TABLE 1
 #define CODEGUARD_SETTINGS 2
 #define AIVT_SETTINGS 3
+#define IVT 4
 static void process_resource_file(unsigned int, unsigned int, int);
 
 
@@ -133,28 +136,28 @@ struct pic30_resource_info {
   struct pic30_resource_info *next;
 };
 
-typedef struct pic30_codeguard_setting {
-  char *name;
-  unsigned int flags;
-  unsigned int mask;
-  unsigned int value;
-  bfd_vma address;
-  struct pic30_codeguard_setting *next;
-} codeguard_setting_type;
-
 typedef struct codeguard_select_list {
   codeguard_setting_type *sel;
   struct codeguard_select_list *next;
 } codeguard_select_list_type;
 
-static codeguard_setting_type *CG_settings, *last_CG_setting;
+codeguard_setting_type *CG_settings, *last_CG_setting;
 static codeguard_select_list_type *CG_select, *last_CG_select;
+ivt_record_type *ivt_records_list;
+static ivt_record_type *last_ivt_record;
+
+fuse_setting_type *fuse_settings, *last_fuse_setting;
+
+bfd_boolean pic30_has_CG_settings = FALSE;
 
 /* This is the "last" of the generic devices, and must not
  * be declared const, because the table of devices read
  * from the resource file will be appended to it. */
+static bfd_arch_info_type generic_6 = 
+   ARCH ( 95,                "GENERIC-16DSP-CH", TRUE, 0, HAS_DSP | HAS_EDS | HAS_ISAV4);
+
 static bfd_arch_info_type generic_5 = 
-   ARCH ( 94,                "GENERIC-16DSP-EP", TRUE, 0, HAS_DSP | HAS_EDS | HAS_ECORE);
+   ARCH ( 94,                "GENERIC-16DSP-EP", TRUE, &generic_6, HAS_DSP | HAS_EDS | HAS_ECORE);
 
 static bfd_arch_info_type generic_4 = 
    ARCH ( 93,                "GENERIC-16BIT-EP", TRUE, &generic_5, HAS_EDS | HAS_ECORE);
@@ -177,7 +180,8 @@ static struct pic30_resource_info arch_flags_head[] = {
    { HAS_DSP, &generic_2, &arch_flags_head[3] },
    { HAS_EDS, &generic_3, &arch_flags_head[4] },
    { HAS_EDS | HAS_ECORE, &generic_4, &arch_flags_head[5] },
-   { HAS_DSP | HAS_EDS | HAS_ECORE, &generic_5, 0 }
+   { HAS_DSP | HAS_EDS | HAS_ECORE, &generic_5, &arch_flags_head[6] },
+   { HAS_DSP | HAS_EDS | HAS_ISAV4, &generic_6, 0 }
 };
 
 static int pic30_tool_version;
@@ -190,13 +194,14 @@ unsigned int aivtdis_mask = 0;
 unsigned int aivtloc_ptr = 0;
 unsigned int aivtloc_mask = 0;
 bfd_boolean pic30_has_floating_aivt = FALSE;
+bfd_boolean pic30_has_fixed_aivt = FALSE;
 
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
 
 int
 pic30_is_generic_machine(unsigned int machine) {
-  if ((machine == 0) || ((machine >= 90) && (machine <= 94))) return 1;
+  if ((machine == 0) || ((machine >= 90) && (machine <= 95))) return 1;
   return 0;
 }
 
@@ -393,7 +398,6 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
 
       read_value(rik_string, &d);
       read_value(rik_int, &d2);
-      // if (d2.v.i & IS_DEVICE_ID) 
       if ((d2.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
         next = xmalloc(sizeof(bfd_arch_info_type));
         memcpy(next, last_generic, sizeof(bfd_arch_info_type));
@@ -420,12 +424,17 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
     memset(CG_settings, 0, sizeof(codeguard_setting_type));
     last_CG_setting = CG_settings;
 
+    if (fuse_settings) free(fuse_settings);
+    fuse_settings = xmalloc(sizeof(fuse_setting_type));
+    memset(fuse_settings, 0, sizeof(fuse_setting_type));
+    last_fuse_setting = fuse_settings;
+
     if (debug)
       printf("  matching records (procID = %d) ", procID);
     for (record = 0; move_to_record(record); record++) {
       codeguard_setting_type *next;
       struct resource_data d2,d3,d4,d5,d6;
-
+      
       read_value(rik_string, &d); // name
       read_value(rik_int, &d2);   // flags
       read_value(rik_int, &d3);
@@ -457,6 +466,23 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
 
         last_CG_setting->next = next;
         last_CG_setting = next;
+        if (!pic30_has_CG_settings)
+          pic30_has_CG_settings = TRUE;
+      } 
+      else if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
+               (d2.v.i & MEM_CONFIG_WORD) &&
+               (d3.v.i == procID)) {
+        fuse_setting_type *next;
+
+        read_value(rik_int, &d4);
+        
+        next = xmalloc(sizeof(fuse_setting_type));
+        next->name = d.v.s;
+        next->address = d4.v.i;
+        next->next = 0;
+
+        last_fuse_setting->next = next;
+        last_fuse_setting = next;        
       } else free(d.v.s);
     }
   }
@@ -490,10 +516,85 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         }
       }  else free(d.v.s);
     }
-    close_rib();
-    if (debug)
-      printf("\n");
   }
+
+  if ((mode == IVT) && rib->field_count >= 5) {
+    int record;
+    if (ivt_records_list) {
+       /* free entire list */
+       ivt_record_type *e,*n;
+
+       for (e = ivt_records_list; e; e = n) {
+          n = e->next;
+          free(e);
+       }
+       ivt_records_list = 0;
+       last_ivt_record = 0;
+    }
+
+    for (record = 0; move_to_record(record); record++) {
+      struct resource_data d2,d3,d4;
+      ivt_record_type *next;
+
+      read_value(rik_string, &d);
+      read_value(rik_int, &d2);   // flags
+      read_value(rik_int, &d3);
+
+      if (((d2.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID)  &&
+          (d3.v.i == procID)) {
+        if (debug)
+          printf(".");
+
+        next = xmalloc(sizeof(ivt_record_type));
+
+        next->name = d.v.s;
+        next->offset = ((d2.v.i >> VECTOR_IDX_SHIFT) & 
+                        ((1 << (VECTOR_IDX_WIDTH+1)) - 1)) * 2;
+        if (d2.v.i & VECTOR_ALT_VECTOR) 
+          next->is_alternate_vector = TRUE;
+        else
+          next->is_alternate_vector = FALSE;
+
+        if (debug) {
+          printf("vector: %s @ 0x%4.4x %s\n",
+                 next->name,
+                 next->offset,
+                 next->is_alternate_vector ? "alternate" : "");
+        }
+        next->flags = 0;
+        next->next = 0;
+#if 1
+        if ((next->offset == 0) && strcmp(next->name,"_DefaultInterrupt") == 0) {
+           /* can't do anything without an offset... */
+           free(next);
+           free(d.v.s);
+           continue;
+        }
+#endif
+
+        if (ivt_records_list == 0) {
+          ivt_records_list = next;
+          last_ivt_record = next;
+        } else {
+          last_ivt_record->next = next;        
+          last_ivt_record = next;
+        }
+      }
+      else if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
+          (d3.v.i == procID)) {
+        read_value(rik_int, &d4);
+        if (d2.v.i & MEM_FIXED_IVT)
+          ivt_base = d4.v.i;
+        else if (d2.v.i & MEM_FIXED_AIVT) {
+          pic30_has_fixed_aivt = TRUE;
+          aivt_base = d4.v.i;
+        }
+      } else free(d.v.s);
+    }
+  }
+  close_rib();
+  if (debug)
+    printf("\n");
 }
 
 /*
@@ -728,15 +829,6 @@ char * pic30_unique_selected_configword_names(void)
 }
 
 /*
-** Do we support CodeGuard?
-**
-*/
-int pic30_have_CG_settings(void) {
-  /* if we have any setting at all, then we have them */
-  return CG_settings && CG_settings->name != 0;
-}
-
-/*
 ** Decode a CodeGuard config word,
 ** validate the data and update CG_select.
 **
@@ -744,20 +836,36 @@ int pic30_have_CG_settings(void) {
 **   1 = valid settings found (and no errors)
 **   0 = no valid settings found
 */
-int pic30_decode_CG_settings(char *name, unsigned short value, int debug)
+int pic30_decode_CG_settings(char *name, bfd_vma address, unsigned short value, int debug)
 {
   codeguard_setting_type *s;
+  fuse_setting_type *f;
   int matches = 0, errors = 0;
 
   if (!CG_settings) return 0;
+  if (!fuse_settings) return 0;
 
-  for (s = CG_settings; s ; s = s->next ) {
-#if 0
-    if (s) printf("  pic30_decode_CG_settings: %s, mask = %x, value = %x\n",
-                  s->name, s->mask, s->value);
-#endif
-    if (s && s->name && ((strncmp(s->name, name, strlen(name)) == 0) ||
-                    (strstr(s->name, name))))
+  if (address) {
+   for (f = fuse_settings ; f != NULL; f = f->next) {
+     if (f && (f->address == address)) {
+       for (s = CG_settings; s ; s = s->next ) {
+          if (s && s->name && strstr(s->name, f->name)) {
+            if ((value & s->mask) == s->value) {
+              if (pic30_add_selected_codeguard_option(s))
+               matches++;
+             else
+               errors++;
+             if (debug)
+               printf("  %s\n", s->name);
+            }
+          }
+        }
+      }
+   }
+  }
+  else {
+   for (s = CG_settings; s ; s = s->next ) {
+     if (s && s->name && (strncmp(s->name, name, strlen(name)) == 0))
      {
       if ((value & s->mask) == s->value) {
         if (pic30_add_selected_codeguard_option(s))
@@ -767,31 +875,57 @@ int pic30_decode_CG_settings(char *name, unsigned short value, int debug)
         if (debug)
           printf("  %s\n", s->name);
       }
-    }
+     }
+   }
   }
-
   if (matches && !errors)
     return 1;
   else
     return 0;
 }
 
+bfd_boolean pic30_has_GSSK(void)
+{
+  fuse_setting_type *f;
+
+  if (!fuse_settings) return FALSE;
+
+  for (f = fuse_settings; f != NULL ; f = f->next) {
+     if (f->name  && (strcmp(f->name, "GSSK") == 0)) 
+       return TRUE;
+  }
+  return FALSE;
+}
 
 unsigned short pic30_encode_CG_settings(char *name)
 {
   codeguard_select_list_type *s;
   unsigned short result = ~0;
+  unsigned short mask = 0;
 
   if (!CG_select) return result;
 
   for (s = CG_select; s; s = s->next ) {
-    if (strncmp(s->sel->name, name, strlen(name)) == 0)
+    if (strncmp(s->sel->name, name, strlen(name)) == 0) {
       result = (result & ~(s->sel->mask)) | s->sel->value;
+      if (strcmp(name, "FGS") == 0) {
+        if (strstr(s->sel->name, "GSS") || strstr(s->sel->name, "GWRP"))
+          mask |= s->sel->mask;
+      }
+    }
   }
-  if (pic30_is_ecore_machine(global_PROCESSOR) && 
+  if ((pic30_is_ecore_machine(global_PROCESSOR) ||
+      (pic30_is_isav4_machine(global_PROCESSOR))) && pic30_has_GSSK() && 
       (strcmp(name, "FGS") == 0)){
-        if ((result& 3) == 3)
-          result = result & 0xffcf;}
+        if ((result & mask ) == mask)
+          result = result & 0xFFCF; /* GSSK bits (4 & 5) of FGS should be 00
+                                        when GSS = 1 & GWRP = 1 */
+                                    /* XC16E-63 was entered to improve this
+                                       to have the position of the GSSK bits
+                                       in the resource file since it might
+                                       change from bits 4 & 5 to something
+                                       else. */
+        }
 
   return result;
 }
@@ -917,7 +1051,7 @@ pic30_is_auxflash_machine(const bfd_arch_info_type *proc)
   struct pic30_resource_info *f;
 
   if (proc == NULL)    /* if no processor has been specified,  */
-    return rc;         /*  assume it supports DMA V1 */
+    return 0;         /*  it's not an auxflash machine */
 
   for (f = arch_flags_head[0].next; f != NULL; f = f->next)
     if (proc == f->arch_info) {
@@ -1011,6 +1145,26 @@ pic30_is_epmp_machine(const bfd_arch_info_type *proc)
 }
 
 int
+pic30_is_isav4_machine(const bfd_arch_info_type *proc)
+{
+  extern bfd_boolean pic30_isa_v4;
+
+  int rc = 0;
+  struct pic30_resource_info *f;
+
+  if (proc == NULL)
+    return rc || pic30_isa_v4;
+
+  for (f = arch_flags_head[0].next; f != NULL; f = f->next)
+    if (proc == f->arch_info) {
+      rc = f->flags & HAS_ISAV4;
+    }
+
+  return rc || pic30_isa_v4;
+}
+
+
+int
 pic30_is_ecore_machine(const bfd_arch_info_type *proc)
 {
   int rc = 0;
@@ -1099,6 +1253,7 @@ pic30_display_as_data_memory_p(asection *sec)
     fDisplay = !PIC30_IS_CODE_ATTR(sec) && !PIC30_IS_AUXFLASH_ATTR(sec);
   else
     fDisplay = (!PIC30_IS_CODE_ATTR(sec) &&
+                !PIC30_IS_AUXPSV_ATTR(sec) &&
                 !PIC30_IS_PSV_ATTR(sec) &&
                 !PIC30_IS_EEDATA_ATTR(sec) &&
                 !PIC30_IS_AUXFLASH_ATTR(sec) &&
@@ -1112,8 +1267,9 @@ pic30_display_as_readonly_memory_p(asection *sec)
 {
   int fDisplay;
 
-    fDisplay = ((PIC30_IS_PSV_ATTR(sec) || PIC30_IS_EEDATA_ATTR(sec))
-                && ((sec->owner->flags & EXEC_P) == EXEC_P));
+    fDisplay = ((PIC30_IS_PSV_ATTR(sec) || PIC30_IS_AUXPSV_ATTR(sec) ||
+                 PIC30_IS_EEDATA_ATTR(sec)) && 
+                ((sec->owner->flags & EXEC_P) == EXEC_P));
 
   return(fDisplay);
 }
@@ -1135,5 +1291,24 @@ void pic30_get_aivt_settings(const bfd_arch_info_type *proc, int debug)
   if (debug)
     printf("\nGetting aivt settings for %s:\n", proc->printable_name);
   process_resource_file(AIVT_SETTINGS, proc->mach, debug);
+}
+
+/*
+** Get ivt from a resource file
+** for a particular processor.
+*/
+void pic30_get_ivt(const bfd_arch_info_type *proc, int debug)
+{
+  /* do nothing if no processor specified */
+  if (!proc) {
+    if (debug)
+      printf("\nCan't get the ivt settings; no target device specified.\n");
+    return;
+  }
+
+  /* else read the resource file */
+  if (debug)
+    printf("\nGetting the ivt for %s:\n", proc->printable_name);
+  process_resource_file(IVT, proc->mach, debug);
 }
 

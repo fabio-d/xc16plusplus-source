@@ -394,8 +394,8 @@ do_fixed_multiply (FIXED_VALUE_TYPE *f, const FIXED_VALUE_TYPE *a,
 		     &f->data.low, &f->data.high, !unsigned_p);
       overflow_p = fixed_saturate1 (f->mode, f->data, &f->data, sat_p);
     }
-  else
-    {
+  else 
+  {
       /* The result of multiplication expands to two double_int.  */
       double_int a_high, a_low, b_high, b_low;
       double_int high_high, high_low, low_high, low_low;
@@ -491,7 +491,7 @@ do_fixed_multiply (FIXED_VALUE_TYPE *f, const FIXED_VALUE_TYPE *a,
 	}
 
       overflow_p = fixed_saturate2 (f->mode, r, s, &f->data, sat_p);
-    }
+    } 
 
   f->data = double_int_ext (f->data, (!unsigned_p) + i_f_bits, unsigned_p);
   return overflow_p;

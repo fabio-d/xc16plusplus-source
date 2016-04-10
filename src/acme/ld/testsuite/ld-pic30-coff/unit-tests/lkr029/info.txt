@@ -3,12 +3,12 @@ lkr029: User-defined startup module:
 The objective of this test is to verify that
 a user-defined startup module replaces both
 the primary and alternate startup modules
-provided in libpic30.a.
+provided in libxc16.a.
 
 How to execute the test:
 
 1. Set the environment variable $ACME_BIN
-    to your pic30 tools binary directory
+    to your xc16 tools binary directory
 2. Export $ACME_BIN
 3. Edit the Configuration section of file "go"
 4. Execute "go"

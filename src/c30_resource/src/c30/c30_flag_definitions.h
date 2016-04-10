@@ -58,6 +58,8 @@
 #define HAS_DUALPARTITION 1 << 20
 #define HAS_DATAFLASH     1 << 21
 #define HAS_ALTREGS       1 << 22
+#define HAS_DUALCORE      1 << 23
+#define HAS_ISAV4         1 << 24 /* may be the same as HAS_DUALCORE? */
 
 /* IS_CODEGUARD_ID flags */
 #define FLASH         1 << 8
@@ -81,6 +83,12 @@
 #define CONFIG        1 << 25
 #define PARTITIONED   1 << 26
 
+/* IS_VECTOR_ID flags */
+#define VECTOR_ALT_VECTOR 1 << 8
+#define VECTOR_IDX_SHIFT  9
+#define VECTOR_IDX_WIDTH  9
+#define VECTOR_INDEX(X) (((X) & ((1 << (VECTOR_IDX_WIDTH+1))-1)) << VECTOR_IDX_SHIFT) 
+
 /* IS_MEM_ID flags */
 #define MEM_FLASH           1 << 8
 #define MEM_RAM             1 << 9
@@ -92,6 +100,9 @@
                                          validity of floating AIVT */
 #define MEM_AIVT_LOCATION   1 << 14 /* identifies fuse location for AIVT */
 #define MEM_SFR             1 << 15 /* length of the SFR */
+#define MEM_CONFIG_WORD     1 << 16 /* name and address of fuse */
+#define MEM_FIXED_IVT       1 << 17 /* loc of fixed IVT table (start,end) */
+#define MEM_FIXED_AIVT      1 << 18 /* loc of fixed IVT table (start,end) */
 
 /*
 ** Values that identify record types - bits [28-31]

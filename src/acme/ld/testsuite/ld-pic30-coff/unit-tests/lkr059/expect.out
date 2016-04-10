@@ -1,5 +1,5 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
 t2.s.scn2 0000000a 00000800 00000800
 t1.s.scn2 0000000a 00000820 00000820

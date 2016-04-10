@@ -392,6 +392,7 @@ mchp_load_configuration_definition(const char *fname)
 
             FIELD_SEPARATOR(next_field, break);
             spec->word->default_value = strtoul (next_field, &next_field, 16);
+
           }
 
           spec->word->partitioned = 0;
@@ -470,6 +471,7 @@ mchp_load_configuration_definition(const char *fname)
             strncpy (setting->name, next_field, len);
             setting->name [len] = '\0';
             next_field += len;
+        
           }
 
           setting->description =
@@ -559,6 +561,24 @@ mchp_load_configuration_definition(const char *fname)
       retval = 1;
     }
 
+  if (aux >= 0) {
+    /* This is the bit for handling aliasing. The linked list is stored in
+       reverse order so we have to keep track of the previous setting since the
+       alias are after the original in the linked list.*/
+  
+    struct mchp_config_specification *spec;
+    for (spec = mchp_configuration_values; spec ; spec = spec ->next) {
+      struct mchp_config_setting *setting;
+      struct mchp_config_setting *setting_prev;
+      for (setting = spec->word->settings; setting; setting = setting->next) {
+        if (setting->values) {
+           setting_prev = setting;
+        } else if (setting_prev) {
+           setting->values = setting_prev->values;
+        }
+      }
+    }
+  }
 
   fclose (fptr);
   return retval;

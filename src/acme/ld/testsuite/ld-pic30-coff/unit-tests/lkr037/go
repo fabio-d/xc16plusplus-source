@@ -8,7 +8,7 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GLD30=$PIC30_CD/bin/pic30-ld
+GLD30=$PIC30_CD/bin/xc16-ld
 SCRIPT_PATH=$PIC30_CD/support/generic/gld
 
 #

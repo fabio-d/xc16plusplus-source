@@ -60,6 +60,19 @@ bfd *init_bfd;
 unsigned char *init_data;
 asection *init_template = 0;
 
+bfd *rom_usage_bfd;
+unsigned char *rom_usage_data;
+asection *rom_usage_template = 0;
+
+bfd *ram_usage_bfd;
+unsigned char *ram_usage_data;
+asection *ram_usage_template = 0;
+
+bfd_vma program_origin;
+bfd_size_type program_length;
+bfd_vma auxflash_origin;
+bfd_size_type auxflash_length;
+
 /* Data Structures for the Default Interrupt Handler */
 bfd *isr_bfd;
 unsigned char *isr_data;
@@ -101,6 +114,8 @@ bfd_boolean pic30_has_smart_io_option = 0;
 bfd_boolean pic30_allocate = TRUE;
 bfd_boolean pic30_has_allocate_option = 0;
 bfd_boolean pic30_report_mem = 0;
+bfd_boolean pic30_mafrlcsj = 0;
+bfd_boolean pic30_mafrlcsj2 = 0;
 bfd_boolean pic30_isr = TRUE;
 bfd_boolean pic30_has_isr_option = 0;
 bfd_boolean pic30_has_fill_upper_option = 0;
@@ -123,6 +138,12 @@ bfd_boolean pic30_local_stack = TRUE;
 bfd_boolean pic30_psv_override = 0;
 bfd_boolean pic30_partition_flash = 0;
 bfd_boolean pic30_memory_summary = 0;
+bfd_boolean pic30_memory_usage = 0;
+bfd_boolean pic30_reserve_const = 0;
+unsigned long reserve_const_arg = 0;
+bfd_boolean pic30_pad_flash_option = 0;
+bfd_vma pad_flash_arg = 0;
+char *application_id;
 bfd_boolean pic30_isa_v4 = 0;
 
 /* Other state variables */
@@ -146,6 +167,10 @@ bfd_boolean dma_end_defined = FALSE;
 
 char * memory_summary_arg;
 
+bfd_vma ivt_base = 0;
+bfd_vma aivt_base = 0;
+bfd_boolean aivt_enabled = FALSE;
+
 extern struct bfd_hash_entry *pic30_undefsym_newfunc
   PARAMS ((struct bfd_hash_entry *, struct bfd_hash_table *, const char *));
 
@@ -168,7 +193,7 @@ extern bfd_reloc_status_type pic30_bfd_reloc_range_check
 static void bfd_pic30_report_sections
   PARAMS ((bfd *, asection *, PTR));
 
-static void bfd_pic30_clean_section_names
+void bfd_pic30_clean_section_names
   PARAMS ((bfd *, asection *, PTR));
 
 static void bfd_pic30_write_data_header
@@ -237,6 +262,9 @@ static bfd_reloc_status_type pic30_coff_perform_p_data_directive
 
 static bfd_vma bfd_pic30_handle
      PARAMS ((bfd *, bfd_vma, asymbol *));
+
+static int pic30_in_bounds
+     PARAMS ((asection *, bfd_vma , bfd_size_type));
 
 static bfd_reloc_status_type pic30_coff_perform_operators
    PARAMS ((bfd *, arelent *, asymbol *, PTR, asection *, bfd *, char **));
@@ -1575,6 +1603,23 @@ bfd_pic30_print_section_header()
          " -------", "-----", "------", "------", "------");
 }
 
+#define USER_IVT_DEFINED 1
+#define USER_AIVT_DEFINED 2
+static void
+bfd_pic30_locate_ivt(abfd, sect, fp) 
+  bfd *abfd;
+  asection *sect;
+  PTR fp;
+{
+  unsigned int *ptr = fp;
+  if (strcmp(sect->name,".ivt") == 0) {
+    *ptr =  *ptr | USER_IVT_DEFINED;
+  }
+  if (strcmp(sect->name,".aivt") == 0) {
+    *ptr =  *ptr | USER_AIVT_DEFINED;
+  }
+}
+
 /*
 ** This routine is called via bfd_map_over_sections().
 */
@@ -1601,7 +1646,7 @@ bfd_pic30_report_sections(abfd, sect, fp)
 **
 ** This routine is called via bfd_map_over_sections().
 */
-static void
+void
 bfd_pic30_clean_section_names(abfd, sect, fp) 
      bfd *abfd ATTRIBUTE_UNUSED ;
      asection *sect;
@@ -1643,17 +1688,17 @@ bfd_pic30_write_data_header(d, addr, len, format)
   /* write destination address */
   *(*d)++ = (unsigned char) (addr & 0xFF);
   *(*d)++ = (unsigned char) (addr >> 8);
-  *(*d)++ = pic30_fill_upper; *(*d)++ = 0; /* skip upper and phantom bytes */
+  *(*d)++ = 0; *(*d)++ = 0; /* skip upper and phantom bytes */
 
   /* write destination length */
   *(*d)++ = (unsigned char) (len & 0xFF);
   *(*d)++ = (unsigned char) (len >> 8);
-  *(*d)++ = pic30_fill_upper;; *(*d)++ = 0; /* skip upper and phantom bytes */
+  *(*d)++ = pic30_fill_upper; *(*d)++ = 0; /* skip upper and phantom bytes */
 
   /* write format code */
   *(*d)++ = (unsigned char) (format & 0xFF);
   *(*d)++ = (unsigned char) (format >> 8);
-  *(*d)++ = pic30_fill_upper;; *(*d)++ = 0; /* skip upper and phantom bytes */
+  *(*d)++ = pic30_fill_upper; *(*d)++ = 0; /* skip upper and phantom bytes */
 }
 
 
@@ -1804,12 +1849,25 @@ pic30_final_link (abfd, info)
   asection *dinit_sec;
   bfd_size_type dinit_size;
   file_ptr dinit_offset;
+  asection *rom_usage_sec;
+  bfd_size_type rom_usage_size;
+  file_ptr rom_usage_offset;
+  unsigned char *rom_dat;
+  asection *ram_usage_sec;
+  bfd_size_type ram_usage_size;
+  file_ptr ram_usage_offset;
+  unsigned char *ram_dat;
   unsigned char *dat;
   unsigned int i;
   struct pic30_section *s;
+  int fill_ivt_pass;
+  asymbol *default_interrupt=0;
+  unsigned int vector_table_status = 0;
 
   /* save a local copy for reloc range checking */
   link_output_bfd = abfd;
+
+  bfd_map_over_sections(abfd, &bfd_pic30_locate_ivt, &vector_table_status);
 
   /* call the generic final link routine */
   if (pic30_debug)
@@ -1873,7 +1931,7 @@ pic30_final_link (abfd, info)
 
       /* write zero terminator */
       *dat++ = 0; *dat++ = 0;
-      *dat++ = pic30_fill_upper; *dat++ = 0;
+      *dat++ = 0; *dat++ = 0;
 
       if (pic30_debug)
           printf("  last template addr written = %lx\n",
@@ -1927,11 +1985,288 @@ pic30_final_link (abfd, info)
        }
     }
 
+#define REPORT_AS_PROGRAM(s) \
+  (PIC30_IS_CODE_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || PIC30_IS_PSV_ATTR(s) ||\
+   PIC30_IS_PACKEDFLASH_ATTR(s))
+#define REPORT_AS_AUXFLASH(s) \
+  (PIC30_IS_AUXFLASH_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || \
+   PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
+#define REPORT_AS_DATA(s) \
+  (PIC30_SECTION_IN_DATA_MEMORY(s) || PIC30_IS_MEMORY_ATTR(s))
+
+   /* ROM usage contents */
+  if (pic30_memory_usage)
+   {
+      asection * sec;
+      bfd_vma b_addr = 0;
+      bfd_vma e_addr = 0;
+      rom_usage_sec = rom_usage_template->output_section;
+      rom_usage_size = rom_usage_template->_raw_size;
+      rom_usage_offset = rom_usage_template->output_offset;
+
+      if (!rom_usage_sec)
+        {
+          fprintf( stderr, "Link Error: could not access ROM usage template\n");
+          abort();
+        }
+
+      /* clear SEC_IN_MEMORY flag if inaccurate */
+      if ((rom_usage_sec->contents == 0) &&
+          ((rom_usage_sec->flags & SEC_IN_MEMORY) != 0))
+        rom_usage_sec->flags &= ~ SEC_IN_MEMORY;
+
+      /* get a copy of the (blank) template contents */
+      if (!bfd_get_section_contents (abfd, rom_usage_sec,
+                                     rom_usage_data,
+                                     rom_usage_offset*opb, rom_usage_size))
+        {
+          fprintf( stderr, "Link Error: can't get section %s contents\n",
+                   rom_usage_sec->name);
+          abort();
+        }
+      /* scan sections and write ROM usage ranges */
+      if (pic30_debug)
+          printf("\nWriting ROM sections uasage ranges:\n");
+
+      rom_dat = rom_usage_data;
+      for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
+        if ((REPORT_AS_PROGRAM(sec) &&
+             pic30_in_bounds(sec, program_origin, program_length)) ||
+            (pic30_is_auxflash_machine(global_PROCESSOR) &&
+             REPORT_AS_AUXFLASH(sec) &&
+             pic30_in_bounds(sec, auxflash_origin, auxflash_length)) &&
+            ((sec->flags & SEC_EXCLUDE) == 0)) {
+            b_addr = sec->lma;
+            e_addr = b_addr + (sec->_raw_size / 2) - 2;
+              *rom_dat++ = b_addr & 0xFF;
+              *rom_dat++ = (b_addr >> 8) & 0xFF;
+              *rom_dat++ = (b_addr >> 16) & 0xFF;
+              *rom_dat++ = 0;
+
+              *rom_dat++ = e_addr & 0xFF;
+              *rom_dat++ = (e_addr >> 8) & 0xFF;
+              *rom_dat++ = (e_addr >> 16) & 0xFF;
+              *rom_dat++ = 0;
+         }
+      /* write zero terminator */
+      *rom_dat++ = 0; *rom_dat++ = 0;
+      *rom_dat++ = 0; *rom_dat++ = 0;
+
+      if (pic30_debug)
+          printf("  last template addr written = %lx\n",
+                 (long unsigned int) rom_dat - 1);
+
+      /* insert buffer into the data template section */
+      if (!bfd_set_section_contents (abfd, rom_usage_sec,
+                                     rom_usage_data, rom_usage_offset*opb,
+                                     rom_usage_size))
+        {
+          fprintf( stderr, "Link Error: can't write section %s contents\n",
+                   rom_usage_sec->name);
+          abort();
+        }
+   }
+
+     /* RAM usage contents */
+  if (pic30_memory_usage)
+   {
+      asection * sec;
+      bfd_vma b_addr = 0;
+      bfd_vma e_addr = 0;
+      ram_usage_sec = ram_usage_template->output_section;
+      ram_usage_size = ram_usage_template->_raw_size;
+      ram_usage_offset = ram_usage_template->output_offset;
+
+      if (!ram_usage_sec)
+        {
+          fprintf( stderr, "Link Error: could not access RAM usage template\n");
+          abort();
+        }
+
+      /* clear SEC_IN_MEMORY flag if inaccurate */
+      if ((ram_usage_sec->contents == 0) &&
+          ((ram_usage_sec->flags & SEC_IN_MEMORY) != 0))
+        ram_usage_sec->flags &= ~ SEC_IN_MEMORY;
+
+      /* get a copy of the (blank) template contents */
+      if (!bfd_get_section_contents (abfd, ram_usage_sec,
+                                     ram_usage_data,
+                                     ram_usage_offset*opb, ram_usage_size))
+        {
+          fprintf( stderr, "Link Error: can't get section %s contents\n",
+                   ram_usage_sec->name);
+          abort();
+        }
+      /* scan sections and write RAM usage ranges */
+      if (pic30_debug)
+          printf("\nWriting RAM sections uasage ranges:\n");
+
+      ram_dat = ram_usage_data;
+      for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
+         if (REPORT_AS_DATA(sec) && ((sec->flags & SEC_EXCLUDE) == 0))
+          {
+            b_addr = sec->lma;
+            e_addr = b_addr + (sec->_raw_size / 2) - 2;
+              *ram_dat++ = b_addr & 0xFF;
+              *ram_dat++ = (b_addr >> 8) & 0xFF;
+              *ram_dat++ = (b_addr >> 16) & 0xFF;
+              *ram_dat++ = 0;
+
+              *ram_dat++ = e_addr & 0xFF;
+              *ram_dat++ = (e_addr >> 8) & 0xFF;
+              *ram_dat++ = (e_addr >> 16) & 0xFF;
+              *ram_dat++ = 0;
+         }
+      /* write zero terminator */
+      *ram_dat++ = 0; *ram_dat++ = 0;
+      *ram_dat++ = 0; *ram_dat++ = 0;
+
+      if (pic30_debug)
+          printf("  last template addr written = %lx\n",
+                 (long unsigned int) ram_dat - 1);
+
+      /* insert buffer into the data template section */
+      if (!bfd_set_section_contents (abfd, ram_usage_sec,
+                                     ram_usage_data, ram_usage_offset*opb,
+                                     ram_usage_size))
+        {
+          fprintf( stderr, "Link Error: can't write section %s contents\n",
+                   ram_usage_sec->name);
+          abort();
+        }
+   }
+
+  /* fill in ivt/aivt tables */
+  /*  pass 0 - fill in vectors slots for vectors the user has defined */
+  /*  pass 1 - fill the unseen slots with the defaulthandler */
+  /*  pass 1 may be skipped by using the --no-isr option */
+  for (fill_ivt_pass = 0; fill_ivt_pass <= pic30_isr; fill_ivt_pass++)
+  { asymbol **syms;
+    ivt_record_type *r;
+    ivt_record_type *next;
+    unsigned char *buf;
+    unsigned char *data;
+    char *sec_name;
+    asection *sec;
+    syms = bfd_get_outsymbols(abfd);
+    int delete_vector = 0;
+
+    if (syms || fill_ivt_pass == 1) {
+      asymbol *sym = 0;
+      int count;
+      for (count = 0; count < bfd_get_symcount(abfd) || fill_ivt_pass == 1;
+           count++) {
+        if (fill_ivt_pass == 0) {
+          sym = *syms;
+          if (sym->flags & BSF_DEBUGGING != 0) {
+            syms++;
+            continue;
+          }
+          if (strcmp(sym->name,"__DefaultInterrupt") == 0) {
+             default_interrupt = sym;
+          }
+        } else {
+          if (default_interrupt == 0) {
+            fprintf(stderr, "Link Error: can't find __DefaultInterrupt\n");
+            abort();
+          }
+          sym = default_interrupt;
+        }
+        for (r = ivt_records_list; r!= NULL; r = next) {
+           next = r->next;
+           if (r->name &&
+               /* check offset here too? - CAW */
+               (((fill_ivt_pass == 0) && (strcmp(r->name, sym->name+1) == 0)) ||
+                ((fill_ivt_pass == 1) && ((r->flags & ivt_seen) == 0)))) {
+             r->flags |= ivt_seen;
+             if (r->is_alternate_vector) {
+                if (vector_table_status & USER_AIVT_DEFINED) delete_vector=1;
+                if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
+                     (!pic30_has_floating_aivt && !pic30_has_fixed_aivt))
+                  continue;
+                sec_name = xmalloc(strlen(r->name) + strlen(".aivt.") + 2);
+                (void) sprintf(sec_name, ".aivt.%s", r->name);
+             } else {
+                if (vector_table_status & USER_IVT_DEFINED) delete_vector=1;
+                sec_name = xmalloc(strlen(r->name) + strlen(".ivt.") + 2);
+                (void) sprintf(sec_name, ".ivt.%s", r->name);
+             }
+             for (sec = abfd->sections; sec != NULL; sec = sec->next) {
+                if ((strcmp(sec->name, sec_name) == 0) && (sec->flags))  {
+                  if (delete_vector == 1) {
+                    sec->flags = 0;
+                    break;
+                  }
+                  buf = (unsigned char *) bfd_alloc (abfd, sec->_raw_size);
+                  if (!bfd_get_section_contents (abfd, sec, buf,
+                                       sec->output_offset*opb, sec->_raw_size))
+                  {
+                    fprintf(stderr,
+                            "Link Error: can't get section %s contents\n",
+                            sec->name);
+                    abort();
+                  }
+                  data = buf;
+                  bfd_vma value = sym->section->output_offset + sym->value +
+                                  sym->section->output_section->vma;
+                  *data++ = value & 0xFF;
+                  *data++ = (value >> 8) & 0xFF;
+                  *data++ = (value >> 16) & 0xFF;
+                  *data++ = 0;
+
+                  /* insert buffer into the ivt section */
+                  if (!bfd_set_section_contents(abfd, sec, buf,
+                                                sec->output_offset*opb,
+                                                sec->_raw_size))
+                  {
+                    fprintf(stderr,
+                            "Link Error: can't write section %s contents\n",
+                            sec->name);
+                    abort();
+                  }
+                  break;
+                } else if (strcmp(sec->name, sec_name) == 0) break;
+             }
+             if (sec == NULL) {
+               fprintf(stderr,"Link Error: can't write section %s\n",sec_name);
+               abort();
+             }
+             free(sec_name);
+           }
+        }
+        if (fill_ivt_pass > 0) break;
+        syms++;
+      }
+    }
+  }
+
+#if 0 /* need to do it earlier */
   /* clean the section names */
   if (pic30_debug)
     printf("\nCleaning section names:\n");
   bfd_map_over_sections(abfd, &bfd_pic30_clean_section_names, 0);
-          
+#endif
+
+#if 0
+  { asymbol **syms;
+    syms = bfd_get_outsymbols(abfd);
+    if (syms) {
+      asymbol *sym;
+      int count = 0;
+      while (count < bfd_get_symcount(abfd)) {
+        sym = *syms;
+        if ( (sym->flags & BSF_GLOBAL) &&
+            !(sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM | BSF_FILE))) {
+          sym->flags &= ~BSF_GLOBAL;
+          sym->flags |= BSF_WEAK;
+          //fprintf(stderr,"weaken: %s\n", sym->name);
+        }
+        syms++;
+        count++;
+      }
+    }
+  }
+#endif          
   if (pic30_debug)
     {
       printf("\nAfter pic30 final link:\n");
@@ -2122,7 +2457,8 @@ pic30_set_section_contents (abfd, section, location, offset, count)
      swapping 2 phantom bytes in data memory for 2
      padding bytes in program memory. */
   if ((section->link_order_head != 0) &&
-      (PIC30_IS_PSV_ATTR(section) | PIC30_IS_EEDATA_ATTR(section)))
+      (PIC30_IS_AUXPSV_ATTR(section) | PIC30_IS_PSV_ATTR(section) | 
+       PIC30_IS_EEDATA_ATTR(section)))
     {
       /* expand data image for program memory storage */
       unsigned int j = 0;
@@ -3684,6 +4020,7 @@ pic30_coff_perform_operators (abfd, reloc_entry, symbol, data,
           ** absolute symbols (absolute sections).
           */
           if (!PIC30_IS_CODE_ATTR(symbol->section) &&
+              !PIC30_IS_AUXPSV_ATTR(symbol->section) &&
               !PIC30_IS_PSV_ATTR(symbol->section) &&
               !PIC30_IS_EEDATA_ATTR(symbol->section) &&
 	      !PIC30_IS_AUXFLASH_ATTR(symbol->section) &&
@@ -4009,6 +4346,7 @@ pic30_coff_perform_p_operators (abfd, reloc_entry, symbol, data,
           ** absolute symbols (absolute sections).
           */
           if (!PIC30_IS_CODE_ATTR(symbol->section) &&
+              !PIC30_IS_AUXPSV_ATTR(symbol->section) &&
               !PIC30_IS_PSV_ATTR(symbol->section) &&
               !PIC30_IS_EEDATA_ATTR(symbol->section) &&
 	      !PIC30_IS_AUXFLASH_ATTR(symbol->section) &&
@@ -4714,5 +5052,30 @@ pic30_coff_perform_generic (abfd, reloc_entry, symbol, data,
     }
 }
 
+static int
+pic30_in_bounds (asection *sec, bfd_vma region_origin,
+                 bfd_size_type region_length)
+{
+  bfd_vma start;
+  bfd_size_type len;
+  int result = 0;
+
+  if (REPORT_AS_DATA(sec)) {
+    start = sec->vma;
+    len  = sec->_raw_size / 2;
+  }
+  else {
+    start = sec->lma;
+    len  = sec->_raw_size / 2;
+  }
+
+  if (start >= region_origin)
+    result = 1;
+
+  if ((start + len) > (region_origin + region_length))
+    result = 0;
+
+  return result;
+}
 /*****************************************************************************/
 

@@ -138,6 +138,9 @@ enum strip_action
 
 /* Which symbols to remove.  */
 static enum strip_action strip_symbols;
+#ifdef PIC30
+static char *keep_named=0;
+#endif
 
 enum locals_action
   {
@@ -281,6 +284,7 @@ static char *prefix_alloc_sections_string = 0;
 #define OPTION_FORMATS_INFO (OPTION_PREFIX_ALLOC_SECTIONS + 1)
 #ifdef PIC30
 #define OPTION_STRIP_LOCAL_ABSOLUTE (OPTION_FORMATS_INFO + 1)
+#define OPTION_KEEP_NAMED (OPTION_STRIP_LOCAL_ABSOLUTE + 1)
 #endif
 
 /* Options to handle if running as "strip".  */
@@ -304,6 +308,7 @@ static struct option strip_options[] =
   {"strip-debug", no_argument, 0, 'S'},
 #ifdef PIC30
   {"strip-local-absolute", no_argument, 0, OPTION_STRIP_LOCAL_ABSOLUTE},
+  {"keep-named", required_argument, 0, OPTION_KEEP_NAMED},
 #endif
   {"strip-unneeded", no_argument, 0, OPTION_STRIP_UNNEEDED},
   {"strip-symbol", required_argument, 0, 'N'},
@@ -549,6 +554,7 @@ parse_flags (s)
       PARSE_FLAG ("rom", SEC_ROM);
       PARSE_FLAG ("share", SEC_SHARED);
       PARSE_FLAG ("contents", SEC_HAS_CONTENTS);
+      PARSE_FLAG ("exclude", SEC_EXCLUDE);
 #undef PARSE_FLAG
       else
 	{
@@ -559,7 +565,7 @@ parse_flags (s)
 	  copy[len] = '\0';
 	  non_fatal (_("unrecognized section flag `%s'"), copy);
 	  fatal (_("supported flags: %s"),
-		 "alloc, load, noload, readonly, debug, code, data, rom, share, contents");
+		 "alloc, load, noload, readonly, debug, code, data, rom, share, contents, exclude");
 	}
 
       s = snext;
@@ -922,6 +928,13 @@ filter_symbols (abfd, obfd, osyms, isyms, symcount)
 #ifdef PIC30
       if (keep && local_absolute && (strip_symbols == STRIP_LOCAL_ABSOLUTE))
         keep = 0;
+#endif
+
+#ifdef PIC30
+      if (keep_named && 
+           (strstr(sym->name, keep_named) ||
+            strstr(sym->name, "__ext_attr_") ||
+            strstr(sym->name, "__linked_"))) keep = 1;
 #endif
 
       if (keep && (flags & BSF_GLOBAL) != 0
@@ -1721,6 +1734,31 @@ setup_section (ibfd, isection, obfdarg)
       goto loser;
     }
 
+#ifdef PIC30
+  /* copy PIC30 specific flags */
+#define COPY_FLAG(flag) osection->flag = isection->flag
+  COPY_FLAG(near);
+  COPY_FLAG(persistent);
+  COPY_FLAG(xmemory);
+  COPY_FLAG(ymemory);
+  COPY_FLAG(psv);
+  COPY_FLAG(eedata);
+  COPY_FLAG(memory);
+  COPY_FLAG(absolute);
+  COPY_FLAG(reverse);
+  COPY_FLAG(dma);
+  COPY_FLAG(boot);
+  COPY_FLAG(secure);
+  COPY_FLAG(heap);
+  COPY_FLAG(stack);
+  COPY_FLAG(eds);
+  COPY_FLAG(page);
+  COPY_FLAG(auxflash);
+  COPY_FLAG(packedflash);
+  /* linker_generated flag - not required to copy */
+#undef COPY_FLAG
+#endif
+
   size = bfd_section_size (ibfd, isection);
   if (copy_byte >= 0)
     size = (size + interleave - 1) / interleave;
@@ -2184,6 +2222,9 @@ strip_main (argc, argv)
 #ifdef PIC30
 	case OPTION_STRIP_LOCAL_ABSOLUTE:
 	  strip_symbols = STRIP_LOCAL_ABSOLUTE;
+          break;
+	case OPTION_KEEP_NAMED:
+	  keep_named = optarg;
           break;
 #endif
 	case 0:

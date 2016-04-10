@@ -1631,11 +1631,13 @@ dwarf2_finish ()
      - or, there is a user-provided .debug_info section which could
        reference the file table in the .debug_line section we generate
        below.  */
+#if 0
 #if defined(TC_PIC30)
   if (global_DEBUGINFO == NO_GEN_DEBUGINFO)
   {
     return;
   }
+#endif
 #endif
   if (all_segs == NULL
       && debug_type != DEBUG_DWARF2

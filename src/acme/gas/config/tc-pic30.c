@@ -66,9 +66,9 @@ static int pic30_address_align_power PARAMS ((bfd_vma));
 static  bfd_vma pic30_address PARAMS ((bfd_vma));
 static  bfd_vma pic30_element_size PARAMS ((bfd_vma));
 extern int pic30_is_valid_attributes PARAMS ((unsigned int, unsigned char));
-extern unsigned int pic30_is_auxpsv PARAMS ((void));
 int subseg_readonly PARAMS ((segT));
 int subseg_psv PARAMS ((segT));
+int subseg_auxpsv PARAMS ((segT));
 int subseg_eedata PARAMS ((segT));
 int subseg_dma PARAMS ((segT));
 int subseg_code PARAMS ((segT));
@@ -465,6 +465,9 @@ const pseudo_typeS md_pseudo_table[] =
    { "ds.w",       pic30_not_supported, (int) DS_W       },
    { "ds.x",       pic30_not_supported, (int) DS_X       },
    { "error",      pic30_error,         0                },
+#ifdef OBJ_ELF
+   { "file",        (void (*) PARAMS ((int))) dwarf2_directive_file,0 },
+#endif
    { "fill",       pic30_fill,          0                },
    { "fillupper",  pic30_fillupper,     0                },
    { "fillvalue",  pic30_fillvalue,     0                },
@@ -475,6 +478,9 @@ const pseudo_typeS md_pseudo_table[] =
    { "int",        pic30_cons,          PIC30_CONS_INT   },
    { "incbin",     pic30_incbin,        0                },
    { "include",    pic30_include,       0                },
+#ifdef OBJ_ELF
+   { "loc",        dwarf2_directive_loc,0                },
+#endif
    { "long",       pic30_cons,          PIC30_CONS_LONG  },
    { "memory",     pic30_memory,        0                },
    { "octa",       pic30_not_supported, (int) OCTA       },
@@ -772,7 +778,19 @@ subseg_psv(segT sec)
   return ((bfd_get_section_flags (stdoutput, sec) & SEC_READONLY) != 0) |
     sec->psv;
 }
-
+/******************************************************************************
+ *
+ *   Return whether the specified segment is thought to hold PSV data.
+ *
+ *   Note: this is a clone of subseg_text_p() in subsegs.c
+ *
+ ******************************************************************************/
+int
+subseg_auxpsv(segT sec)
+{
+  return ((bfd_get_section_flags (stdoutput, sec) & SEC_READONLY) != 0) |
+    sec->auxpsv;
+}
 /******************************************************************************
  *
  *   Return whether the specified segment is thought to hold EEDATA data.
@@ -916,6 +934,7 @@ pic30_flags (ignore)
         now_seg->eds = 0;
         now_seg->page = 0;
 	now_seg->auxflash = 0;
+        now_seg->linker_generated = 0;
       }
 
       if (flag_debug) {
@@ -1285,16 +1304,6 @@ pic30_attribute (is_section)
       }                                                             \
       index++;
 #include "pic30-attributes.h"
-
-      if (strcmp(name, "auxpsv")== 0)
-	{
-	   is_valid |= 1; 
-	  attribute_map |= pic30_is_auxpsv();
-	  PIC30_SET_AUXFLASH_ATTR(sec);
-	  PIC30_SET_PAGE_ATTR(sec);
-	 
-	}
-
       if (!is_valid) {
         as_bad (_("\'%s\' is not a valid attribute name"), name);
         demand_empty_rest_of_line ();
@@ -1350,7 +1359,8 @@ pic30_attribute (is_section)
   if (PIC30_IS_YMEMORY_ATTR(sec) && !pic30_is_dsp_machine(global_PROCESSOR))
     report_target_attribute_err ("Y");
 
-  if (PIC30_IS_ABSOLUTE_ATTR(sec) && PIC30_IS_PSV_ATTR(sec) )
+  if (PIC30_IS_ABSOLUTE_ATTR(sec) && 
+      (PIC30_IS_PSV_ATTR(sec) || PIC30_IS_AUXPSV_ATTR(sec)))
     sec->vma = PSV_BASE + (sec->lma & PSV_MASK);
 
   if (access_entry && !(PIC30_IS_CODE_ATTR(sec) || PIC30_IS_AUXFLASH_ATTR(sec)))
@@ -3504,9 +3514,9 @@ pic30_section (push)
      /* process the attribute list, if any */
      pic30_attribute (1);
 
-     /*all info sections should not be aligned xc16-392*/
-     if (PIC30_IS_INFO_ATTR(sec))
-       sec->alignment_power = 0;
+    /*all info sections should not be aligned xc16-392*/
+    if (PIC30_IS_INFO_ATTR(sec))
+      sec->alignment_power = 0;
 
      if (flag_debug)
        printf ("    pic30_section::new_attribute_map = 0x%x\n",
@@ -4375,6 +4385,7 @@ md_begin (void)
    int is_ecore = pic30_is_ecore_machine(global_PROCESSOR);
    int is_dualpartition = pic30_is_dualpartition_machine(global_PROCESSOR);
    int is_contexts = pic30_is_contexts_machine(global_PROCESSOR);
+   int is_isav4 = pic30_is_isav4_machine(global_PROCESSOR);
 
    if (flag_debug)
       printf ("--> md_begin::begin\n");
@@ -4392,17 +4403,14 @@ md_begin (void)
    { int add_me = 0;
 
       add_me = ((opcode->flags & F_ECORE) && (is_ecore));
-      add_me |= ((opcode->flags & F_FCORE) && (!is_ecore));
+      add_me |= ((opcode->flags & F_FCORE) && (!is_ecore) && (!is_isav4));
       add_me |= (((opcode->flags & F_ECORE) == 0) && 
+                 ((opcode->flags & F_ISAV4) == 0) &&
 		 ((opcode->flags & F_FCORE) == 0));
-      if (((opcode->flags & F_DUALPARTITION) && !is_dualpartition) ||
-          ((opcode->flags & F_ISAV4) && !pic30_isa_v4) ||
-          ((opcode->flags & F_CONTEXTS) && !is_contexts)) {
-        /* don't add a dualpartition instruction if we have one partition */
-        /* don't add ISA v4 insn if --isa=v4 is not used */
-        /* don't add  contexts insn if the device does not have contexts */
-        add_me = 0;
-      }
+      add_me |= ((opcode->flags & F_ISAV4) && (is_isav4));
+      add_me |= ((opcode->flags & F_DUALPARTITION) && (is_dualpartition));
+      add_me |= ((opcode->flags & F_CONTEXTS) && (is_contexts));
+
       if ((strcmp (opcode->name, previous_name) != 0) && add_me)
       {
          if (flag_debug) 
@@ -7387,6 +7395,7 @@ pic30_find_opcode_based_on_operands (opcode, operands, operand_count,
    const struct pic30_opcode * last_opcode = pic30_opcodes + pic30_num_opcodes;
    unsigned char match = FALSE;
    int is_ecore = pic30_is_ecore_machine(global_PROCESSOR);
+   int is_isav4 = pic30_is_isav4_machine(global_PROCESSOR);
 
    if (flag_debug)
       printf ("--> pic30_find_opcode_based_on_operands (..., %d, ...)::begin\n",
@@ -7424,8 +7433,18 @@ pic30_find_opcode_based_on_operands (opcode, operands, operand_count,
       if (current_opcode->number_of_operands < *min_operands)
          *min_operands = current_opcode->number_of_operands;
 
-      if ((current_opcode->flags & F_ECORE) && !is_ecore) continue;
-      if ((current_opcode->flags & F_FCORE) && is_ecore) continue;
+      /* opcode good iff one of these conditions match:
+         1. isav4 insn and isav4 device
+         2. ecore insn and ecore device
+         3. fcore insn and not an isav4 and not an ecore device
+         4. available for all devices */
+      if (((current_opcode->flags & F_ISAV4) && is_isav4) ||
+          ((current_opcode->flags & F_ECORE) && is_ecore) ||
+          ((current_opcode->flags & F_FCORE) && !is_ecore && !is_isav4) ||
+          ((current_opcode->flags & (F_ISAV4|F_ECORE|F_FCORE)) == 0))
+        (void)0;
+      else
+        continue;
 
       if (current_opcode->number_of_operands == operand_count)
       {
@@ -7980,9 +7999,9 @@ pic30_create_2word_insn (opcode, operands)
    } /* switch (insn_word1) */
 
 #if defined(OBJ_ELF)
+  dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD*2/2);
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
-    dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD*2/2);
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
     frag_align(0, 0, 0);
@@ -8436,9 +8455,9 @@ pic30_create_insn (opcode, operands, operand_count)
    md_number_to_chars (output_frag, insn, PIC30_SIZE_OF_PROGRAM_WORD);
 
 #if defined(OBJ_ELF)
+  dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD/2);
   if (global_DEBUGINFO != NO_GEN_DEBUGINFO)
   {
-    dwarf2_emit_insn(PIC30_SIZE_OF_PROGRAM_WORD/2);
     frag_wane (frag_now);  /* close off the current frag */
     frag_new (0);          /* and start a new one */
     frag_align(0, 0, 0);
@@ -9323,6 +9342,7 @@ md_apply_fix3(fixP, valueP, seg)
                       (!subseg_psv (add_segment)) &&
                       (!subseg_eedata (add_segment)) &&
 		      (!subseg_auxflash (add_segment)) &&
+                      (!subseg_auxpsv (add_segment)) &&
                       (add_segment != text_section) &&
                       (add_segment != undefined_section))
                      as_bad_where (fixP->fx_file, fixP->fx_line,
@@ -9373,6 +9393,7 @@ md_apply_fix3(fixP, valueP, seg)
                  else if ((subseg_code (add_segment)) ||
 			  (subseg_auxflash (add_segment)) ||
                           (subseg_psv (add_segment)) ||
+                          (subseg_auxpsv (add_segment)) ||                      
                           (subseg_eedata (add_segment)) ||
                           (subseg_memory (add_segment)) ||
                           (subseg_heap (add_segment)) ||
@@ -9398,6 +9419,7 @@ md_apply_fix3(fixP, valueP, seg)
                   else if ((pic30_is_dma_machine(global_PROCESSOR) == 2)&&                                 ((subseg_code (add_segment)) ||
                             (subseg_auxflash (add_segment)) || 
                             (subseg_psv (add_segment)) ||
+                            (subseg_auxpsv (add_segment)) ||
                             (subseg_eedata (add_segment)) ||
                             (subseg_memory (add_segment)) ||
                             (subseg_heap (add_segment)) ||

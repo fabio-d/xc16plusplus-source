@@ -8,8 +8,8 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
 GLD=$PIC30_CD/support/dsPIC30F/gld
 
 #

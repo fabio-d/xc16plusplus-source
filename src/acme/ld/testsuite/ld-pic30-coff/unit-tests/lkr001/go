@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -W"
-GLD30=$PIC30_CD/bin/pic30-ld
-OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GAS30="$PIC30_CD/bin/xc16-as -W"
+GLD30=$PIC30_CD/bin/xc16-ld
+OBJDUMP=$PIC30_CD/bin/xc16-objdump
 INCLUDE_PATH=$PIC30_CD/support/dsPIC30F/inc
 
 #
@@ -68,12 +68,12 @@ $OBJDUMP -s --start=0xf80000 t.exe >> temp
 sed -e 's/<.*>/<sym>/' temp > test.out
 
 #rm -f t2.s t2.o
-#$PIC30_CD/bin/pic30-gcc t2.c
+#$PIC30_CD/bin/xc16-gcc t2.c
 #err=$?
 #if [ $vflag = "on" ]; then
 #    clear
 #    echo
-#    echo "$PIC30_CD/bin/pic30-gcc t2.c"
+#    echo "$PIC30_CD/bin/xc16-gcc t2.c"
 #    echo $err
 #fi
 

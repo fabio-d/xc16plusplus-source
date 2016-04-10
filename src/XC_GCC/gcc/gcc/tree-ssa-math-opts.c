@@ -1753,7 +1753,7 @@ execute_optimize_widening_mul (void)
 static bool
 gate_optimize_widening_mul (void)
 {
-  return flag_expensive_optimizations && optimize;
+  return optimize;
 }
 
 struct gimple_opt_pass pass_optimize_widening_mul =

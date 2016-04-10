@@ -8,12 +8,12 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30="$PIC30_CD/bin/pic30-gcc -omf=elf"
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
-BIN2HEX="$PIC30_CD/bin/pic30-bin2hex -omf=elf"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -69,7 +69,7 @@ LINE4=`awk '/2222/ { print $2,$3,$4,$5 }' temp`
 
 {
 echo
-echo "excerpt from pic30-objdump (-s option):"
+echo "excerpt from xc16-objdump (-s option):"
 echo
 echo "$LINE1"
 echo "$LINE2"

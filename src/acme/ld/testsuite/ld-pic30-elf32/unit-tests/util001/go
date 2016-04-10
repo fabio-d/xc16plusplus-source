@@ -8,16 +8,16 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-GAR30="$PIC30_CD/bin/pic30-ar -omf=elf"
-GNM30="$PIC30_CD/bin/pic30-nm -omf=elf"
-STRINGS=$PIC30_CD/bin/pic30-strings
-STRIP="$PIC30_CD/bin/pic30-strip -omf=elf"
-RANLIB="$PIC30_CD/bin/pic30-ranlib -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
-READELF=$PIC30_CD/bin/pic30-readelf
-BIN2HEX="$PIC30_CD/bin/pic30-bin2hex -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GAR30="$PIC30_CD/bin/xc16-ar -omf=elf"
+GNM30="$PIC30_CD/bin/xc16-nm -omf=elf"
+STRINGS=$PIC30_CD/bin/xc16-strings
+STRIP="$PIC30_CD/bin/xc16-strip -omf=elf"
+RANLIB="$PIC30_CD/bin/xc16-ranlib -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
+READELF=$PIC30_CD/bin/xc16-readelf
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
 
 #
 # END CONFIGURATION
@@ -70,7 +70,7 @@ if [ $vflag = "on" ]; then
     echo $err
 fi
 
-# verify pic30-ar
+# verify xc16-ar
 $GLD30 -o t.exe t3.o t.a
 err=$?
 if [ $vflag = "on" ]; then
@@ -80,13 +80,13 @@ if [ $vflag = "on" ]; then
 fi
 {
 if [ $err -eq 0 ]; then
-        echo "pic30-ar      PASS"
+        echo "xc16-ar      PASS"
 else
-        echo "pic30-ar      FAIL"
+        echo "xc16-ar      FAIL"
 fi
 } > test.out
 
-# verify pic30-objdump
+# verify xc16-objdump
 $OBJDUMP -d -j .text t.exe > temp
 if [ $vflag = "on" ]; then
     echo
@@ -96,13 +96,13 @@ fi
 diff -w temp expect1 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-objdump PASS"
+        echo "xc16-objdump PASS"
 else
-        echo "pic30-objdump FAIL"
+        echo "xc16-objdump FAIL"
 fi
 } >> test.out
 
-# verify pic30-bin2hex
+# verify xc16-bin2hex
 $BIN2HEX t.exe -v | head -14 > temp
 if [ $vflag = "on" ]; then
     echo
@@ -112,13 +112,13 @@ fi
 diff -w temp expect2 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-bin2hex PASS"
+        echo "xc16-bin2hex PASS"
 else
-        echo "pic30-bin2hex FAIL"
+        echo "xc16-bin2hex FAIL"
 fi
 } >> test.out
 
-# verify pic30-nm
+# verify xc16-nm
 $GNM30 t.a > temp
 if [ $vflag = "on" ]; then
     echo
@@ -128,13 +128,13 @@ fi
 diff -w temp expect3 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-nm      PASS"
+        echo "xc16-nm      PASS"
 else
-        echo "pic30-nm      FAIL"
+        echo "xc16-nm      FAIL"
 fi
 } >> test.out
 
-#verify pic30-ranlib
+#verify xc16-ranlib
 $RANLIB t.a
 $GNM30 -s t.a > temp
 if [ $vflag = "on" ]; then
@@ -145,14 +145,14 @@ fi
 {
 diff -w temp expect4 > /dev/null
 if [ $? -eq 0 ]; then
-        echo "pic30-ranlib  PASS"
+        echo "xc16-ranlib  PASS"
 else
-        echo "pic30-ranlib  FAIL"
+        echo "xc16-ranlib  FAIL"
 fi
 } >> test.out
 
-#verify pic30-size
-#$PIC30_CD/bin/pic30-size -A t.exe > temp
+#verify xc16-size
+#$PIC30_CD/bin/xc16-size -A t.exe > temp
 #if [ $vflag = "on" ]; then
 #    echo
 #    cat temp
@@ -161,13 +161,13 @@ fi
 #diff -w temp expect5 > /dev/null
 #{
 #if [ $? -eq 0 ]; then
-#        echo "pic30-size    PASS"
+#        echo "xc16-size    PASS"
 #else
-#        echo "pic30-size    FAIL"
+#        echo "xc16-size    FAIL"
 #fi
 #} >> test.out
 
-#verify pic30-strings
+#verify xc16-strings
 $STRINGS -tx -a -f t1.o > temp
 if [ $vflag = "on" ]; then
     echo
@@ -177,13 +177,13 @@ fi
 diff -w temp expect6 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-strings PASS"
+        echo "xc16-strings PASS"
 else
-        echo "pic30-strings FAIL"
+        echo "xc16-strings FAIL"
 fi
 } >> test.out
 
-#verify pic30-strip
+#verify xc16-strip
 $STRIP t1.o
 $GNM30 t1.o >temp 2>temp2
 if [ $vflag = "on" ]; then
@@ -193,13 +193,13 @@ fi
 grep "no symbols" temp2 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-strip   PASS"
+        echo "xc16-strip   PASS"
 else
-        echo "pic30-strip   FAIL"
+        echo "xc16-strip   FAIL"
 fi
 } >> test.out
 
-#verify pic30-readelf
+#verify xc16-readelf
 $READELF -a t.exe > temp
 #remove symbols that change too easily
 sed -e 's/.*DEFAULT.*/<sym>/' temp > temp2
@@ -213,12 +213,11 @@ fi
 diff -w temp2 expect7 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-readelf PASS"
+        echo "xc16-readelf PASS"
 else
-        echo "pic30-readelf FAIL"
+        echo "xc16-readelf FAIL"
 fi
 } >> test.out
-
 
 # print the header
 echo

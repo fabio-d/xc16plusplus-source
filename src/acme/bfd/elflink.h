@@ -80,7 +80,9 @@ static size_t elf_link_sort_relocs
   PARAMS ((bfd *, struct bfd_link_info *, asection **));
 static bfd_boolean elf_section_ignore_discarded_relocs
   PARAMS ((asection *));
+
 #if PIC30
+#include "pic30-utils.h"
 bfd_boolean (*pic30_elf_link_check_archive_element)
   PARAMS ((char *, bfd *, struct bfd_link_info *));
 void (*pic30_update_object_compatibility)
@@ -92,7 +94,7 @@ extern int pic30_debug;
 extern int pic30_select_objects;
 extern unsigned int global_signature_mask;
 extern unsigned int global_signature_set;
-
+extern bfd_boolean pic30_application_id;
 #endif
 
 /* Given an ELF BFD, add symbols to the global hash table as
@@ -311,7 +313,6 @@ elf_link_add_archive_symbols (abfd, info)
     goto error_return;
 
 #if PIC30
-#if defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1)
   { static smartio_run=0;
 
     
@@ -321,7 +322,6 @@ elf_link_add_archive_symbols (abfd, info)
       pic30_smartio_symbols(info);
     }
   }
-#endif
 #endif
 
   symdefs = bfd_ardata (abfd)->symdefs;
@@ -1367,11 +1367,14 @@ elf_link_add_object_symbols (abfd, info)
   bfd_boolean dt_needed;
   struct elf_link_hash_table * hash_table;
   bfd_size_type amt;
+  char * alias_name;
+  asection *new_sec;
 
 #ifdef PIC30
   unsigned int signature_pairs = 0;
   unsigned int signature_mask = 0;
   unsigned int signature_set = 0;
+  unsigned int create_application_id = 0;
 #endif
 
 #ifdef PIC30
@@ -1794,7 +1797,12 @@ elf_link_add_object_symbols (abfd, info)
 
       /* We store a pointer to the hash table entry for each external
 	 symbol.  */
-      amt = extsymcount * sizeof (struct elf_link_hash_entry *);
+#ifdef PIC30
+      if (pic30_application_id)
+        amt = extsymcount  * 2 * sizeof (struct elf_link_hash_entry *);
+      else 
+#endif
+        amt = extsymcount * sizeof (struct elf_link_hash_entry *);
       sym_hash = (struct elf_link_hash_entry **) bfd_alloc (abfd, amt);
       if (sym_hash == NULL)
 	goto error_free_sym;
@@ -1826,6 +1834,13 @@ elf_link_add_object_symbols (abfd, info)
 
   weaks = NULL;
 
+#ifdef PIC30
+  for (create_application_id = 0; 
+       create_application_id <= pic30_application_id;
+       create_application_id++) 
+#endif
+  {
+
   ever = extversym != NULL ? extversym + extsymoff : NULL;
   for (isym = isymbuf, isymend = isymbuf + extsymcount;
        isym < isymend;
@@ -1844,6 +1859,9 @@ elf_link_add_object_symbols (abfd, info)
       bfd_boolean override;
       unsigned int old_alignment;
       bfd *old_bfd;
+      ivt_record_type *r;
+      ivt_record_type *next;
+
 
       override = FALSE;
 
@@ -1861,6 +1879,16 @@ elf_link_add_object_symbols (abfd, info)
 	     screws this up.  */
 	  continue;
 	}
+#ifdef PIC30
+      else if (bind == STB_MIDPROC)
+        {
+          if (isym->st_shndx != SHN_UNDEF
+              && isym->st_shndx != SHN_COMMON)
+            flags = BSF_GLOBAL | BSF_SHARED;
+        }
+      else if (bind == STB_HIPROC)
+        flags = BSF_WEAK | BSF_SHARED;
+#endif
       else if (bind == STB_GLOBAL)
 	{
 	  if (isym->st_shndx != SHN_UNDEF
@@ -2051,11 +2079,92 @@ elf_link_add_object_symbols (abfd, info)
 		}
 	    }
 
-	  if (! elf_merge_symbol (abfd, info, name, isym, &sec, &value,
-				  sym_hash, &skip, &override,
-				  &type_change_ok, &size_change_ok,
-				  dt_needed))
-	    goto error_free_vers;
+#ifdef PIC30
+          if (((sec->linked == 1) && (sec->shared != 1)) &&
+              (ELF_ST_BIND(isym->st_info) != STB_MIDPROC) &&
+              (ELF_ST_BIND(isym->st_info) != STB_HIPROC))
+            continue;
+
+          // only need to do this once
+          if (create_application_id == 0) for (r = ivt_records_list; r != NULL; r = next) {
+            next = r->next;
+            if (r->name && (strcmp(r->name, name+1) == 0)) {
+              asection *ivt_sec;
+              char *sec_name;
+ 
+              r->flags |= ivt_seen;
+              /* CAW - aivt_enabled is not yet valid,
+                   make the section and we will fix it later */
+              if (r->is_alternate_vector) {
+#if 0
+                if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
+                    (!pic30_has_floating_aivt && !pic30_has_fixed_aivt)) {
+                  break;
+                } else 
+#endif
+                {
+                  sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+                  (void) sprintf(sec_name, ".aivt.%s", r->name);
+                }
+              }
+              else 
+              {
+                sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+                (void) sprintf(sec_name, ".ivt.%s", r->name);
+              }
+              r->sec_name = sec_name;
+              ivt_sec = bfd_make_section(abfd, sec_name);
+              ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD |
+                               SEC_CODE | SEC_ALLOC | SEC_KEEP);
+              PIC30_SET_ABSOLUTE_ATTR(ivt_sec);
+              ivt_sec->linker_generated = 1;
+              ivt_sec->_raw_size = ivt_sec->_cooked_size = 4;
+              r->ivt_sec = ivt_sec;
+              if ((r->is_alternate_vector) && (pic30_has_fixed_aivt)) {
+                if (aivt_base == 0) {
+                  fprintf(stderr,"Link Error: can't locate alternate vector "
+                                   "table base address\n");
+                  abort();
+                }
+               
+                bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
+              } else {
+                if (ivt_base == 0) {
+                   fprintf(stderr,"Link Error: can't locate vector "
+                                  "table base address\n");
+                   abort();
+                }
+                bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
+              }
+            }
+          }
+#endif
+
+#ifdef PIC30         
+#if 0
+          if (((sec->linked == 1) && (sec->shared != 1)) &&
+              (ELF_ST_BIND(isym->st_info) != STB_MIDPROC) &&
+              (ELF_ST_BIND(isym->st_info) != STB_HIPROC))
+            continue;
+#endif                
+          if (create_application_id) {
+            if ((sec->linked == 0) && (sec != bfd_abs_section_ptr)) {
+              alias_name = xmalloc( strlen(name) + strlen(application_id) + 2);
+              (void) sprintf(alias_name, "_%s%s", application_id, name);
+              if (! elf_merge_symbol(abfd, info, alias_name, isym, &sec, &value,
+                                     sym_hash, &skip, &override,
+                                     &type_change_ok, &size_change_ok,
+                                     dt_needed))
+                goto error_free_vers;
+            } else continue;
+          } else 
+#endif
+
+          if (! elf_merge_symbol (abfd, info, name, isym, &sec, &value,
+                                  sym_hash, &skip, &override,
+                                  &type_change_ok, &size_change_ok,
+                                  dt_needed))
+            goto error_free_vers;
 
 	  if (skip)
 	    continue;
@@ -2097,10 +2206,18 @@ elf_link_add_object_symbols (abfd, info)
 	    h->verinfo.verdef = &elf_tdata (abfd)->verdef[vernum - 1];
 	}
 
+#ifdef PIC30
+      if (create_application_id) {
+        if (! (_bfd_generic_link_add_one_symbol
+               (info, abfd, alias_name, flags | BSF_SHARED, sec, value, (const char *) NULL,
+                FALSE, collect, (struct bfd_link_hash_entry **) sym_hash)))
+        goto error_free_vers;
+      } else
+#endif
       if (! (_bfd_generic_link_add_one_symbol
-	     (info, abfd, name, flags, sec, value, (const char *) NULL,
-	      FALSE, collect, (struct bfd_link_hash_entry **) sym_hash)))
-	goto error_free_vers;
+             (info, abfd, name, flags, sec, value, (const char *) NULL,
+              FALSE, collect, (struct bfd_link_hash_entry **) sym_hash)))
+        goto error_free_vers;
 
       h = *sym_hash;
       while (h->root.type == bfd_link_hash_indirect
@@ -2406,6 +2523,8 @@ elf_link_add_object_symbols (abfd, info)
         }
 #endif
     }
+  }
+
 
   /* Now that all the symbols from this input file are created, handle
      .symver foo, foo@BAR such that any relocs against foo become foo@BAR.  */

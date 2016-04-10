@@ -8,12 +8,12 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30="$PIC30_CD/bin/pic30-gcc -omf=elf"
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
-BIN2HEX="$PIC30_CD/bin/pic30-bin2hex -omf=elf"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -31,7 +31,7 @@ do
 done
 
 rm -f t1.out t2.out
-$GCC30 t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--smart-io
+$GCC30 t1.c t2.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--smart-io
 err=$?
 if [ $vflag = "on" ]; then
     echo
@@ -54,7 +54,7 @@ if [ $vflag = "on" ]; then
 fi
 
 
-$GCC30 t1.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
+$GCC30 t1.c t2.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
 err=$?
 if [ $vflag = "on" ]; then
     echo

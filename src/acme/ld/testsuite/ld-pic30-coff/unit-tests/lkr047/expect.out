@@ -1,5 +1,5 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
   3 foo           00000002  00000800  00000800  00000000  2**1
                   ALLOC, PERSIST

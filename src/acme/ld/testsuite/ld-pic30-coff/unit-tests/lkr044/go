@@ -23,12 +23,12 @@ do
 done
 
 rm -f t1.out t2.out
-$PIC30_CD/bin/pic30-gcc t1.s -o t.exe -Tt.gld -Wa,-W -Wl,-Map=t.map,--no-check-sections
+$PIC30_CD/bin/xc16-gcc t1.s -o t.exe -Tt.gld -Wa,-W -Wl,-Map=t.map,--no-check-sections
 err=$?
 if [ $vflag = "on" ]; then
     clear
     echo
-    echo "$PIC30_CD/bin/pic30-gcc t1.s -o t.exe -Tt.gld -Wl,-Map=t.map,--no-check-sections"
+    echo "$PIC30_CD/bin/xc16-gcc t1.s -o t.exe -Tt.gld -Wl,-Map=t.map,--no-check-sections"
     echo $err
     echo
     head -31 t.map

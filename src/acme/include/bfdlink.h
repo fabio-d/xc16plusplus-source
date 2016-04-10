@@ -63,7 +63,11 @@ enum bfd_link_hash_type
   bfd_link_hash_defweak,	/* Symbol is weak and defined.  */
   bfd_link_hash_common,		/* Symbol is common.  */
   bfd_link_hash_indirect,	/* Symbol is an indirect link.  */
-  bfd_link_hash_warning		/* Like indirect, but warn if referenced.  */
+  bfd_link_hash_warning,	/* Like indirect, but warn if referenced.  */
+#ifdef PIC30
+  bfd_link_hash_shared_defined, /* Symbol is defined and shared. */
+  bfd_link_hash_shared_defweak, /* Symbol is weak, defined, and shared. */
+#endif
 };
 
 enum bfd_link_common_skip_ar_aymbols

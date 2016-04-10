@@ -15,8 +15,7 @@ Disassembly of section __FBORPOR:
 
 00f80004 <__FBORPOR>:
   f80004:	56 34 12    	.pword 0x123456
-Disassembly of section .ivt:
-Disassembly of section .aivt:
 Disassembly of section .isr:
 Disassembly of section .text:
 Disassembly of section .dinit:
+Disassembly of section .shared.dinit:

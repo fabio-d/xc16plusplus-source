@@ -19,10 +19,10 @@ UFRACT_MODE (USQ, 4, 31); /* .31 */
 UFRACT_MODE (UDQ, 4, 31); /* .31 */
 UFRACT_MODE (UTQ, 4, 31); /* .31 */
 
-ACCUM_MODE (HA, 6, 9, 31); /* s8.31 */
-ACCUM_MODE (SA, 6, 9, 31); /* s8.31 */
-ACCUM_MODE (DA, 6, 9, 31); /* s8.31 */
-ACCUM_MODE (TA, 6, 9, 31); /* s8.31 */
+ACCUM_MODE (HA, 6, 8, 31); /* s8.31 */
+ACCUM_MODE (SA, 6, 8, 31); /* s8.31 */
+ACCUM_MODE (DA, 6, 8, 31); /* s8.31 */
+ACCUM_MODE (TA, 6, 8, 31); /* s8.31 */
 
 UACCUM_MODE (UHA, 6, 9, 31); /* 9.31 */
 UACCUM_MODE (USA, 6, 9, 31); /* 9.31 */

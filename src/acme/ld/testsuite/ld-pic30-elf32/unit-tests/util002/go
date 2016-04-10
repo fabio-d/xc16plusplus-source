@@ -8,8 +8,8 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-OBJDUMP="$PIC30_CD/bin/pic30-objdump -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
 #
 # END CONFIGURATION
@@ -37,7 +37,7 @@ if [ $vflag = "on" ]; then
     echo $err
 fi
 
-# verify pic30-objdump
+# verify xc16-objdump
 $OBJDUMP -d t1.o > test.out
 if [ $vflag = "on" ]; then
     echo

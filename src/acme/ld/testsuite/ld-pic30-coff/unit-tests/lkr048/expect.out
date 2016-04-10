@@ -1,5 +1,5 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
   3 foo           00000002  00008100  00000100  00000368  2**1
                   CONTENTS, ALLOC, LOAD, READONLY, PSV

@@ -9,7 +9,7 @@ Note: this test shares source code with coff001.
 How to execute the test:
 
 1. Set the environment variable $PIC30_CD
-    to your pic30 CD image directory
+    to your xc16 CD image directory
 2. Export $PIC30_CD
 3. Execute "go"
 

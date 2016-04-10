@@ -1301,7 +1301,6 @@ typedef struct sec
   unsigned int need_finalize_relax:1;
 
   /* Usused bits.  */
-  unsigned int flag12:1;
 
   /* dsPIC-specific bits */
   unsigned int near:1;
@@ -1323,6 +1322,11 @@ typedef struct sec
   unsigned int stack:1;
   unsigned int auxflash:1;
   unsigned int packedflash:1;
+  unsigned int linked:1;
+  unsigned int shared:1;
+  unsigned int preserved:1;
+  unsigned int auxpsv:1;
+  unsigned int linker_generated:1;
 
   /* End of internal packed boolean fields.  */
 
@@ -3822,6 +3826,9 @@ typedef struct symbol_cache_entry
 
   /* This symbol is thread local.  Used in ELF.  */
 #define BSF_THREAD_LOCAL  0x40000
+
+  /* This symbol is shared among Co-resident applications */
+#define BSF_SHARED  0x80000
 
   flagword flags;
 

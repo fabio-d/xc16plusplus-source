@@ -1,5 +1,5 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
 bss_1000 00001000 00001000 00001000
 ALLOC, ABSOLUTE   

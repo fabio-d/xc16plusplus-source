@@ -116,7 +116,8 @@ static bfd_vma get_max_stack() {
 
   /* stack max */
   if (has_psvpag_reference) {
-    if (pic30_is_ecore_machine(global_PROCESSOR)) {
+    if (pic30_is_ecore_machine(global_PROCESSOR) ||
+        pic30_is_isav4_machine(global_PROCESSOR)) {
       if (pic30_local_stack)
         max_stack = LOCAL_DATA_LIMIT;
       else 
@@ -125,7 +126,8 @@ static bfd_vma get_max_stack() {
   } else {
     max_stack = DATA_BUS_LIMIT;
     if (pic30_is_eds_machine(global_PROCESSOR)) {
-      if (!pic30_is_ecore_machine(global_PROCESSOR))
+      if (!pic30_is_ecore_machine(global_PROCESSOR) &&
+          !pic30_is_isav4_machine(global_PROCESSOR))
         max_stack = LOCAL_DATA_LIMIT;
     }
   }
@@ -318,6 +320,8 @@ allocate_memory() {
                   ->input_section.section->_raw_size / opb;
         
         if (!sec || !sec->name) continue;
+
+        if (sec->linked) continue;
         
         if (next && (next->header.type == lang_output_section_statement_enum)) {
           next_sec = next->output_section_statement.bfd_section;
@@ -327,6 +331,8 @@ allocate_memory() {
           }
           
           if (!next_sec || !next_sec->name) continue;
+
+          if (next_sec->linked) continue;
           
           if (next->output_section_statement.children.head->
                 input_section.section->_raw_size == 0) continue;
@@ -473,7 +479,7 @@ allocate_program_memory() {
 static int
 allocate_auxflash_memory() {
   struct memory_region_struct *region;
-  unsigned int has_mask = auxflash;
+  unsigned int has_mask = auxflash | auxpsv;
   unsigned int hasnot_mask = 0;
   int result = 0;
 
@@ -552,7 +558,7 @@ allocate_auxflash_memory() {
 static int
 allocate_data_memory() {
   struct memory_region_struct *region;
-  struct pic30_section *s;
+  struct pic30_section *s, *next;
   unsigned int has_mask = data|bss|persist|stack|heap;
   unsigned int hasnot_mask = code|eedata|auxflash;
   int result = 0;
@@ -575,6 +581,13 @@ allocate_data_memory() {
   region = region_lookup ("data");
 
   build_free_block_list(region, has_mask, hasnot_mask);
+
+  /*
+  ** an initially empty list of blocks that can be shared in data memory
+  */
+#ifdef PIC30ELF
+  pic30_init_memory_list (&shared_data_memory_blocks);
+#endif
 
   /* save the region index because CodeGuard needs it later */
   alloc_region_index = RAMx;
@@ -608,11 +621,16 @@ allocate_data_memory() {
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_stack);
   result |= locate_sections(stack, 0, region);
 
-  /* if any sections are left in the allocation list, report an error */
-  s = alloc_section_list;
-  if (s && s->next) {
-    report_allocation_error(s->next);
-    result = 1;
+  /* if any not previously linked sections are left in the allocation list,
+     report an error */
+  for (s = alloc_section_list; s != NULL; s = next) {
+
+    next = s->next;
+    if (s->sec && s->sec->linked == 0){
+      report_allocation_error(s->next);
+      result = 1;
+      break;
+    }
   }
 
   /* save the free blocks list */
@@ -875,10 +893,14 @@ static int
 is_group_section(asection *sec)
 {
   int i = 0;
+#if 0
+  if (PIC30_IS_ABSOLUTE_ATTR(sec) && !pic30_reserve_const)
+    return 0;
+#endif
   if (PIC30_IS_PSV_ATTR(sec))
     return 1;
 
-  if (PIC30_IS_AUXFLASH_ATTR(sec) && PIC30_IS_PAGE_ATTR(sec))
+  if (PIC30_IS_AUXPSV_ATTR(sec))
     return 1;
 
   while (group_sections[i]) {  /* null terminated list */
@@ -895,7 +917,7 @@ group_section_size(struct pic30_section *g)
   struct pic30_section *s,*next;
   bfd_vma result = 0;
   
-  for (s = g; s != NULL; s = next) {
+  for (s = alloc_section_list; s != NULL; s = next) {
     next = s->next;
     if (s->sec == 0)
       continue;
@@ -911,7 +933,7 @@ group_section_alignment(struct pic30_section *g)
   struct pic30_section *s,*next;
   bfd_vma result = g->sec->alignment_power;
 
-  for (s = g; s != NULL; s = next) {
+  for (s = alloc_section_list; s != NULL; s = next) {
     next = s->next;
     if (s->sec == 0)
       continue;
@@ -959,10 +981,9 @@ group_section_alignment(struct pic30_section *g)
   if (pic30_debug)
     printf("  group section \"%s\", total size = %lx\n",
            s->sec->name, len);
-  if ((PIC30_IS_PSV_ATTR(s->sec) ||
-      (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) && 
+  if ((PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) && 
       (len > 0x8000)) {
-    einfo(_("%X Link Error: PSV section \'%s\' exceeds 32K bytes"
+    einfo(_("%X Link Error: PSV or AUXPSV section \'%s\' exceeds 32K bytes"
             " (actual size = %u).\n"),
           s->sec->name, len);
     pic30_remove_group_from_section_list(alloc_section_list,s->sec->name);
@@ -984,7 +1005,13 @@ group_section_alignment(struct pic30_section *g)
     pic30_remove_group_from_section_list(alloc_section_list,s);
     return 1;
   }
-
+#ifdef PIC30ELF  
+  if (pic30_reserve_const) {
+    if (reserve_const_arg == 0)
+      reserve_const_arg = 0x8000;
+    len = reserve_const_arg;
+  }
+#endif
   /* validate absolute, paged sections */
   if (PIC30_IS_ABSOLUTE_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)) {
     int valid;
@@ -1065,15 +1092,15 @@ group_section_alignment(struct pic30_section *g)
   if (PIC30_IS_PACKEDFLASH_ATTR(s->sec))
    s->sec->_raw_size = s->sec->_cooked_size =((s->sec->_raw_size * 3) / 4);
 #endif
-   len = s->sec->_raw_size / opb;
+
+  len = s->sec->_raw_size / opb;
   bfd_vma align = s->sec->alignment_power;
   bfd_vma addr = s->sec->lma;
   int result = 0;
   /* validate the size of PSV sections */
-  if ((PIC30_IS_PSV_ATTR(s->sec) ||
-       (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)))&& 
-       (len > 0x8000)) {
-    einfo(_("%X Link Error: PSV section \'%s\' exceeds 32K bytes"
+  if ((PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) && 
+      (len > 0x8000)) {
+    einfo(_("%X Link Error: PSV or AUXPSV section \'%s\' exceeds 32K bytes"
             " (actual size = %u).\n"),
           s->sec->name, len);
     pic30_remove_from_section_list(alloc_section_list,s);
@@ -1134,6 +1161,12 @@ group_section_alignment(struct pic30_section *g)
       addr = b->addr + b->offset;
       update_section_info(addr,s,region);
       create_remainder_blocks(free_blocks, b, len);
+#ifdef PIC30ELF
+      if (PIC30_IS_SHARED_ATTR(s->sec) && PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
+        pic30_add_to_memory_list(shared_data_memory_blocks,
+                                 b->addr+b->offset, len);
+      }
+#endif
       remove_free_block(b);
     } else {
       if (locate_options != NO_LOCATE_OPTION) {
@@ -1192,24 +1225,29 @@ locate_sections(unsigned int mask, unsigned int block,
   for (s = alloc_section_list; s != NULL; s = next) {
   
     next = s->next;
-    if (s->sec && (s->attributes & mask) &&
-        ((s->attributes & block) == 0)) {
-      bfd_vma len = s->sec->_raw_size / opb;
-
-      if (pic30_debug) {
-        char *attr = pic30_section_attr_string(s->sec);
-
-        printf("  input section \"%s\", len = %lx, %s\n",
-               s->sec->name, len, attr ? attr : "");
-        if (attr) free(attr);
-      }
-      
-      if (is_group_section(s->sec))
-        result |= locate_group_section(s, region);
-      else
-        result |= locate_single_section(s, region);
+    if (s->sec && (PIC30_IS_DATA_ATTR(s->sec) ||PIC30_IS_BSS_ATTR(s->sec)) &&
+          !PIC30_IS_ABSOLUTE_ATTR(s->sec) && (s->sec->linked == 1)) {
+      update_section_info(s->sec->lma, s, region);
     }
+    else {
+      if (s->sec && (s->attributes & mask) &&
+          ((s->attributes & block) == 0)) {
+        bfd_vma len = s->sec->_raw_size / opb;
 
+        if (pic30_debug) {
+          char *attr = pic30_section_attr_string(s->sec);
+
+          printf("  input section \"%s\", len = %lx, %s\n",
+                 s->sec->name, len, attr ? attr : "");
+          if (attr) free(attr);
+        }
+      
+        if (is_group_section(s->sec))
+          result |= locate_group_section(s, region);
+        else
+          result |= locate_single_section(s, region);
+      }
+    }
   }
   return result;
 } /* locate_sections() */
@@ -1299,12 +1337,13 @@ select_free_block(struct pic30_section *s, unsigned int len,
 
   unsigned int align_power = align;
 
+  unsigned int opb = bfd_octets_per_byte (output_bfd);
   const char *err_str1 = "Link Error: Could not allocate section";
   const char *err_str2 = "Link Warning: Allocating section";
   struct bfd_link_hash_entry *h;
-  struct pic30_memory *b;
-  bfd_vma option1, limit1;
-  bfd_vma option2, limit2;
+  struct pic30_memory *b = 0;
+  bfd_vma option1, old_option1, new_option1, limit1;
+  bfd_vma option2, old_option2, new_option2, limit2;
   bfd_boolean option1_valid, option2_valid;
 
   /*
@@ -1313,7 +1352,11 @@ select_free_block(struct pic30_section *s, unsigned int len,
   if (PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
 
     /* avoid BOOT if we don't belong there */
+    /* (CAW) linker_generated currently implies a vector table; the aivt
+         belongs at the end of the boot sector
+       This test didn't happen before... */
     if (BOOT_IS_ACTIVE(alloc_region_index) &&
+        (s->sec->linker_generated == 0) &&
         !PIC30_IS_BOOT_ATTR(s->sec) &&
         OVERLAPS_BOOT(s->sec->lma, len))
       einfo(_("%s \'%s\' at 0x%v"
@@ -1343,8 +1386,12 @@ select_free_block(struct pic30_section *s, unsigned int len,
           }
         }
 
-
-    b = pic30_static_assign_memory(free_blocks, len, s->sec->lma);
+#ifdef PIC30ELF
+    if (PIC30_IS_SHARED_ATTR(s->sec) && PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
+      b = pic30_static_assign_memory(shared_data_memory_blocks,len,s->sec->lma);
+    }
+#endif
+    if (!b) b = pic30_static_assign_memory(free_blocks, len, s->sec->lma);
     if (!b) {
         if ((s->sec->flags & SEC_NEVER_LOAD) ||
             (command_line.check_section_addresses == FALSE))
@@ -1357,7 +1404,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
       return b;
   }
 
-   if (PIC30_IS_PSV_ATTR(s->sec) || 
+   if (PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec) ||
        (PIC30_IS_EDS_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) {
      if ((len == 0x8000) && pic30_has_psv_trap_errata) {
        einfo(_("%X Link Error: Could not allocate section \'%s\'"
@@ -1536,6 +1583,26 @@ select_free_block(struct pic30_section *s, unsigned int len,
         break;
       }
 
+      /* this check is necessary for Co-resident applications */
+      /* to make sure persistent data is not over written at any time */
+
+      if (PIC30_IS_PERSIST_ATTR(s->sec) || PIC30_IS_SHARED_ATTR(s->sec)) {
+        old_option1 = option1;
+        new_option1 = option1;
+        struct pic30_section *ls;
+        for (ls = alloc_section_list; ls != NULL; ls = ls->next) {
+           if (ls->sec && (ls->sec->linked == 1)) {
+            if (((ls->sec->lma <= old_option1) && (old_option1 < (ls->sec->lma +
+                                           (ls->sec->_raw_size / opb))))) {
+               new_option1 = ls->sec->lma + (ls->sec->_raw_size / opb);
+               break;
+             }
+           }
+        }
+        if (new_option1 != old_option1)
+          continue;
+        else option1= new_option1;
+      }
 
       if (PIC30_IS_YMEMORY_ATTR(s->sec) && !VALID_Y(option1, len)) {
         option1 = ydata_base - 2;  /* skip ahead */
@@ -1544,8 +1611,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
         continue;
       }
 
-      if ((PIC30_IS_PSV_ATTR(s->sec) || 
-          (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) && 
+      if ((PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) && 
           ((0 <= (option1 % PSV_BOUNDARY)) && ((option1 % PSV_BOUNDARY)< 4 ))) {
         if (pic30_has_psv_trap_errata) {
           option1 += 4 - (option1 % PSV_BOUNDARY) - 2;
@@ -1557,8 +1623,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
         }
       }
 
-      if ((PIC30_IS_PSV_ATTR(s->sec) ||
-          (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)))
+      if ((PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec))
           && !VALID_PSV((bfd_vma)option1, len)) {
         option1 = NEXT_PSV_PAGE(option1) - 2;
         if (pic30_has_psv_trap_errata)
@@ -1695,6 +1760,26 @@ select_free_block(struct pic30_section *s, unsigned int len,
 
         /* aligned address is valid, check other attributes */
 
+      /* this check is necessary for Co-resident applications */
+      /* to make sure persistent data is not over written at any time */
+      if (PIC30_IS_PERSIST_ATTR(s->sec) || PIC30_IS_SHARED_ATTR(s->sec)) {
+        old_option2 = option2;
+        new_option2 = option2;
+        struct pic30_section *ls;
+        for (ls = alloc_section_list; ls != NULL; ls = ls->next) {
+           if (ls->sec && (ls->sec->linked == 1)) {
+            if (((ls->sec->lma <= old_option2) && (old_option2 < (ls->sec->lma +
+                                           (ls->sec->_raw_size / opb))))) {
+               new_option2 = ls->sec->lma - len;
+               break;
+             }
+           }
+        }
+        if (new_option2 != old_option2) 
+          continue;
+        else option2= new_option2;
+      }
+
         if (PIC30_IS_XMEMORY_ATTR(s->sec) && !VALID_X(option2, len)) {
           option2 = ydata_base - len + 2;  /* skip back */
           if (pic30_debug)
@@ -1723,8 +1808,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
           break;
         }
         
-        if ((PIC30_IS_PSV_ATTR(s->sec) ||
-            PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec)) 
+        if ((PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) 
             && !VALID_PSV((bfd_vma)option2, len)) {
           if (option2 < PSV_BOUNDARY) {
             option2_valid = FALSE;
@@ -1986,8 +2070,7 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
   os->processed = TRUE; /* new in 3.0 */
 
   if (PIC30_IS_PSV_ATTR(s->sec) || PIC30_IS_EEDATA_ATTR(s->sec) ||
-      PIC30_IS_PACKEDFLASH_ATTR(s->sec) ||
-      (PIC30_IS_AUXFLASH_ATTR(s->sec) && PIC30_IS_PAGE_ATTR(s->sec))) {
+      PIC30_IS_PACKEDFLASH_ATTR(s->sec) || PIC30_IS_AUXPSV_ATTR(s->sec)) {
     load_addr_tree = xmalloc(sizeof(etree_type));
     load_addr_tree->value.type.node_class = etree_value;
     load_addr_tree->value.value = s->sec->lma;
@@ -2000,7 +2083,7 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
   {                                                          \
   s->lma = addr;                                             \
   if (PIC30_IS_PSV_ATTR(s) || PIC30_IS_EEDATA_ATTR(s) ||     \
-      (PIC30_IS_AUXFLASH_ATTR(s) && PIC30_IS_PAGE_ATTR(s)))  \
+      PIC30_IS_AUXPSV_ATTR(s))                               \
     s->vma = PSV_BASE + (addr & 0x7FFF);                     \
   else if (PIC30_IS_PACKEDFLASH_ATTR(s))                     \
     s->vma = addr * 3 / 2;                                   \
@@ -2086,9 +2169,23 @@ update_group_section_info(bfd_vma alloc_addr,
   if (pic30_debug)
     printf("    creating output section statement \"%s\"\n", os->name);
 
+  /* The first absolute section in the group if any */
+  update_section_addr(g->sec, addr);
+  addr += g->sec->_raw_size / opb;
+  g->sec->alignment_power = 1;
+  /* lang_add_section() will call init_os() if needed */
+  lang_add_section (&os->children, g->sec, os,
+                    (lang_input_statement_type *) g->file);
+
+  if (pic30_debug)
+  printf("    updating grouped section info:"
+               "  vma = %lx, lma = %lx\n", s->sec->vma, s->sec->lma);
+
   /* loop through the input sections in this group */
-  for (s = g; s != NULL; s = next) {
+  for (s = alloc_section_list; s != NULL; s = next) {
     next = s->next;
+    if (s->sec && (s == g))
+      continue;
     if (s->sec && (strcmp(g->sec->name, s->sec->name) == 0)) {
       update_section_addr(s->sec, addr);
       addr += s->sec->_raw_size / opb;

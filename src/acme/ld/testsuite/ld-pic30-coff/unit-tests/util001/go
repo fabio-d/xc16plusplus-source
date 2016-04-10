@@ -22,57 +22,57 @@ done
 rm -f t1.o t2.o t3.o t.a t.exe t.hex temp temp2 test.out
 
 # assemble the source files
-$PIC30_CD/bin/pic30-as -W -o t1.o t1.s
+$PIC30_CD/bin/xc16-as -W -o t1.o t1.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-as -W -o t1.o t1.s"
+    echo "$PIC30_CD/bin/xc16-as -W -o t1.o t1.s"
     echo $err
 fi
 
-$PIC30_CD/bin/pic30-as -W -o t2.o t2.s
+$PIC30_CD/bin/xc16-as -W -o t2.o t2.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-as -W -o t2.o t2.s"
+    echo "$PIC30_CD/bin/xc16-as -W -o t2.o t2.s"
     echo $err
 fi
 
-$PIC30_CD/bin/pic30-as -W -o t3.o t3.s
+$PIC30_CD/bin/xc16-as -W -o t3.o t3.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-as -W -o t3.o t3.s"
+    echo "$PIC30_CD/bin/xc16-as -W -o t3.o t3.s"
     echo $err
 fi
 
 # make an archive
-$PIC30_CD/bin/pic30-ar r t.a t1.o t2.o
+$PIC30_CD/bin/xc16-ar r t.a t1.o t2.o
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-ar r t.a t1.o t2.o"
+    echo "$PIC30_CD/bin/xc16-ar r t.a t1.o t2.o"
     echo $err
 fi
 
-# verify pic30-ar
-$PIC30_CD/bin/pic30-ld -o t.exe t3.o t.a
+# verify xc16-ar
+$PIC30_CD/bin/xc16-ld -o t.exe t3.o t.a
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/pic30-ld -o t.exe t3.o t.a"
+    echo "$PIC30_CD/bin/xc16-ld -o t.exe t3.o t.a"
     echo $err
 fi
 {
 if [ $err -eq 0 ]; then
-        echo "pic30-ar      PASS"
+        echo "xc16-ar      PASS"
 else
-        echo "pic30-ar      FAIL"
+        echo "xc16-ar      FAIL"
 fi
 } > test.out
 
-# verify pic30-objdump
-$PIC30_CD/bin/pic30-objdump -d -j .text t.exe > temp
+# verify xc16-objdump
+$PIC30_CD/bin/xc16-objdump -d -j .text t.exe > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -81,14 +81,14 @@ fi
 diff -w temp expect1 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-objdump PASS"
+        echo "xc16-objdump PASS"
 else
-        echo "pic30-objdump FAIL"
+        echo "xc16-objdump FAIL"
 fi
 } >> test.out
 
-# verify pic30-bin2hex
-$PIC30_CD/bin/pic30-bin2hex t.exe -v | head -14 > temp
+# verify xc16-bin2hex
+$PIC30_CD/bin/xc16-bin2hex t.exe -v | head -14 > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -97,14 +97,14 @@ fi
 diff -w temp expect2 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-bin2hex PASS"
+        echo "xc16-bin2hex PASS"
 else
-        echo "pic30-bin2hex FAIL"
+        echo "xc16-bin2hex FAIL"
 fi
 } >> test.out
 
-# verify pic30-nm
-$PIC30_CD/bin/pic30-nm -n t.a > temp
+# verify xc16-nm
+$PIC30_CD/bin/xc16-nm -n t.a > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -113,15 +113,15 @@ fi
 diff -w temp expect3 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-nm      PASS"
+        echo "xc16-nm      PASS"
 else
-        echo "pic30-nm      FAIL"
+        echo "xc16-nm      FAIL"
 fi
 } >> test.out
 
-#verify pic30-ranlib
-$PIC30_CD/bin/pic30-ranlib t.a
-$PIC30_CD/bin/pic30-nm  -n -s t.a > temp
+#verify xc16-ranlib
+$PIC30_CD/bin/xc16-ranlib t.a
+$PIC30_CD/bin/xc16-nm  -n -s t.a > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -130,14 +130,14 @@ fi
 {
 diff -w temp expect4 > /dev/null
 if [ $? -eq 0 ]; then
-        echo "pic30-ranlib  PASS"
+        echo "xc16-ranlib  PASS"
 else
-        echo "pic30-ranlib  FAIL"
+        echo "xc16-ranlib  FAIL"
 fi
 } >> test.out
 
-#verify pic30-size
-#$PIC30_CD/bin/pic30-size -A t.exe > temp
+#verify xc16-size
+#$PIC30_CD/bin/xc16-size -A t.exe > temp
 #if [ $vflag = "on" ]; then
 #    echo
 #    cat temp
@@ -146,14 +146,14 @@ fi
 #diff -w temp expect5 > /dev/null
 #{
 #if [ $? -eq 0 ]; then
-#        echo "pic30-size    PASS"
+#        echo "xc16-size    PASS"
 #else
-#        echo "pic30-size    FAIL"
+#        echo "xc16-size    FAIL"
 #fi
 #} >> test.out
 
-#verify pic30-strings
-$PIC30_CD/bin/pic30-strings -tx t1.o > temp
+#verify xc16-strings
+$PIC30_CD/bin/xc16-strings -tx t1.o > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -162,15 +162,15 @@ fi
 diff -w temp expect6 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-strings PASS"
+        echo "xc16-strings PASS"
 else
-        echo "pic30-strings FAIL"
+        echo "xc16-strings FAIL"
 fi
 } >> test.out
 
-#verify pic30-strip
-$PIC30_CD/bin/pic30-strip t1.o
-$PIC30_CD/bin/pic30-nm t1.o >temp 2>temp2
+#verify xc16-strip
+$PIC30_CD/bin/xc16-strip t1.o
+$PIC30_CD/bin/xc16-nm t1.o >temp 2>temp2
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -178,9 +178,9 @@ fi
 grep "no symbols" temp2 > /dev/null
 {
 if [ $? -eq 0 ]; then
-        echo "pic30-strip   PASS"
+        echo "xc16-strip   PASS"
 else
-        echo "pic30-strip   FAIL"
+        echo "xc16-strip   FAIL"
 fi
 } >> test.out
 

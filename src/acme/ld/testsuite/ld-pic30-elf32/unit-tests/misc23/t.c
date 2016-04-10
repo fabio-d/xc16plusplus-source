@@ -1,4 +1,4 @@
-#define __dsPIC30F6014__
+//#define __dsPIC30F6014__
 #include <p30F6014.h>
 #include <stdio.h>
 

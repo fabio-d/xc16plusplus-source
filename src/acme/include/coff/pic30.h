@@ -101,6 +101,9 @@ struct external_optional_header
 #define STYP_PAGE    (0x8)        /* Section avoids page boundaries */
 #define STYP_AUXFLASH (0x10)        /* Auxiliary flash memory */
 #define STYP_PACKEDFLASH (0x20)        /* Packed flash memory */
+#define STYP_SHARED      (0x80)   /* section is shareable between co-resident */
+                                  /*  applications */
+#define STYP_AUXPSV      (0x200)  /* auxpsv */
 
 struct external_scnhdr
 {

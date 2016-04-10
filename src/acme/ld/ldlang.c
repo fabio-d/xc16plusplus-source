@@ -239,16 +239,23 @@ static char * get_first_input_target
 #ifdef PIC30
 #if 0
 /* CAW - moved to the emulation file */
-void get_aivt_address PARAMS ((void));
+void get_aivt_base PARAMS ((void));
 
 bfd_boolean aivt_enabled = FALSE;
-bfd_vma aivt_address = 0;
+bfd_vma aivt_base = 0;
 bfd_vma aivt_len = 0;
 #else
 extern bfd_boolean aivt_enabled;
-extern bfd_vma aivt_address;
+extern bfd_vma aivt_base;
 extern bfd_vma aivt_len;
 #endif
+extern struct pic30_undefsym_table *pic30_undefsym_init
+  PARAMS ((void));
+extern void pic30_init_section_list
+  PARAMS ((struct pic30_section **));
+
+extern void pic30_append_section_to_list
+  PARAMS ((struct pic30_section *, lang_input_statement_type *, asection *));
 #endif
 
 /* Exported variables.  */
@@ -1361,8 +1368,12 @@ lang_add_section (ptr, section, output, file)
       lang_input_section_type *new;
       flagword flags;
 
-      if (output->bfd_section == NULL)
+      if (output->bfd_section == NULL) {
 	init_os (output);
+#if PIC30
+        if (section->linker_generated) output->bfd_section->linker_generated= 1;
+#endif
+      }
 
       first = ! output->bfd_section->linker_has_input;
       output->bfd_section->linker_has_input = 1;
@@ -1380,7 +1391,10 @@ lang_add_section (ptr, section, output, file)
         unsigned int input_map  = pic30_attribute_map(section);
         unsigned int output_map = pic30_attribute_map(output->bfd_section);
 
-        if (!pic30_is_valid_attributes(input_map, 0))
+        if ((link_info.relocateable == 0) && (section->flags & SEC_DEBUGGING))
+        {
+           /* skip it */
+        } else if (!pic30_is_valid_attributes(input_map, 0))
           einfo (_("%P%F: Link Error: invalid attributes for section \'%s\'\n"),
                  section->name);
 
@@ -1505,6 +1519,12 @@ lang_add_section (ptr, section, output, file)
       section->output_section->page = section->page;
       section->output_section->auxflash = section->auxflash;
       section->output_section->packedflash = section->packedflash;
+      section->output_section->shared = section->shared;
+      section->output_section->preserved = section->preserved;
+      section->output_section->auxpsv = section->auxpsv;
+
+      /* copy if the section has been linked before */
+      section->output_section->linked = section->linked;
       
       /* promote absolute address, unless the output section
          already has a conflicting one */
@@ -1513,8 +1533,7 @@ lang_add_section (ptr, section, output, file)
             section->output_section->vma = section->vma;
             section->output_section->user_set_vma = TRUE;
           } else if (section->output_section->vma != section->vma)
-            einfo(_("%F: Link Error: address for input section \'%s\'"
-                   " (%lx) conflicts with output section \'%s\' (%lx)\n"),
+            einfo(_("%FLink Error: address for input section \'%s\' (%V) conflicts with output section \'%s\' (%V)\n"),
                    section->name, section->vma,
                    section->output_section->name,
                    section->output_section->vma);
@@ -1647,6 +1666,11 @@ output_section_callback (ptr, sec, section, file, output)
   if (ptr->keep_sections)
     section->flags |= SEC_KEEP;
 
+#if PIC30
+  if ((section->absolute) && (strncmp(section->name,".debug",6) == 0)) {
+    before = ptr->children.head;
+  } else 
+#endif
   before = wild_sort (ptr, sec, file, section);
 
   /* Here BEFORE points to the lang_input_section which
@@ -1733,7 +1757,7 @@ load_symbols (entry, place)
      lang_statement_list_type *place;
 {
   char **matching;
-
+  asection *sec;
   if (entry->loaded)
     return TRUE;
 
@@ -1795,6 +1819,20 @@ load_symbols (entry, place)
       return ! bad_load;
     }
 
+#if PIC30ELF
+  if (pic30_inherit_application_info) {
+    if (strcmp(entry->the_bfd->filename, inherited_application) == 0) {
+      if (!inherited_sections)
+        pic30_init_section_list(&inherited_sections);
+      for (sec = entry->the_bfd->sections; sec != NULL; sec = sec->next) {
+         sec->flags |= SEC_EXCLUDE;
+         pic30_append_section_to_list(inherited_sections, 0, sec);
+      }
+      return TRUE;
+    }
+  }
+#endif
+        
   if (ldemul_recognized_file (entry))
     return TRUE;
 
@@ -1849,7 +1887,6 @@ load_symbols (entry, place)
 	}
       break;
     }
-
   if (bfd_link_add_symbols (entry->the_bfd, &link_info))
     entry->loaded = TRUE;
   else
@@ -3238,15 +3275,19 @@ size_input_section (this_ptr, output_section_statement, fill, dot)
 }
 
 #if PIC30
-/* ignore sections if both ALLOC and LOAD are clear (or if length = 0) */
+/* ignore sections if both ALLOC and LOAD are clear (or if length = 0) 
+   or if the section is a non absolute DATA/BSS that has been linked before */
 #define IGNORE_SECTION(bfd, s) \
-  (((bfd_get_section_flags (bfd, s) & (SEC_ALLOC | SEC_LOAD)) == 0 )   \
-   || bfd_section_size (bfd, s) == 0)
+  ((((bfd_get_section_flags (bfd, s) & (SEC_ALLOC | SEC_LOAD)) == 0 )   \
+   || bfd_section_size (bfd, s) == 0) || ((PIC30_IS_DATA_ATTR(s) || \
+                                           PIC30_IS_BSS_ATTR(s)) &&  \
+                                           !PIC30_IS_ABSOLUTE_ATTR(s) && \
+                                           (s->linked == 1)))
 #else
 #define IGNORE_SECTION(bfd, s) \
   (((bfd_get_section_flags (bfd, s) & (SEC_ALLOC | SEC_LOAD))	\
     != (SEC_ALLOC | SEC_LOAD))					\
-   || bfd_section_size (bfd, s) == 0)
+   || bfd_section_size (bfd, s) == 0) 
 #endif
 
 /* Check to see if any allocated sections overlap with other allocated
@@ -3295,6 +3336,11 @@ lang_check_section_addresses ()
 	    continue;
 
 #if PIC30
+
+          if (PIC30_IS_SHARED_ATTR(s) && PIC30_IS_SHARED_ATTR(os) &&
+              PIC30_IS_ABSOLUTE_ATTR(s) && PIC30_IS_ABSOLUTE_ATTR(os))
+            continue;
+
           /*
           ** Ignore overlap if one is program memory
           ** and the other isn't. Or if either section
@@ -3311,6 +3357,25 @@ lang_check_section_addresses ()
             if ((s_pmem && !os_pmem) || (os_pmem && !s_pmem) || ex_mem)
               continue;
 	  }
+
+          /*
+          ** Ignore overlap if one is a linker defined .[a]ivt.vector section.
+          **   The user defined one will win.
+          */
+          {
+             if (((strncmp(s->name,".ivt.",5) == 0) ||
+                  (strncmp(s->name,".aivt.",6) == 0)) && 
+                 (s->linker_generated == 1)) {
+               s->flags = 0;   /* forget this section, something overlaps it */
+               continue;
+             }
+             if (((strncmp(os->name,".ivt.",5) == 0) ||
+                  (strncmp(os->name,".aivt.",6) == 0)) && 
+                 (os->linker_generated == 1)) {
+               os->flags = 0;   /* forget this section, something overlaps it */
+               continue;
+             }
+          }
 #endif
 
 	  einfo (
@@ -3453,9 +3518,9 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		      einfo (_("%P: warning: no memory region specified for section `%s'\n"),
 			     bfd_get_section_name (output_bfd,
 						   os->bfd_section));
-                    /* use aivt_address to allocate floating aivt */
+                    /* use aivt_base to allocate floating aivt */
                     if ((strcmp(os->name,".aivt") == 0) && aivt_enabled) {
-                      dot = aivt_address; 
+                      dot = aivt_base; 
                       bfd_set_user_set_vma(0, os->bfd_section, TRUE);
                       in_aivt_section = 1;
                     } else 
@@ -3594,7 +3659,8 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 
 #define SEC_IN_PROG_SPACE(s) \
   (PIC30_IS_CODE_ATTR(s) | PIC30_IS_PSV_ATTR(s) | PIC30_IS_EEDATA_ATTR(s) \
-   | PIC30_IS_AUXFLASH_ATTR(s) | PIC30_IS_PACKEDFLASH_ATTR(s))
+   | PIC30_IS_AUXFLASH_ATTR(s) | PIC30_IS_PACKEDFLASH_ATTR(s)             \
+   | PIC30_IS_AUXPSV_ATTR(s))
    
 #define SEC_IN_DATA_SPACE(s) \
   (PIC30_IS_DATA_ATTR(s) | PIC30_IS_BSS_ATTR(s) | PIC30_IS_PERSIST_ATTR(s) \
@@ -3623,10 +3689,20 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                          os->bfd_section->name, s->sec->name);
                 if ((s_end < os_start) || (s_start > os_end))
                   continue;
-                if (os->bfd_section->user_set_vma)
-                  einfo(_("%F%S: address for section %s conflicts with"
-                          " absolute section %s\n"), os->bfd_section->name,
-                          s->sec->name);
+                if (os->bfd_section->user_set_vma) {
+                  if (((strncmp(s->sec->name,".ivt",4) == 0) ||
+                       (strncmp(s->sec->name,".aivt",5) == 0)) &&
+                      (s->sec->linker_generated == 1)) { 
+                      /* CAW - if this is an ivt section, 
+                           ignore the generated one and use the user defined
+                           section.   The generated section will still be in
+                           the object file, but it won't take up any space */
+                    s->sec->flags = 0;
+                  } else 
+                    einfo(_("%F%S: address for section %s conflicts with"
+                            " absolute section %s\n"), os->bfd_section->name,
+                            s->sec->name);
+                }
                 if (pic30_debug)
                   printf("  advancing section %s to avoid %s\n",
                          os->bfd_section->name, s->sec->name);
@@ -5000,6 +5076,20 @@ lang_process ()
 
   already_linked_table_init ();
 
+  if (global_PROCESSOR) {
+    pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
+    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
+    pic30_get_ivt(global_PROCESSOR, pic30_debug);
+
+#if 0
+   /* cannot do this part yet... its not possible, the input langauge
+        statements have not been processed */
+   if (pic30_has_floating_aivt)
+     get_aivt_base();
+#endif
+
+  }
+
   /* Create a bfd for each input file.  */
   current_target = default_target;
   open_input_bfds (statement_list.head, FALSE);
@@ -5027,14 +5117,6 @@ lang_process ()
      files.  */
   ldctor_build_sets ();
 
-#if 0
-/* CAW - moved to the emulation file */
-#ifdef PIC30  
-  if (pic30_has_floating_aivt)
-   get_aivt_address();
-#endif
-#endif
-
   /* Remove unreferenced sections if asked to.  */
  
     lang_gc_sections ();
@@ -5049,8 +5131,15 @@ lang_process ()
   lang_common ();
 
 #ifdef PIC30ELF
-  pic30_create_data_init_template();
+ pic30_create_data_init_template();
+ pic30_create_shared_data_init_template();
 #endif
+
+ if (pic30_memory_usage)
+   {
+     pic30_create_rom_usage_template();
+     pic30_create_ram_usage_template();
+   }
 
   /* create fill sections */
   if (pic30_has_fill_option)
@@ -6165,7 +6254,7 @@ lang_add_unique (name)
 #if 0
 /* CAW - moved to the emulation file */
 void 
-get_aivt_address ()
+get_aivt_base ()
 {
     bfd_size_type len;
     int i, count = 0;
@@ -6208,12 +6297,12 @@ get_aivt_address ()
             {
               for (i = 0; i < 3; i++) {
                 unsigned int val = contents[i+(aivtloc_ptr - sec->vma)];
-                aivt_address |= val << (i * 8);
+                aivt_base |= val << (i * 8);
               }
-              aivt_address = ~(aivt_address);
-              aivt_address &= aivtloc_mask;
-              aivt_address -= 1;
-              aivt_address *= 1024;
+              aivt_base = ~(aivt_base);
+              aivt_base &= aivtloc_mask;
+              aivt_base -= 1;
+              aivt_base *= 1024;
               /* CAW - this should be recorded in the resource information? */
               aivt_len = 0x400; /* The device requires that the entire page 
                                    where the vector table resides 
@@ -6223,7 +6312,7 @@ get_aivt_address ()
                  extern unsigned int pic30_boot_flash_size;
 
                  pic30_has_user_boot = 1;
-                 pic30_boot_flash_size =  aivt_address;
+                 pic30_boot_flash_size =  aivt_base;
               }
             }
             free(contents);
@@ -6234,8 +6323,8 @@ get_aivt_address ()
     
     region = lang_memory_region_lookup ("program");
     
-    if ((aivt_address < region->origin) || 
-        (aivt_address >= (region->origin + region->length)))
+    if ((aivt_base < region->origin) || 
+        (aivt_base >= (region->origin + region->length)))
       aivt_enabled = FALSE;
 
 }

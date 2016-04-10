@@ -2529,11 +2529,24 @@ dwarf2out_frame_debug_expr (rtx expr, const char *label)
 
 	  /* Rule 14 */
 	case POST_INC:
-	  gcc_assert (cfa_temp.reg
-		      == (unsigned) REGNO (XEXP (XEXP (dest, 0), 0)));
-	  offset = -cfa_temp.offset;
-	  cfa_temp.offset -= GET_MODE_SIZE (GET_MODE (dest));
-	  break;
+          if (cfa_store.reg ==  REGNO (XEXP (XEXP (dest, 0), 0))) {
+            offset = -cfa_store.offset;
+            cfa_store.offset -= GET_MODE_SIZE (GET_MODE (dest));
+#ifdef _BUILD_C30_
+            /* not sure why cfa_store gets over-written in def_cfa_1 ...
+               here we are pushing onto the stack, which might be the 
+               cfa register */
+            if (cfa_store.reg == cfa.reg) {
+               cfa.offset -= GET_MODE_SIZE (GET_MODE (dest));
+            }
+#endif
+          } else {
+            gcc_assert (cfa_temp.reg
+                        == (unsigned) REGNO (XEXP (XEXP (dest, 0), 0)));
+            offset = -cfa_temp.offset;
+            cfa_temp.offset -= GET_MODE_SIZE (GET_MODE (dest));
+          }
+          break;
 
 	default:
 	  gcc_unreachable ();

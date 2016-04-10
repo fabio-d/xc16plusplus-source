@@ -7,7 +7,7 @@ linker script p30sim.gld.
 How to execute the test:
 
 1. Set the environment variable $PIC30_CD
-    to your pic30 tools installation directory
+    to your xc16 tools installation directory
 2. Execute "go"
 
 To get verbose output:

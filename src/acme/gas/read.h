@@ -141,6 +141,9 @@ extern void s_align_ptwo PARAMS ((int));
 extern void s_app_file_string PARAMS ((char *));
 extern void s_app_file PARAMS ((int));
 extern void s_app_line PARAMS ((int));
+#if defined(TC_PIC30) && defined(OBJ_ELF)
+extern void s_app_loc PARAMS ((int));
+#endif
 extern void s_bad_endr PARAMS ((int));
 extern void s_comm PARAMS ((int));
 extern void s_data PARAMS ((int));
@@ -152,6 +155,9 @@ extern void s_endif PARAMS ((int arg));
 extern void s_err PARAMS ((int));
 #ifdef TC_PIC30
 extern void s_extern PARAMS ((int));
+#ifdef OBJ_ELF
+extern void s_pic30_file PARAMS ((int));
+#endif
 #endif
 extern void s_fail PARAMS ((int));
 extern void s_fill PARAMS ((int));

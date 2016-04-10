@@ -8,12 +8,12 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/pic30-gcc
-GAS30="$PIC30_CD/bin/pic30-as -W"
-GLD30=$PIC30_CD/bin/pic30-ld
-OBJDUMP=$PIC30_CD/bin/pic30-objdump
+GCC30=$PIC30_CD/bin/xc16-gcc
+GAS30="$PIC30_CD/bin/xc16-as -W"
+GLD30=$PIC30_CD/bin/xc16-ld
+OBJDUMP=$PIC30_CD/bin/xc16-objdump
 
-BIN2HEX=$PIC30_CD/bin/pic30-bin2hex
+BIN2HEX=$PIC30_CD/bin/xc16-bin2hex
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -79,7 +79,7 @@ SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+0x(\w+)/) {print $1}
 
 {
 echo
-echo "excerpt from pic30-objdump (-h option):"
+echo "excerpt from xc16-objdump (-h option):"
 echo
 echo "$DESC1"
 echo

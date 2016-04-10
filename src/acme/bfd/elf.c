@@ -809,7 +809,6 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
   if ((hdr->sh_flags & SHF_EXECINSTR ) != 0) 
     flags |= SEC_CODE;
  
-    
 #if defined(PIC30)
   else if (((flags & SEC_LOAD) != 0) &&
            (hdr->sh_type != SHT_NOTE) &&
@@ -923,6 +922,9 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 
   {
     char *ext_attr_prefix = "__ext_attr_";
+    char *linked_prefix = "__linked_";
+    char *exclude_prefix = "__exclude_";
+
     asymbol **current = syms;
     const char *sym_name;
     long count;
@@ -938,9 +940,26 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
           bfd_vma attr = bfd_asymbol_value(*current);
 
           for (s = abfd->sections; s != NULL; s = s->next)
-            if (strcmp(sec_name, s->name) == 0)
-              if ((attr & STYP_PACKEDFLASH) && (s->flags & SEC_DATA))
+            if (strcmp(sec_name, s->name) == 0) { 
+              if ((attr & (STYP_PACKEDFLASH | STYP_AUXPSV)) && (s->flags & SEC_DATA))
                 s->flags &= ~SEC_DATA;
+              else if (attr & STYP_SHARED)
+                     s->shared = 1;
+            }
+        }
+        else if (strstr(sym_name, linked_prefix)) {
+          char *sec_name = (char *) &sym_name[strlen(linked_prefix)];
+          asection *s;
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              s->linked = 1;
+        }
+        else if (strstr(sym_name, exclude_prefix)) {
+          char *sec_name = (char *) &sym_name[strlen(exclude_prefix)];
+          asection *s;
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0) 
+              s->flags |= SEC_EXCLUDE;
         }
         current++;
       }
@@ -2005,6 +2024,8 @@ bfd_section_from_shdr (abfd, shindex)
 
   {
     char *ext_attr_prefix = "__ext_attr_";
+    char *linked_prefix = "__linked_";
+    char *exclude_prefix = "__exclude_";
     asymbol **current = syms;
     const char *sym_name;
     long count;
@@ -2020,9 +2041,26 @@ bfd_section_from_shdr (abfd, shindex)
           bfd_vma attr = bfd_asymbol_value(*current);
 
           for (s = abfd->sections; s != NULL; s = s->next)
-            if (strcmp(sec_name, s->name) == 0)
-              if ((attr & STYP_PACKEDFLASH) && (s->flags & SEC_DATA))
+            if (strcmp(sec_name, s->name) == 0) { 
+              if ((attr & (STYP_PACKEDFLASH | STYP_AUXPSV)) && (s->flags & SEC_DATA))
                 s->flags &= ~SEC_DATA;
+              else if (attr & STYP_SHARED)
+                     s->shared = 1;
+            }
+        }
+        else if (strstr(sym_name, linked_prefix)) {
+          char *sec_name = (char *) &sym_name[strlen(linked_prefix)];
+          asection *s;
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              s->linked = 1;
+        }
+        else if (strstr(sym_name, exclude_prefix)) {
+          char *sec_name = (char *) &sym_name[strlen(exclude_prefix)];
+          asection *s;
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              s->flags |= SEC_EXCLUDE;
         }
         current++;
       }
@@ -2586,7 +2624,7 @@ elf_fake_sections (abfd, asect, failedptrarg)
   /* If we are assembling an absolute PSV section,
      set the section header address to the lma, not the vma. */
   if ((asect->link_order_head == 0) &&
-      PIC30_IS_PSV_ATTR(asect) &&
+      (PIC30_IS_PSV_ATTR(asect) || PIC30_IS_AUXPSV_ATTR(asect)) &&
       PIC30_IS_ABSOLUTE_ATTR(asect))
     this_hdr->sh_addr = asect->lma;
   else
@@ -5832,19 +5870,25 @@ Unable to find equivalent output section for symbol '%s' from section '%s'"),
       else if (flags & BSF_FILE)
 	sym.st_info = ELF_ST_INFO (STB_LOCAL, STT_FILE);
       else
-	{
-	  int bind = STB_LOCAL;
+        {
+          int bind = STB_LOCAL;
+#ifdef PIC30
+          if ((flags & BSF_LOCAL) && (flags & BSF_SHARED))
+            bind = STB_LOPROC;
+          else if ((flags & BSF_WEAK) && (flags & BSF_SHARED))
+            bind = STB_HIPROC;
+          else if ((flags & BSF_GLOBAL) && (flags & BSF_SHARED))
+            bind = STB_MIDPROC;
+#endif
+          else if (flags & BSF_LOCAL)
+            bind = STB_LOCAL;
+          else if (flags & BSF_WEAK)
+            bind = STB_WEAK;
+          else if (flags & BSF_GLOBAL)
+            bind = STB_GLOBAL;       
 
-	  if (flags & BSF_LOCAL)
-	    bind = STB_LOCAL;
-	  else if (flags & BSF_WEAK)
-	    bind = STB_WEAK;
-	  else if (flags & BSF_GLOBAL)
-	    bind = STB_GLOBAL;
-
-	  sym.st_info = ELF_ST_INFO (bind, type);
-	}
-
+          sym.st_info = ELF_ST_INFO (bind, type);
+        }
       if (type_ptr != NULL)
 	sym.st_other = type_ptr->internal_elf_sym.st_other;
       else

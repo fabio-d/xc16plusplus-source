@@ -92,7 +92,8 @@ extern bfd_boolean pic30_elf_backend_section_from_bfd_section
 #define STYP_PAGE    (1 << 3)   /* Section avoids page boundaries */
 #define STYP_AUXFLASH    (1 << 4)   /* Auxiliary flash memory */
 #define STYP_PACKEDFLASH    (1 << 5)   /* Packed flash memory */
-
+#define STYP_SHARED      (1 << 7)   /* shared section among co-resident apps*/
+#define STYP_AUXPSV      (1 << 9)   /* sonstant datat in auxflash */
 /************************************************************************/
 
 

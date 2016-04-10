@@ -1,8 +1,8 @@
 
-excerpt from pic30-objdump (-h option):
+excerpt from xc16-objdump (-h option):
 
-  3 foo           00000002  00000800  00000800  0000027c  2**1
-                  ALLOC, PERSIST
+  1 foo           00000002  00000800  00000800  000000b0  2**1
+                  ALLOC, PERSIST, ABSOLUTE
 
 size of section .dinit (should be 2):    2
 total data memory used (should be 2):    2

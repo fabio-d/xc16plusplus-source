@@ -42,11 +42,15 @@ Mask(ARCH_PIC33E)
 
 Mask(ARCH_PIC24E)
 
+Mask(ARCH_PIC33CH)
+
 Mask(ARCH_GENERIC)
 
 Mask(ARCH_DA_GENERIC)
 
 Mask(ARCH_EP_GENERIC)
+
+Mask(ARCH_CH_GENERIC)
 
 ; define some masks used by other options
 
@@ -212,6 +216,13 @@ Do not fall back to free licesnse when license not available
 
 mnew-model
 Target RejectNegative Var(pic30_newmodel) Undocumented
+
+print-mchp-search-dirs
+Target RejectNegative Var(pic30_print_mchp_header_path)
+Display compiler and assembler search paths and exit
+
+mafrlcsj
+Target RejectNegative Var(mchp_mafrlcsj) Undocumented
 
 ;
 ; **************************** CAUTION

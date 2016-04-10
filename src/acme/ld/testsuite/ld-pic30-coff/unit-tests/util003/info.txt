@@ -1,14 +1,14 @@
-util003: pic30-objdump [-s option] displays PC addresses:
+util003: xc16-objdump [-s option] displays PC addresses:
 
 The objective of this test is to verify that
-pic30-objdump [-s option] displays a section
+xc16-objdump [-s option] displays a section
 in program memory with PC addresses and no
 phantom bytes.
 
 How to execute the test:
 
 1. Set the environment variable $PIC30_CD
-    to your pic30 tools CD image directory
+    to your xc16 tools CD image directory
 2. Export $PIC30_CD
 3. Execute "go"
 

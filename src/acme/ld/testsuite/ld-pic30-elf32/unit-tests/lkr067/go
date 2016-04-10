@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/pic30-as -omf=elf -W"
-AR30="$PIC30_CD/bin/pic30-ar -omf=elf"
-GLD30="$PIC30_CD/bin/pic30-ld -omf=elf"
+GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
+AR30="$PIC30_CD/bin/xc16-ar -omf=elf"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
 
 #
 # END CONFIGURATION
@@ -47,11 +47,11 @@ fi
 
 
 rm -f t.exe t.map
-$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a  > temp 2>&1
+$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a -T t.gld > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a"
+    echo "$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a -T t.gld"
     echo $err
     echo
 fi
