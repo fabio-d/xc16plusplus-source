@@ -42,7 +42,7 @@ const char bug_report_url[] = "<URL:http://www.microchip.com/support>";
 #define version(X) version2(X)
 
 char *version_string = BASEVER " " "(XC16, Microchip " version(MCHP_VERSION)
-                       ") Build date: " __DATE__;
+                       ", XC16++ patch " version(XC16PLUSPLUS_VERSION) ") Build date: " __DATE__;
 #else
 
 const char version_string[] = BASEVER " " "MPLAB C Compiler for PIC32 MCUs v2.00(TC1)-20110107";
