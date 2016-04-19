@@ -22,7 +22,7 @@ When I update this repository, I also update https://github.com/fabio-d/xc16plus
 that can easily be applied to the official Microchip source archive**.
 
 The [xc16plusplus](https://github.com/fabio-d/xc16plusplus) repository also
-contains **release notes**, **examples** and
+contains **release notes**, **examples**, **tests** and
 **support files** that **are NOT present in this repository**. Unless you want
 to **modify** XC16++, the [xc16plusplus](https://github.com/fabio-d/xc16plusplus)
 repository will probably be more useful to you.
