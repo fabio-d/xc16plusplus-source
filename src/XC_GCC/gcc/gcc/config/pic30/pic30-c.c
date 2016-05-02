@@ -68,6 +68,10 @@
 #define JOIN2(X,Y) (X ## Y)
 #define JOIN(X,Y) JOIN2(X,Y)
 
+// from version.c
+#define version2(X) #X
+#define version(X) version2(X)
+
 
 static int     pic30_parse_pragma_option(int pc);
 
@@ -108,6 +112,15 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     cpp_define(pfile,buffer);
   }
 
+#ifdef XC16PLUSPLUS_VERSION
+  const char *xc16plusplus_version = version(XC16PLUSPLUS_VERSION);
+  if (xc16plusplus_version[0] == 'v')
+  {
+    cpp_define(pfile, "__XC16PLUSPLUS__");
+    sprintf(buffer, "__XC16PLUSPLUS_REVISION__=%s", xc16plusplus_version + 1);
+    cpp_define(pfile, buffer);
+  }
+#endif
 
   cpp_define(pfile,"__XC16");
   cpp_define(pfile,"__C30");
