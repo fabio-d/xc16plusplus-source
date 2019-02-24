@@ -34,9 +34,7 @@ This repository is organized in several branches:
  * Each *xc16++-vX.YY* branch (e.g. *xc16++-v1.24*) forks from the corresponding
    commit in the *upstream-official* branch and contains all the patches needed
    to make C++ work with that version;
- * The *metadata* branch contains the README.md and LICENSE files only;
- * The *master* branch always contains the latest *xc16++-vX.YY* branch merged
-   with the *metadata* branch.
+ * The *master* branch contains the README.md and LICENSE files only.
 
 ## Updating
 
