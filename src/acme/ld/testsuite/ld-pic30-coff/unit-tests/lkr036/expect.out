@@ -2,5 +2,5 @@
 Excerpt from xc16-objdump output:
 
 Idx Name          Size
-  3 .bss          00000020
+  1 .bss          00000020
 

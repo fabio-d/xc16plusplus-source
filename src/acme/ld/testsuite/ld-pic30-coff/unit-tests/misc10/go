@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-XGCC=$PIC30_CD/bin/xc16-gcc
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+XGCC="$PIC30_CD/bin/xc16-gcc -omf=coff"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIBPATH=$PIC30_CD/lib
 
 #
@@ -45,7 +45,7 @@ $OBJDUMP -g t.exe > temp.out
 # remove the lines with file names and braces
 grep -v "file" temp.out > temp2.out
 grep -v "t1.c" temp2.out > temp3.out
-grep -v "p30f2010.inc" temp3.out > temp4.out
+grep -v "p30F2010.inc" temp3.out > temp4.out
 sed -e '/crt0.s/d' -e '/[{}]/d' < temp4.out > temp5.out
 # keep only the function information
 head -8 temp5.out > test.out

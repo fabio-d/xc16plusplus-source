@@ -142,7 +142,7 @@ static int error_index;
 %token STARTUP HLL SYSLIB FLOAT NOFLOAT NOCROSSREFS
 %token ORIGIN FILL
 %token LENGTH CREATE_OBJECT_SYMBOLS INPUT OPTIONAL GROUP OUTPUT CONSTRUCTORS
-%token CRT0_STARTUP CRT1_STARTUP
+%token CRT0_STARTUP CRT1_STARTUP CRT_STARTMODE
 %token ALIGNMOD AT PROVIDE
 %type <token> assign_op atype attributes_opt
 %type <name>  filename
@@ -340,6 +340,8 @@ ifile_p1:
                   { lang_select_startup_file ($3, 0); }
         |       CRT1_STARTUP '(' NAME ')'
                   { lang_select_startup_file ($3, 1); }
+        |       CRT_STARTMODE '(' NAME ')'
+                  { lang_select_startup_file ($3, 2); }
 	|	GROUP
 		  { lang_enter_group (); }
 		    '(' input_list ')'

@@ -288,7 +288,7 @@ pic30_set_implied_attributes(asection *sec, unsigned char flag_debug)
         { /* set the implied attributes */                                \
           pic30_set_attributes(sec, mask, flag_debug);                    \
           result = !(quiet); }                                            \
-      else {                                                              \ 
+      else {                                                              \
 	  /* possibly report the conflict */                              \
           if (!section_name_seen) {                                       \
             if (SECTION(.const) && PIC30_IS_AUXPSV_ATTR(sec))             \
@@ -356,9 +356,9 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK1(a,b,c,d,e,f,g,h,i,j,k,l)                          \
-   type_mask = (1<<a)|(1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)        \
-               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l);
+#define MASK1(a,b,c,d,e,f,g,h,i,j,k,l)                        \
+   type_mask = (1<<a)|(1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)      \
+               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l);    
 #define MAX_TYPES 28
 #include "pic30-attributes.h"
  
@@ -396,16 +396,17 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r)                  \
-   if (type == (1<<a)) {                                      \
-     attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)           \
-                 |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)   \
-                 |(1<<m)|(1<<n)|(1<<o)|(1<<p)|(1<<q)|(1<<r);            \
-     if (flag_debug)                                          \
+#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t)                  \
+   if (type == (1<<a)) {                                                \
+     attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)                     \
+                 |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)             \
+                 |(1<<m)|(1<<n)|(1<<o)|(1<<p)|(1<<q)|(1<<r)             \
+                 |(1<<s)|(1<<t);                                        \
+     if (flag_debug)                                                    \
        printf ("    pic30_is_valid_attributes::modifier_mask = %x\n",   \
-               attr_mask);                                    \
-     if ((mask & ~ (type_mask | attr_mask)) == 0)             \
-       valid_modifiers |= 1;                                  \
+               attr_mask);                                              \
+     if ((mask & ~ (type_mask | attr_mask)) == 0)                       \
+       valid_modifiers |= 1;                                            \
    }
 
 #include "pic30-attributes.h"
@@ -420,14 +421,15 @@ pic30_is_valid_attributes (unsigned int mask, unsigned char flag_debug)
 #undef MASK2
 #undef MASK3
 #undef MASK4
-#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q)                  \
-   key = (1<<a);                                                  \
-   attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)                 \
-               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)|(1<<m)  \
-               |(1<<n)|(1<<o)|(1<<p)|(1<<q);                      \
-   if ((key & mask) &&                                            \
-       ((mask & ~ (key | type_mask | attr_mask)) != 0))           \
-     invalid_combo |= 1;;
+#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t)             \
+   key = (1<<a);                                                   \
+   attr_mask = (1<<b)|(1<<c)|(1<<d)|(1<<e)|(1<<f)                  \
+               |(1<<g)|(1<<h)|(1<<i)|(1<<j)|(1<<k)|(1<<l)          \
+               |(1<<m)|(1<<n)|(1<<o)|(1<<p)|(1<<q)|(1<<r)          \
+               |(1<<s)|(1<<t);                                     \
+   if ((key & mask) &&                                             \
+       ((mask & ~ (key | type_mask | attr_mask)) != 0))            \
+     invalid_combo |= 1;
 
 #include "pic30-attributes.h"       
  if (flag_debug)

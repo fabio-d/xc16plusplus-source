@@ -1,14 +1,14 @@
 
+Offsetting addresses by 0x0000000000000000
 writing t.hex
 
 section   PC address   byte address   length (w/pad)   actual length  (dec)
 -------   ----------   ------------   --------------   --------------------
 .reset             0              0              0x8             0x6  (6)
-.ivt             0x4            0x8             0xf8            0xba  (186)
-.aivt           0x84          0x108             0xf8            0xba  (186)
 .dinit         0x100          0x200             0x1c            0x15  (21)
 .text          0x10e          0x21c             0x18            0x12  (18)
-.isr           0x11a          0x234              0x4             0x3  (3)
+.isr           0x11a          0x234              0x8             0x6  (6)
 
-Total program memory used (bytes):                             0x1a4  (420)
+Total program memory used (bytes):                              0x33  (51)
 
+Microchip Language Tool Shell Version 1.26 (Build date: Dec 15 2015).

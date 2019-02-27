@@ -8,6 +8,15 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
+
+#
+# END CONFIGURATION
+#
+
 # process args
 vflag=off
 while [ $# -gt 0 ]
@@ -22,28 +31,28 @@ done
 rm -f t1.o test.out
 
 # assemble the source file
-$PIC30_CD/bin/xc16-as -W -o t1.o t1.s
+$GAS30 -o t1.o t1.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-as -W -o t1.o t1.s"
+    echo "$GAS30 -o t1.o t1.s"
     echo $err
 fi
 
 # link it
-$PIC30_CD/bin/xc16-ld -o t.exe t1.o 
+$GLD30 -o t.exe t1.o 
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-ld -o t.exe t1.o"
+    echo "$GLD30 -o t.exe t1.o"
     echo $err
 fi
 
 # verify xc16-objdump
-$PIC30_CD/bin/xc16-objdump -s -j foo t.exe > test.out
+$OBJDUMP -s -j foo t.exe > test.out
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-objdump -s -j foo t.exe"
+    echo "$OBJDUMP -s -j foo t.exe"
     echo $err
     echo
     cat test.out

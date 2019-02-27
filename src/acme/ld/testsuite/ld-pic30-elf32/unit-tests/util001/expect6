@@ -5,4 +5,7 @@ t1.o:      4f .text
 t1.o:      55 .data
 t1.o:      5b .bss
 t1.o:     1f9 __C30ELF
-t1.o:     20a three
+t1.o:     202 .text
+t1.o:     208 .data
+t1.o:     20e .bss
+t1.o:     21b three

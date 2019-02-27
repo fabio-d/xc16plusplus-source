@@ -77,10 +77,13 @@ extern char *application_id;
 extern bfd_boolean pic30_coresident_app;
 extern bfd_boolean pic30_inherit_application_info;
 extern char *inherited_application;
+extern bfd_boolean pic30_preserve_all;
 #endif
 /* --fill option specific definitions */
 extern bfd_boolean pic30_has_fill_option;
 extern struct pic30_fill_option *pic30_fill_option_list; 
+extern bfd_boolean pic30_has_ivt_option;
+extern bfd_boolean pic30_ivt;
 
 extern bfd_boolean pic30_has_managed_psv;
 extern bfd_boolean pic30_has_psv_trap_errata;
@@ -102,6 +105,9 @@ extern int pic30_general_write_protect_flags;
 
 extern unsigned int global_signature_mask;
 extern unsigned int global_signature_set;
+
+extern bfd_boolean pic30_pagesize;
+extern unsigned int pagesize_arg;
 
 /* SSR# 26079 */
 const char *icd2ram = "__ICD2RAM";
@@ -177,7 +183,12 @@ enum pic30_options {
   PAD_FLASH,
   APPLICATION_ID,
   CORESIDENT,
-  INHERIT_APPLICATION_INFO
+  INHERIT_APPLICATION_INFO,
+  PRESERVED,
+  PRESERVE_ALL,
+  NO_IVT_OPTION,
+  IVT_OPTION,
+  PAGESIZE
 };
 
 static struct option longopts[] = 
@@ -200,6 +211,8 @@ static struct option longopts[] =
   { "mafrlcsj2", no_argument, NULL, REPORT_MAFRLCSJ2_OPTION },
   { "isr", no_argument, NULL, ISR_OPTION },
   { "no-isr", no_argument, NULL, NO_ISR_OPTION },
+  { "ivt", no_argument, NULL, IVT_OPTION },
+  { "no-ivt", no_argument, NULL, NO_IVT_OPTION },
   { "fill-upper", required_argument, NULL, FILL_UPPER_OPTION },
   { "free-blocks", no_argument, NULL, FREE_BLOCKS_OPTION },
   { "defsym", required_argument, NULL, DEFSYM_OPTION },
@@ -226,5 +239,8 @@ static struct option longopts[] =
   { "application-id", required_argument, NULL, APPLICATION_ID },
   { "coresident", no_argument, NULL, CORESIDENT },
   { "inherit-application-info", required_argument, NULL, INHERIT_APPLICATION_INFO },
+  { "preserved", required_argument, NULL, PRESERVED },
+  { "preserve-all", no_argument, NULL, PRESERVE_ALL },
+  { "pagesize", required_argument, NULL, PAGESIZE },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

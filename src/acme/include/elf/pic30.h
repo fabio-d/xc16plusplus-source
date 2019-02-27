@@ -86,14 +86,17 @@ extern bfd_boolean pic30_elf_backend_section_from_bfd_section
 /*  these values are encoded in a symbol named __ext__attr_secname      */
 /************************************************************************/
 
-#define STYP_HEAP    (1 << 0)   /* Heap memory */
-#define STYP_STACK   (1 << 1)   /* Stack memory */
-#define STYP_EDS     (1 << 2)   /* Extended Data Space memory */
-#define STYP_PAGE    (1 << 3)   /* Section avoids page boundaries */
+#define STYP_HEAP        (1 << 0)   /* Heap memory */
+#define STYP_STACK       (1 << 1)   /* Stack memory */
+#define STYP_EDS         (1 << 2)   /* Extended Data Space memory */
+#define STYP_PAGE        (1 << 3)   /* Section avoids page boundaries */
 #define STYP_AUXFLASH    (1 << 4)   /* Auxiliary flash memory */
-#define STYP_PACKEDFLASH    (1 << 5)   /* Packed flash memory */
+#define STYP_PACKEDFLASH (1 << 5)   /* Packed flash memory */
 #define STYP_SHARED      (1 << 7)   /* shared section among co-resident apps*/
-#define STYP_AUXPSV      (1 << 9)   /* sonstant datat in auxflash */
+#define STYP_PRESERVED   (1 << 8)   /* preserved between builds */
+#define STYP_AUXPSV      (1 << 9)   /* constant datat in auxflash */
+#define STYP_UPDATE      (1 << 10)  /* update between builds */
+
 /************************************************************************/
 
 
@@ -251,5 +254,24 @@ struct pic30_fill_option
   int range_size;
 };
 
+#ifndef EXT_ATTR_PREFIX
+#define EXT_ATTR_PREFIX "__ext_attr_"
+#define LINKED_PREFIX "__linked_"
+#define EXCLUDE_PREFIX "__exclude_"
+#define PRIORITY_ATTR_PREFIX "__priority_"
+#endif
+
+struct an_init_template {
+  char *output_name;                   /* ouptut section name */
+  char *section_name;                  /* input section name */
+  bfd *abfd;                           /* the bfd */
+  unsigned char *init_data;            /* buffer for the data */
+  asection *init_template;             /* section data */
+  int max_priority;                   
+  struct pic30_section *section_list;  /* list of sections to process */
+  struct pic30_section *priority_list; /* list of priority code sections */
+  char *shared_data_link;              /* non-zero to generate a link to this
+                                          symbol */
+};
 
 #endif /* _ELF_PIC30_H */

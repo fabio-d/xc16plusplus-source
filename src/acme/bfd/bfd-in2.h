@@ -1327,6 +1327,10 @@ typedef struct sec
   unsigned int preserved:1;
   unsigned int auxpsv:1;
   unsigned int linker_generated:1;
+  unsigned int update:1;
+
+  /* at end */
+  unsigned int priority;
 
   /* End of internal packed boolean fields.  */
 

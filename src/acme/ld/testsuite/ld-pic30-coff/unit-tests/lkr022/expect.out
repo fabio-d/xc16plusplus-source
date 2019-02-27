@@ -2,5 +2,5 @@
 Excerpt from xc16-objdump output:
 
 Idx Name          Size      VMA       LMA
-  3 foo           00001000  00008100  00000100
+  1 foo           00001000  00008100  00000100
 

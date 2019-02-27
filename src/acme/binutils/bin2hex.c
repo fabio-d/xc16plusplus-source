@@ -28,6 +28,8 @@ struct pic30_section
 int main (int argc, char ** argv);
 void write_extended_address_record(file_ptr base_address, PTR fp);
 void write_section(bfd *abfd, asection *sect, PTR fp);
+struct pic30_section *write_section_image(bfd *abfd, struct pic30_section *s, 
+                                          PTR fp);
 int write_hex_file(char *name, bfd *abfd);
 int dump_symbols(bfd *abfd);
 void print_symbol(asymbol *sym);
@@ -50,6 +52,7 @@ static long long int offset_address_by = 0;
 static int sort_by_address = 0;
 static int upper_case = 0;
 static struct pic30_section *outputs;
+static char *subordinate_image_file = 0;
 static char *subordinate_image = 0;
 
 #define MAX_ROW 16384
@@ -104,7 +107,7 @@ main (argc, argv)
             offset_address_by = strtoll(argv[arg+1],0,0);
             arg++;
           } else if (strcmp(argv[arg],"--image") == 0) {
-            subordinate_image = strdup(argv[arg+1]);
+            subordinate_image_file = strdup(argv[arg+1]);
             arg++;
           } else if (strcmp(argv[arg],"--row") == 0) {
             subordinate_image_row = strtol(argv[arg+1],0,0);
@@ -153,26 +156,36 @@ main (argc, argv)
     }
   }
 
-  if (subordinate_image) {
+  if (subordinate_image_file) {
     int valid_name = 1;
     char *c;
-
-    if (((*subordinate_image < 'A') && (*subordinate_image > 'Z')) &&
-        ((*subordinate_image < 'a') && (*subordinate_image > 'z')) &&
-        (*subordinate_image != '_')) {
-      valid_name = 0;
+  
+    subordinate_image = subordinate_image_file;
+    for (c = subordinate_image_file; *c; c++) {
+       if ((*c == '/') || (*c == '\\')) subordinate_image = c+1;
     }
-    for (c = subordinate_image+1; *c; c++) {
-      if (((*subordinate_image < 'A') && (*subordinate_image > 'Z')) &&
-          ((*subordinate_image < 'a') && (*subordinate_image > 'z')) &&
-          ((*subordinate_image < '0') && (*subordinate_image > '9')) &&
+
+    if ((subordinate_image == 0) || (*subordinate_image == 0))
+      valid_name = 0;
+    else {
+
+      if (((*subordinate_image < 'A') || (*subordinate_image > 'Z')) &&
+          ((*subordinate_image < 'a') || (*subordinate_image > 'z')) &&
           (*subordinate_image != '_')) {
         valid_name = 0;
       }
+      for (c = subordinate_image+1; *c; c++) {
+        if (((*c < 'A') || (*c > 'Z')) &&
+            ((*c < 'a') || (*c > 'z')) &&
+            ((*c < '0') || (*c > '9')) &&
+            (*c != '_')) {
+          valid_name = 0;
+        }
+      }
     }
     if (valid_name == 0) {
-      fprintf(stderr,"--image name '%s' must be a valid C identifier\n", 
-              subordinate_image);
+      fprintf(stderr,"Error: image name '%s' must end in a valid C identifier\n", 
+              subordinate_image_file);
       subordinate_image = 0;
     }
   }
@@ -202,28 +215,29 @@ main (argc, argv)
 
   if (subordinate_image) {
      /* write a subordinate image along with hex file */
-     write_image_file(subordinate_image, abfd);
-  }
+     write_image_file(subordinate_image_file, abfd);
+  } else {
 
-  /* strip extension from filename if present */
-  dot = strrchr(file, '.');
-  if (dot)
-    dot[0] = '\0';
+    /* strip extension from filename if present */
+    dot = strrchr(file, '.');
+    if (dot)
+      dot[0] = '\0';
+  
+    /* create a new name with .hex extension */
+    hex_file = malloc( strlen(file) + strlen(".hex") + 1);
+    sprintf( hex_file, "%s%s", file, ".hex");
 
-  /* create a new name with .hex extension */
-  hex_file = malloc( strlen(file) + strlen(".hex") + 1);
-  sprintf( hex_file, "%s%s", file, ".hex");
+    if (!write_hex_file(hex_file,abfd)) { /* write it */
+      free(hex_file);
+      return error;
+    }
 
-  if (!write_hex_file(hex_file,abfd)) { /* write it */
+    if (verbose)
+      printf("\n");
     free(hex_file);
-    return error;
   }
-
-  if (verbose)
-    printf("\n");
-
+  
   bfd_close (abfd);
-  free(hex_file);
   return success;
 
 }
@@ -293,7 +307,8 @@ write_image_file(char *name, bfd *abfd) {
   fprintf(fp,"/* %s.h - interface for image */\n", name);
   fprintf(fp,"/* Generated: %s */",ctime(&current_time));
   fprintf(fp,"\n");
-  fprintf(fp,"extern __psv__ char * %s[];\n", name);
+  fprintf(fp,"extern unsigned char %s[] __attribute__((space(psv)));\n", 
+          subordinate_image);
   fclose(fp);
 
   sprintf(filename,"%s.s", name);
@@ -307,9 +322,9 @@ write_image_file(char *name, bfd *abfd) {
   fprintf(fp,";\n");
   fprintf(fp,"; %s generated on %s\n", name, ctime(&current_time));
   fprintf(fp,";\n");
-  fprintf(fp,"\t.section %s_image,code,page\n",name);
-  fprintf(fp,"\t.global _%s\n",name);
-  fprintf(fp,"_%s:\n\n",name);
+  fprintf(fp,"\t.section %s_image,code,page\n",subordinate_image);
+  fprintf(fp,"\t.global _%s\n",subordinate_image);
+  fprintf(fp,"_%s:\n\n",subordinate_image);
   
   /* write each section */
   if (1) {
@@ -320,10 +335,9 @@ write_image_file(char *name, bfd *abfd) {
   }
  
   /* write terminator */
-  /*  only the first word is read */
   fprintf(fp,"       ; terminator\n");
   fprintf(fp,"       .word 0x0000\n");
-  fprintf(fp,";      .word 0x0000\n");
+  fprintf(fp,"       .word 0x0000\n");
   fprintf(fp,";      .word 0x0000\n");
 
   fclose(fp);
@@ -404,10 +418,10 @@ write_section_image_list (bfd *abfd, PTR fp, struct pic30_section *p)
 {
   struct pic30_section *s;
 
-  for (s = p; s != NULL; s = s->next) {
-      if (s->sec)
-        write_section_image(abfd, s->sec, fp);
-    }
+  for (s = p; s != NULL; s ? s = s->next : s) {
+    if (s->sec)
+      s = write_section_image(abfd, s, fp);
+  }
 }
 
 
@@ -554,8 +568,8 @@ void write_extended_address_record(file_ptr base_address, PTR fp) {
 
 } /* write_extended_address_record */
 
-void
-write_section_image(bfd *abfd, asection *sect, PTR fp) {
+struct pic30_section *
+write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
 #define DATA_LINE_WIDTH 4
 
   /* row-size in instructions word width 
@@ -565,91 +579,139 @@ write_section_image(bfd *abfd, asection *sect, PTR fp) {
   bfd_size_type row_size=(subordinate_image_row ? subordinate_image_row:0x200);
 
   FILE *imagefile=fp;
-  unsigned char dat[MAX_ROW*4];
+  unsigned char *buf;
   unsigned char *p;
   file_ptr  PCstart, start, offset, raw_offset;
   bfd_size_type total, actual;
   unsigned int   num_rows,last_row,i,j;
   unsigned short low_addr;
   int data_line_width = 0;
+  asection *sect = first->sec;
+  struct pic30_section *last = first;
+  struct pic30_section *s,*next = first->next;
 
-  p = &dat[0];
   offset = 0;
   total = 0;
   raw_offset = 0;
+  PCstart = -1;
+  
+  for (last = first; 
+       last && (((last->sec->flags & SEC_LOAD) == 0) ||
+                ((last->sec->flags & SEC_HAS_CONTENTS) == 0));
+       last = last->next);
 
-  /* if section is load-able and has contents */
-  /*   use real machine addresses here */
-  if ((sect->flags & SEC_LOAD) && (sect->flags & SEC_HAS_CONTENTS))
-  {
+  if (last == 0) return last;  /* no more sections */
 
-    fprintf(imagefile,"\t; %s\n", sect->name);
+  total = last->sec->_raw_size;
 
-    /* print section header */
-    PCstart = sect->lma;
-    if (PCstart < 0x800000)
-      start = PCstart + offset_address_by;
-    else
-      start = PCstart;
+  do {
+    for (next = last->next; 
+           next && (((next->sec->flags & SEC_LOAD) == 0) ||
+                    ((next->sec->flags & SEC_HAS_CONTENTS) == 0));
+         next = next->next);
+    if (next) {
+      file_ptr last_end;
 
-    total = sect->_raw_size;
-    actual = (total * 3) / 4;
+      /* raw_size is in bytes, with the phantom byte
+         dividing by 2 gets the number of address units */
+      last_end = last->sec->lma + (last->sec->_raw_size / 2);
+      if (next->sec->lma != last_end) 
+        /* not contiguous, stop at last */
+        break;
+      total += next->sec->_raw_size;
+    } else break;
+    last = next;
+  } while (1);
 
-    /* report correct size of EEDATA sections */
-    if (PCstart >= EEDATA_BASE_ADDR)
-      actual = total / 2;
+  /* we require end - start byte for reading the data */
+  buf = malloc(total);
 
-    num_rows = actual / (row_size * 3);
-    last_row = (actual % (row_size * 3))/3;
+  if (buf == 0) {
+     fprintf(stderr,"Memory allocation error\n");
+     exit(1);
+  }
 
-    for (i = 0; i < num_rows + 1; i++) {
-      /* first write the full records */
-      int write_row_size;
-
-      if (i < num_rows) {
-        write_row_size = row_size;
-      } else {
-        write_row_size = last_row;
+  p = buf;
+  for (s = first; ; s = s->next) {
+    if ((s->sec->flags & SEC_LOAD) && (s->sec->flags & SEC_HAS_CONTENTS)) {
+      fprintf(imagefile,"\t; %s\n", s->sec->name);
+      if (PCstart == -1) {
+        PCstart = s->sec->lma;
       }
-      low_addr = (unsigned short) (start+(offset*2/3));
-
-      fprintf(imagefile,"\t; record start\n");
-      fprintf(imagefile,"\t.word 0x%4.4x ; destination\n", 
-          low_addr & 0x7FFF | ((low_addr >> 15) ? 0x8000 : 0x0000));
-      fprintf(imagefile,"\t.word 0x%4.4x ; len\n", write_row_size);
-      fprintf(imagefile,"\t.word 0x%4.4x ; page | format\n",
-          0x1F | ((low_addr >> 15) << 7));
-      fprintf(imagefile,"\t; data start\n");
-         
-      if (bfd_get_section_contents(abfd,sect,p,raw_offset,write_row_size*4)== 0)
-      {
+      if (bfd_get_section_contents(abfd,s->sec,p,0,s->sec->_raw_size) == 0) {
         fprintf(stderr,"*** Error %d: could not get section contents %s\n", 
-                bfd_get_error(), sect->name);
+                bfd_get_error(), s->sec->name);
       } else {
-        /* raw includes a phantom byte */
-        raw_offset += write_row_size*4;
-        offset += write_row_size*3;
-        for (j=0; j < write_row_size; j++) {  
-          /* fill in data */
-          if (data_line_width++ == 0) {
-            fprintf(imagefile, "	.pbyte ");
-          }
-      
-          fprintf(imagefile, 
-                    upper_case ? 
-                       "0x%2.2X,0x%2.2X,0x%2.2X" : 
-                       "0x%2.2x,0x%2.2x,0x%2.2x", 
-                  dat[j*4], dat[j*4+1], dat[j*4+2]);
-          if ((data_line_width != DATA_LINE_WIDTH) && (j+1 < write_row_size)) {
-            fprintf(imagefile, ", ");
-          } else { 
-            fprintf(imagefile, "\n");
-            data_line_width = 0;
-          }
-        }
+        p += s->sec->_raw_size;
       }
     }
-  } /* if ((sect->flags & SEC_LOAD) && (sect->flags & SEC_HAS_CONTENTS)) */
+    if (s == last) break;
+  }
+
+  actual = (total * 3) / 4;
+  
+  /* report correct size of EEDATA sections */
+  if (PCstart >= EEDATA_BASE_ADDR)
+    actual = total / 2;
+  
+  if (PCstart < 0x800000) PCstart += offset_address_by;
+  start = PCstart;
+
+  num_rows = actual / (row_size * 3);
+  last_row = (actual % (row_size * 3))/3;
+  
+  p = buf;
+  for (i = 0; i < num_rows + 1; i++) {
+    /* first write the full records */
+    int write_row_size;
+    int print_address = 8;
+  
+    if (i < num_rows) {
+          write_row_size = row_size;
+    } else {
+          write_row_size = last_row;
+    }
+    low_addr = (unsigned short) (start+(offset*2/3));
+  
+    fprintf(imagefile,"\t; record start\n");
+    fprintf(imagefile,"\t.word 0x%4.4x ; destination\n", 
+            low_addr & 0x7FFF | ((low_addr >> 15) ? 0x8000 : 0x0000));
+    /* for ldslav, must be an even number of instuctions */
+    fprintf(imagefile,"\t.word 0x%4.4x ; len\n", (write_row_size + 1) & -2);
+    fprintf(imagefile,"\t.word 0x%4.4x ; page | format\n",
+            0x1F | ((low_addr >> 15) << 7));
+    fprintf(imagefile,"\t; data start\n");
+           
+    /* raw includes a phantom byte */
+    raw_offset += write_row_size*4;
+    offset += write_row_size*3;
+    for (j=0; j < write_row_size; j++) {  
+      /* fill in data */
+      if (data_line_width++ == 0) {
+        fprintf(imagefile, "	.pbyte ");
+      }
+        
+      fprintf(imagefile, upper_case ? "0x%2.2X,0x%2.2X,0x%2.2X" : 
+                                      "0x%2.2x,0x%2.2x,0x%2.2x", 
+              p[0], p[1], p[2]);
+      p += 4;
+      if ((data_line_width != DATA_LINE_WIDTH) && (j+1 < write_row_size)) {
+        fprintf(imagefile, ", ");
+      } else { 
+        fprintf(imagefile, "\n");
+        if (--print_address == 0) {
+          fprintf(imagefile, "\t; 0x%x\n", low_addr + (j*2+2));
+          print_address = 8;
+        }
+        data_line_width = 0;
+      }
+    }
+  }
+  if (last_row & 1) {
+     /* pad */
+     fprintf(imagefile, "\t; padding\n\t.pword 0xFFFFFF\n");
+  }
+  return last;
 }
 
 int

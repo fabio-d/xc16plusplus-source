@@ -2,8 +2,8 @@
 
 typedef int32 int;
 int _main ()
-  register int ___FP /* 0xe */;
-  int _k /* 0x0 */;
+    int _k /* 0x0 */;
+    register int ___FP /* 0xe */;
 int _f2 (int _n /* 0x0 */)
-  register int ___FP /* 0xe */;
+    register int ___FP /* 0xe */;
 typedef void void;

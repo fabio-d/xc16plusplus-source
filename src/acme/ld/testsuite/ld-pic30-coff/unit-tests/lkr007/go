@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 GLDPATH=$PIC30_CD/support/dsPIC30F/gld
 
 #
@@ -47,11 +47,11 @@ fi
 
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o --script=$GLDPATH/p30f3014.gld 2>temp
+$GLD30 -o t.exe t1.o --script=$GLDPATH/p30F3014.gld 2>temp
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o --script=$GLDPATH/p30f3014.gld 2>temp"
+    echo "$GLD30 -o t.exe t1.o --script=$GLDPATH/p30F3014.gld 2>temp"
     echo $err
 fi
 

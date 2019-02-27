@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/xc16-gcc
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 
 SIM30=$PIC30_CD/bin/sim30
 
@@ -35,10 +35,10 @@ rm -f test.out
   echo
 } > test.out
 rm -f t.exe
-$GCC30 -o t.exe t.c -Wl,--heap=512 -Tp30f6014.gld > /dev/null 2>&1 || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t.c -Wl,--heap=512 -Tp30F6014.gld -mconst-in-data || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tp30f6014.gld"
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tp30F6014.gld -mconst-in-data"
     echo $err
 fi
 
@@ -58,10 +58,10 @@ rm -f UartOut.txt
   echo
 } >> test.out
 rm -f t.exe
-$GCC30 -o t.exe t.c -Wl,--heap=512  -Tp30f6014.gld -DICD2RAM > /dev/null 2>&1 || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t.c -Wl,--heap=512  -Tp30F6014.gld -mconst-in-data -DICD2RAM >> test.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tp30f6014.gld -DICD2RAM"
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tp30F6014.gld -mconst-in-data -DICD2RAM"
     echo $err
 fi
 
@@ -81,10 +81,10 @@ rm -f UartOut.txt
   echo
 } >> test.out
 rm -f t.exe
-$GCC30 -o t.exe t.c -Wl,--heap=512 -Tt120.gld> /dev/null 2>&1 || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t.c -Wl,--heap=512 -Tt120.gld -mconst-in-data || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tt120.gld"
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512 -Tt120.gld -mconst-in-data "
     echo $err
 fi
 
@@ -104,10 +104,10 @@ rm -f UartOut.txt
   echo
 } >> test.out
 rm -f t.exe
-$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -DICD2RAM > /dev/null 2>&1 || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -mconst-in-data -DICD2RAM >> test.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -DICD2RAM"
+    echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt120.gld -DICD2RAM -mconst-in-data"
     echo $err
 fi
 

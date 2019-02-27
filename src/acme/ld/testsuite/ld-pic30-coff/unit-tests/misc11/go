@@ -8,10 +8,10 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-AR30=$PIC30_CD/bin/xc16-ar
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+AR30="$PIC30_CD/bin/xc16-ar -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 
 
 #
@@ -32,7 +32,7 @@ rm -f t1.o
 $GAS30 -o t1.o t1.s 2> /dev/null
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
     echo "$GAS30 -o t1.o t1.s"
     echo $err

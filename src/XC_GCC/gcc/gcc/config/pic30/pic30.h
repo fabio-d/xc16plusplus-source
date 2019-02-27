@@ -402,12 +402,13 @@ extern const char *pic30_fillupper;
 extern const char *pic30_resource_file;
 extern const char *pic30_sfr_warning;
 enum errata_mask {
-  retfie_errata = 1,
+  retfie_errata =      1,
   retfie_errata_disi = 2,
-  psv_errata = 4,
-  exch_errata = 8,
+  psv_errata =         4,
+  exch_errata =        8,
   psv_address_errata = 16,
-  ecc_errata = 32
+  ecc_errata =         32,
+  busmaster_errata =   64
 };
 extern int pic30_errata_mask;
 
@@ -1812,6 +1813,9 @@ typedef struct pic30_args
 #define PIC30_QLIBFN_FLAG     PIC30_EXTENDED_FLAG "qlib"    PIC30_EXTENDED_FLAG
 #define PIC30_DATAFLASH_FLAG  PIC30_EXTENDED_FLAG "df"      PIC30_EXTENDED_FLAG
 #define PIC30_CO_SHARED_FLAG  PIC30_EXTENDED_FLAG "cshrd"   PIC30_EXTENDED_FLAG
+#define PIC30_PRESERVED_FLAG  PIC30_EXTENDED_FLAG "prsrv"   PIC30_EXTENDED_FLAG
+#define PIC30_PRIORITY_FLAG   PIC30_EXTENDED_FLAG "prity"   PIC30_EXTENDED_FLAG
+#define PIC30_UPDATE_FLAG     PIC30_EXTENDED_FLAG "upd"     PIC30_EXTENDED_FLAG
 
 #define PIC30_SFR_NAME_P(NAME) (strstr(NAME, PIC30_SFR_FLAG))
 #define PIC30_PGM_NAME_P(NAME) (strstr(NAME, PIC30_PROG_FLAG))
@@ -3017,6 +3021,9 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define SECTION_KEEP            (PIC30_LL(SECTION_MACH_DEP) << 20)    /* 46 */
 #define SECTION_CONST_NAME      (PIC30_LL(SECTION_MACH_DEP) << 21)    /* 47 */
 #define SECTION_CO_SHARED       (PIC30_LL(SECTION_MACH_DEP) << 22)    /* 48 */
+#define SECTION_PRESERVED       (PIC30_LL(SECTION_MACH_DEP) << 23)    /* 49 */
+#define SECTION_PRIORITY        (PIC30_LL(SECTION_MACH_DEP) << 24)    /* 50 */
+#define SECTION_UPDATE          (PIC30_LL(SECTION_MACH_DEP) << 25)    /* 51 */
 
 #endif
 

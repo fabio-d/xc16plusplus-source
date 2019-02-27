@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 
 #
 # END CONFIGURATION
@@ -48,6 +48,7 @@ fi
 
 # if linker seg faulted, stop now
 if [ $err -ne 1 ]; then
+  if grep -q "Segmentation fault" temp; then
     echo
     echo `head -1 info.txt`
     echo
@@ -56,6 +57,7 @@ if [ $err -ne 1 ]; then
     echo "*** Test FAILED"
     echo
     exit 199
+  fi
 fi
 
 # keep part of the expected error message

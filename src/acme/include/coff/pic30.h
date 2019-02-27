@@ -95,15 +95,17 @@ struct external_optional_header
  * these values are encoded in a symbol named __ext__attr_secname
  */
 
-#define STYP_HEAP    (0x1)        /* Heap memory */
-#define STYP_STACK   (0x2)        /* Stack memory */
-#define STYP_EDS     (0x4)        /* Extended Data Space memory */
-#define STYP_PAGE    (0x8)        /* Section avoids page boundaries */
-#define STYP_AUXFLASH (0x10)        /* Auxiliary flash memory */
-#define STYP_PACKEDFLASH (0x20)        /* Packed flash memory */
+#define STYP_HEAP         (0x1)   /* Heap memory */
+#define STYP_STACK        (0x2)   /* Stack memory */
+#define STYP_EDS          (0x4)   /* Extended Data Space memory */
+#define STYP_PAGE         (0x8)   /* Section avoids page boundaries */
+#define STYP_AUXFLASH    (0x10)   /* Auxiliary flash memory */
+#define STYP_PACKEDFLASH (0x20)   /* Packed flash memory */
 #define STYP_SHARED      (0x80)   /* section is shareable between co-resident */
-                                  /*  applications */
-#define STYP_AUXPSV      (0x200)  /* auxpsv */
+                                  /*   applications */
+#define STYP_PRESERVED  (0x100)   
+#define STYP_AUXPSV     (0x200)   /* auxpsv */
+#define STYP_UPDATE     (0x400)
 
 struct external_scnhdr
 {
@@ -294,3 +296,11 @@ struct pic30_fill_option
 };
 
 #define PIC30_IS_EVEN(value) (((value) & 0x1) == 0)
+
+#ifndef EXT_ATTR_PREFIX
+#define EXT_ATTR_PREFIX "__ext_attr_"
+#define LINKED_PREFIX "__linked_"
+#define EXCLUDE_PREFIX "__exclude_"
+#define PRIORITY_ATTR_PREFIX "__priority_"
+#endif
+

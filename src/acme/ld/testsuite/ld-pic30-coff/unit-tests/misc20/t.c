@@ -1,5 +1,5 @@
-#define __dsPIC30F6014__
-#include <p30f6014.h>
+//#define __dsPIC30F6014__
+#include <p30F6014.h>
 #include <stdio.h>
 
 int bss[2100];

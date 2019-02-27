@@ -8,11 +8,11 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/xc16-gcc
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 
-BIN2HEX=$PIC30_CD/bin/xc16-bin2hex
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -31,7 +31,7 @@ done
 
 
 rm -f t.exe
-$GCC30 -o t.exe t1.c -mconst-in-data -Wl,--heap=512 || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t1.c -mconst-in-data -Wl,--heap=512 || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo "$GCC30 -o t.exe t1.c -mconst-in-data -Wl,--heap=512"

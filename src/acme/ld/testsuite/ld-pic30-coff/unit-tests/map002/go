@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 
 #
 # END CONFIGURATION
@@ -62,7 +62,7 @@ if [ $vflag = "on" ]; then
     head -30 t.map
 fi
 
-head -43 t.map | tail -31 > test.out
+awk 'BEGIN { output=0; } /^Program Memory/ { output=1; } /.*Maximum dynamic memory/ { output=0; print $0 } { if (output == 1) print $0 }' t.map > test.out
 
 echo
 echo `head -1 info.txt`

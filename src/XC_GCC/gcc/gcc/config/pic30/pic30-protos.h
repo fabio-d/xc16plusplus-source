@@ -192,6 +192,7 @@ extern void pic30_expand_epilogue(void);
 extern int pic30_null_epilogue_p(int in_peep);
 extern int pic30_which_bit(int);
 extern int pic30_one_bit_set_p(int);
+extern int pic30_one_bit_set(rtx,int set);
 extern int pic30_libcall(const char *);
 extern char *pic30_text_section_asm_op(void);
 extern char *pic30_data_section_asm_op(void);

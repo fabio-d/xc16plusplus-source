@@ -1232,10 +1232,9 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
                                                 &signature_mask,
                                                 &signature_set);
 
-#if 0
-  printf("pic30_is_valid_archive_element: looking for %s in %s\n",
+  if (pic30_debug) 
+    printf("pic30_is_valid_archive_element: looking for %s in %s\n",
          p->name, abfd->filename);
-#endif
 
   /*
   ** Special processing for CRT0_STARTUP() file
@@ -1288,6 +1287,35 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
       result = FALSE;
     }
   }
+
+#ifdef PIC30ELF
+  if (strncmp(p->name, CRTMODE_KEY, sizeof(CRTMODE_KEY)-1) == 0) {
+    if (pic30_data_init) {
+      if (pic30_preserve_application_info) {
+        if (strcmp(p->name,CRTMODE_KEY) == 0) {
+          _bfd_generic_link_add_one_symbol (info, pic30_output_bfd, CRTMODE_KEY,
+                                            BSF_GLOBAL, bfd_abs_section_ptr,
+                                            0, CRTMODE_KEY, 1, 0, 0);
+          if (pic30_debug) {
+            printf("\nDefined as %s\n", CRTMODE_KEY);
+          }
+        } else {
+          if (pic30_debug) {
+            printf("\nSkipping %s\n", CRTMODE_KEY);
+          }
+          return FALSE;
+        }
+      } else {
+        if (strcmp(p->name,CRTMODEOFF_KEY) == 0) {
+          _bfd_generic_link_add_one_symbol (info, pic30_output_bfd,
+                                            CRTMODEOFF_KEY, BSF_GLOBAL,
+                                            bfd_abs_section_ptr, 0,
+                                            CRTMODEOFF_KEY, 1, 0, 0);
+        } else return FALSE;
+      }
+    }
+  }
+#endif
  
  /* In case when user refernces __reset in their code without defining it,
  *  the linker will look for an definition in the archive. 
@@ -2968,31 +2996,6 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 	
       if (output)
 	{
-#if 0 /* we don't add application id to section ames anymore */
-          char *ext_attr_prefix = "__ext_attr_";
-          if (strstr(sym->name, ext_attr_prefix)) {
-            extern bfd_boolean pic30_application_id;
-            extern char *application_id;
-            char *sec_name = &sym->name[strlen(ext_attr_prefix)];
-            if (pic30_application_id) {
-              char *new_name;
-              asection *s;
-              for (s = input_bfd->sections ; s!= NULL; s = s->next)
-                 if ((strcmp(s->name, sec_name) == 0) && (s->linked == 0)) {
-                   new_name = (char *)xmalloc(strlen(ext_attr_prefix) +
-                                              strlen(application_id) +
-                                              strlen(sec_name) + 2);
-                   if (sec_name[0] == '.')
-                     (void) sprintf(new_name, "%s%s%s", ext_attr_prefix,
-                                               application_id, sec_name);
-                   else
-                     (void) sprintf(new_name, "%s%s.%s", ext_attr_prefix,
-                                                application_id, sec_name);
-                   sym->name = new_name;
-                }
-           }
-         }
-#endif
 	  if (! generic_add_output_symbol (output_bfd, psymalloc, sym))
 	    return FALSE;
 	  if (h != NULL)

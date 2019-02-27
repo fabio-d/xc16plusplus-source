@@ -1,7 +1,7 @@
         ;; 
         ;; uses the config macro defined in p30f6014.inc
         ;;
-        .include "p30f6014.inc"
+        .include "p30F6014.inc"
         
         ;;
         ;; bit field equates

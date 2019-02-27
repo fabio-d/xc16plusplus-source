@@ -6,6 +6,7 @@ cat <<EOF
 OUTPUT_ARCH("${ARCH}")
 CRT0_STARTUP(crt0_standard.o)
 CRT1_STARTUP(crt1_standard.o)
+CRT_STARTMODE(crt_start_mode_off)
 
 /*
 ** Memory Regions
@@ -397,6 +398,6 @@ _U2TXREG = 0x021a;
 _U2RXREG = 0x021c;
 _U2BRG = 0x21e;
 
-
+__TARGET_DIVIDE_CYCLES = 17;
 
 EOF

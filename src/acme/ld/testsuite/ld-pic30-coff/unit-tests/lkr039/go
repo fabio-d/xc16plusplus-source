@@ -24,9 +24,9 @@ do
     shift
 done
 
-grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30f6010.gld > test.out
-grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30f6012.gld >> test.out
-grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30f6014.gld >> test.out
+grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30F6010.gld > test.out
+grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30F6012.gld >> test.out
+grep -e "^  data .*ORIGIN.*LENGTH" $SCRIPT_PATH/p30F6014.gld >> test.out
 
 echo
 echo `head -1 info.txt`

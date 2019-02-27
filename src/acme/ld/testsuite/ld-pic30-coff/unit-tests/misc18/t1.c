@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #define __dsPIC30F6014__
-#include <p30f6014.h>
+#include <p30F6014.h>
 
 int evals[] __attribute__((section(".eedata,r"))) =
 { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };

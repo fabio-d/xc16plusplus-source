@@ -189,6 +189,22 @@
   (and (match_test "pic30_mode1MinMax_APSV_operand(op,mode,0,31)")
        (match_code "subreg,reg,mem,const_int")))
 
+(define_predicate "pic30_mode1P_or_1bit_APSV_operand"
+  (and 
+       (ior 
+           (match_test "pic30_mode1MinMax_APSV_operand(op,mode,0,31)")
+           (match_test "pic30_one_bit_set(op,1)")
+       )
+       (match_code "subreg,reg,mem,const_int")))
+
+(define_predicate "pic30_mode1P_or_1bitclr_APSV_operand"
+  (and 
+       (ior 
+           (match_test "pic30_mode1MinMax_APSV_operand(op,mode,0,31)")
+           (match_test "pic30_one_bit_set(op,0)")
+       )
+       (match_code "subreg,reg,mem,const_int")))
+
 ;;  { "pic30_mode1PN_operand", { REG, MEM, SUBREG, CONST_INT }}, 
 
 (define_predicate "pic30_mode1PN_operand"
@@ -207,6 +223,14 @@
 
 (define_predicate "pic30_mode1J_APSV_operand"
   (and (match_test "pic30_mode1MinMax_APSV_operand(op,mode,0,1023)")
+       (match_code "subreg,reg,mem,const_int")))
+
+(define_predicate "pic30_mode1J_or_1bitclr_APSV_operand"
+  (and
+       (ior
+           (match_test "pic30_mode1MinMax_APSV_operand(op,mode,0,1023)")
+           (match_test "pic30_one_bit_set(op,0)")
+       )
        (match_code "subreg,reg,mem,const_int")))
 
 ;;  { "pic30_mode1JN_operand", { REG, MEM, SUBREG, CONST_INT }}, 
@@ -1241,6 +1265,7 @@
   (UNSPECV_LACD                105) ; __builtin_lacd
   (UNSPEC_EDSCONSTADDR         106)
   (UNSPECV_WRITEWRLOCK         107)
+  (UNSPECV_PSVCONVERT          108)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -1747,7 +1772,7 @@
   [
   (set (match_operand:HI    0 "pic30_accumulator_operand" "=w")
        (unspec:HI [
-         (match_operand: SI 1 "pic30_mode3_operand"       " rRS<>")
+         (match_operand: SI 1 "pic30_register_operand"       " r")
          (match_operand: HI 2 "immediate_operand"         " Z")
        ] UNSPECV_LACD))
   ]
@@ -1907,7 +1932,7 @@
 
 (define_insn "sac_si"
   [
-   (set (match_operand: SI 0 "pic30_mode3_operand"       "=a,=RS<>r,=RS<>r")
+   (set (match_operand: SI 0 "pic30_register_operand"       "=a,r,r")
       (unspec:SI [
         (match_operand: HI 1 "pic30_accumulator_operand" " w,w     ,w")
         (match_operand: HI 2 "immediate_operand"         " Z,Z     ,Z")
@@ -5111,9 +5136,9 @@
         ] UNSPEC_EDSCONSTADDR))]
   ""
   "@
-   mov #edspage(.const),%d0
-   mov %1,%0\;mov #edspage(.const),%d0
-   mov #edsoffset(%1),%0\;mov #edspage(.const),%d0"
+   mov #__const_psvpage,%d0
+   mov %1,%0\;mov #__const_psvpage,%d0
+   mov #edsoffset(%1),%0\;mov #__const_psvpage,%d0"
   [
     (set_attr "type" "def")
   ]
@@ -5149,8 +5174,8 @@
         ] UNSPEC_EDSCONSTADDR))]
    ""
    "@
-    mov #edspage(.const),%d0
-    mov %1,%0\;mov #edspage(.const),%d0"
+    mov #__const_psvpage,%d0
+    mov %1,%0\;mov #__const_psvpage,%d0"
    [
      (set_attr "type" "def")
    ]
@@ -10333,7 +10358,7 @@
   ""
   "@
    mov %1,%3\;add #%2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0
-   mov %1,%3\;sub #%J2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0"
+   mov %1,%3\;sub #%J2,%0\;xor %3,%0,%3\;lsr %3,#15,%3\;sub %d0,%3,%d0\;btss _SR,#1\;bset %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -11480,7 +11505,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PROGmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(P32EDSmode);
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(P32EDSmode);
@@ -11520,7 +11545,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PROGmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(GET_MODE(operand0));
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(GET_MODE(operand0));
@@ -11560,7 +11585,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PROGmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(P32EXTmode);
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(P32EXTmode);
@@ -11600,7 +11625,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PSVmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(P32EDSmode);
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(P32EDSmode);
@@ -11640,7 +11665,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PSVmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(GET_MODE(operands[0]));
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(GET_MODE(operands[0]));
@@ -11680,7 +11705,7 @@
    "
 {  rtx op2 = gen_reg_rtx(P24PSVmode);
    rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(P32EXTmode);
+   rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
    op0 = gen_reg_rtx(P32EXTmode);
@@ -11721,7 +11746,7 @@
 {  rtx op2 = gen_reg_rtx(P24PROGmode);
    rtx op3 = gen_reg_rtx(HImode);
    rtx op1_ = gen_reg_rtx(SImode);
-   rtx op0 = operand0;
+   rtx op0;
   
    op0 = gen_reg_rtx(SFmode);
    pic30_managed_psv = 1;
@@ -18095,6 +18120,48 @@
 	if (pic30_emit_move_sequence(operands, DFmode)) DONE;
 }")
 
+;; pointer conversions
+;;
+
+(define_mode_iterator TBLMODE [P24PSV P24PROG])
+
+(define_insn "mov<mode>p32eds"
+  [
+   (set (match_operand:P32EDS  0 "pic30_register_operand" "=r,r")
+        (unspec: P32EDS
+          [
+            (match_operand:TBLMODE 1 "pic30_register_operand" " 0,r") 
+          ] UNSPECV_PSVCONVERT))
+  ]
+  ""
+  "@
+   btsts.c %0,#15\;rlc %d0,%d0
+   mov %1,%0\;btsts.c %1,#15\;rlc %d1,%d0"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+(define_insn "mov<mode>p32peds"
+  [
+   (set (match_operand:P32PEDS 0 "pic30_register_operand" "=r,r")
+        (unspec: P32PEDS
+          [
+            (match_operand:TBLMODE 1 "pic30_register_operand" " 0,r") 
+          ] UNSPECV_PSVCONVERT))
+  ]
+  ""
+  "@
+   btsts.c %0,#15\;rlc %d0,%d0
+   mov %1,%0\;btsts.c %1,#15\;rlc %d1,%d0"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; add instructions 
 ;;
@@ -23087,8 +23154,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.sd %1,%2
-   repeat #18-1\;div.sd %1,%2\;mov w0,w1"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w0,w1"
   [
     (set_attr "cc" "clobber")  ; should have a new CC of div
     (set_attr "type" "def")
@@ -23107,8 +23174,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.sd %1,%2
-   repeat #18-1\;div.sd %1,%2\;mov w1,w0"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,w0"
   [
     (set_attr "cc" "clobber")  ; should have a new CC of div
     (set_attr "type" "def")
@@ -23127,8 +23194,8 @@
   ]
   ""
   "@
-   repeat #18-1\;divf %1,%2
-   repeat #18-1\;divf %1,%2\;mov w0,%0"
+   repeat #__TARGET_DIVIDE_CYCLES\;divf %1,%2
+   repeat #__TARGET_DIVIDE_CYCLES\;divf %1,%2\;mov w0,%0"
   [
     (set_attr "cc" "clobber")  ; should have new cc of div
     (set_attr "type" "def")
@@ -23147,8 +23214,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.ud %1,%2
-   repeat #18-1\;div.ud %1,%2\;mov w0,w1"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w0,w1"
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -23167,8 +23234,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.ud %1,%2
-   repeat #18-1\;div.ud %1,%2\;mov w1,w0"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,w0"
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -23193,8 +23260,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.sd %1,%2\;mov w1,[%3]
-   repeat #18-1\;div.sd %1,%2\;mov w1,[%3]\;mov w0,w1"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,[%3]
+   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,[%3]\;mov w0,w1"
   [
     (set_attr "cc" "clobber")   ; should have new CC of div
     (set_attr "type" "def")
@@ -23219,8 +23286,8 @@
   ]
   ""
   "@
-   repeat #18-1\;div.ud %1,%2\;mov w1,[%3]
-   repeat #18-1\;div.ud %1,%2\;mov w1,[%3]\;mov w0,w1"
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,[%3]
+   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,[%3]\;mov w0,w1"
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -23242,11 +23309,13 @@
   "*
    switch (which_alternative) {
      default: gcc_assert(0);
-     case 0:  return \"repeat #18-1\;div.sw %1,%2\";
+     case 0:  return \"repeat #__TARGET_DIVIDE_CYCLES\;div.sw %1,%2\";
      case 1:  if (pic30_errata_mask & exch_errata) {
-                return \"repeat #18-1\;div.sw %1,%2\;push w1\;mov w0,w1\;pop w0\";
+                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                       \"div.sw %1,%2\;push w1\;mov w0,w1\;pop w0\";
               } else {
-                return \"repeat #18-1\;div.sw %1,%2\;exch w0,w1\";
+                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                       \"div.sw %1,%2\;exch w0,w1\";
               }
   }"
   [
@@ -23270,11 +23339,13 @@
   "*
    switch (which_alternative) {
      default: gcc_assert(0);
-     case 0:  return \"repeat #18-1\;div.uw %1,%2\";
+     case 0:  return \"repeat #__TARGET_DIVIDE_CYCLES\;div.uw %1,%2\";
      case 1:  if (pic30_errata_mask & exch_errata) {
-                return \"repeat #18-1\;div.uw %1,%2\;push w1\;mov w0,w1\;pop w0\";
+                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                       \"div.uw %1,%2\;push w1\;mov w0,w1\;pop w0\";
               } else {
-                return \"repeat #18-1\;div.uw %1,%2\;exch w0,w1\";
+                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                       \"div.uw %1,%2\;exch w0,w1\";
               }
   }"
   [
@@ -23901,7 +23972,7 @@
 ;; Set Bit ;;
 ;;;;;;;;;;;;;
 
-(define_insn "*bitsetsiR"
+(define_insn "bitsetsiR"
   [(set (match_operand:SI 0 "pic30_reg_or_R_operand"         "=r,R")
         (ior:SI  (match_operand:SI 1 "pic30_reg_or_R_operand" "0,0")
                  (match_operand 2 "const_int_operand"         "i,i")))]
@@ -24203,18 +24274,31 @@
   [(set (match_operand:QI 0 "pic30_mode2_operand"
                "=r<>,r<>,R,R,  r<>,R,r<>,R,  r<>,R,r")
         (and:QI
-           (match_operand:QI 1 "pic30_mode1J_APSV_operand"
+           (match_operand:QI 1 "pic30_mode1J_or_1bitclr_APSV_operand"
                "%r,  r,  r,r,  r,  r,R<>,R<>,P,  P,0")
-           (match_operand:QI 2 "pic30_mode1J_APSV_operand"
+           (match_operand:QI 2 "pic30_mode1J_or_1bitclr_APSV_operand"
                "r,  R<>,r,R<>,P,  P,r,  r,  r,  r,J")))]
   ""
   "
 {
-  if (pic30_mode1J_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_mode1J_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_andqi3_DATA(operands[0],operands[1],operands[2]));
-  else
-    emit(gen_andqi3_APSV(operands[0],operands[1],operands[2]));
+  if (pic30_one_bit_set(operands[1],0)) {
+    emit(
+      gen_bitclrqi(operands[0], operands[2], operands[1])
+    );
+  } else if (pic30_one_bit_set(operands[2],0)) {
+    emit(
+      gen_bitclrqi(operands[0], operands[1], operands[2])
+    );
+  } else if (pic30_mode1J_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_mode1J_operand(operands[2],GET_MODE(operands[2]))) {
+    emit(
+      gen_andqi3_DATA(operands[0],operands[1],operands[2])
+    );
+  } else {
+    emit(
+      gen_andqi3_APSV(operands[0],operands[1],operands[2])
+    );
+  }
   DONE;
 }")
 
@@ -24348,27 +24432,36 @@
   [(set (match_operand:HI 0 "pic30_mode2_operand"
               "=r<>,r<>,R,R,  R<>,r,R,  r<>,R,r<>")
         (and:HI
-          (match_operand:HI 1 "pic30_mode1P_APSV_operand"
+          (match_operand:HI 1 "pic30_mode1P_or_1bitclr_APSV_operand"
               "%r,  r,  r,r,  r,  r,R<>,R<>,P,P")
-          (match_operand:HI 2 "pic30_mode1P_APSV_operand"
+          (match_operand:HI 2 "pic30_mode1P_or_1bitclr_APSV_operand"
               "r,  R<>,r,R<>,P,  P,r,  r,  r,r")))]
   ""
   "
 {
-  if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_mode1P_operand(operands[2],GET_MODE(operands[2])))
+  if (pic30_one_bit_set(operands[1],0)) {
+    emit(
+      gen_bitclrhi(operands[0], operands[2], operands[1])
+    );
+  } else if (pic30_one_bit_set(operands[2],0)) {
+    emit(
+      gen_bitclrhi(operands[0], operands[1], operands[2])
+    );
+  } else if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_mode1P_operand(operands[2],GET_MODE(operands[2]))) {
     emit(
       gen_andhi3_DATA(operands[0],operands[1],operands[2])
     );
-  else if (pic30_reg_or_near_operand(operands[1],GET_MODE(operands[1])) &&
-           pic30_reg_or_near_operand(operands[0],GET_MODE(operands[0])))
+  } else if (pic30_reg_or_near_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_reg_or_near_operand(operands[0],GET_MODE(operands[0]))) {
     emit(
       gen_andhi3_sfr(operands[0],operands[1],operands[2])
     );
-  else
+  } else {
     emit(
       gen_andhi3_APSV(operands[0],operands[1],operands[2])
     );
+  }
   DONE;
 }")
 
@@ -24408,43 +24501,43 @@
   ]
 )
 
-(define_insn "andhi3_sfr0"
-  [(set (match_operand:HI 0 "pic30_near_operand"         "=U,??U,??U")
-        (and:HI (match_operand:HI 1 "pic30_register_operand"   "%a,??d,??r")
-                (match_operand:HI 2 "pic30_near_operand"  "0,  0,??U")))
-		(clobber (match_scratch:HI 3             "=X,  X, &r"))]
-  ""
-  "*
-   switch (which_alternative) {
-     default: gcc_assert(0);
-     case 0: return \"and %0\";
-     case 1: if (pic30_errata_mask & exch_errata)
-               return \"push w0\;mov %1,w0\;and %0\;pop w0\";
-             else
-               return \"exch w0,%1\;and %0\;exch w0,%1\";
-     case 2: return \"mov %2,%3\;and %3,%1,%3\;mov %3,%0\";
-   }
-  "
-  [(set_attr "cc" "math")])
-
-(define_insn "andhi3_sfr1"
-  [(set (match_operand:HI 0 "pic30_near_operand"         "=U,??U,??U")
-        (and:HI (match_operand:HI 1 "pic30_near_operand" "%0,  0,??U")
-                (match_operand:HI 2 "pic30_register_operand"    "a,??d,??r")))
-		(clobber (match_scratch:HI 3             "=X,  X, &r"))]
-  ""
-  "*
-   switch (which_alternative) {
-     default: gcc_assert(0);
-     case 0: return \"and %0\";
-     case 1: if (pic30_errata_mask & exch_errata)
-               return \"push w0\;mov %2,w0\;and %0\;pop w0\";
-             else
-               return \"exch w0,%2\;and %0\;exch w0,%2\";
-     case 2: return \"mov %1,%3\;and %3,%2,%3\;mov %3,%0\";
-   }
-  "
-  [(set_attr "cc" "math")])
+;(define_insn "andhi3_sfr0"
+;  [(set (match_operand:HI 0 "pic30_near_operand"         "=U,??U,??U")
+;        (and:HI (match_operand:HI 1 "pic30_register_operand"   "%a,??d,??r")
+;                (match_operand:HI 2 "pic30_near_operand"  "0,  0,??U")))
+;		(clobber (match_scratch:HI 3             "=X,  X, &r"))]
+;  ""
+;  "*
+;   switch (which_alternative) {
+;     default: gcc_assert(0);
+;     case 0: return \"and %0\";
+;     case 1: if (pic30_errata_mask & exch_errata)
+;               return \"push w0\;mov %1,w0\;and %0\;pop w0\";
+;             else
+;               return \"exch w0,%1\;and %0\;exch w0,%1\";
+;     case 2: return \"mov %2,%3\;and %3,%1,%3\;mov %3,%0\";
+;   }
+;  "
+;  [(set_attr "cc" "math")])
+;
+;(define_insn "andhi3_sfr1"
+;  [(set (match_operand:HI 0 "pic30_near_operand"         "=U,??U,??U")
+;        (and:HI (match_operand:HI 1 "pic30_near_operand" "%0,  0,??U")
+;                (match_operand:HI 2 "pic30_register_operand"    "a,??d,??r")))
+;		(clobber (match_scratch:HI 3             "=X,  X, &r"))]
+;  ""
+;  "*
+;   switch (which_alternative) {
+;     default: gcc_assert(0);
+;     case 0: return \"and %0\";
+;     case 1: if (pic30_errata_mask & exch_errata)
+;               return \"push w0\;mov %2,w0\;and %0\;pop w0\";
+;             else
+;               return \"exch w0,%2\;and %0\;exch w0,%2\";
+;     case 2: return \"mov %1,%3\;and %3,%2,%3\;mov %3,%0\";
+;   }
+;  "
+;  [(set_attr "cc" "math")])
 
 ;;;;
 ;;    gcc will FORCE a reload for a memory operation if it is a SUBREG -
@@ -25563,18 +25656,31 @@
   [(set (match_operand:QI 0 "pic30_mode2_operand"
               "=r<>,r<>,R,R,  r<>,R,r<>,R,  r<>,R")
         (ior:QI
-           (match_operand:QI 1 "pic30_mode1P_APSV_operand"
+           (match_operand:QI 1 "pic30_mode1P_or_1bit_APSV_operand"
               "%r,  r,  r,r,  r,  r,R<>,R<>,P,  P")
-           (match_operand:QI 2 "pic30_mode1P_APSV_operand"
+           (match_operand:QI 2 "pic30_mode1P_or_1bit_APSV_operand"
               "r,  R<>,r,R<>,P,  P,r,  r,  r,  r")))]
   ""
   "
 {
-  if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_mode1P_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_iorqi3_DATA(operands[0],operands[1],operands[2]));
-  else
-    emit(gen_iorqi3_APSV(operands[0],operands[1],operands[2]));
+  if (pic30_one_bit_set(operands[1],1)) {
+    emit(
+      gen_bitsetqi(operands[0], operands[2], operands[1])
+    );
+  } else if (pic30_one_bit_set(operands[2],1)) {
+    emit(
+      gen_bitsetqi(operands[0], operands[1], operands[2])
+    );
+  } else if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_mode1P_operand(operands[2],GET_MODE(operands[2]))) {
+    emit(
+      gen_iorqi3_DATA(operands[0],operands[1],operands[2])
+    );
+  } else {
+    emit(
+     gen_iorqi3_APSV(operands[0],operands[1],operands[2])
+    );
+  }
   DONE;
 }")
 
@@ -25730,21 +25836,46 @@
   [(set (match_operand:HI 0 "pic30_mode2_operand"
               "=r<>,r<>,R,  R,r<>,R,r<>,R,  r<>,R")
         (ior:HI
-           (match_operand:HI 1 "pic30_mode1P_APSV_operand"
+           (match_operand:HI 1 "pic30_mode1P_or_1bit_APSV_operand"
               "%r,  r,  r,  r,r,  r,R<>,R<>,P,  P")
-           (match_operand:HI 2 "pic30_mode1P_APSV_operand"
+           (match_operand:HI 2 "pic30_mode1P_or_1bit_APSV_operand"
               "R<>,r,  R<>,r,P,  P,r,  r,  r,  r")))
   ]
   ""
   "
 {
-  if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_mode1P_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_iorhi3_DATA(operands[0],operands[1],operands[2]));
-  else
-    emit(gen_iorhi3_APSV(operands[0],operands[1],operands[2]));
+  if (pic30_one_bit_set(operands[1],1)) {
+    emit(
+      gen_bitsethi(operands[0], operands[2], operands[1])
+    );
+  } else if (pic30_one_bit_set(operands[2],1)) {
+    emit(
+      gen_bitsethi(operands[0], operands[1], operands[2])
+    );
+  } else if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
+           pic30_mode1P_operand(operands[2],GET_MODE(operands[2]))) {
+    emit(
+      gen_iorhi3_DATA(operands[0],operands[1],operands[2])
+    );
+  } else {
+    emit(
+      gen_iorhi3_APSV(operands[0],operands[1],operands[2])
+    );
+  }
   DONE;
 }")
+
+(define_insn "*iorhi3_sfr1"
+   [(set (match_operand:HI 0 "pic30_near_operand"            "=U, U")
+         (ior:HI (match_dup 0)
+                 (match_operand:HI 1 "pic30_register_operand" "a, !d")))
+    (clobber (match_scratch:HI 2                             "=X, &r"))]
+   ""
+   "@
+    ior %0
+    mov #%0,%2\;ior %1,[%2],[%2]"
+   [(set_attr "cc" "math")])
+
 
 ;;;;;;;;;;;;;;;;;
 ;; single integer
@@ -25856,18 +25987,33 @@
  [(set (match_operand:SI 0 "pic30_mode2_operand"
              "=r<>,&r<>,R,R,R,  R,r, r,<>")
        (ior:SI
-          (match_operand:SI 1 "pic30_mode1P_APSV_operand"
+          (match_operand:SI 1 "pic30_mode1P_or_1bit_APSV_operand"
              "%r,   r,  r,r,r,  r,0, r,r")
-          (match_operand:SI 2 "pic30_mode1P_APSV_operand"
+          (match_operand:SI 2 "pic30_mode1P_or_1bit_APSV_operand"
              "r<>, R,  0,R,r<>,P,P, P,P")))]
  ""
  "
 {
-  if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
-      pic30_mode1P_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_iorsi3_DATA(operands[0],operands[1],operands[2]));
-  else
-    emit(gen_iorsi3_APSV(operands[0],operands[1],operands[2]));
+  if ((pic30_one_bit_set(operands[1],1) && 
+       pic30_reg_or_R_operand(operands[2],VOIDmode))) {
+    emit(
+      gen_bitsetsiR(operands[0], operands[2], operands[1])
+    );
+  } else if ((pic30_one_bit_set(operands[2],1) && 
+            pic30_reg_or_R_operand(operands[1], VOIDmode))) {
+    emit(
+      gen_bitsetsiR(operands[0], operands[1], operands[2])
+    );
+  } else if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
+             pic30_mode1P_operand(operands[2],GET_MODE(operands[2]))) {
+    emit(
+      gen_iorsi3_DATA(operands[0],operands[1],operands[2])
+    );
+  } else {
+    emit(
+      gen_iorsi3_APSV(operands[0],operands[1],operands[2])
+    );
+  }
   DONE;
 }")
 
@@ -32034,7 +32180,14 @@
           (mem:HI (pre_dec:HI (reg:HI SPREG))))
   ]
   "reload_completed"
-  "ulnk"
+  "*
+  {
+    if ((pic30_errata_mask & busmaster_errata) && (pic30_ecore_target())) {
+      return \"mov w14,w15\;mov [--w15],w14\;bclr CORCON,#2\";
+    } 
+    return \"ulnk\";
+  }
+  "
   [
    (set_attr "cc" "change0")
    (set_attr "type" "def")
@@ -34638,11 +34791,11 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"mov [--w15],w1\";
                 }
@@ -34650,12 +34803,12 @@
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"mov [--w15],w0\";
@@ -34665,12 +34818,12 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"mov.d [--w15],w0\";
@@ -34685,14 +34838,14 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
                     return 
-                           \"repeat #18-1\;\"        /* divide */   
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"            /* compare 2*remainder */
                            \"addc %0,#0,%0\";        /* inc if carry */
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"sl w1,w1\;\"
                              \"cp w1,%2\;\"
@@ -34704,7 +34857,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"mov w0,%0\;\"
@@ -34712,7 +34865,7 @@
                            \"addc %0,#0,%0\;\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"mov w0,%0\;\"
@@ -34726,7 +34879,7 @@
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"
@@ -34734,7 +34887,7 @@
                            \"addc %0,#0,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"mov w0,%0\;\"
@@ -34753,7 +34906,7 @@
                                                      /* convergent follows this
                                                         form */
                     return 
-                           \"repeat #18-1\;\"        /* divide */
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"            /* cp divisor w/ 2*rem */
@@ -34764,7 +34917,7 @@
                            \"addc.w w0,#0,%0\";      /* add carry */
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"sl w1,w1\;\"
                              \"cp w1,%2\;\"
@@ -34778,7 +34931,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"
@@ -34788,7 +34941,7 @@
                   } else {
                     return \"mov w0,[w15++]\;\"
                            \"sl %2,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,[--w15]\;\"
@@ -34802,7 +34955,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"
@@ -34811,7 +34964,7 @@
                            \"addc.w w0,#0,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,w1\;\"
                            \"cp w1,%2\;\"
@@ -34860,7 +35013,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34873,7 +35026,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w1,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34890,7 +35043,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34904,7 +35057,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34923,7 +35076,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34937,7 +35090,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"com w0,%4\;\"              /* complement in case
                                                             of negate */
@@ -34960,7 +35113,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"        /* divide */   
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -34981,7 +35134,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w1,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35006,7 +35159,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"ff1r w1,%4\;\"          /* C = w1 == 0 */
                            \"sl w1,%4\;\"
@@ -35027,7 +35180,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35053,7 +35206,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35074,7 +35227,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35105,7 +35258,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"        /* divide */
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35131,7 +35284,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w1,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"ff1r w1,%4\;\"          /* C = w1 == 0 */
                            \"sl w1,%4\;\"
@@ -35160,7 +35313,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35187,7 +35340,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35218,7 +35371,7 @@
                     return \"sub %1,%2,[w15]\;\"
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35244,7 +35397,7 @@
                            \"mov #0x8000,%0\;\"
                            \"bra z,.LE%=\;\"
                            \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */
@@ -35300,13 +35453,13 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"btsc _SR,#2\;\"
                            \"mov #0x7FFF,%0\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"mov [--w15],w1\;\"
                              \"btsc _SR,#2\;\"
@@ -35316,14 +35469,14 @@
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"btsc _SR,#2\;\"
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"mov [--w15],w0\;\"
@@ -35335,14 +35488,14 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"btsc _SR,#2\;\"
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"mov w0,%0\;\"
                            \"mov.d [--w15],w0\;\"
@@ -35359,7 +35512,7 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
                     return 
-                           \"repeat #18-1\;\"        /* divide */   
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35370,7 +35523,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"bra ov,.OV%=\;\"
                              \"sl w1,w1\;\"
@@ -35386,7 +35539,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35398,7 +35551,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35416,7 +35569,7 @@
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35428,7 +35581,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35451,7 +35604,7 @@
                                                      /* convergent follows this
                                                         form */
                     return 
-                           \"repeat #18-1\;\"        /* divide */
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35466,7 +35619,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"bra ov,.OV%=\;\"
                              \"sl w1,w1\;\"
@@ -35484,7 +35637,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35497,7 +35650,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35515,7 +35668,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35528,7 +35681,7 @@
                            \"mov #0x7FFF,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,w1\;\"
@@ -35575,7 +35728,7 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra nov,.NOV%=\;\"
                            \"mov #0x7FFF,%0\;\"
@@ -35588,7 +35741,7 @@
                            \"addc %4,#0,w0\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"bra nov,.NOV%=\;\"
                              \"mov #0x7FFF,%0\;\"
@@ -35605,7 +35758,7 @@
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra nov,.NOV%=\;\"
                            \"mov #0x7FFF,%0\;\"
@@ -35620,7 +35773,7 @@
 
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra nov,.NOV%=\;\"
                            \"mov #0x7FFF,%0\;\"
@@ -35639,7 +35792,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra nov,.NOV%=\;\"
                            \"mov #0x7FFF,%0\"
@@ -35653,7 +35806,7 @@
                            \"mov w0,%0\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra nov,.NOV%=\;\"
                            \"mov #0x7FFF,%0\;\"
@@ -35677,7 +35830,7 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
                     return 
-                           \"repeat #18-1\;\"        /* divide */   
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35702,7 +35855,7 @@
                            \".NOV%=:\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"bra ov,.OV%=\;\"
                              \"sl w1,%4\;\"
@@ -35731,7 +35884,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35755,7 +35908,7 @@
                            \".NOV%=:\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35785,7 +35938,7 @@
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35809,7 +35962,7 @@
                            \".NOV%=:\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35844,7 +35997,7 @@
                                                      /* convergent follows this
                                                         form */
                     return 
-                           \"repeat #18-1\;\"        /* divide */
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35872,7 +36025,7 @@
                            \".NOV%=:\";
                   } else {
                       return \"mov w1,[w15++]\;\"
-                             \"repeat #18-1\;\"
+                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                              \"divf %1,%2\;\"
                              \"bra ov,.OV%=\;\"
                              \"sl w1,%4\;\"
@@ -35905,7 +36058,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
                     return 
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35933,7 +36086,7 @@
                            \".NOV%=:\";
                   } else {
                     return \"mov w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35966,7 +36119,7 @@
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #18-1\;\"
+                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"bra ov,.OV%=\;\"
                            \"sl w1,%4\;\"
@@ -35994,7 +36147,7 @@
                            \".NOV%=:\";
                   } else {
                     return \"mov.d w0,[w15++]\;\"
-                           \"repeat #18-1\;\"
+                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
                            \"divf %1,%2\;\"
                            \"sl w1,%4\;\"
                            \"sub %4,%2,%4\;\"        /* compare 2*remainder */

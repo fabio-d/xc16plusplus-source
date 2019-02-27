@@ -31,7 +31,7 @@ rm -f t1.o
 $GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
     echo "$GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH"
     echo $err
@@ -62,7 +62,7 @@ sed -e 's/<.*>$/<sym>/' temp > test.out
 #$PIC30_CD/bin/xc16-gcc t2.c
 #err=$?
 #if [ $vflag = "on" ]; then
-#    clear
+#    
 #    echo
 #    echo "$PIC30_CD/bin/xc16-gcc t2.c"
 #    echo $err

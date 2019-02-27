@@ -46,6 +46,7 @@ bfd *pic30_output_bfd;
 /* Note: no default names for the startup modules */
 const char *pic30_startup0_file;
 const char *pic30_startup1_file;
+const char *pic30_startmode_file;
 
 /* Data Structures for the Handle Jump Table */
 bfd *handle_bfd;
@@ -145,6 +146,10 @@ bfd_boolean pic30_pad_flash_option = 0;
 bfd_vma pad_flash_arg = 0;
 char *application_id;
 bfd_boolean pic30_isa_v4 = 0;
+bfd_boolean pic30_has_ivt_option = 0;
+bfd_boolean pic30_ivt = TRUE;
+bfd_boolean pic30_pagesize = FALSE;
+unsigned int pagesize_arg = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -169,6 +174,9 @@ char * memory_summary_arg;
 
 bfd_vma ivt_base = 0;
 bfd_vma aivt_base = 0;
+bfd_vma max_ivt_addr = 0;
+bfd_vma max_aivt_addr = 0;
+
 bfd_boolean aivt_enabled = FALSE;
 
 extern struct bfd_hash_entry *pic30_undefsym_newfunc
@@ -577,25 +585,25 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_UNSIGNED_10_PSVPTR, 0, 1, 10, FALSE, 0, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "UNSIGNED 10 - PSVPTR",
          TRUE, 0x0003ff, 0x0003ff, FALSE),
- HOWTO(R_PIC30_UNSIGNED_10_ACCESS, 0, 1, 10, FALSE, 0, complain_overflow_dont,
+   HOWTO(R_PIC30_UNSIGNED_10_ACCESS, 0, 1, 10, FALSE, 0, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "UNSIGNED 10 - ACCESS",
          TRUE, 0x0003ff, 0x0003ff, FALSE),
-  HOWTO(R_PIC30_WORD_PACKED_HI, 0, 2, 16, FALSE, 4, complain_overflow_dont,
+   HOWTO(R_PIC30_WORD_PACKED_HI, 0, 2, 16, FALSE, 4, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - PACKED_HI",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
-  HOWTO(R_PIC30_WORD_PACKED_LO, 0, 2, 16, FALSE, 4, complain_overflow_dont,
+   HOWTO(R_PIC30_WORD_PACKED_LO, 0, 2, 16, FALSE, 4, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - PACKED_LO",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
-  HOWTO(R_PIC30_UNSIGNED_3, 0, 1, 3, FALSE, 0, complain_overflow_unsigned,
+   HOWTO(R_PIC30_UNSIGNED_3, 0, 1, 3, FALSE, 0, complain_overflow_unsigned,
          RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 3",
          TRUE, 0x000007, 0x000007, FALSE),
-  HOWTO(R_PIC30_UNSIGNED_2, 0, 1, 2, FALSE, 0, complain_overflow_unsigned,
+   HOWTO(R_PIC30_UNSIGNED_2, 0, 1, 2, FALSE, 0, complain_overflow_unsigned,
          RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 2",
          TRUE, 0x000003, 0x000003, FALSE),
-  HOWTO(R_PIC30_WID5, 0, 1, 4, FALSE, 0, complain_overflow_unsigned,
+   HOWTO(R_PIC30_WID5, 0, 1, 4, FALSE, 0, complain_overflow_unsigned,
          RELOC_SPECIAL_FN_GENERIC, "WID5",
          TRUE, 0x00000f, 0x00000f, FALSE),
-  HOWTO(R_PIC30_SHIFT8_UNSIGNED_8, 0, 1, 8, FALSE, 8, complain_overflow_unsigned,
+   HOWTO(R_PIC30_SHIFT8_UNSIGNED_8, 0, 1, 8, FALSE, 8, complain_overflow_unsigned,
          RELOC_SPECIAL_FN_GENERIC, "UNSIGNED 8",
          TRUE, 0x00ff00, 0x00ff00, FALSE),
    HOWTO(R_PIC30_ADDR_LO, 0, 1, 16, FALSE, 0, complain_overflow_dont,
@@ -616,6 +624,7 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_WORD_ADDR_HI, 0, 2, 16, FALSE, 4, complain_overflow_bitfield,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - ADDR_HI",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
+
 };
 
 /******************************************************************************/
@@ -1079,6 +1088,7 @@ void pic30_rtype2howto (internal, dst)
       case R_PIC30_WORD_ADDR_HI:
          internal->howto = pic30_coff_howto_table + 93;
          break;
+
       default:
          abort ();
          break;
@@ -1452,6 +1462,7 @@ static reloc_howto_type * pic30_bfd_reloc_type_lookup (abfd, code)
       case BFD_RELOC_PIC30_WORD_ADDR_HI:
          return pic30_coff_howto_table + 93;
          break;
+
       default:
          BFD_FAIL();
 
@@ -1601,23 +1612,6 @@ bfd_pic30_print_section_header()
          " section", "flags", "   VMA", "   LMA", "length");
   printf("  %8s %4s %6s %6s %6s\n",
          " -------", "-----", "------", "------", "------");
-}
-
-#define USER_IVT_DEFINED 1
-#define USER_AIVT_DEFINED 2
-static void
-bfd_pic30_locate_ivt(abfd, sect, fp) 
-  bfd *abfd;
-  asection *sect;
-  PTR fp;
-{
-  unsigned int *ptr = fp;
-  if (strcmp(sect->name,".ivt") == 0) {
-    *ptr =  *ptr | USER_IVT_DEFINED;
-  }
-  if (strcmp(sect->name,".aivt") == 0) {
-    *ptr =  *ptr | USER_AIVT_DEFINED;
-  }
 }
 
 /*
@@ -1866,8 +1860,6 @@ pic30_final_link (abfd, info)
 
   /* save a local copy for reloc range checking */
   link_output_bfd = abfd;
-
-  bfd_map_over_sections(abfd, &bfd_pic30_locate_ivt, &vector_table_status);
 
   /* call the generic final link routine */
   if (pic30_debug)
@@ -2140,6 +2132,7 @@ pic30_final_link (abfd, info)
   /*  pass 0 - fill in vectors slots for vectors the user has defined */
   /*  pass 1 - fill the unseen slots with the defaulthandler */
   /*  pass 1 may be skipped by using the --no-isr option */
+  if (pic30_ivt)
   for (fill_ivt_pass = 0; fill_ivt_pass <= pic30_isr; fill_ivt_pass++)
   { asymbol **syms;
     ivt_record_type *r;
@@ -2174,20 +2167,28 @@ pic30_final_link (abfd, info)
         }
         for (r = ivt_records_list; r!= NULL; r = next) {
            next = r->next;
+           if (r->ivt_sec && r->ivt_sec->flags & SEC_NEVER_LOAD) {
+              /* this did not get allocated; continue */
+              continue;
+           }
            if (r->name &&
-               /* check offset here too? - CAW */
-               (((fill_ivt_pass == 0) && (strcmp(r->name, sym->name+1) == 0)) ||
+               (((fill_ivt_pass == 0) && (sym->name[0] == '_') &&
+                 (strcmp(r->name, sym->name+1) == 0)) ||
                 ((fill_ivt_pass == 1) && ((r->flags & ivt_seen) == 0)))) {
              r->flags |= ivt_seen;
              if (r->is_alternate_vector) {
+#if 0
                 if (vector_table_status & USER_AIVT_DEFINED) delete_vector=1;
+#endif
                 if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
                      (!pic30_has_floating_aivt && !pic30_has_fixed_aivt))
                   continue;
                 sec_name = xmalloc(strlen(r->name) + strlen(".aivt.") + 2);
                 (void) sprintf(sec_name, ".aivt.%s", r->name);
              } else {
+#if 0
                 if (vector_table_status & USER_IVT_DEFINED) delete_vector=1;
+#endif
                 sec_name = xmalloc(strlen(r->name) + strlen(".ivt.") + 2);
                 (void) sprintf(sec_name, ".ivt.%s", r->name);
              }
@@ -2227,7 +2228,7 @@ pic30_final_link (abfd, info)
                   break;
                 } else if (strcmp(sec->name, sec_name) == 0) break;
              }
-             if (sec == NULL) {
+             if ((sec == NULL) && (delete_vector == 0)) {
                fprintf(stderr,"Link Error: can't write section %s\n",sec_name);
                abort();
              }
@@ -2240,33 +2241,6 @@ pic30_final_link (abfd, info)
     }
   }
 
-#if 0 /* need to do it earlier */
-  /* clean the section names */
-  if (pic30_debug)
-    printf("\nCleaning section names:\n");
-  bfd_map_over_sections(abfd, &bfd_pic30_clean_section_names, 0);
-#endif
-
-#if 0
-  { asymbol **syms;
-    syms = bfd_get_outsymbols(abfd);
-    if (syms) {
-      asymbol *sym;
-      int count = 0;
-      while (count < bfd_get_symcount(abfd)) {
-        sym = *syms;
-        if ( (sym->flags & BSF_GLOBAL) &&
-            !(sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM | BSF_FILE))) {
-          sym->flags &= ~BSF_GLOBAL;
-          sym->flags |= BSF_WEAK;
-          //fprintf(stderr,"weaken: %s\n", sym->name);
-        }
-        syms++;
-        count++;
-      }
-    }
-  }
-#endif          
   if (pic30_debug)
     {
       printf("\nAfter pic30 final link:\n");

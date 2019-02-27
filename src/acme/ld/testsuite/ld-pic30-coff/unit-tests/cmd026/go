@@ -8,7 +8,7 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/xc16-gcc
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
 
 #
 # END CONFIGURATION
@@ -25,11 +25,11 @@ do
 done
 
 rm -f t.exe t.map
-$GCC30 -o t.exe -Wl,-p30F6014 t1.s -Tp30f2010.gld > temp 2>&1
+$GCC30 -o t.exe -Wl,-p30F6014 t1.s -Tp30F2010.gld > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GCC30 -o t.exe -Wl,-p30F6014 t1.s -Tp30f2010.gld"
+    echo "$GCC30 -o t.exe -Wl,-p30F6014 t1.s -Tp30F2010.gld"
     echo $err
     echo
 fi

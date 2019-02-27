@@ -2085,56 +2085,59 @@ elf_link_add_object_symbols (abfd, info)
               (ELF_ST_BIND(isym->st_info) != STB_HIPROC))
             continue;
 
-          // only need to do this once
-          if (create_application_id == 0) for (r = ivt_records_list; r != NULL; r = next) {
-            next = r->next;
-            if (r->name && (strcmp(r->name, name+1) == 0)) {
-              asection *ivt_sec;
-              char *sec_name;
- 
-              r->flags |= ivt_seen;
-              /* CAW - aivt_enabled is not yet valid,
-                   make the section and we will fix it later */
-              if (r->is_alternate_vector) {
+	  // only need to do this once
+          extern int pic30_ivt;
+	  if ((pic30_ivt) && (create_application_id == 0)) {
+              for (r = ivt_records_list; r != NULL; r = next) {
+              next = r->next;
+              if (r->name && (strcmp(r->name, name+1) == 0)) {
+                asection *ivt_sec;
+                char *sec_name;
+   
+                r->flags |= ivt_seen;
+                /* CAW - aivt_enabled is not yet valid,
+                     make the section and we will fix it later */
+                if (r->is_alternate_vector) {
 #if 0
-                if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
-                    (!pic30_has_floating_aivt && !pic30_has_fixed_aivt)) {
-                  break;
-                } else 
+                  if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
+                      (!pic30_has_floating_aivt && !pic30_has_fixed_aivt)) {
+                    break;
+                  } else 
 #endif
+                  {
+                    sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+                    (void) sprintf(sec_name, ".aivt.%s", r->name);
+                  }
+                }
+                else 
                 {
-                  sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
-                  (void) sprintf(sec_name, ".aivt.%s", r->name);
+                  sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+                  (void) sprintf(sec_name, ".ivt.%s", r->name);
                 }
-              }
-              else 
-              {
-                sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
-                (void) sprintf(sec_name, ".ivt.%s", r->name);
-              }
-              r->sec_name = sec_name;
-              ivt_sec = bfd_make_section(abfd, sec_name);
-              ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD |
-                               SEC_CODE | SEC_ALLOC | SEC_KEEP);
-              PIC30_SET_ABSOLUTE_ATTR(ivt_sec);
-              ivt_sec->linker_generated = 1;
-              ivt_sec->_raw_size = ivt_sec->_cooked_size = 4;
-              r->ivt_sec = ivt_sec;
-              if ((r->is_alternate_vector) && (pic30_has_fixed_aivt)) {
-                if (aivt_base == 0) {
-                  fprintf(stderr,"Link Error: can't locate alternate vector "
-                                   "table base address\n");
-                  abort();
+                r->sec_name = sec_name;
+                ivt_sec = bfd_make_section(abfd, sec_name);
+                ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD |
+                                 SEC_CODE | SEC_ALLOC | SEC_KEEP);
+                PIC30_SET_ABSOLUTE_ATTR(ivt_sec);
+                ivt_sec->linker_generated = 1;
+                ivt_sec->_raw_size = ivt_sec->_cooked_size = 4;
+                r->ivt_sec = ivt_sec;
+                if ((r->is_alternate_vector) && (pic30_has_fixed_aivt)) {
+                  if (aivt_base == 0) {
+                    fprintf(stderr,"Link Error: can't locate alternate vector "
+                                     "table base address\n");
+                    abort();
+                  }
+                 
+                  bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
+                } else {
+                  if (ivt_base == 0) {
+                     fprintf(stderr,"Link Error: can't locate vector "
+                                    "table base address\n");
+                     abort();
+                  }
+                  bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
                 }
-               
-                bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
-              } else {
-                if (ivt_base == 0) {
-                   fprintf(stderr,"Link Error: can't locate vector "
-                                  "table base address\n");
-                   abort();
-                }
-                bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
               }
             }
           }

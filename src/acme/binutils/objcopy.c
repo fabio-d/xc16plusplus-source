@@ -29,6 +29,10 @@
 #include "filenames.h"
 #include <sys/stat.h>
 
+#ifdef PIC30
+#include "coff-pic30.h"
+#endif
+
 /* A list of symbols to explicitly strip out, or to keep.  A linked
    list is good enough for a small number from the command line, but
    this will slow things down a lot if many symbols are being
@@ -933,8 +937,8 @@ filter_symbols (abfd, obfd, osyms, isyms, symcount)
 #ifdef PIC30
       if (keep_named && 
            (strstr(sym->name, keep_named) ||
-            strstr(sym->name, "__ext_attr_") ||
-            strstr(sym->name, "__linked_"))) keep = 1;
+            strstr(sym->name, EXT_ATTR_PREFIX) ||
+            strstr(sym->name, LINKED_PREFIX))) keep = 1;
 #endif
 
       if (keep && (flags & BSF_GLOBAL) != 0

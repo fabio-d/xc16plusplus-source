@@ -151,33 +151,36 @@ struct mchp_config_specification *mchp_configuration_values;
 #define SECTION_NAME_DATAFLASH    ".dataflash"
 
 /* the attribute names from the assemblers point of view */
-#define SECTION_ATTR_ADDRESS  "address"
-#define SECTION_ATTR_ALIGN    "align"
-#define SECTION_ATTR_BSS      "bss"
-#define SECTION_ATTR_CODE     "code"
-#define SECTION_ATTR_CONST    "psv"
-#define SECTION_ATTR_DATA     "data"
-#define SECTION_ATTR_DMA      "dma"
-#define SECTION_ATTR_EEDATA   "eedata"
-#define SECTION_ATTR_INFO     "info"
-#define SECTION_ATTR_MERGE    "merge"
-#define SECTION_ATTR_NEAR     "near"
-#define SECTION_ATTR_NOLOAD   "noload"
-#define SECTION_ATTR_PERSIST  "persist"
-#define SECTION_ATTR_PSV      "psv"
-#define SECTION_ATTR_REVERSE  "reverse"
-#define SECTION_ATTR_XMEMORY  "xmemory"
-#define SECTION_ATTR_YMEMORY  "ymemory"
-#define SECTION_ATTR_BOOT     "boot"
-#define SECTION_ATTR_SECURE   "secure"
-#define SECTION_ATTR_DEFAULT  "unused"
-#define SECTION_ATTR_EDS      "eds"
-#define SECTION_ATTR_PAGE     "page"
-#define SECTION_ATTR_AUXFLASH "auxflash"
-#define SECTION_ATTR_AUXPSV   "auxpsv"
+#define SECTION_ATTR_ADDRESS           "address"
+#define SECTION_ATTR_ALIGN             "align"
+#define SECTION_ATTR_BSS               "bss"
+#define SECTION_ATTR_CODE              "code"
+#define SECTION_ATTR_CONST             "psv"
+#define SECTION_ATTR_DATA              "data"
+#define SECTION_ATTR_DMA               "dma"
+#define SECTION_ATTR_EEDATA            "eedata"
+#define SECTION_ATTR_INFO              "info"
+#define SECTION_ATTR_MERGE             "merge"
+#define SECTION_ATTR_NEAR              "near"
+#define SECTION_ATTR_NOLOAD            "noload"
+#define SECTION_ATTR_PERSIST           "persist"
+#define SECTION_ATTR_PSV               "psv"
+#define SECTION_ATTR_REVERSE           "reverse"
+#define SECTION_ATTR_XMEMORY           "xmemory"
+#define SECTION_ATTR_YMEMORY           "ymemory"
+#define SECTION_ATTR_BOOT              "boot"
+#define SECTION_ATTR_SECURE            "secure"
+#define SECTION_ATTR_DEFAULT           "unused"
+#define SECTION_ATTR_EDS               "eds"
+#define SECTION_ATTR_PAGE              "page"
+#define SECTION_ATTR_AUXFLASH          "auxflash"
+#define SECTION_ATTR_AUXPSV            "auxpsv"
 #define SECTION_ATTR_PACKEDFLASH       "packedflash"
-#define SECTION_ATTR_KEEP     "keep"
+#define SECTION_ATTR_KEEP              "keep"
 #define SECTION_ATTR_CORESIDENT_SHARED "shared"
+#define SECTION_ATTR_PRESERVED         "preserved"
+#define SECTION_ATTR_PRIORITY          "priority"
+#define SECTION_ATTR_UPDATE            "update"
 
 /* this table should be ordered on flag_name */
 struct valid_section_flags_ {
@@ -187,87 +190,115 @@ struct valid_section_flags_ {
   SECTION_FLAGS_INT incompatable_with;
 } valid_section_flags[] = {
   { SECTION_ATTR_ADDRESS, 0,
-              SECTION_ADDRESS, SECTION_REVERSE | SECTION_ALIGN | SECTION_INFO |
-                               SECTION_PACKEDFLASH },
+              SECTION_ADDRESS,     SECTION_REVERSE | SECTION_ALIGN | 
+                                   SECTION_INFO | SECTION_PACKEDFLASH },
   { SECTION_ATTR_ALIGN, 0,
-              SECTION_ALIGN,   SECTION_ADDRESS | SECTION_REVERSE |
-                               SECTION_INFO | SECTION_PACKEDFLASH },
+              SECTION_ALIGN,       SECTION_ADDRESS | SECTION_REVERSE |
+                                   SECTION_INFO | SECTION_PACKEDFLASH },
   { SECTION_ATTR_BOOT, 0,
-             0,                SECTION_CODE | SECTION_WRITE | SECTION_XMEMORY |
-                               SECTION_YMEMORY | SECTION_PACKEDFLASH },
+             0,                    SECTION_CODE | SECTION_WRITE | 
+                                   SECTION_XMEMORY | SECTION_YMEMORY | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_BSS, 'b',
-              SECTION_BSS,     SECTION_CODE | SECTION_WRITE | SECTION_PERSIST |
-                               SECTION_PSV | SECTION_READ_ONLY |
-                               SECTION_EEDATA  | SECTION_PACKEDFLASH},
+              SECTION_BSS,         SECTION_CODE | SECTION_WRITE | 
+                                   SECTION_PERSIST | SECTION_PSV | 
+                                   SECTION_READ_ONLY | SECTION_EEDATA  | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_CODE, 'x',
-             SECTION_CODE,     SECTION_WRITE | SECTION_XMEMORY | SECTION_BSS |
-                               SECTION_YMEMORY | SECTION_NEAR | SECTION_PSV |
-                               SECTION_PERSIST | SECTION_EEDATA |
-                               SECTION_READ_ONLY  | SECTION_PACKEDFLASH},
+             SECTION_CODE,         SECTION_WRITE | SECTION_XMEMORY | 
+                                   SECTION_BSS | SECTION_YMEMORY | 
+                                   SECTION_NEAR | SECTION_PSV |
+                                   SECTION_PERSIST | SECTION_EEDATA |
+                                   SECTION_READ_ONLY  | SECTION_PACKEDFLASH},
   { SECTION_ATTR_DATA, 'd',
-             SECTION_WRITE,    SECTION_BSS | SECTION_PSV | SECTION_PERSIST |
-                               SECTION_EEDATA | SECTION_READ_ONLY |
-                               SECTION_PACKEDFLASH },
+             SECTION_WRITE,        SECTION_BSS | SECTION_PSV | SECTION_PERSIST |
+                                   SECTION_EEDATA | SECTION_READ_ONLY |
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_DMA, 0 ,
-             SECTION_DMA,      SECTION_PSV | SECTION_INFO |
-                               SECTION_EEDATA | SECTION_READ_ONLY |
-                               SECTION_XMEMORY | SECTION_YMEMORY |
-                               SECTION_NEAR | SECTION_PACKEDFLASH },
+             SECTION_DMA,          SECTION_PSV | SECTION_INFO |
+                                   SECTION_EEDATA | SECTION_READ_ONLY |
+                                   SECTION_XMEMORY | SECTION_YMEMORY |
+                                   SECTION_NEAR | SECTION_PACKEDFLASH },
   { SECTION_ATTR_EEDATA, 0,
-             SECTION_EEDATA,   SECTION_CODE | SECTION_WRITE | SECTION_BSS |
-                               SECTION_PSV | SECTION_NEAR | SECTION_XMEMORY |
-                               SECTION_YMEMORY | SECTION_INFO |
-                               SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+             SECTION_EEDATA,       SECTION_CODE | SECTION_WRITE | SECTION_BSS |
+                                   SECTION_PSV | SECTION_NEAR | 
+                                   SECTION_XMEMORY | SECTION_YMEMORY | 
+                                   SECTION_INFO | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_INFO, 0,
-             SECTION_INFO,     SECTION_PERSIST | SECTION_PSV | SECTION_EEDATA |
-                               SECTION_ADDRESS | SECTION_NEAR |
-                               SECTION_XMEMORY | SECTION_YMEMORY |
-                               SECTION_REVERSE | SECTION_ALIGN |
-                               SECTION_NOLOAD | SECTION_MERGE |
-                               SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+             SECTION_INFO,         SECTION_PERSIST | SECTION_PSV | 
+                                   SECTION_EEDATA | SECTION_ADDRESS | 
+                                   SECTION_NEAR | SECTION_XMEMORY | 
+                                   SECTION_YMEMORY | SECTION_REVERSE | 
+                                   SECTION_ALIGN | SECTION_NOLOAD | 
+                                   SECTION_MERGE | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_MERGE, 0,
-             SECTION_MERGE,    SECTION_BSS | SECTION_PERSIST | SECTION_INFO |
-                               SECTION_PACKEDFLASH },
+             SECTION_MERGE,        SECTION_BSS | SECTION_PERSIST | 
+                                   SECTION_INFO | SECTION_PACKEDFLASH },
   { SECTION_ATTR_NEAR, 0,
-              SECTION_NEAR,    SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
-                               SECTION_INFO | SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+              SECTION_NEAR,        SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_INFO | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_NOLOAD, 0,
-             SECTION_NOLOAD,   SECTION_MERGE | SECTION_INFO | SECTION_PACKEDFLASH },
+             SECTION_NOLOAD,       SECTION_MERGE | SECTION_INFO | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_PACKEDFLASH, 0,
-             SECTION_PACKEDFLASH,       SECTION_PERSIST | SECTION_PSV | SECTION_EEDATA |
-                               SECTION_ADDRESS | SECTION_NEAR |
-                               SECTION_XMEMORY | SECTION_YMEMORY |
-                               SECTION_REVERSE | SECTION_ALIGN |
-                               SECTION_NOLOAD | SECTION_MERGE |
-                               SECTION_READ_ONLY | SECTION_INFO },
+             SECTION_PACKEDFLASH,  SECTION_PERSIST | SECTION_PSV | 
+                                   SECTION_EEDATA | SECTION_ADDRESS | 
+                                   SECTION_NEAR | SECTION_XMEMORY | 
+                                   SECTION_YMEMORY | SECTION_REVERSE | 
+                                   SECTION_ALIGN | SECTION_NOLOAD | 
+                                   SECTION_MERGE | SECTION_READ_ONLY | 
+                                   SECTION_INFO },
   { SECTION_ATTR_PERSIST, 'b',
-             SECTION_PERSIST,  SECTION_CODE | SECTION_WRITE | SECTION_BSS |
-                               SECTION_PSV | SECTION_EEDATA | SECTION_MERGE |
-                               SECTION_INFO | SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+             SECTION_PERSIST,      SECTION_CODE | SECTION_WRITE | SECTION_BSS |
+                                   SECTION_PSV | SECTION_EEDATA | SECTION_MERGE|
+                                   SECTION_INFO | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH | SECTION_PRIORITY },
+  { SECTION_ATTR_PRESERVED, 0,
+             SECTION_PRESERVED,    SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_MERGE | SECTION_INFO | 
+                                   SECTION_READ_ONLY | SECTION_PACKEDFLASH |
+                                   SECTION_UPDATE },
+  { SECTION_ATTR_PRIORITY, 0,
+             SECTION_PRIORITY,     SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_MERGE | SECTION_NOLOAD | 
+                                   SECTION_INFO | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_CONST, 'r',
-             SECTION_READ_ONLY,SECTION_CODE | SECTION_WRITE | SECTION_BSS |
-                               SECTION_EEDATA | SECTION_NEAR | SECTION_XMEMORY |
-                               SECTION_YMEMORY | SECTION_INFO | SECTION_PSV |
-                               SECTION_PACKEDFLASH },
+             SECTION_READ_ONLY,    SECTION_CODE | SECTION_WRITE | SECTION_BSS |
+                                   SECTION_EEDATA | SECTION_NEAR | 
+                                   SECTION_XMEMORY | SECTION_YMEMORY | 
+                                   SECTION_INFO | SECTION_PSV | 
+                                   SECTION_PACKEDFLASH | SECTION_PRIORITY },
   { SECTION_ATTR_PSV, 0,
-             SECTION_PSV,      SECTION_CODE | SECTION_WRITE | SECTION_BSS |
-                               SECTION_EEDATA | SECTION_NEAR | SECTION_XMEMORY |
-                               SECTION_YMEMORY | SECTION_INFO |
-                               SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+             SECTION_PSV,          SECTION_CODE | SECTION_WRITE | SECTION_BSS |
+                                   SECTION_EEDATA | SECTION_NEAR | 
+                                   SECTION_XMEMORY | SECTION_YMEMORY | 
+                                   SECTION_INFO | SECTION_READ_ONLY | 
+                                   SECTION_PACKEDFLASH | SECTION_PRIORITY },
   { SECTION_ATTR_REVERSE, 0,
-             SECTION_REVERSE,  SECTION_CODE | SECTION_ADDRESS | SECTION_ALIGN |
-                               SECTION_INFO | SECTION_PACKEDFLASH },
+             SECTION_REVERSE,      SECTION_CODE | SECTION_ADDRESS | 
+                                   SECTION_ALIGN | SECTION_INFO | 
+                                   SECTION_PACKEDFLASH },
   { SECTION_ATTR_CORESIDENT_SHARED, 0,
-             SECTION_CO_SHARED, SECTION_MERGE },
+             SECTION_CO_SHARED,    SECTION_INFO | SECTION_MERGE },
+
+  { SECTION_ATTR_UPDATE, 0,
+             SECTION_UPDATE,       SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_MERGE | SECTION_INFO | 
+                                   SECTION_READ_ONLY | SECTION_PACKEDFLASH |
+                                   SECTION_PRESERVED },
   { SECTION_ATTR_XMEMORY, 0,
-             SECTION_XMEMORY,  SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
-                               SECTION_YMEMORY | SECTION_INFO |
-                               SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+             SECTION_XMEMORY,      SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_YMEMORY | SECTION_INFO |
+                                   SECTION_READ_ONLY | SECTION_PACKEDFLASH },
   { SECTION_ATTR_YMEMORY, 0,
-             SECTION_YMEMORY,  SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
-                               SECTION_XMEMORY | SECTION_INFO |
-                               SECTION_READ_ONLY | SECTION_PACKEDFLASH },
-  { 0, 0, 0, 0},
+             SECTION_YMEMORY,      SECTION_CODE | SECTION_PSV | SECTION_EEDATA |
+                                   SECTION_XMEMORY | SECTION_INFO |
+                                   SECTION_READ_ONLY | SECTION_PACKEDFLASH },
+  { 0, 0, 0, 0 },
 };
 
 #define PIC30_SECTION(name, scope, variable, flags) scope section *variable;
@@ -294,11 +325,11 @@ static const char *pic30_default_section = "*";
 
 typedef struct tagSFR
 {
-    struct tagSFR    *pNext;
+    struct tagSFR *pNext;
     const char    *pName;
-    int        address;
-}
-    SFR, *PSFR;
+    int           address;
+} SFR, *PSFR;
+
 static PSFR lpSFRs = NULL;
 
 int pic30_smart_io_warning = 0;
@@ -453,6 +484,12 @@ object_signature_t options_set = { 0 }, external_options_mask = { 0 };
     ((t) == pic30_identContext[0] || (t) == pic30_identContext[1])
 #define IDENT_SHARED(t) \
     ((t) == pic30_identShared[0] || (t) == pic30_identShared[1])
+#define IDENT_PRESERVED(t) \
+    ((t) == pic30_identPreserved[0] || (t) == pic30_identPreserved[1])
+#define IDENT_PRIORITY(t) \
+    ((t) == pic30_identPriority[0] || (t) == pic30_identPriority[1])
+#define IDENT_UPDATE(t) \
+    ((t) == pic30_identUpdate[0] || (t) == pic30_identUpdate[1])
 
 static tree pic30_identDeprecatedDef[2];
 static tree pic30_identUserinit[2];
@@ -515,6 +552,9 @@ static tree pic30_identTruncation[2];
 static tree pic30_identDataflash[2];
 static tree pic30_identContext[2];
 static tree pic30_identShared[2];
+static tree pic30_identPreserved[2];
+static tree pic30_identPriority[2];
+static tree pic30_identUpdate[2];
 
 typedef struct cheap_rtx_list {
   tree t;
@@ -536,24 +576,25 @@ typedef enum pic30_conversion_status_ {
   conv_possible,
   conv_indeterminate,
 #if (defined(C30_SMARTIO_RULES) && (C30_SMARTIO_RULES > 1))
-  conv_c =  0x000080,
-  conv_d =  0x000100,
-  conv_i =  0x000100,
-  conv_e =  0x000200,
-  conv_E =  0x000400,
-  conv_f =  0x000800,
-  conv_g =  0x001000,
-  conv_G =  0x002000,
-  conv_n =  0x004000,
-  conv_o =  0x008000,
-  conv_p =  0x010000,
-  conv_s =  0x020000,
-  conv_u =  0x040000,
-  conv_x =  0x080000,
-  conv_X =  0x100000,
-  conv_a =  0x200000,
-  conv_A =  0x400000,
-  conv_F =  0x800000,
+  conv_c =    0x000000080,
+  conv_d =    0x000000100,
+  conv_i =    0x000000100,
+  conv_e =    0x000000200,
+  conv_E =    0x000000400,
+  conv_f =    0x000000800,
+  conv_g =    0x000001000,
+  conv_G =    0x000002000,
+  conv_n =    0x000004000,
+  conv_o =    0x000008000,
+  conv_p =    0x000010000,
+  conv_s =    0x000020000,
+  conv_u =    0x000040000,
+  conv_x =    0x000080000,
+  conv_X =    0x000100000,
+  conv_a =    0x000200000,
+  conv_A =    0x000400000,
+  conv_F =    0x000800000,
+  conv_L =    0x001000000, 
 #endif
   conv_not_possible = 3
 } pic30_conversion_status;
@@ -683,6 +724,11 @@ pic30_errata_map errata_map[] = {
   { "ecc",         ecc_errata,
                         "\tECC can create a false positive in the face of\n"
                         "\t\tcertain RAW hazards.\n",
+    0, 0
+  },
+  { "busmaster",   busmaster_errata,
+                        "\tNon-zero values in MSTRPR register can cause a\n"
+                        "\tStackError trap if executing an ULNK instruction.\n",
     0, 0
   },
   { 0, 0, 0, 0, 0 }
@@ -981,6 +1027,9 @@ const struct attribute_spec pic30_attribute_table[] = {
   { "round",      1,   1,    1,    0,  0, pic30_valid_machine_attribute },
   { "context",    0,   0,    1,    0,  0, pic30_valid_machine_attribute },
   { "shared",     0,   0,    1,    0,  0, pic30_valid_machine_attribute },
+  { "preserved",  0,   0,    1,    0,  0, pic30_valid_machine_attribute },
+  { "priority",   1,   1,    1,    0,  0, pic30_valid_machine_attribute },
+  { "update",     0,   0,    1,    0,  0, pic30_valid_machine_attribute },
   { 0,            0,   0,    0,    0,  0, NULL },
 };
 #undef TARGET_ATTRIBUTE_TABLE
@@ -1053,6 +1102,8 @@ struct pic30_mem_info_ pic30_mem_info = {
   { -1, -1 }
 };
 
+char *pic30_register_extended_reloc(char *base, HOST_WIDE_INT offset);
+void pic30_output_extended_relocs(void);
 
 void pic30_output_section_asm_op(const void *directive) {
   struct reserved_section_names_ *s =
@@ -1540,9 +1591,20 @@ static SECTION_FLAGS_INT validate_identifier_flags(const char *id) {
     } else if (strncmp(f, PIC30_QLIBFN_FLAG, sizeof(PIC30_QLIBFN_FLAG)-1) == 0){
       f += sizeof(PIC30_QLIBFN_FLAG)-1;
     } else if (strncmp(f, PIC30_CO_SHARED_FLAG, 
-                          sizeof(PIC30_CO_SHARED_FLAG)-1) == 0){
+                          sizeof(PIC30_CO_SHARED_FLAG)-1) == 0) {
       f += sizeof(PIC30_CO_SHARED_FLAG)-1;
       flags += SECTION_CO_SHARED;
+    } else if (strncmp(f, PIC30_PRESERVED_FLAG, 
+                       sizeof(PIC30_PRESERVED_FLAG)-1) == 0) {
+      f += sizeof(PIC30_PRESERVED_FLAG)-1;
+      flags += SECTION_PRESERVED;
+    } else if (strncmp(f, PIC30_UPDATE_FLAG, sizeof(PIC30_UPDATE_FLAG)-1) == 0){
+      f += sizeof(PIC30_UPDATE_FLAG)-1;
+      flags += SECTION_UPDATE;
+    } else if (strncmp(f, PIC30_PRIORITY_FLAG, 
+                       sizeof(PIC30_PRIORITY_FLAG)-1) == 0) {
+      f += sizeof(PIC30_PRIORITY_FLAG)-1;
+      flags += SECTION_PRIORITY;
     } else {
       error("Could not determine flags for: '%s'", id);
       return flags;
@@ -1856,6 +1918,10 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
           break;
 
         case pic30_space_eds:
+          if (eds_attr) {
+            /* if eds attribute is provided */
+            break;
+          }
           if (space_attr && 
               IDENT_DMA(TREE_VALUE(TREE_VALUE(space_attr))) &&
               (pic30_device_mask & (HAS_DMAV2))) {
@@ -2472,20 +2538,41 @@ static const char *pic30_unique_section_name(tree decl) {
   return default_name;
 }
 
-#define CHECK_SIZE(result, current_len, max_len, add) \
+#define CHECK_SIZE(result, current_len, max_len, add)         \
    if (current_len + (signed)add + 1 > max_len) {             \
-     char *new_result;                                \
+     char *new_result;                                        \
      max_len = max_len + ((signed)add < 512 ? 512 : add*2);   \
-     new_result = (char*)xmalloc(max_len);            \
-     gcc_assert(new_result);                          \
-     *new_result = 0;                                 \
-     if (result) {                                    \
-       strcat(new_result, result);                    \
-       free(result);                                  \
-     }                                                \
-     result = new_result;                             \
-   }                                                  \
+     new_result = (char*)xmalloc(max_len);                    \
+     gcc_assert(new_result);                                  \
+     *new_result = 0;                                         \
+     if (result) {                                            \
+       strcat(new_result, result);                            \
+       free(result);                                          \
+     }                                                        \
+     result = new_result;                                     \
+   }                                                          \
    (void) 0
+
+#define CHECK_SIZE_WITH_STRING(result, current_len, max_len, string) \
+   {  int add = strlen(string);                                      \
+      if ((result == 0) || (strstr(result, string) == NULL)) {       \
+        if (current_len + (signed)add + 1 > max_len) {               \
+          char *new_result;                                          \
+          max_len = max_len + ((signed)add < 512 ? 512 : add*2);     \
+          new_result = (char*)xmalloc(max_len);                      \
+          gcc_assert(new_result);                                    \
+          *new_result = 0;                                           \
+          if (result) {                                              \
+            strcat(new_result, result);                              \
+            free(result);                                            \
+          }                                                          \
+          result = new_result;                                       \
+        }                                                            \
+        current_len += sprintf(result+current_len, string);          \
+      }                                                              \
+   }                                                                 \
+   (void) 0
+
 
 /* added prepend stuff CW 2011-6-16 */
 static const char *default_section_name(tree decl, const char *pszSectionName, 
@@ -2495,11 +2582,17 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
   int currentlen = 0;
   char prepend[80] = { 0 };
   int i,psv=0,implied_psv=0,prog=0,dataflash=0;
-  tree a,r,u,p,is_aligned,b,s;
+  tree a,r,u,a_space,is_aligned,b,s;
   tree memory = 0;
   int is_default = 0;
   int len_this_default_name;
   char *this_default_name = pic30_unique_section_name(decl);
+  tree priority, preserved, update;
+  int force_preserved = 0;
+  int force_keep = 0;
+  static char temp_buffer[256];
+
+  if (result) result[0] = 0;
 
   if ((pszSectionName) && (pszSectionName[0] == '#'))
     return pszSectionName;
@@ -2515,29 +2608,39 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
                        DECL_ATTRIBUTES(decl)); 
     u = lookup_attribute(IDENTIFIER_POINTER(pic30_identUnordered[0]),
                          DECL_ATTRIBUTES(decl));
-    p = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
+    a_space = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
                          DECL_ATTRIBUTES(decl));
     b = lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                          DECL_ATTRIBUTES(decl));
     s = lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
                          DECL_ATTRIBUTES(decl));
+    preserved = lookup_attribute(IDENTIFIER_POINTER(pic30_identPreserved[0]),
+                                 DECL_ATTRIBUTES(decl));
+    priority = lookup_attribute(IDENTIFIER_POINTER(pic30_identPriority[0]),
+                                DECL_ATTRIBUTES(decl));
+    update = lookup_attribute(IDENTIFIER_POINTER(pic30_identUpdate[0]),
+                                 DECL_ATTRIBUTES(decl));
     if (pic30_interrupt_function_p(decl)) {
       sprintf(prepend,".isr");
+      if (flag_function_sections || DECL_SECTION_NAME(decl)) {
+        /* this section will not be .text, so force keep */
+        force_keep = 1;
+      }
     }
     if (b && s) {
       error("%D boot and secure specified for '%s'", decl,
             IDENTIFIER_POINTER(DECL_NAME(decl)));
       s = 0;
     }
-    if (p) {
-      psv = IDENT_CONST(TREE_VALUE(TREE_VALUE(p)));
-      prog = IDENT_PROG(TREE_VALUE(TREE_VALUE(p)));
-      dataflash = IDENT_DATAFLASH(TREE_VALUE(TREE_VALUE(p)));
-      if (TREE_CODE(TREE_VALUE(TREE_VALUE(p))) == CALL_EXPR) {
+    if (a_space) {
+      psv = IDENT_CONST(TREE_VALUE(TREE_VALUE(a_space)));
+      prog = IDENT_PROG(TREE_VALUE(TREE_VALUE(a_space)));
+      dataflash = IDENT_DATAFLASH(TREE_VALUE(TREE_VALUE(a_space)));
+      if (TREE_CODE(TREE_VALUE(TREE_VALUE(a_space))) == CALL_EXPR) {
         tree id, id_args;
 
-        id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(p))),0);
-        id_args = CALL_EXPR_ARGS(TREE_VALUE(TREE_VALUE(p)));
+        id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(a_space))),0);
+        id_args = CALL_EXPR_ARGS(TREE_VALUE(TREE_VALUE(a_space)));
         if (IDENT_EXTERNAL(DECL_NAME(id)) || IDENT_PMP(DECL_NAME(id))) {
           if (TREE_CODE(TREE_VALUE(id_args)) == CALL_EXPR)
             ;
@@ -2546,6 +2649,12 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       }
     }
     psv |= implied_psv;
+
+    /* force preserved ? */
+    if ((TARGET_PRESERVE_ALL) && (!update) && (!psv) && (!prog) && 
+        (TREE_CODE(decl) != FUNCTION_DECL) && (!dataflash)) {
+      force_preserved = 1;
+    }
     if (DECL_SECTION_NAME (decl)) {
       pszSectionName = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
     } else if ((a) || (r)) {
@@ -2560,8 +2669,7 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       }
     }
     if (u)  {
-      CHECK_SIZE(result, currentlen, maxlen, len_this_default_name + 1);
-      currentlen += sprintf(result,"%s", this_default_name);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, this_default_name);
     }
     else if (a) {
       /* + 16 covers parens, terminating null, and largest possible address */
@@ -2589,125 +2697,99 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       if (!pszSectionName||(strcmp(pszSectionName,pic30_default_section) == 0)){
         /* warning: comparison between signed and unsigned does not occur
                     when the .i file is compiled (bug in 4.2.1?) */
-        CHECK_SIZE(result, currentlen, maxlen, 
-                   len_this_default_name + sizeof(SECTION_ATTR_ADDRESS) + 
-                   ADDR_LEN + 1);
-        currentlen += sprintf(result, "%s,%s(%ld)",
+        sprintf(temp_buffer, "%s,%s(%ld)",
                               this_default_name, SECTION_ATTR_ADDRESS,
                               address_value);
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       } else {
-        CHECK_SIZE(result, currentlen, maxlen,
-                   strlen(pszSectionName) + sizeof(SECTION_ATTR_ADDRESS) + 
-                   ADDR_LEN + 1);
-        currentlen += sprintf(result, "%s,%s(%ld)",
+        sprintf(temp_buffer, "%s,%s(%ld)",
                               pszSectionName, SECTION_ATTR_ADDRESS,
                               address_value);
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       }
     } else if (r) {
       if (!pszSectionName||(strcmp(pszSectionName,pic30_default_section) == 0)){
-        CHECK_SIZE(result, currentlen, maxlen, 
-                   len_this_default_name + sizeof(SECTION_ATTR_REVERSE) + 
-                   ADDR_LEN + 1);
-        currentlen += sprintf(result, "%s,%s(%ld)",
+        sprintf(temp_buffer, "%s,%s(%ld)",
                               this_default_name,
                               SECTION_ATTR_REVERSE,
                               TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(r))));
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       } else {
-        CHECK_SIZE(result, currentlen, maxlen,
-                   strlen(pszSectionName) + sizeof(SECTION_ATTR_REVERSE) + 
-                   ADDR_LEN + 1);
-        currentlen += sprintf(result, "%s,%s(%ld)",
+        sprintf(temp_buffer, "%s,%s(%ld)",
                               pszSectionName,
                               SECTION_ATTR_REVERSE,
                               TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(r))));
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       }
     } else if (dataflash) {
       if (pszSectionName) {
-        CHECK_SIZE(result, currentlen, maxlen, 
-                   sizeof(SECTION_NAME_DATAFLASH) + 1 +
-                   strlen(pszSectionName) + 1 + 1);
-        currentlen += sprintf(result, "%s.%s", 
+        sprintf(temp_buffer, "%s.%s", 
                               SECTION_NAME_DATAFLASH, pszSectionName);
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       } else {
-        CHECK_SIZE(result, currentlen, maxlen, 
-                   sizeof(SECTION_NAME_DATAFLASH) + 1);
-        currentlen += sprintf(result, "%s", SECTION_NAME_DATAFLASH);
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, 
+                               SECTION_NAME_DATAFLASH);
       }
     } else if (pszSectionName) {
-      CHECK_SIZE(result, currentlen, maxlen, 
-                 strlen(prepend) + strlen(pszSectionName) + 1 + 1);
       if (pszSectionName[0] == '*') {
         // can't prepend to a '*' name, reorder it...
-        currentlen += sprintf(result, "*%s%s", prepend, pszSectionName+1);
+        sprintf(temp_buffer, "*%s%s", prepend, pszSectionName+1);
       } else 
-      currentlen += sprintf(result, "%s%s", prepend, pszSectionName);
+      sprintf(temp_buffer, "%s%s", prepend, pszSectionName);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
     } else if (psv) {
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_NAME_SECURE_CONST + 1));
-      if (b) currentlen += sprintf(result,"%s",SECTION_NAME_BOOT_CONST);
-      else if (s) currentlen += sprintf(result,"%s",SECTION_NAME_SECURE_CONST);
-      else  currentlen += sprintf(result,"%s",SECTION_NAME_CONST);
+      if (b) sprintf(temp_buffer,"%s",SECTION_NAME_BOOT_CONST);
+      else if (s) sprintf(temp_buffer,"%s",SECTION_NAME_SECURE_CONST);
+      else  sprintf(temp_buffer,"%s",SECTION_NAME_CONST);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
     } else if (prog) {
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_NAME_SECURE_PROG) + 1);
-      if (b) currentlen += sprintf(result,"%s",SECTION_NAME_BOOT_PROG);
-      else if (s) currentlen += sprintf(result,"%s",SECTION_NAME_SECURE_PROG);
-      else currentlen += sprintf(result,"%s", SECTION_NAME_PROG);
+      if (b) sprintf(temp_buffer,"%s",SECTION_NAME_BOOT_PROG);
+      else if (s) sprintf(temp_buffer,"%s",SECTION_NAME_SECURE_PROG);
+      else sprintf(temp_buffer,"%s", SECTION_NAME_PROG);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
     } else if ((b) && (TREE_CODE(decl) == FUNCTION_DECL)) {
       /* '*' will cause errors in elf -g, c30-168 - for now use a fixed name
          until we can fix the '*' assembler name */
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_ATTR_BOOT)+1+1);
-      currentlen += sprintf(result,".%s", SECTION_ATTR_BOOT);
+      sprintf(temp_buffer,".%s", SECTION_ATTR_BOOT);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       if (TREE_VALUE(b)) {
         if (TREE_CODE(TREE_VALUE(TREE_VALUE(b))) == IDENTIFIER_NODE) {
           if (IDENT_DEFAULT(TREE_VALUE(TREE_VALUE(b)))) {
-            CHECK_SIZE(result, currentlen, maxlen,
-                       sizeof(SECTION_ATTR_DEFAULT) + 1);
-            currentlen += sprintf(result+currentlen, "_%s", 
-                                  SECTION_ATTR_DEFAULT);
+            sprintf(temp_buffer, "_%s", SECTION_ATTR_DEFAULT);
+            CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
           }
         } else {
           int slot = TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(b)));
-          CHECK_SIZE(result, currentlen, maxlen,
-                     ADDR_LEN);
-          currentlen += sprintf(result+currentlen, "_%d", slot);
+          sprintf(temp_buffer, "_%d", slot);
+          CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
         }
       } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identInterrupt[0]),
                            DECL_ATTRIBUTES(decl))) {
-        CHECK_SIZE(result, currentlen, maxlen, 5);
-        currentlen += sprintf(result+currentlen, "_isr");
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "_isr");
       }
     } else if ((s) && (TREE_CODE(decl) == FUNCTION_DECL)) {
       /* '*' will cause errors in elf -g, c30-168 - for now use a fixed name
          until we can fixer the '*' assembler name */
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_ATTR_SECURE)+1+1);
-      currentlen += sprintf(result,".%s", SECTION_ATTR_SECURE);
+      sprintf(temp_buffer,".%s", SECTION_ATTR_SECURE);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       if (TREE_VALUE(s)) {
         if (TREE_CODE(TREE_VALUE(TREE_VALUE(s))) == IDENTIFIER_NODE) {
           if (IDENT_DEFAULT(TREE_VALUE(TREE_VALUE(s)))) {
-            CHECK_SIZE(result, currentlen, maxlen,
-                       sizeof(SECTION_ATTR_DEFAULT));
-            currentlen += sprintf(result+currentlen,"_%s", 
-                                  SECTION_ATTR_DEFAULT);
+            sprintf(temp_buffer,"_%s", SECTION_ATTR_DEFAULT);
+            CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
           }
         } else {
           int slot = TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(s)));
-          CHECK_SIZE(result, currentlen, maxlen,
-                     ADDR_LEN);
-          currentlen += sprintf(result+currentlen, "_%d", slot);
+          sprintf(temp_buffer, "_%d", slot);
+          CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
         }
       } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identInterrupt[0]),
                            DECL_ATTRIBUTES(decl))) {
-        CHECK_SIZE(result, currentlen, maxlen,
-                   5);
-        currentlen += sprintf(result+currentlen, "_isr");
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "_isr");
       }
     } else {
       if (!is_aligned) is_default = 1;
-      CHECK_SIZE(result, currentlen, maxlen, strlen(this_default_name)+1+1);
-      currentlen += sprintf(result,"%s", this_default_name);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, this_default_name);
     }
     if (memory) {
       pic30_external_memory *m;
@@ -2716,71 +2798,79 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       for (m = pic30_external_memory_head; m; m = m->next)
         if (m->decl == memory) break;
       if (m == 0) error("Invalid external memory attribute\n");
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof("memory(_)") + strlen(m->name) + 
-                 sizeof(SECTION_ATTR_NOLOAD));
-      currentlen += sprintf(result+currentlen,",memory(_%s)", m->name);
+      sprintf(temp_buffer,",memory(_%s)", m->name);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
       if (!(flags & SECTION_NOLOAD)) {
-        currentlen += sprintf(result+currentlen, "," SECTION_ATTR_NOLOAD);
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, 
+                               "," SECTION_ATTR_NOLOAD);
       }
     }
     if (b) {
       is_default = 0;
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_ATTR_BOOT) + 1);
-      currentlen += sprintf(result+currentlen, "," SECTION_ATTR_BOOT);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "," SECTION_ATTR_BOOT);
       if (TREE_VALUE(b)) {
         int slot;
 
         if (TREE_CODE(TREE_VALUE(TREE_VALUE(b))) == IDENTIFIER_NODE) {
           if (IDENT_DEFAULT(TREE_VALUE(TREE_VALUE(b)))) {
-            CHECK_SIZE(result, currentlen, maxlen,
-                       sizeof(SECTION_ATTR_DEFAULT) + 2);
-            currentlen += sprintf(result+currentlen,"(%s)", 
-                                  SECTION_ATTR_DEFAULT);
+            sprintf(temp_buffer,"(%s)", SECTION_ATTR_DEFAULT);
+            CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
           }
         } else {
           slot = TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(b)));
-          CHECK_SIZE(result, currentlen, maxlen,
-                     ADDR_LEN);
-          currentlen += sprintf(result+currentlen, "(%d)", slot);
+          sprintf(temp_buffer, "(%d)", slot);
+          CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
         }
       } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identInterrupt[0]),
                            DECL_ATTRIBUTES(decl))) {
-        CHECK_SIZE(result, currentlen, maxlen,
-                   5);
-        currentlen += sprintf(result+currentlen, "(isr)");
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "(isr)");
       }
     }
     if (s) {
       is_default = 0;
-      CHECK_SIZE(result, currentlen, maxlen,
-                 sizeof(SECTION_ATTR_SECURE) + 1);
-      currentlen += sprintf(result+currentlen, "," SECTION_ATTR_SECURE);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, 
+                             "," SECTION_ATTR_SECURE);
       if (TREE_VALUE(s)) {
         int slot;
 
         if (TREE_CODE(TREE_VALUE(TREE_VALUE(s))) == IDENTIFIER_NODE) {
           if (IDENT_DEFAULT(TREE_VALUE(TREE_VALUE(s)))) {
-            CHECK_SIZE(result, currentlen, maxlen,
-                       sizeof(SECTION_ATTR_DEFAULT) + 2);
-            currentlen += sprintf(result+currentlen,"(%s)", 
-                                  SECTION_ATTR_DEFAULT);
+            sprintf(temp_buffer,"(%s)", SECTION_ATTR_DEFAULT);
+            CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
           }
         } else {
           slot = TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(s)));
-          CHECK_SIZE(result, currentlen, maxlen,
-                     ADDR_LEN);
-          currentlen += sprintf(result+currentlen, "(%d)", slot);
+          sprintf(temp_buffer, "(%d)", slot);
+          CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
         }
       }
       if (lookup_attribute(IDENTIFIER_POINTER(pic30_identInterrupt[0]),
                            DECL_ATTRIBUTES(decl))) {
-        CHECK_SIZE(result, currentlen, maxlen,
-                   5);
-        currentlen += sprintf(result+currentlen, "(isr)");
+        CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "(isr)");
       }
     }
+    if ((preserved) || (force_preserved)) {
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, 
+                             "," SECTION_ATTR_PRESERVED);
+      is_default = 0;
+    }
+    if ((priority) && (strstr(result,SECTION_ATTR_PRIORITY) == 0)) {
+      unsigned long value = TREE_INT_CST_LOW(TREE_VALUE(TREE_VALUE(priority)));
+      sprintf(temp_buffer,",%s(0x%4.4x)", SECTION_ATTR_PRIORITY,value);
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
+      is_default = 0;
+      force_keep = 1;
+    }
+    if (update) {
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, 
+                             "," SECTION_ATTR_UPDATE);
+      is_default = 0;
+    }
+    if (force_keep) {
+      CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, "," SECTION_ATTR_KEEP);
+      is_default = 0;
+    }
+
     if ((!is_default) || 
         (strncmp(result,this_default_name,len_this_default_name))) 
       return result;
@@ -3056,7 +3146,16 @@ get_license (void)
 
   /* Call xclm to determine the license */
   if (-1 == mchp_license_valid) {
+#ifdef XCLM_ALLOW_ANY
+    xclm_tampered = 0;
+#else
     xclm_tampered = mchp_sha256_validate(exec, MCHP_XCLM_SHA256_DIGEST);
+#ifdef MCHP_XCLM_SHA256_DIGEST_VAL64
+    if (xclm_tampered != 0) {
+      xclm_tampered = mchp_sha256_validate(exec, MCHP_XCLM_SHA256_DIGEST64);
+    }
+#endif
+#endif
     if (xclm_tampered != 0) {
       mchp_license_valid=MCHP_XCLM_FREE_LICENSE;
       if (pic30_nofallback) {
@@ -3341,6 +3440,8 @@ void pic30_override_options(void) {
 #ifdef LICENSE_MANAGER_XCLM
   if (mchp_mafrlcsj) {
     pic30_license_valid = MCHP_XCLM_VALID_PRO_LICENSE;
+  } else if (mchp_skip_license_check) {
+    pic30_license_valid = -1;
   } else {
     pic30_license_valid = get_license();
   }
@@ -3853,7 +3954,7 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
           added |=  JOIN(conv_,ALT); }
 
         if (match->encoded_name == 0) {
-          char extra_flags[sizeof("_aAcdeEfFgGnopsuxX0")] = "_";
+          char extra_flags[sizeof("_aAcdeEfFgGnopsuxX0L")] = "_";
           char *f = &extra_flags[1];
           pic30_conversion_status added;
 
@@ -3974,6 +4075,12 @@ const char *pic30_strip_name_encoding(const char *symbol_name) {
           CCS_ADD_FLAG_ALT(u,X);
           CCS_ADD_FLAG_ALT(x,X);
           CCS_ADD_FLAG_ALT(X,X);
+
+#ifdef LONG_MODIFIER
+          /* Long? */
+          CCS_ADD_FLAG(L);
+#endif
+
           *f++=0;
 
           if (strlen(extra_flags) > 1) {
@@ -11643,6 +11750,13 @@ int pic30_one_bit_set_p(int x) {
     return(x && (x & (x - 1)) == 0);
 }
 
+int pic30_one_bit_set(rtx x, int set) {
+  if (GET_CODE(x) == CONST_INT) {
+    return pic30_one_bit_set_p(set ? INTVAL(x) : ~INTVAL(x));
+  }
+  return 0;
+}
+
 /*
 ** Return the number of the least significant bit set.
 */
@@ -14244,7 +14358,6 @@ static void pic30_init_idents(void) {
         pic30_identEds[1] = get_identifier("__eds__");
         pic30_identPage[0] = get_identifier("page");
         pic30_identPage[1] = get_identifier("__page__");
-
         pic30_identAddress[0] = get_identifier("address");
         pic30_identAddress[1] = get_identifier("__address__");
         pic30_identReverse[0] = get_identifier("reverse");
@@ -14297,6 +14410,12 @@ static void pic30_init_idents(void) {
         pic30_identContext[1] = get_identifier ("__context__");
         pic30_identShared[0] = get_identifier ("shared");
         pic30_identShared[1] = get_identifier ("__shared__");
+        pic30_identPreserved[0] = get_identifier ("preserved");
+        pic30_identPreserved[1] = get_identifier ("__preserved__");
+        pic30_identPriority[0] = get_identifier ("priority");
+        pic30_identPriority[1] = get_identifier ("__priority__");
+        pic30_identUpdate[0] = get_identifier ("update");
+        pic30_identUpdate[1] = get_identifier ("__update__");
     }
 }
 
@@ -14679,6 +14798,53 @@ static int ignore_attribute(const char *attribute, const char *attached_to,
   return 0;
 }
 
+static int pic30_space_conflicts_with_decl(tree decl, tree space_type, 
+                                           tree conflicts_with) {
+  tree space;
+
+  if (space_type == NULL_TREE) {
+    space = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
+                             DECL_ATTRIBUTES(decl));
+    if (space) {
+      space_type = TREE_VALUE(TREE_VALUE(space));
+    }
+  }
+  if (space_type) {
+    tree preserved;
+    tree update;
+
+    if (conflicts_with == 0) {
+      conflicts_with = 
+         lookup_attribute(IDENTIFIER_POINTER(pic30_identPreserved[0]),
+                          DECL_ATTRIBUTES(decl));
+    }
+    if (conflicts_with == 0) {
+      conflicts_with = 
+         lookup_attribute(IDENTIFIER_POINTER(pic30_identUpdate[0]),
+                          DECL_ATTRIBUTES(decl));
+    }
+    if (conflicts_with) {
+      if (IDENT_PROG(TREE_VALUE(space_type))  || 
+          IDENT_CONST(TREE_VALUE(space_type)) ||
+          IDENT_PSV(TREE_VALUE(space_type)) || 
+          IDENT_EEDATA(TREE_VALUE(space_type)) ||
+          IDENT_AUXFLASH(TREE_VALUE(space_type)) || 
+          IDENT_AUXPSV(TREE_VALUE(space_type)) ||
+          IDENT_DATAFLASH(TREE_VALUE(space_type)))
+      {
+        warning(OPT_Wattributes,
+          "space(%s) cannot be combined with __attribute__((%s)) ignoring %s",
+          IDENTIFIER_POINTER(TREE_VALUE(space_type)),
+          IDENTIFIER_POINTER(TREE_PURPOSE(conflicts_with)),
+          IDENTIFIER_POINTER(TREE_PURPOSE(conflicts_with)));
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+
 static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
                                                tree args, bool *no_add_attrs,
                                                const char *attached_to) {
@@ -14732,6 +14898,7 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
   */
   if (IDENT_SPACE(identifier))
   { tree space;
+    tree update, preserved;
 
     if (ignore_attribute("space", attached_to, *node)) {
       *no_add_attrs = 1;
@@ -14774,6 +14941,7 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
                (!(pic30_device_mask & HAS_DATAFLASH))) {
         error("space(dataflash) not supported on this target");
       }
+      *no_add_attrs = pic30_space_conflicts_with_decl(decl, args, 0);
       return NULL_TREE;
     } else if (TREE_CODE(TREE_VALUE(args)) == CALL_EXPR) {
       tree id;
@@ -15050,9 +15218,40 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
     return NULL_TREE;
   }
   if (IDENT_SHARED(identifier)) {
-    if (ignore_attribute("noload", attached_to, *node)) {
+    if (ignore_attribute("shared", attached_to, *node)) {
       *no_add_attrs = 1;
       return NULL_TREE;
+    }
+    return NULL_TREE;
+  }
+  if (IDENT_PRIORITY(identifier)) {
+    tree priority;
+
+    if (ignore_attribute("priority", attached_to, *node)) {
+      *no_add_attrs = 1;
+      return NULL_TREE;
+    }
+    priority = TREE_VALUE(args);
+    if (TREE_CODE(priority) != INTEGER_CST) {
+      error("invalid priority argument for '%s'", attached_to);
+      *no_add_attrs = 1;
+    } else if (TREE_INT_CST_LOW(priority) == 0) {
+      warning(OPT_Wattributes,
+              "invalid priority argument for '%s'", attached_to);
+      warning(OPT_Wattributes,
+              "priority == 0 is not permitted, ignoring attribute");
+      *no_add_attrs = 1;
+    } else if (TREE_INT_CST_LOW(priority) > 0xFFFF) {
+      warning(OPT_Wattributes,
+              "invalid priority argument for '%s'", attached_to);
+      warning(OPT_Wattributes,
+              "priority > 65535 is not permitted, ignoring attribute");
+      *no_add_attrs = 1;
+    }
+    if (TREE_CODE(decl) == FUNCTION_DECL) {
+      if (pic30_validate_void_fn(decl,"priority")) {
+        *no_add_attrs = 1;
+      }
     }
     return NULL_TREE;
   }
@@ -15154,19 +15353,58 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
     if (IDENT_UNORDERED(identifier)) {
       if (ignore_attribute("unordered", attached_to, *node)) {
         *no_add_attrs = 1;
-        return NULL_TREE;
       }
       return NULL_TREE;
     } else if (IDENT_MERGE(identifier)) {
       if (ignore_attribute("merge", attached_to, *node)) {
         *no_add_attrs = 1;
-        return NULL_TREE;
       }
       return NULL_TREE;
     } else if (IDENT_PERSISTENT(identifier)) {
       if (ignore_attribute("persistent", attached_to, *node)) {
         *no_add_attrs = 1;
-        return NULL_TREE;
+      }
+      return NULL_TREE;
+    } else if (IDENT_PRESERVED(identifier)) {
+      if (ignore_attribute("preserved", attached_to, *node)) {
+        *no_add_attrs = 1;
+      } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identUpdate[0]),
+                                  DECL_ATTRIBUTES(decl))) {
+        warning(OPT_Wattributes,
+               "Ignoring __attribute__((preserved)) applied to '%s'\n"
+               "\tas it conflicts with __attribute__((update))", attached_to);
+        *no_add_attrs = 1;
+      } else {
+        *no_add_attrs = pic30_space_conflicts_with_decl(decl, 0, identifier);
+        /* Now check if decl is in code or const */
+        if ((TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) 
+                                  && TREE_READONLY(decl)) {
+          warning(OPT_Wattributes,
+                  "Ignoring attribute 'preserved' applied to '%s'" , 
+                  attached_to);
+          *no_add_attrs = 1;
+        } 
+      }
+      return NULL_TREE;
+    } else if (IDENT_UPDATE(identifier)) {
+      if (ignore_attribute("update", attached_to, *node)) {
+        *no_add_attrs = 1;
+      } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identPreserved[0]),
+                                  DECL_ATTRIBUTES(decl))) {
+        warning(OPT_Wattributes,
+               "Ignoring __attribute__((update)) applied to '%s'\n"
+               "\tas it conflicts with __attribute__((preserved))",attached_to);
+        *no_add_attrs = 1;
+      } else {
+        *no_add_attrs = pic30_space_conflicts_with_decl(decl, 0, identifier);
+        /* Now check if decl is in code or const */
+        if ((TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) 
+                                  && TREE_READONLY(decl)) {
+          warning(OPT_Wattributes,
+                  "Ignoring attribute 'update' applied to '%s'" , 
+                  attached_to);
+          *no_add_attrs = 1;
+        } 
       }
       return NULL_TREE;
     } else if (IDENT_REVERSE(identifier)) {
@@ -15768,6 +16006,12 @@ static char *pic30_section_with_flags(const char *pszSectionName,
   }
   if (flags & SECTION_CO_SHARED) {
     f += sprintf(f, "," SECTION_ATTR_CORESIDENT_SHARED);
+  }
+  if (flags & SECTION_PRESERVED) {
+    f += sprintf(f, "," SECTION_ATTR_PRESERVED);
+  }
+  if (flags & SECTION_UPDATE) {
+    f += sprintf(f, "," SECTION_ATTR_UPDATE);
   }
   if (flags & (SECTION_NAMED | SECTION_PMP | SECTION_EXTERNAL)) {
     /* no other flags needed, it should be already in the name */
@@ -16827,6 +17071,8 @@ void pic30_asm_file_end(void) {
   */
   PSFR pSFR;
   pic30_external_memory *m;
+ 
+  pic30_output_extended_relocs();
 
   for (pSFR = lpSFRs; pSFR; pSFR = pSFR->pNext)
   {
@@ -16986,6 +17232,7 @@ static pic30_conversion_status
 pic30_convertable_output_format_string(const char *string) {
   const char *c = string;
   enum pic30_conversion_status_ status = 0;
+  int long_64 = 0;
 
   for ( ; *c; c++)
   {
@@ -17028,13 +17275,13 @@ pic30_convertable_output_format_string(const char *string) {
     /* optional 1st conversion modifier */
     switch (*c) {
       case 'h':
-      case 'l':
-      case 'L': c++; break;
+      case 'l': c++; break;
+      case 'L': long_64 = 1; c++; break;
       default: break;
     }
     /* optional 2nd conversion modifier */
     switch (*c) {
-      case 'l': c++; break;
+      case 'l': long_64 = 1; c++; break;
       default: break;
     }
     /* c should point to the conversion character */
@@ -17061,13 +17308,18 @@ pic30_convertable_output_format_string(const char *string) {
                  break;
     }
   }
+#ifdef LONG_MODIFIER
+  return conv_possible | status | (long_64? conv_L : 0);
+#else
   return conv_possible | status;
+#endif
 }
 
 static pic30_conversion_status
 pic30_convertable_input_format_string(const char *string) {
   const char *c = string;
   enum pic30_conversion_status_ status = 0;
+  int long_64 = 0;
 
   for ( ; *c; c++)
   {
@@ -17084,13 +17336,13 @@ pic30_convertable_input_format_string(const char *string) {
     /* optional 1st conversion modifier */
     switch (*c) {
       case 'h':
-      case 'l':
-      case 'L': c++; break;
+      case 'l': c++; break;
+      case 'L': long_64 = 1; c++; break;
       default: break;
     }
     /* optional 2nd conversion modifier */
     switch (*c) {
-      case 'l': c++; break;
+      case 'l': long_64 = 1; c++; break;
       default: break;
     }
     /* c should point to the conversion character */
@@ -17125,7 +17377,11 @@ pic30_convertable_input_format_string(const char *string) {
                  break;
     }
   }
+#ifdef LONG_MODIFIER
+  return conv_possible | status | (long_64? conv_L : 0);
+#else
   return conv_possible | status;
+#endif
 }
 
 #else
@@ -18056,7 +18312,8 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
       rtx newref = gen_reg_rtx(to_mode);
       rtx reg = gen_reg_rtx(HImode);
 
-      emit_move_insn(reg,op);
+      // emit_move_insn(reg,op);
+      convert_move(reg,op,1);
       if (to_mode == P32EDSmode) {
          emit_insn(
            gen_extendhip32eds2_const(newref, reg)
@@ -18202,18 +18459,26 @@ bool pic30_valid_pointer_mode(enum machine_mode mode) {
   switch (mode) {
     case P16APSVmode:
     case HImode:
+#if 0
       return 1;
+#endif
 
     case P16PMPmode:
     case P24PROGmode:
     case P24PSVmode:
     case P32EXTmode:
     case P32DFmode:
+#if 0
       break;
+#endif
 
     case P32PEDSmode:
     case P32EDSmode:
-      if (TARGET_EDS) return 1;
+#if 0
+      if (TARGET_EDS)
+#endif
+        return 1;
+        
       break;
 
     default:  break;
@@ -18228,7 +18493,63 @@ bool pic30_convert_pointer(rtx to, rtx from, int unsignedp) {
 
   if (pic30_valid_pointer_mode(GET_MODE(to))) {
     switch (GET_CODE(from)) {
-      default: break;
+
+#if  1
+      default:  {
+        rtx reg_to;
+        rtx reg_from;
+
+        switch (GET_MODE(to)) {
+          default: break;
+
+          case P32EDSmode:
+             switch (GET_MODE(from)) {
+               default: break;
+               case P24PSVmode:
+                 reg_to = force_reg(GET_MODE(to), to);
+                 reg_from = force_reg(GET_MODE(from), from);
+                 emit_insn(
+                   gen_movp24psvp32eds(reg_to, reg_from)
+                 );
+                 return 1;
+                 break;
+               case P24PROGmode:
+                 reg_to = force_reg(GET_MODE(to), to);
+                 reg_from = force_reg(GET_MODE(from), from);
+                 emit_insn(
+                   gen_movp24progp32eds(reg_to, reg_from)
+                 );
+                 return 1;
+                 break;
+             }
+             break;
+
+          case P32PEDSmode:
+             switch (GET_MODE(from)) {
+               default: break;
+               case P24PSVmode:
+                 reg_to = force_reg(GET_MODE(to), to);
+                 reg_from = force_reg(GET_MODE(from), from);
+                 emit_insn(
+                   gen_movp24psvp32peds(reg_to, reg_from)
+                 );
+                 return 1;
+                 break;
+               case P24PROGmode:
+                 reg_to = force_reg(GET_MODE(to), to);
+                 reg_from = force_reg(GET_MODE(from), from);
+                 emit_insn(
+                   gen_movp24progp32peds(reg_to, reg_from)
+                 );
+                 return 1;
+                 break;
+             }
+             break;
+        }
+        break;
+      }
+#endif
+ 
       case SYMBOL_REF:
         switch GET_MODE(to) {
           case P16PMPmode:
@@ -18569,7 +18890,8 @@ char *pic30_default_include_path(const char *prefix) {
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33F_INCLUDE_PATH);
       inc_path = MPLABC30_PIC33F_INC_PATH;
-    } else if (target_flags & MASK_ARCH_PIC33E) {
+    } else if (target_flags & (MASK_ARCH_PIC33E | MASK_ARCH_PIC33CH)) {
+      /* 33E and 33CH are in the same foler */
       my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC33E_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
@@ -18680,12 +19002,12 @@ void pic30_function_pre(FILE *f, tree decl, char *fnname) {
   if (lookup_attribute(IDENTIFIER_POINTER(pic30_identUserinit[0]),
                        DECL_ATTRIBUTES(decl))) {
     /* user_init attribute */
-    fprintf(f, "\n\t.pushsection .user_init,code\n\t%s _%s\n\t"
+    fprintf(f, "\n\t.pushsection .user_init,code,keep\n\t%s _%s\n\t"
                ".popsection\n\n",near ? "rcall" : "call", name);
   } else if (strcmp(name,"__init_PMP") == 0) {
     /* known function that needs special initialization */
     if (pic30_validate_void_fn(decl, name) == 0) {
-      fprintf(f, "\n\t.pushsection .user_init,code\n\t%s _%s\n\t"
+      fprintf(f, "\n\t.pushsection .user_init,code,keep\n\t%s _%s\n\t"
                  ".popsection\n\n", near ? "rcall" : "call", name);
     }
   }
@@ -19072,27 +19394,15 @@ char *pic30_section_base(rtx x, int offset_or_page, rtx *excess) {
       }
       result = pic30_strip_name_encoding_helper(result);
       if (offset && is_const) {
-        if (INTVAL(offset) >= 32768) {
-          if (excess) {
-            /* The addend is > 32768 which means different things depending
-               upon whether or not we are asking for the offset or page.
-
-               For offset, we can just mod with 32768 since it will make the
-               same difference.
-
-               For page, we mod with 32768 and then return the excess as the
-               number of pages (/ 32768).  This excess will then be added to
-               the page number.  This is close to what we did with v3.31 and <
-             */
-            HOST_WIDE_INT mod_value = INTVAL(offset) % 32768;
-            HOST_WIDE_INT div_value = INTVAL(offset) / 32768;
-            if (offset_or_page != 0)
-              *excess = GEN_INT(div_value);
-            offset = GEN_INT(mod_value);
-          }
-          else error("Offset too large for relocation");
+        if (INTVAL(offset) >= 65535) {
+          /* relocations do not have room for more than 16-bits
+             we will dump out equates that provide the offset, 
+                and refer to them here */
+          sprintf(entry, "%s",
+                  pic30_register_extended_reloc(result,INTVAL(offset)));
+        } else {
+          sprintf(entry,"_%s+%d",result,INTVAL(offset));
         }
-        sprintf(entry,"_%s+%d",result,INTVAL(offset));
       } else sprintf(entry,"%c%s",underscore,result);
       result = htab_find(table, entry);
       if (!result) {
@@ -20634,6 +20944,7 @@ void pic30_dependencies_evaluation_hook(rtx head, rtx tail) {
 static int pic30_const_in_code_tree_p(tree exp) {
 
   if (!TARGET_CONST_IN_CODE) return 0;
+  if (TYPE_MODE(TREE_TYPE(exp)) != HImode) return 0;
   
   switch (TREE_CODE(exp)) {
     default: return 0;
@@ -20654,6 +20965,50 @@ static int pic30_const_in_code_tree_p(tree exp) {
     }
   }
   return 0;
+}
+
+struct pic30_extended_reloc {
+  struct pic30_extended_reloc *next;
+  char *reloc;
+  char *base;
+  HOST_WIDE_INT offset;
+};
+
+struct pic30_extended_reloc *pic30_extended_reloc_entries;
+
+char *pic30_register_extended_reloc(char *base, HOST_WIDE_INT offset) {
+  struct pic30_extended_reloc *e;
+  static int id = 1;
+
+  for (e = pic30_extended_reloc_entries; e; e = e->next) {
+    if ((e->offset == offset) && (strcmp(e->base,base) == 0)) {
+      return e->reloc;
+    }
+  }
+
+  e = xmalloc(sizeof(struct pic30_extended_reloc));
+  e->next = pic30_extended_reloc_entries;
+  e->base = base;
+  e->reloc = xmalloc(strlen(base)+24);
+  e->offset = offset;
+
+  sprintf(e->reloc,"_%s_%lx%d", base, time(0), id++);
+ 
+  pic30_extended_reloc_entries = e;
+
+  return e->reloc;
+}
+
+void pic30_output_extended_relocs(void) {
+  struct pic30_extended_reloc *e;
+
+  fprintf(asm_out_file,"\n\n");
+
+  for (e = pic30_extended_reloc_entries; e; e = e->next) {
+    fprintf(asm_out_file, "\t.global\t%s\n",  e->reloc);
+    fprintf(asm_out_file, "\t.equ\t%s, _%s+%d\n\n", 
+            e->reloc, e->base, e->offset);
+  }
 }
 
 extern struct rtl_opt_pass pass_validate_dsp_instructions;

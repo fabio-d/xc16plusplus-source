@@ -182,6 +182,11 @@ unsigned long pic30_insert_wmul_dst_reg PARAMS ((unsigned long insn,
    const struct pic30_operand * opnd,
    const struct pic30_operand_value * operand_value,
    char **error_msg));
+unsigned long pic30_insert_sacd_dst_reg PARAMS ((unsigned long insn,
+   unsigned long flags,
+   const struct pic30_operand * opnd,
+   const struct pic30_operand_value * operand_value,
+   char **error_msg));
 
 char * pic30_extract_file_reg_word_with_dst PARAMS ((unsigned long insn,
    struct disassemble_info * info,
@@ -275,6 +280,9 @@ char * pic30_extract_wmul_dst_reg PARAMS ((unsigned long insn,
    struct disassemble_info * info,
    unsigned long flags, const struct pic30_operand * opnd,
    unsigned char * err));
+char * pic30_extract_sacd_dst_reg PARAMS ((unsigned long insn,
+   struct disassemble_info * info, unsigned long flags,
+   const struct pic30_operand * opnd, unsigned char * err));
 
 
 /******************************************************************************
@@ -1096,7 +1104,7 @@ const struct pic30_operand pic30_operands[] =
    { 4, 11, OPND_REGISTER_DIRECT, FALSE, PIC30_RELOC_INFO_NONE,
      pic30_match_even, "Register # must be even.", 0, 0 },
 
-#define DIVIDEND_REG                  (PIC30_BASE_OPERAND + 67)
+#define DIVIDEND_REG                    (PIC30_BASE_OPERAND + 67)
    {
         4,                              /* # of bits in operand */
         11,                             /* # of bits to shift for alignment */
@@ -1119,6 +1127,18 @@ const struct pic30_operand pic30_operands[] =
         "Register # must be between 0 and 14, inclusive.",  /* info_string */
         pic30_insert_dividend16_reg_2,      /* insert() */
         0                               /* extract() */
+   },
+#define SACD_DST_REG                    (PIC30_BASE_OPERAND + 69)
+   {
+        4,                              /* # of bits in operand */
+        0,                              /* # of bits to shift for alignment */
+        OPND_P_OR_Q,                    /* operand type */
+        FALSE,                          /* immediate operand ? */
+        PIC30_RELOC_INFO_NONE,          /* default relocation type */
+        0,                              /* is_match() */
+        0,                              /* info_string */
+        pic30_insert_sacd_dst_reg,      /* insert() */
+        pic30_extract_sacd_dst_reg      /* extract() */
    },
 
 };
@@ -1323,11 +1343,11 @@ const struct pic30_opcode pic30_opcodes[] =
    /***************************************************************************
     * BFINS
     ***************************************************************************/
-   { "bfins",      BFINS,      4, { SHIFT_LITERAL, WID5, SRC_REG, P_SRC_REG },
+   { "bfins",     BFINS,      4, { SHIFT_LITERAL, WID5, SRC_REG, P_SRC_REG },
                                             F_IS_DSP_INSN | F_ISAV4 },
-   { "bfins",      BFINSF,     4, { SHIFT_LITERAL, WID5, SRC_REG,
+   { "bfins",     BFINSF,     4, { SHIFT_LITERAL, WID5, SRC_REG,
                                     FILE_REG_WORD }, F_IS_DSP_INSN | F_ISAV4 },
-   { "bfins",      BFINSL,     4, { SHIFT_LITERAL, WID5, LITERAL_8BIT,
+   { "bfins",     BFINSL,     4, { SHIFT_LITERAL, WID5, LITERAL_8BIT,
                                     P_SRC_REG }, F_IS_DSP_INSN | F_ISAV4 },   
 
    /***************************************************************************
@@ -1341,10 +1361,13 @@ const struct pic30_opcode pic30_opcodes[] =
    { "bra",       BRA_CC,     2, { BRANCH_ON_CONDITION_OPERAND,
                                    BRANCH_LABEL }, F_HAS_BRANCH_FLAG |
                                                    F_CANNOT_FOLLOW_REPEAT },
-   { "bra",      BRAWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
-                                         F_ISAV4 },
-   { "bra",      BRAW,       1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
+   { "bra",       BRAWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
+                                          F_ISAV4 },
+   { "bra",       BRAW,       1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
   
+   /* BREAK */
+   { "break",     BREAK,      0, { 0 /* OPERANDS */ }, F_NONE },
+
    /***************************************************************************
     * BSET
     ***************************************************************************/
@@ -1848,26 +1871,24 @@ const struct pic30_opcode pic30_opcodes[] =
    /***************************************************************************
     * FLIM
     ***************************************************************************/
-   { "flim",      FLIM,       2, { BASE_REG_EVEN, P_SRC_REG }, F_ISAV4 | 
-                                                         F_IS_DSP_INSN },
-   { "flim",      FLIMW,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+   { "flim",      FLIM,       2, { BASE_REG_EVEN, P_SRC_REG }, 
                                    F_ISAV4 | F_IS_DSP_INSN },
    /***************************************************************************
     * FLIMW
     ***************************************************************************/
-   { "flim",        FLIMW,       3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
-                                      F_ISAV4 | F_IS_DSP_INSN },
+   { "flim",      FLIMW,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+                                   F_ISAV4 | F_IS_DSP_INSN },
 
-   { "flim.v",      FLIMWV,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
-                                      F_ISAV4 | F_IS_DSP_INSN },
+   { "flim.v",    FLIMWV,     3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
+                                   F_ISAV4 | F_IS_DSP_INSN },
    /***************************************************************************
     * GOTO
     ***************************************************************************/
    { "goto",      GOTOW,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
-   { "goto",      GOTOWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | 
+   { "goto",      GOTOWE,     1, { REG }, F_CANNOT_FOLLOW_REPEAT | 
                                            F_ISAV4 | F_ECORE },
    { "goto",      GOTO,       1, { CALL_OPERAND }, F_CANNOT_FOLLOW_REPEAT },
-   { "goto.l",    GOTOW_L,      1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | 
+   { "goto.l",    GOTOW_L,    1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | 
                                               F_ISAV4 | F_ECORE },
 
    /***************************************************************************
@@ -2178,7 +2199,7 @@ const struct pic30_opcode pic30_opcodes[] =
                                  F_IS_DSP_INSN | F_ISAV4 },
 
    /***************************************************************************
-    * MINABW
+    * MAXABW
     **************************************************************************/
    { "max",       MAXABW,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
                                  F_IS_DSP_INSN | F_ISAV4 },
@@ -2195,9 +2216,24 @@ const struct pic30_opcode pic30_opcodes[] =
     * MINABW
     **************************************************************************/
    { "min",       MINABW,      2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                 F_IS_DSP_INSN | F_ISAV4 },
-   { "min.v",     MINABWV,   2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                 F_IS_DSP_INSN | F_ISAV4 },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+   { "min.v",     MINABWV,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * MINABZ
+    **************************************************************************/
+   { "minz",      MINABZ,      1, { DSP_ACCUMULATOR_SELECT },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+
+   /***************************************************************************
+    * MINABWZ
+    **************************************************************************/
+   { "minz",      MINABWZ,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+   { "minz.v",    MINABWVZ,   2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
+                                  F_IS_DSP_INSN | F_ISAV4 },
+
 
    /***************************************************************************
     * MOV.b
@@ -2619,10 +2655,10 @@ const struct pic30_opcode pic30_opcodes[] =
     ***************************************************************************/
    { "sac.d",     SACD_PS,   3, { DSP_ACCUMULATOR_SELECT,
                                   DSP_PRESHIFT,
-                                  P_SRC_REG }, F_WORD | F_ISAV4 |
+                                  SACD_DST_REG }, F_WORD | F_ISAV4 |
                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
    { "sac.d",     SACD,      2, { DSP_ACCUMULATOR_SELECT,
-                                  P_SRC_REG }, F_WORD | F_ISAV4 |
+                                  SACD_DST_REG }, F_WORD | F_ISAV4 |
                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
 
    /***************************************************************************
@@ -3527,14 +3563,14 @@ pic30_insert_p_src_reg (insn, flags, opnd, operand_value, error_msg)
      }
    }
 
-   else if (((insn & 0xFF0000) == 0xDB0000) || ((insn & 0xFF0000) == 0xdc0000)) {
+   else if (((insn & 0xFF0000) == 0xDB0000) || ((insn & 0xFF0000) == 0xdc0000)){
      if ((mode == P_OR_Q_REGISTER_DIRECT) && (operand_value->value % 2)) {
        if (!(*error_msg)) {
          *error_msg = (char *) malloc (BUFSIZ);
          strcpy (*error_msg, "lac.d & sac.d should have even register number "
                              "when in direct addressing mode ");
        }
-      return insn;
+       return insn;
      }
    }
 
@@ -3614,6 +3650,58 @@ pic30_extract_q_dst_reg (insn, info, flags, opnd, err)
 /******************************************************************************
  *
  *   This function will extract the QQQ DDDD operand from the instruction.
+ *
+ ******************************************************************************/
+
+{
+   long reg_num = PIC30_EXTRACT_OPERAND (insn, opnd->bits, opnd->shift);
+   long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
+                                      PIC30_DST_MODE_SHIFT);
+
+   return pic30_generate_p_or_q_operand (reg_num, mode, err);
+} /* char * pic30_extract_q_dst_reg(...) */
+
+unsigned long
+pic30_insert_sacd_dst_reg (insn, flags, opnd, operand_value, error_msg)
+   unsigned long insn;
+   unsigned long flags __attribute__ ((__unused__));
+   const struct pic30_operand * opnd;
+   const struct pic30_operand_value * operand_value;
+   char **error_msg;
+
+/******************************************************************************
+ *
+ *   This function will insert the QQQ DDDD encoding into the instruction 
+ *   in the style of sac.d.
+ *
+ ******************************************************************************/
+
+{
+   insn = PIC30_ADD_OPERAND (insn, operand_value->value,
+                             opnd->bits, opnd->shift);
+
+   insn = PIC30_ADD_OPERAND (insn,
+                             pic30_get_p_or_q_mode_value (operand_value->type,
+                                                          error_msg),
+                             PIC30_ADDRESSING_MODE_BITS, PIC30_DST_MODE_SHIFT);
+
+   return insn;
+} /* unsigned long pic30_insert_q_dst_reg(...) */
+
+/******************************************************************************/
+
+char *
+pic30_extract_sacd_dst_reg (insn, info, flags, opnd, err)
+   unsigned long insn;
+   struct disassemble_info * info __attribute__ ((__unused__));
+   unsigned long flags __attribute__ ((__unused__));
+   const struct pic30_operand * opnd;
+   unsigned char * err;
+
+/******************************************************************************
+ *
+ *   This function will extract the QQQ DDDD operand from the instruction
+ *   in the style of sac.d.
  *
  ******************************************************************************/
 

@@ -535,6 +535,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define BRAW             OP_BRAW,       1, { 0x016000 },     0xFFFFF0
 #define BRAWE            OP_BRAWE,      1, { 0x010600 },     0xFF0600
 
+#define BREAK            OP_BREAK,      1, { 0xDA4000 }, 0xFFC000
+
 #define BSET_W           OP_BSET_W,     1, { 0xA00000 }, 0xFF0F80
 #define BSETF_W          OP_BSETF_B,    1, { 0xA80000 }, 0x000000
 #define BSETF_B          OP_BSETF_B,    1, { 0xA80000 }, 0xFF0000
@@ -717,8 +719,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 
 #define FF1R             OP_FF1R,       1, { 0xCF0000 }, 0xFFF800
 
-#define FLIM             OP_FLIM,       1, { 0xE40000 }, 0xFE0000
-#define FLIMW            OP_FLIMW,      1, { 0xE40000 }, 0xFE0000
+#define FLIM             OP_FLIM,       1, { 0xE40000 }, 0xFF8780
+#define FLIMW            OP_FLIMW,      1, { 0xE50000 }, 0xFF8000
 #define FLIMWV           OP_FLIMWV,     1, { 0xE58000 }, 0xFF8000
 
 #define GOTOW            OP_GOTOW,      1, { 0x014000 }, 0xFFFFF0
@@ -777,9 +779,13 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define MAXABW           OP_MAXABW,     1, { 0xCE1000 }, 0xFF7800
 #define MAXABWV          OP_MAXABWV,    1, { 0xCE1800 }, 0xFF7800
 
-#define MINAB            OP_MINAB,      1, { 0xCE2000 }, 0xFF6000
-#define MINABW           OP_MINABW,     1, { 0xCE3000 }, 0xFF7800
-#define MINABWV          OP_MINABWV,    1, { 0xCE3800 }, 0xFF7800
+#define MINAB            OP_MINAB,      1, { 0xCE2000 }, 0xFF6400
+#define MINABW           OP_MINABW,     1, { 0xCE3000 }, 0xFF7C00
+#define MINABWV          OP_MINABWV,    1, { 0xCE3800 }, 0xFF7C00
+
+#define MINABZ           OP_MINABZ,     1, { 0xCE2400 }, 0xFF6400
+#define MINABWZ          OP_MINABWZ,    1, { 0xCE3400 }, 0xFF7C00
+#define MINABWVZ         OP_MINABWVZ,   1, { 0xCE3C00 }, 0xFF7C00
 
 #define MPY_A            OP_MPY_A,      1, { 0xC00113 }, 0xF87FFF
 #define MPY_X            OP_MPY_X,      1, { 0xC00013 }, 0xF84C3F
@@ -969,8 +975,8 @@ extern const struct relocation_info pic30_get_pc_relative_relocation_info(void);
 #define SAC_PS          OP_SAC_PS,     1, { 0xCC0000 }, 0xFF0000
 #define SAC             OP_SAC,        1, { 0xCC0000 }, 0xFF0780
 
-#define SACD_PS         OP_SACD_PS,    1, { 0xDC0000 }, 0xFF0000
-#define SACD            OP_SACD,       1, { 0xDC0000 }, 0xFF0780
+#define SACD_PS         OP_SACD_PS,    1, { 0xDC0000 }, 0xFF4070
+#define SACD            OP_SACD,       1, { 0xDC0000 }, 0xFF47F0
 
 #define SAC_R_PS        OP_SAC_R_PS,   1, { 0xCD0000 }, 0xFF0000
 #define SAC_R           OP_SAC_R,      1, { 0xCD0000 }, 0xFF0780

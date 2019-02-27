@@ -210,7 +210,8 @@ static int allocate_user_memory
   PARAMS ((void));
 
 static int locate_sections
-  PARAMS ((unsigned int, unsigned int, struct memory_region_struct *));
+  PARAMS ((unsigned int, unsigned int, unsigned int,
+           struct memory_region_struct *));
 
 static bfd_vma next_aligned_address
   PARAMS (( bfd_vma, unsigned int));
@@ -3431,16 +3432,22 @@ get_aivt_base ()
               }
               aivt_base = ~(aivt_base);
               aivt_base &= aivtloc_mask;
-              fbslim_address = aivt_base * 1024;
+              if (pic30_pagesize) {
+                pagesize = pagesize_arg;
+              }
+              if (pagesize == 0x0) {
+                einfo(_("%P%X: Error: Cannot determine AIVT base address.\n"));
+              }
+              fbslim_address = aivt_base * pagesize;
               if (((fbslim_address < program_base_address()) ||
                    (fbslim_address >= program_end_address())) &&
                   (fbslim_address != 0)) /* If BSLIM[12:0] is set to all ‘1’s
                                             Active Boot Segment size is zero.*/
                 einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));
               aivt_base -= 1;
-              aivt_base *= 1024;
+              aivt_base *= pagesize;
               /* CAW - this should be recorded in the resource information? */
-              aivt_len = 0x400; /* The device requires that the entire page
+              aivt_len = pagesize; /* The device requires that the entire page
                                    where the vector table resides
                                    be allocated. xc16-746 */
             }
@@ -5291,7 +5298,7 @@ smartio_symbols(struct bfd_link_info *info) {
        struct bfd_link_hash_entry *u = 0;
        struct bfd_link_hash_entry *full;
 
-       char suffix[] = "_aAcdeEfFgGnopsuxX";
+       char suffix[] = "_aAcdeEfFgGnopsuxXL";
 
        if (info) {
          undefs=info->hash->undefs;
@@ -5315,12 +5322,18 @@ smartio_symbols(struct bfd_link_info *info) {
          if (smartio_fn_list->cum_mask > 1) {
            /* this means that we have an accumulated suffix that includes
               more than just '0' [the wild-card-suffix] */
+           int Lfound = 0;
            for (letter = 0; letter < 26; letter++) {
              if (smartio_fn_list->cum_mask & (1ULL << letter+27))
                suffix[s++] = 'a' + letter;
-             if (smartio_fn_list->cum_mask & (1ULL << letter+1))
-               suffix[s++] = 'A' + letter;
+             if (smartio_fn_list->cum_mask & (1ULL << letter+1)) {
+               if (letter + 'A' == 'L') {
+                  Lfound = 1;
+               } else suffix[s++] = 'A' + letter;
+             }
            }
+           /* L comes last */
+           if (Lfound) suffix[s++] = 'L';
            suffix[s] = 0;
          } else {
            sprintf(suffix,"_0");
@@ -5915,8 +5928,7 @@ gld${EMULATION_NAME}_after_open()
   /*
   ** create sections for the reset of the ivts if we need too
   */
-  if (pic30_isr) {
-
+  if ((pic30_isr) && (pic30_ivt)) {
     for (r = ivt_records_list; r != NULL; r = next) {
       next = r->next;
       if (r->name == 0) continue;
@@ -5950,37 +5962,60 @@ gld${EMULATION_NAME}_after_open()
         r->ivt_sec = ivt_sec;
         if (r->is_alternate_vector) {
           if (aivt_base == 0) {
-            fprintf(stderr,"Link Error: can't locate alternate vector "
-                           "table base address\n");
-            abort();
+            einfo(_("%P%F: Link Error: can't locate alternate vector "
+                           "table base address.\n" ));
           }
           bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
         } else {
           if (ivt_base == 0) {
-            fprintf(stderr,"Link Error: can't locate vector "
-                           "table base address\n");
-            abort();
+            einfo(_("%P%F: Link Error: can't locate vector "
+                           "table base address.\n" ));
           }
           bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
         }
-      } else {
-        /* clear the flag for the next pass */
-        if (r->is_alternate_vector) {
-          if (r->ivt_sec) {
-            if (aivt_base) {
-              /* fill in the base, which is available now */
-              bfd_set_section_vma(abfd, r->ivt_sec, aivt_base + r->offset);
-            } else {
-              fprintf(stderr,"Clearing flags for %s\n", r->ivt_sec->name);
-              r->ivt_sec->flags = 0;
-            }
-          }
-        }
-        r->flags &= ~ivt_seen;
       }
     }
   }
 
+  for (r = ivt_records_list; r != NULL; r = r->next) {
+    if (r->is_alternate_vector) {
+      if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
+          (!pic30_has_floating_aivt && !pic30_has_fixed_aivt)) {
+        /* if we have a floating aivt and its not enabled, then
+           we don't need to generate an aivt section */
+        continue;
+      }
+      if (aivt_base == 0) {
+        einfo(_("%P%F: Link Error: can't locate alternate vector "
+                       "table base address.\n" ));
+      }
+      if (aivt_base + r->offset > max_aivt_addr) {
+        max_aivt_addr = aivt_base + r->offset;
+      }
+    } else {
+      if (ivt_base == 0) {
+        einfo(_("%P%F: Link Error: can't locate vector "
+                       "table base address.\n" ));
+      }
+      if (ivt_base + r->offset > max_ivt_addr) {
+        max_ivt_addr = ivt_base + r->offset;
+      }
+    }
+    /* clear the flag for the next pass */
+    if (r->flags & ivt_seen) {
+      if (r->is_alternate_vector) {
+        if (r->ivt_sec) {
+          if (aivt_base) { 
+            /* fill in the base, which is available now */
+            bfd_set_section_vma(abfd, r->ivt_sec, aivt_base + r->offset);
+          } else { 
+            r->ivt_sec->flags = 0;
+          }
+        }
+      }
+      r->flags &= ~ivt_seen;
+    }
+  } 
 
   /*
   ** SSR# 26079: If ICD2 option has been selected,
@@ -6729,10 +6764,51 @@ gld${EMULATION_NAME}_before_allocation()
 ** Update flags for sections that are created
 ** exclusively in the linker script.
 */
+
+#define USER_IVT_DEFINED 1
+#define USER_AIVT_DEFINED 2
+
+static void pic30_locate_ivt(asection *sect, unsigned int *ptr) {
+
+  if (sect->linker_generated == 1) return;
+  if ((sect->flags & (SEC_CODE | SEC_LOAD)) != (SEC_CODE | SEC_LOAD)) return;
+  if ((sect->lma >= ivt_base) && (sect->lma <= max_ivt_addr))
+    *ptr =  *ptr | USER_IVT_DEFINED;
+  if ((sect->lma >= aivt_base) && (sect->lma <= max_aivt_addr))
+    *ptr =  *ptr | USER_AIVT_DEFINED;
+}
+
 static void  
 gld${EMULATION_NAME}_after_allocation()
 {
   asection *sec;
+
+  struct pic30_section *s;
+  unsigned int vector_table_status = 0;
+
+  for (s = unassigned_sections; s != NULL; s = s->next) {
+    if (s->sec) {
+       pic30_locate_ivt(s->sec, &vector_table_status);
+    }
+  }
+
+  for (sec = output_bfd->sections; sec; sec = sec->next) {
+     pic30_locate_ivt(sec, &vector_table_status);
+  }
+   
+  if (vector_table_status & (USER_AIVT_DEFINED | USER_IVT_DEFINED)) {
+    ivt_record_type *r;
+
+    for (r = ivt_records_list; r != NULL; r = r->next) {
+      if (r->is_alternate_vector) {
+         if (vector_table_status & USER_AIVT_DEFINED)
+            if (r->ivt_sec) r->ivt_sec->flags = SEC_NEVER_LOAD;
+      } else {
+         if (vector_table_status & USER_IVT_DEFINED)
+            if (r->ivt_sec) r->ivt_sec->flags = SEC_NEVER_LOAD;
+      }
+    }
+  }
 
   {
     struct bfd_link_hash_entry *h;

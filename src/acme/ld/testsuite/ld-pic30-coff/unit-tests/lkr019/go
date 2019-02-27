@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 GLDPATH=$PIC30_CD/support/dsPIC30F/gld
 
 
@@ -54,7 +54,7 @@ echo
 } > test.out
 
 
-head -24 t.map | tail -12 >> test.out
+head -24 t.map | tail -8 >> test.out
 if [ $vflag = "on" ]; then
     echo
     cat test.out

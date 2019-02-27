@@ -7892,14 +7892,47 @@ main (int argc, char **argv)
       printf ("Copyright %s 2010 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
-warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
 	     stdout);
+
+#ifdef _BUILD_MCHP_
+      /* Find the resource number/alphabet from the c30_device.info file to
+       * find out if the installation is a Beta installation or a public
+       * installation
+       */
+      struct resource_introduction_block *rib = 0;
+      char *pic30_resource_file;
+
+      pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+                            sizeof("/c30_device.info"));
+      if (pic30_resource_file) 
+        { char *c;
+          int l = 0;
+          /* up two levels */
+          strcpy(pic30_resource_file, gcc_exec_prefix);
+          c = pic30_resource_file+strlen(gcc_exec_prefix);
+          while (c && l < 2) {
+            if (*c == 0) c--;
+            if (*c == DIR_SEPARATOR) {
+              l++;
+            }
+            c--;
+          }
+          *c = 0;
+          strcat(pic30_resource_file, "/c30_device.info");
+        }
+      rib = read_rib(pic30_resource_file);
+      if( ISDIGIT(rib->resource_version_increment) ) {
+        printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
+      }
+      close_rib();
+#endif
       if (! verbose_flag)
 	return 0;
 
       /* We do not exit here. We use the same mechanism of --help to print
 	 the version of the sub-processes. */
-      fputc ('\n', stdout);
+      fputc ('\n\n', stdout);
       fflush (stdout);
     }
 
@@ -7939,6 +7972,38 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 	notice ("gcc driver version %s %sexecuting gcc version %s\n",
 		version_string, pkgversion_string, compiler_version);
 
+#ifdef _BUILD_MCHP_
+      /* Find the resource number/alphabet from the c30_device.info file to
+       * find out if the installation is a Beta installation or a public
+       * installation
+       */
+      struct resource_introduction_block *rib = 0;
+      char *pic30_resource_file;
+
+      pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+                            sizeof("/c30_device.info"));
+      if (pic30_resource_file) 
+        { char *c;
+          int l = 0;
+          /* up two levels */
+          strcpy(pic30_resource_file, gcc_exec_prefix);
+          c = pic30_resource_file+strlen(gcc_exec_prefix);
+          while (c && l < 2) {
+            if (*c == 0) c--;
+            if (*c == DIR_SEPARATOR) {
+              l++;
+            }
+            c--;
+          }
+          *c = 0;
+          strcat(pic30_resource_file, "/c30_device.info");
+        }
+      rib = read_rib(pic30_resource_file);
+      if( ISDIGIT(rib->resource_version_increment) ) {
+        printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
+      }
+      close_rib();
+#endif
       if (n_infiles == 0)
 	return (0);
     }

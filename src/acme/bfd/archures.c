@@ -911,6 +911,7 @@ bfd_default_compatible (a, b)
 
   MATCH(pic30_is_ecore_machine,a,b);
   MATCH(pic30_is_isav4_machine,a,b);
+  MATCH(pic30_is_eds_machine,a,b);
 #endif
   if (a->arch != b->arch)
     return NULL;

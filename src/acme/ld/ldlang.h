@@ -394,6 +394,7 @@ extern unsigned int aivtdis_bit_ptr;
 extern unsigned int aivtdis_mask;
 extern unsigned int aivtloc_ptr;
 extern unsigned int aivtloc_mask;
+extern unsigned int pagesize;
 extern bfd_boolean pic30_has_floating_aivt;
 #endif
 

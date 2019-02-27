@@ -44,6 +44,11 @@ alng with GCC; see the file COPYING3.  If not see
 #else
 #define MCHP_XCLM_SHA256_DIGEST STRINGIZE(MCHP_XCLM_SHA256_DIGEST_VAL)
 #endif
+
+#ifdef MCHP_XCLM_SHA256_DIGEST_VAL64
+#define MCHP_XCLM_SHA256_DIGEST64 STRINGIZE(MCHP_XCLM_SHA256_DIGEST_VAL64)
+#endif
+
 #endif
 
 /* Function to calculate the SHA256 digest of given file

@@ -8,8 +8,8 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
 GLD=$PIC30_CD/support/dsPIC30F/gld
 
 #
@@ -37,7 +37,7 @@ fi
 
 
 rm -f t.exe temp
-$GLD30 -o t.exe t1.o --report-mem -L $GLD --script=p30f3014.gld > temp
+$GLD30 -o t.exe t1.o --report-mem -L $GLD --script=p30F3014.gld > temp
 err=$?
 if [ $vflag = "on" ]; then
     echo

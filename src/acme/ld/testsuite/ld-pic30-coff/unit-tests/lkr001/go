@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 INCLUDE_PATH=$PIC30_CD/support/dsPIC30F/inc
 
 #
@@ -37,12 +37,12 @@ do
 done
 
 rm -f t1.o
-$GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH
+$GAS30 -o t1.o t1.s -p30F6014 -I$INCLUDE_PATH
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
-    echo "$GAS30 -o t1.o t1.s -p30f6014 -I$INCLUDE_PATH"
+    echo "$GAS30 -o t1.o t1.s -p30F6014 -I$INCLUDE_PATH"
     echo $err
 fi
 
@@ -71,7 +71,7 @@ sed -e 's/<.*>/<sym>/' temp > test.out
 #$PIC30_CD/bin/xc16-gcc t2.c
 #err=$?
 #if [ $vflag = "on" ]; then
-#    clear
+#    
 #    echo
 #    echo "$PIC30_CD/bin/xc16-gcc t2.c"
 #    echo $err

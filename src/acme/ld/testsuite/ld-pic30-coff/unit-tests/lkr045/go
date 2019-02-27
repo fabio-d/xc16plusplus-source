@@ -8,6 +8,7 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
 #
 # END CONFIGURATION
 #
@@ -23,15 +24,15 @@ do
 done
 
 rm -f t1.out t2.out
-$PIC30_CD/bin/xc16-gcc t1.s -o t.exe -Tt.gld -Wa,-W -Wl,-Map=t.map,--no-check-sections,--report-mem > temp
+$GCC30 t1.s -o t.exe -Tt.gld -Wa,-W -Wl,-Map=t.map,--no-check-sections,--report-mem > temp
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
-    echo "$PIC30_CD/bin/xc16-gcc t1.s -o t.exe -Tt.gld -Wl,-Map=t.map,--no-check-sections"
+    echo "$GCC30 t1.s -o t.exe -Tt.gld -Wl,-Map=t.map,--no-check-sections,--report-mem"
     echo $err
     echo
-    head -31 t.map
+    cat temp
 fi
 
 SIZE1=`perl -n -e 'if (/\.dinit\s+\w+\s+0x(\w+)/) {print $1}' temp`

@@ -12,6 +12,8 @@
 
 /*****************************************************************************/
 
+extern bfd_boolean pic30_debug;
+
 /*
 ** Macro to clear all section attributes
 **
@@ -45,7 +47,9 @@
   (sec)->keep = 0;                \
   (sec)->preserved = 0;           \
   (sec)->auxpsv = 0;              \
-  (sec)->linker_generated = 0;}
+  (sec)->linker_generated = 0;    \
+  (sec)->update = 0;              \
+  (sec)->priority = 0; }
 
 /*
 ** Macros used to set section attributes
@@ -129,6 +133,8 @@
 #define PIC30_SET_UNORDERED_ATTR(sec) \
   (sec)->unordered = 1;
 
+#define PIC30_SET_UPDATE_ATTR(sec) (sec)->update = 1
+
 /*
 ** Macros used to query section attributes
 */
@@ -198,6 +204,7 @@
 #define PIC30_IS_AUXPSV_ATTR(sec) \
   (((sec)->auxpsv == 1) || ((((sec)->flags & SEC_READONLY) == SEC_READONLY) \
                         &&  ((sec)->psv != 1)))
+#define PIC30_IS_UPDATE_ATTR(sec) ((sec)->update)
 
 /* UNORDERED is used internally by the assembler
    and is not encoded in the object file */
@@ -205,6 +212,7 @@
   ((sec)->unordered == 1)
 #define PIC30_IS_EXTERNAL_ATTR(sec) \
   (0)
+#define PIC30_IS_PRIORITY_ATTR(sec) ((sec)->priority != 0)
 
 #define PIC30_IS_LOCAL_DATA(sec)       \
   ((!PIC30_IS_EDS_ATTR(sec) &&         \
@@ -239,6 +247,8 @@ enum { RAMx  = 0, FLASHx,  EEPROMx, MEMORIES };
 
 #define CRT0_KEY "__resetPRI"
 #define CRT1_KEY "__resetALT"
+#define CRTMODE_KEY "__crt_start_mode"
+#define CRTMODEOFF_KEY "__crt_start_mode_normal"
 
 /*****************************************************************************/
 
@@ -349,6 +359,7 @@ typedef struct pic30_ivt_record {
   struct pic30_ivt_record *next;
 } ivt_record_type;
 
+extern bfd_boolean pic30_preserve_all;
 extern bfd_boolean pic30_has_fill_option;
 extern bfd_boolean pic30_partition_flash;
 extern bfd_boolean pic30_memory_usage;
@@ -363,17 +374,23 @@ extern codeguard_setting_type *CG_settings;
 extern bfd_boolean pic30_has_CG_settings;
 extern bfd_vma aivt_base;
 extern bfd_vma ivt_base;
+extern bfd_vma max_aivt_addr;
+extern bfd_vma max_ivt_addr;
 extern ivt_record_type *ivt_records_list;
 extern const bfd_arch_info_type * global_PROCESSOR;
 extern char *application_id;
 extern bfd_vma ivt_base;
 extern bfd_vma aivt_base;
 extern struct pic30_section *inherited_sections;
+extern struct pic30_section *preserved_sections;
 extern bfd_boolean pic30_inherit_application_info;
+extern bfd_boolean pic30_preserve_application_info;
 extern char *inherited_application;
+extern char *preserved_application;
 extern bfd_boolean aivt_enabled;
 extern bfd_boolean pic30_has_floating_aivt;
 extern bfd_boolean pic30_has_fixed_aivt;
+extern asymbol **bfd_pic30_load_symbol_table(bfd *abfd, long *num);
 
 /*****************************************************************************/
 

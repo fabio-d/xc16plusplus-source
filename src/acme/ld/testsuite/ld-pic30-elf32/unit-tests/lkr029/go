@@ -32,7 +32,7 @@ $GCC30 -o t.exe t1.c t2.s -Os -Wa,-W -Wl,-Map=t.map,--no-data-init
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "GCC30 -o t.exe t1.c t2.s -Wl,-Map=t.map"
+    echo "$GCC30 -o t.exe t1.c t2.s -Wl,-Map=t.map"
     echo $err
     echo
 fi

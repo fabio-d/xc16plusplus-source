@@ -8,6 +8,21 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+GAR30="$PIC30_CD/bin/xc16-ar -omf=coff"
+GNM30="$PIC30_CD/bin/xc16-nm -omf=coff"
+STRINGS=$PIC30_CD/bin/xc16-strings
+STRIP="$PIC30_CD/bin/xc16-strip -omf=coff"
+RANLIB="$PIC30_CD/bin/xc16-ranlib -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
+
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
+
+#
+# END CONFIGURATION
+#
+
 # process args
 vflag=off
 while [ $# -gt 0 ]
@@ -22,45 +37,45 @@ done
 rm -f t1.o t2.o t3.o t.a t.exe t.hex temp temp2 test.out
 
 # assemble the source files
-$PIC30_CD/bin/xc16-as -W -o t1.o t1.s
+$GAS30 -o t1.o t1.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-as -W -o t1.o t1.s"
+    echo "$GAS30 -o t1.o t1.s"
     echo $err
 fi
 
-$PIC30_CD/bin/xc16-as -W -o t2.o t2.s
+$GAS30 -o t2.o t2.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-as -W -o t2.o t2.s"
+    echo "$GAS30 -o t2.o t2.s"
     echo $err
 fi
 
-$PIC30_CD/bin/xc16-as -W -o t3.o t3.s
+$GAS30 -o t3.o t3.s
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-as -W -o t3.o t3.s"
+    echo "$GAS30 -o t3.o t3.s"
     echo $err
 fi
 
 # make an archive
-$PIC30_CD/bin/xc16-ar r t.a t1.o t2.o
+$GAR30 r t.a t1.o t2.o
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-ar r t.a t1.o t2.o"
+    echo "$GAR30 r t.a t1.o t2.o"
     echo $err
 fi
 
 # verify xc16-ar
-$PIC30_CD/bin/xc16-ld -o t.exe t3.o t.a
+$GLD30 -o t.exe t3.o t.a
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$PIC30_CD/bin/xc16-ld -o t.exe t3.o t.a"
+    echo "$GLD30 -o t.exe t3.o t.a"
     echo $err
 fi
 {
@@ -72,7 +87,7 @@ fi
 } > test.out
 
 # verify xc16-objdump
-$PIC30_CD/bin/xc16-objdump -d -j .text t.exe > temp
+$OBJDUMP -d -j .text t.exe > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -88,7 +103,7 @@ fi
 } >> test.out
 
 # verify xc16-bin2hex
-$PIC30_CD/bin/xc16-bin2hex t.exe -v | head -14 > temp
+$BIN2HEX t.exe -v | head -14 > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -104,7 +119,7 @@ fi
 } >> test.out
 
 # verify xc16-nm
-$PIC30_CD/bin/xc16-nm -n t.a > temp
+$GNM30 t.a > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -120,8 +135,8 @@ fi
 } >> test.out
 
 #verify xc16-ranlib
-$PIC30_CD/bin/xc16-ranlib t.a
-$PIC30_CD/bin/xc16-nm  -n -s t.a > temp
+$RANLIB t.a
+$GNM30 -s t.a > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -153,7 +168,7 @@ fi
 #} >> test.out
 
 #verify xc16-strings
-$PIC30_CD/bin/xc16-strings -tx t1.o > temp
+$STRINGS -tx -a -f t1.o > temp
 if [ $vflag = "on" ]; then
     echo
     cat temp
@@ -169,8 +184,8 @@ fi
 } >> test.out
 
 #verify xc16-strip
-$PIC30_CD/bin/xc16-strip t1.o
-$PIC30_CD/bin/xc16-nm t1.o >temp 2>temp2
+$STRIP t1.o
+$GNM30 t1.o >temp 2>temp2
 if [ $vflag = "on" ]; then
     echo
     cat temp

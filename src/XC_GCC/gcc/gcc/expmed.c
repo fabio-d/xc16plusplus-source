@@ -783,6 +783,7 @@ store_bit_field_1 (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
       delete_insns_since (last);
     }
 
+#ifndef _PIC30_H_
   /* If OP0 is a memory, try copying it to a register and seeing if a
      cheap register alternative is available.  */
   if (HAVE_insv && MEM_P (op0))
@@ -837,6 +838,7 @@ store_bit_field_1 (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 
   if (!fallback_p)
     return false;
+#endif
 
   store_fixed_bit_field (op0, offset, bitsize, bitpos, value);
   return true;

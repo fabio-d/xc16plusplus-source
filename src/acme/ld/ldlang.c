@@ -280,6 +280,7 @@ lang_output_section_statement_type *pic30_current_os;
 bfd_boolean pic30_avoid_absolute_sections = TRUE;
 extern const char *pic30_startup0_file;
 extern const char *pic30_startup1_file;
+extern const char *pic30_startmode_file;
 
 /* functions defined in bfd/pic30-attributes.c */
 extern unsigned int pic30_attribute_map
@@ -580,6 +581,17 @@ void lang_select_startup_file(const char* file, int num) {
         printf("    __resetALT %s\n", s1);
       }
       break;
+
+    case 2:  /* record start mode module */
+#ifdef PIC30ELF
+      if (pic30_preserve_application_info) {
+        ldlang_add_undef("__crt_start_mode");
+      } else 
+        ldlang_add_undef("__crt_start_mode_normal");
+      pic30_startmode_file = file;
+#endif
+      break;
+    
 
     default:
       FAIL();
@@ -1521,6 +1533,10 @@ lang_add_section (ptr, section, output, file)
       section->output_section->packedflash = section->packedflash;
       section->output_section->shared = section->shared;
       section->output_section->preserved = section->preserved;
+#if 0
+      /* should not be in the output file */
+      section->output_section->preserved = section->preserved;
+#endif
       section->output_section->auxpsv = section->auxpsv;
 
       /* copy if the section has been linked before */
@@ -1528,7 +1544,7 @@ lang_add_section (ptr, section, output, file)
       
       /* promote absolute address, unless the output section
          already has a conflicting one */
-      if (PIC30_IS_ABSOLUTE_ATTR(section)) {
+      if ((PIC30_IS_ABSOLUTE_ATTR(section)) && (section->linker_generated == 0)) {
           if (!section->output_section->user_set_vma) {
             section->output_section->vma = section->vma;
             section->output_section->user_set_vma = TRUE;
@@ -1827,6 +1843,17 @@ load_symbols (entry, place)
       for (sec = entry->the_bfd->sections; sec != NULL; sec = sec->next) {
          sec->flags |= SEC_EXCLUDE;
          pic30_append_section_to_list(inherited_sections, 0, sec);
+      }
+      return TRUE;
+    }
+  }
+  if (pic30_preserve_application_info) {
+    if (strcmp(entry->the_bfd->filename, preserved_application) == 0) {
+      if (!preserved_sections)
+        pic30_init_section_list(&preserved_sections);
+      for (sec = entry->the_bfd->sections; sec != NULL; sec = sec->next) {
+         sec->flags |= SEC_EXCLUDE;
+         pic30_append_section_to_list(preserved_sections, 0, sec);
       }
       return TRUE;
     }
@@ -3376,6 +3403,10 @@ lang_check_section_addresses ()
                continue;
              }
           }
+
+          /* Ignore overlap if one of the sections is preserved... */
+          if (PIC30_IS_PRESERVED_ATTR(s) || PIC30_IS_PRESERVED_ATTR(os))
+            continue;
 #endif
 
 	  einfo (
@@ -3582,11 +3613,10 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		if (os->section_alignment != -1)
 		  dot = align_power (dot, os->section_alignment);
 
-#if 0
-			/* DEBUG */
-			printf("seq alloc %s, start = %lx\n",
-						bfd_get_section_name (output_bfd, os->bfd_section), dot);
-#endif
+                /* DEBUG */
+		if (pic30_debug)
+		  printf("seq alloc %s, start = %lx\n",
+		     bfd_get_section_name (output_bfd, os->bfd_section), dot);
 
                 /* BEWARE: bfd_set_section_vma() sets the lma also... */
 		bfd_set_section_vma (0, os->bfd_section, dot);
@@ -3624,6 +3654,9 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 				  os->fill, dot, relax, check_regions);
 
 #if PIC30
+      extern bfd_boolean pic30_reserve_const;
+      extern unsigned long reserve_const_arg;
+
       /*
       ** Now we know the output section sizes and
       ** tentative load address as determined by
@@ -3702,21 +3735,28 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                     einfo(_("%F%S: address for section %s conflicts with"
                             " absolute section %s\n"), os->bfd_section->name,
                             s->sec->name);
-                }
-                if (pic30_debug)
-                  printf("  advancing section %s to avoid %s\n",
-                         os->bfd_section->name, s->sec->name);
-                os_start = s_end + 1;
-                os_end   = os_start + os_len - 1;
-                /* CAW - check for extending past the region */
-                if (os->region) {
-                  bfd_vma region_end;
+                } else {
+                  int adjusted_end = 0;
 
-                  region_end = os->region->origin + os->region->length;
-                  if (os_start >= region_end) {
-                    einfo(_("%F%S: computed address for section %s extends"
-                            " beyond MEMORY region %s\n"),
-                            os->bfd_section->name, os->region->name);
+                  if ((strcmp(s->sec->name,".const") == 0) && 
+                      pic30_reserve_const) {
+                    adjusted_end = reserve_const_arg;
+                  }
+                  if (pic30_debug)
+                    printf("  advancing section %s to avoid %s (+ %d)\n",
+                           os->bfd_section->name, s->sec->name, adjusted_end);
+                  os_start = s_end + adjusted_end + 1;
+                  os_end   = os_start + os_len - 1;
+                  /* CAW - check for extending past the region */
+                  if (os->region) {
+                    bfd_vma region_end;
+
+                    region_end = os->region->origin + os->region->length;
+                    if (os_start >= region_end) {
+                      einfo(_("%F%S: computed address for section %s extends"
+                              " beyond MEMORY region %s\n"),
+                              os->bfd_section->name, os->region->name);
+                    }
                   }
                 }
               }
@@ -5131,19 +5171,18 @@ lang_process ()
   lang_common ();
 
 #ifdef PIC30ELF
- pic30_create_data_init_template();
- pic30_create_shared_data_init_template();
+  pic30_create_data_init_templates();
 #endif
 
- if (pic30_memory_usage)
-   {
-     pic30_create_rom_usage_template();
-     pic30_create_ram_usage_template();
-   }
+  if (pic30_memory_usage)
+    {
+      pic30_create_rom_usage_template();
+      pic30_create_ram_usage_template();
+    }
 
   /* create fill sections */
   if (pic30_has_fill_option)
-   pic30_create_specific_fill_sections();
+    pic30_create_specific_fill_sections();
 
   /* Run through the contours of the script and attach input sections
      to the correct output sections.  */

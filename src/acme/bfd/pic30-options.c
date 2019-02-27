@@ -40,14 +40,19 @@ pic30_list_options (file)
   fprintf (file, _("  --no-force-link        Don't force linking (default)\n")); 
   fprintf (file, _("  --general LIST         Specify options for general segment\n")); 
   fprintf (file, _("  --heap SIZE            Create heap of SIZE bytes\n")); 
-  fprintf (file, _("  --isr                  Create interrupt function for unused"
-                   " vectors (default)\n")); 
-  fprintf (file, _("  --no-isr               Don't create interrupt function for"
-                   " unused vectors\n")); 
+  fprintf (file, _("  --isr                  Create interrupt function for "
+                     " unused vectors (default)\n"
+                   "                         and fill unused slots wiht this "
+                     "function\n")); 
+  fprintf (file, _("  --no-isr               Don't create interrupt function"
+                     " for unused vectors,\n"
+                   "                         do not fill unused vector slots\n")); 
+  fprintf (file, _("  --ivt                  Have the linker create an IVT/AIVT (default) \n"));
+  fprintf (file, _("  --no-ivt               Do not have the linker create an IVT/AIVT\n"));
   fprintf (file, _("  -p,--processor PROC    Specify the target processor"
                    " (e.g., 30F2010)\n")); 
   fprintf (file, _("  --pack-data            Use upper byte of program memory"
-                   " to store data (default)\n")); 
+                     " to store data (default)\n")); 
   fprintf (file, _("  --no-pack-data         Don't use upper byte of program memory"
                    " to store data\n")); 
   fprintf (file, _("  --report-mem           Report memory usage to console\n")); 
@@ -72,6 +77,7 @@ pic30_list_options (file)
 			  " extended data space memory\n"));
   fprintf (file, _("  --partition            Specify that a memory partition"
                    " is being used\n"));
+#if PIC30ELF
   fprintf (file, _("  --application-id=name  duplicate external symbols for"
                    " application <name>\n"));
   fprintf (file, _("  --memory-usage         generate static tables with"
@@ -80,6 +86,10 @@ pic30_list_options (file)
                    " const section (max 32K)\n"));
   fprintf (file, _("  --pad-flash[=size]     pad output flash pages\n"));
   fprintf (file, _("  --coresident           link for coresident application\n"));
+  fprintf (file, _("  --preserved=app        application from which to preserve data values\n"));
+  fprintf (file, _("  --preserve-all         mark all data objects preserved, unless marked for update\n"));
+#endif
+
 } /* static void pic30_list_options () */
 
 
@@ -442,7 +452,8 @@ pic30_parse_args (argc, argv)
   const char *smart_io_option_err  = "--smart-io and --no-smart-io";
   const char *alloc_option_err     = "--alloc and --no-alloc";
   const char *isr_option_err       = "--isr and --no-isr";
-  const char *option_err = " options can not be used together\n";
+  const char *ivt_option_err       = "--ivt and --no-ivt";
+  const char *option_err = " options cannot be used together\n";
   const char *fill_upper_warn = "fill-upper value truncated to 8 bits\n";
   const char *force_link_option_err = "--force-link and --no-force-link";
   const char *proc_option_err = "unknown processor";
@@ -450,7 +461,7 @@ pic30_parse_args (argc, argv)
 /*   const char *boot_option_warn = "multiple boot options specified\n"; */
 /*   const char *secure_option_warn = "multiple secure options specified\n"; */
 /*   const char *general_option_warn = "multiple general options specified\n"; */
-
+  char *endptr; /* endptr needed for strtol */
   if (lastoptind != optind) 
     opterr = 0; 
   
@@ -573,6 +584,18 @@ pic30_parse_args (argc, argv)
         einfo(_("%P%F: Error: %s%s"), isr_option_err, option_err);
       pic30_isr = FALSE;
       pic30_has_isr_option = TRUE;
+      break;
+    case IVT_OPTION:
+      if (pic30_has_ivt_option && (!pic30_ivt))
+        einfo(_("%P%F: Error: %s%s"), ivt_option_err, option_err);
+      pic30_ivt = TRUE;
+      pic30_has_ivt_option = TRUE;
+      break;
+    case NO_IVT_OPTION:
+      if (pic30_has_ivt_option && (pic30_ivt))
+        einfo(_("%P%F: Error: %s%s"), ivt_option_err, option_err);
+      pic30_ivt = FALSE;
+      pic30_has_ivt_option = TRUE;
       break;
     case FILL_UPPER_OPTION:
       if (strstr(optarg, "0x") == 0)
@@ -711,7 +734,26 @@ pic30_parse_args (argc, argv)
       lang_add_input_file (optarg, lang_input_file_is_file_enum,
                                (char *) NULL);
       break;
+    case PRESERVED:
+      pic30_preserve_application_info = TRUE;
+      preserved_application = optarg;
+      lang_add_input_file (optarg, lang_input_file_is_file_enum,
+                               (char *) NULL);
+      break;
+    case PRESERVE_ALL:
+      pic30_preserve_all = TRUE;
+      break;
 #endif
+    case PAGESIZE:
+      pic30_pagesize = TRUE;
+      if (optarg)
+      {
+        pagesize_arg = strtol(optarg, &endptr, 0);
+        if (strcmp(endptr,"") != 0) {
+	  einfo(_("%P%F: Error: Invalid argument to --pagesize\n"));
+        }
+      }
+      break;
     }
     
   return 1; 

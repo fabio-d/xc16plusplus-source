@@ -1,5 +1,6 @@
 OUTPUT_FORMAT("coff-pic30")
-OUTPUT_ARCH("xc16")
+OUTPUT_ARCH("pic30")
+ENTRY(_start)
 
 MEMORY
 {

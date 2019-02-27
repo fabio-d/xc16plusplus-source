@@ -8,12 +8,12 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIB_PATH=$PIC30_CD/lib
 
-BIN2HEX=$PIC30_CD/bin/xc16-bin2hex
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -76,11 +76,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o t3.o t4.o -L $LIB_PATH -lpic30 -Map=t.map --no-pack-data || exit 99
+$GLD30 -o t.exe t1.o t2.o t3.o t4.o -L$LIB_PATH -lpic30-coff -Map=t.map --no-pack-data || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o t2.o t3.o t4.o -L $LIB_PATH -lpic30 -Map=t.map --no-pack-data"
+    echo "$GLD30 -o t.exe t1.o t2.o t3.o t4.o -L$LIB_PATH -lpic30-coff -Map=t.map --no-pack-data"
     echo $err
 fi
 

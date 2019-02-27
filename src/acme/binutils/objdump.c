@@ -433,7 +433,14 @@ dump_section_header (abfd, section, ignored)
   PF2 (shared, "SHARED");
   PF2 (preserved, "PRESERVED");
   PF2 (auxpsv, "AUXPSV");
+  PF2 (update, "UPDATE");
 #undef PF2
+
+#define PF3(x, y) \
+  if (section->x) { printf ("%s%s(%d)", comma, y, section->x); comma = ", "; }
+
+  PF3 (priority, "PRIORITY")
+
 #endif
 
   if ((section->flags & SEC_LINK_ONCE) != 0)
@@ -2374,7 +2381,9 @@ dump_bfd (abfd)
 
   /* look for extended attributes, encoded as a symbol */
   {
+#if 0
     char *ext_attr_prefix = "__ext_attr_";
+#endif
     asymbol **current = syms;
     const char *sym_name;
     long count;
@@ -2384,14 +2393,22 @@ dump_bfd (abfd)
       if (*current) {
         sym_name = bfd_asymbol_name(*current);
 
-        if (strstr(sym_name, ext_attr_prefix)) {
+        if (strstr(sym_name, EXT_ATTR_PREFIX)) {
           asection *s;
-          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          char *sec_name = (char *) &sym_name[strlen(EXT_ATTR_PREFIX)];
           bfd_vma attr = bfd_asymbol_value(*current);
 
           for (s = abfd->sections; s != NULL; s = s->next)
             if (strcmp(sec_name, s->name) == 0)
               pic30_set_extended_attributes(s, attr, 0);
+        } else if (strstr(sym_name, PRIORITY_ATTR_PREFIX)) {
+          asection *s;
+          char *sec_name = (char *) &sym_name[strlen(EXT_ATTR_PREFIX)];
+          bfd_vma attr = bfd_asymbol_value(*current);
+
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              s->priority = attr;
         }
         current++;
       }

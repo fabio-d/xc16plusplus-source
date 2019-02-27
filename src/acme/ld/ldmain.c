@@ -47,6 +47,10 @@ extern int pic30_global_warning;
 extern const char *pic30_resource_version;
 #endif
 
+#if defined(PIC30ELF)
+extern bfd_boolean pic30_linking;
+#endif
+
 /* Somewhere above, sys/stat.h got included.  */
 #if !defined(S_ISDIR) && defined(S_IFDIR)
 #define	S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
@@ -194,6 +198,10 @@ main (argc, argv)
 #endif
   bindtextdomain (PACKAGE, LOCALEDIR);
   textdomain (PACKAGE);
+
+#if defined(PIC30ELF)
+  pic30_linking = TRUE;
+#endif
 
   program_name = argv[0];
   xmalloc_set_program_name (program_name);

@@ -8,8 +8,8 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/xc16-gcc
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIB_PATH=$PIC30_CD/lib
 
 #
@@ -32,7 +32,7 @@ $GCC30 -o t.exe t1.c t2.s -Os -Wa,-W -Wl,-Map=t.map,--no-data-init
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "GCC30 -o t.exe t1.c t2.s -Wl,-Map=t.map"
+    echo "$GCC30 -o t.exe t1.c t2.s -Wl,-Map=t.map"
     echo $err
     echo
 fi

@@ -631,6 +631,9 @@ static const asymbol global_syms[] =
   GLOBAL_SYM_INIT (BFD_IND_SECTION_NAME, &bfd_ind_section)
 };
 
+#if 0
+  /* original... looks wrong! */
+
 #define STD_SECTION(SEC, FLAGS, SYM, NAME, IDX)				\
   const asymbol * const SYM = (asymbol *) &global_syms[IDX]; 		\
   const asection SEC = 							\
@@ -685,6 +688,70 @@ static const asymbol global_syms[] =
     /* alignment_gaps                                                */	\
        , 0                						\
     }
+#else
+
+#define STD_SECTION(SEC, FLAGS, SYM, NAME, IDX)				\
+  const asymbol * const SYM = (asymbol *) &global_syms[IDX]; 		\
+  const asection SEC = 							\
+    /* name, id,  index, next, flags, user_set_vma, reloc_done,      */	\
+    { NAME,  IDX, 0,     NULL, FLAGS, 0,            0,			\
+									\
+    /* linker_mark, linker_has_input, gc_mark, segment_mark,         */	\
+       0,           0,                1,       0,                       \
+									\
+    /* sec_info_type, use_rela_p, has_tls_reloc, need_finalize_relax,*/ \
+       0,	      0,	  0,		 0,		        \
+                                                                        \
+									\
+    /* near, persistent, xmemory, ymemory, psv, eedata, absolute,    */ \
+       0,    0,          0,       0,       0,   0,      0,	    	\
+									\
+    /* reverse, unordered, dma, boot, secure, memory,                */ \
+       0,       0,         0,    0,    0,      0,    		        \
+                                                                        \
+    /* heap, eds, page, stack,                                       */ \
+       0,    0,   0,    0,                                              \
+									\
+    /* auxflash, packed_flash, linked, shared, preserved,            */ \
+       0,        0,            0,      0,      0,                       \
+									\
+    /* auxpsv, linker_generated, update, */                             \
+       0,      0,                0,                                     \
+									\
+    /* priority,                                                     */ \
+       0,                                                               \
+                                                                        \
+    /* vma, lma, _cooked_size, _raw_size,                            */	\
+       0,   0,   0,            0,					\
+									\
+    /* output_offset, output_section,      alignment_power,          */	\
+       0,             (struct sec *) &SEC, 0,				\
+									\
+    /* relocation, orelocation, reloc_count, filepos, rel_filepos,   */	\
+       NULL,       NULL,        0,           0,       0,		\
+									\
+    /* line_filepos, userdata, contents, lineno, lineno_count,       */	\
+       0,            NULL,     NULL,     NULL,   0,			\
+									\
+    /* entsize, comdat, moving_line_filepos,                         */	\
+       0,       NULL,   0,						\
+									\
+    /* target_index, used_by_bfd, constructor_chain, owner,          */	\
+       0,            NULL,        NULL,              NULL,		\
+									\
+    /* symbol,                                                       */	\
+       (struct symbol_cache_entry *) &global_syms[IDX],			\
+									\
+    /* symbol_ptr_ptr,                                               */	\
+       (struct symbol_cache_entry **) &SYM,				\
+									\
+    /* link_order_head, link_order_tail                              */	\
+       NULL,            NULL						\
+									\
+    /* alignment_gaps                                                */	\
+       , 0                						\
+    }
+#endif
 
 STD_SECTION (bfd_com_section, SEC_IS_COMMON, bfd_com_symbol,
 	     BFD_COM_SECTION_NAME, 0);

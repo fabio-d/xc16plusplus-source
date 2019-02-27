@@ -224,6 +224,14 @@ Display compiler and assembler search paths and exit
 mafrlcsj
 Target RejectNegative Var(mchp_mafrlcsj) Undocumented
 
+mpreserve-all
+Target Var(TARGET_PRESERVE_ALL)
+Apply __attribute__((preserved)) to all appropriate definitions
+
+mskip-license-check
+Target Var(mchp_skip_license_check) Undocumented
+
+
 ;
 ; **************************** CAUTION
 ; **************************** Ensure that the '=' sign is not followed by

@@ -96,5 +96,12 @@ int pic30_display_as_readonly_memory_p(asection *sec);
                                                              \
     pic30_update_resource(program_name); }
 
+#ifndef EXT_ATTR_PREFIX
+#define EXT_ATTR_PREFIX "__ext_attr_"
+#define LINKED_PREFIX "__linked_"
+#define EXCLUDE_PREFIX "__exclude_"
+#define PRIORITY_ATTR_PREFIX "__priority_"
+#endif
+
 #endif
 

@@ -30,7 +30,7 @@ rm -f t1.o
 $GAS30 -o t1.o t1.s 2> /dev/null
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
     echo "$GAS30 -o t1.o t1.s"
     echo $err

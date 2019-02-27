@@ -62,14 +62,21 @@ extern bfd *handle_bfd;
 extern bfd *pic30_output_bfd;
 extern unsigned char *handle_data;
 extern struct handle_hash_table *handles;
-extern struct pic30_section *data_sections;
 extern struct pic30_section *packed_sections;
+extern struct pic30_section *data_sections;
 extern struct pic30_section *shared_data_sections;
+extern struct pic30_section *restart_data_sections;
+extern struct pic30_section *restart_shared_data_sections;
+extern struct pic30_section *priority_code_sections;
+extern struct pic30_section *restart_priority_code_sections;
+extern struct pic30_section *restart_shared_priority_code_sections;
 extern struct pic30_section *shared_dinit_sections;
+
 extern bfd_vma inherited_shared_dinit_address;
 
 extern char *pic30_startup0_file;
 extern char *pic30_startup1_file;
+extern char *pic30_startmode_file;
 
 extern bfd_boolean need_dma_memory;
 extern bfd_vma data_base;
@@ -79,13 +86,21 @@ extern bfd_boolean dma_base_defined;
 extern bfd_vma dma_end;
 extern bfd_boolean dma_end_defined;
 
+#if 0
 extern bfd *init_bfd;
 extern unsigned char *init_data;
 extern asection *init_template;
+extern int init_max_priority;
 
 extern bfd *init_shared_bfd;
 extern unsigned char *init_shared_data;
 extern asection *init_shared_template;
+#else
+extern struct an_init_template init_data;
+extern struct an_init_template restart_init_data;
+extern struct an_init_template shared_init_data;
+extern struct an_init_template restart_shared_init_data;
+#endif
 
 extern bfd *rom_usage_bfd;
 extern unsigned char *rom_usage_data;
@@ -206,7 +221,8 @@ static int allocate_user_memory
   PARAMS ((void));
 
 static int locate_sections
-  PARAMS ((unsigned int, unsigned int, struct memory_region_struct *));
+  PARAMS ((unsigned int, unsigned int, unsigned int, 
+           struct memory_region_struct *));
 
 static bfd_vma next_aligned_address
   PARAMS (( bfd_vma, unsigned int));
@@ -248,7 +264,7 @@ static bfd * bfd_pic30_create_jump_table_bfd
   PARAMS ((bfd *));
 
 static bfd * bfd_pic30_create_data_init_bfd
-  PARAMS ((bfd *));
+  PARAMS ((bfd *, char *, char *));
 
 static bfd * bfd_pic30_create_rom_usage_bfd
   PARAMS ((bfd *));
@@ -263,7 +279,7 @@ static void bfd_pic30_add_bfd_to_link
   PARAMS ((bfd *, const char *));
 
 static void bfd_pic30_scan_data_section
-  PARAMS ((asection *, PTR));
+  PARAMS ((asection *, PTR, int *));
 
 static void bfd_pic30_skip_data_section
   PARAMS ((asection *, PTR));
@@ -2113,6 +2129,54 @@ bfd_pic30_create_jump_table_entry (h, p)
 } /* static bfd_boolean bfd_pic30_create_jump_table_entry (...)*/
 
 
+asymbol **bfd_pic30_load_symbol_table(bfd *abfd,long *num) {
+  static struct symtbl_list {
+     bfd *bfd;
+     asymbol **symbols;
+     long num;
+     struct symtbl_list *next;
+  } *loaded_tables = 0;
+
+  struct symtbl_list *tbl = 0;
+  long size;
+ 
+  if (loaded_tables) {
+    for (tbl = loaded_tables; tbl; tbl = tbl->next) {
+      if (tbl->bfd == abfd) {
+        if (num) *num = tbl->num;
+        return tbl->symbols;
+      }
+    }
+  }
+  tbl = bfd_alloc(output_bfd, sizeof(struct symtbl_list));
+  if (!tbl) {
+    fprintf(stderr,"Link Error: error accessing symbol table\n");
+    abort();
+  }
+  tbl->next = loaded_tables;
+  loaded_tables = tbl;
+  tbl->bfd = abfd;
+
+  size = bfd_get_symtab_upper_bound (abfd);
+  if (size < 0) {
+    fprintf( stderr, "Link Error: error accessing symbol table\n");
+    abort();
+  }
+  tbl->symbols = (asymbol **) bfd_alloc(output_bfd, size); /* do not free */
+  if (!tbl->symbols) {
+    fprintf( stderr, "Link Error: not enough memory for symbol table\n");
+    abort();
+  }
+  
+  tbl->num = bfd_canonicalize_symtab (abfd, tbl->symbols);
+  if (tbl->num < 0) {
+    fprintf( stderr, "Link Error: error processing symbol table\n");
+    abort();
+  }
+  if (num) *num = tbl->num;
+  return tbl->symbols;
+}
+
 static void
 bfd_pic30_dump_symbol_table(bfd *abfd)
 {
@@ -2120,6 +2184,7 @@ bfd_pic30_dump_symbol_table(bfd *abfd)
   asymbol **symbols;
 
   printf("\nSymbols in bfd \"%s\":\n", abfd->filename);
+#if 0
   size = bfd_get_symtab_upper_bound (abfd);
   if (size < 0) {
     fprintf( stderr, "Link Error: error accessing symbol table\n");
@@ -2133,13 +2198,18 @@ bfd_pic30_dump_symbol_table(bfd *abfd)
   }
 
   num = bfd_canonicalize_symtab (abfd, symbols);
+#else
+  symbols = bfd_pic30_load_symbol_table(abfd,&num);
+#endif
   if (num < 0) {
     fprintf( stderr, "Link Error: error processing symbol table\n");
     abort();
   }
   else
     for (i=0; i<num; i++)
-      printf("  %s\n", bfd_asymbol_name(symbols[i]));
+      printf("  %s %s 0x%x\n", bfd_asymbol_name(symbols[i]), 
+                               bfd_get_section(symbols[i])->name, 
+                               bfd_asymbol_value(symbols[i]));
 }
 
 
@@ -2293,9 +2363,21 @@ bfd_pic30_create_jump_table_bfd (parent)
 **   symtab
 **   symptr
 */
+#if 0
+  /* CAW
+   *  why duplicate this function (over and over)...?
+   *  parameterize
+   */
 static bfd *
 bfd_pic30_create_data_init_bfd (parent)
      bfd *parent ATTRIBUTE_UNUSED;
+#else
+static bfd *
+bfd_pic30_create_data_init_bfd (parent,output_name, section_name)
+     bfd *parent ATTRIBUTE_UNUSED;
+     char *output_name;
+     char *section_name;
+#endif
 {
   bfd_size_type size;
   bfd *abfd;
@@ -2305,7 +2387,11 @@ bfd_pic30_create_data_init_bfd (parent)
 
   /* create a bare-bones bfd */
   oname = (char *) bfd_alloc (output_bfd, 20);
+#if 0
   sprintf (oname, "data_init");
+#else
+  snprintf (oname, 20, "%s", output_name);
+#endif
   abfd = bfd_create (oname, parent);
   bfd_find_target ("${OUTPUT_FORMAT}", abfd);
   bfd_make_writable (abfd);
@@ -2322,7 +2408,11 @@ bfd_pic30_create_data_init_bfd (parent)
   */
   flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
   align = 1; /* 2^1 */
+#if 0
   sec = bfd_pic30_create_section (abfd, ".dinit", flags, align);
+#else
+  sec = bfd_pic30_create_section (abfd, section_name, flags, align);
+#endif
   size = 0; /* will update later */
   bfd_set_section_size (abfd, sec, size);
 
@@ -2341,6 +2431,7 @@ bfd_pic30_create_data_init_bfd (parent)
   return abfd;
 } /* static bfd * bfd_pic30_create_data_init_bfd (...)*/
 
+#if 0
 static bfd *
 bfd_pic30_create_shared_data_init_bfd (parent)
      bfd *parent ATTRIBUTE_UNUSED;
@@ -2420,6 +2511,7 @@ bfd_pic30_create_shared_data_init_bfd (parent)
 
   return abfd;
 } 
+#endif
 
 static bfd *
 bfd_pic30_create_rom_usage_bfd (parent)
@@ -2655,7 +2747,8 @@ bfd_pic30_create_user_init_bfd  (bfd *parent)
 
   /* create a bare-bones section */
   sec = bfd_pic30_create_section (abfd, ".user_init",
-                                  SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_CODE, 1);
+                                  SEC_KEEP | SEC_HAS_CONTENTS | 
+                                  SEC_IN_MEMORY | SEC_CODE, 1);
   size = (bfd_size_type) 4;
   bfd_set_section_size (abfd, sec, size);
 
@@ -3064,9 +3157,10 @@ bfd_pic30_add_bfd_to_link (abfd, name)
 ** the data template size.
 */
 static void
-bfd_pic30_scan_data_section (sect, p)
+bfd_pic30_scan_data_section (sect, p, max_priority)
      asection *sect;
      PTR p;
+     int *max_priority;
 {
 #define DATA_RECORD_HEADER_SIZE 12
 
@@ -3098,10 +3192,11 @@ bfd_pic30_scan_data_section (sect, p)
   /*
   ** process BSS-type sections
   */
-  if (PIC30_SECTION_IS_BSS_TYPE(sect) &&
-      (sect->_raw_size > 0))
+  if (PIC30_SECTION_IS_BSS_TYPE(sect) && (sect->_raw_size > 0))
   {
       *data_size += DATA_RECORD_HEADER_SIZE;
+      if (sect->priority > *max_priority) *max_priority = sect->priority;
+
       if (pic30_debug)
         printf("  %s (bss), size = %x bytes, template += %x pwords\n",
                sect->name, (unsigned int) sect->_raw_size / 2,
@@ -3123,11 +3218,26 @@ bfd_pic30_scan_data_section (sect, p)
       ** make section not LOADable
       */
       sect->flags &= ~ SEC_LOAD;
+      if (sect->priority > *max_priority) *max_priority = sect->priority;
 
       if (pic30_debug)
         printf("  %s (data), size = %x bytes, template += %x pwords\n",
                sect->name, (unsigned int) sect->_raw_size / 2, delta / 4);
   }
+
+  /*
+  **
+  */
+  if (PIC30_IS_CODE_ATTR(sect) &&(sect->_raw_size > 0) && (sect->priority > 0)){
+    /* this will get an entry */
+    *data_size += DATA_RECORD_HEADER_SIZE;
+    if (sect->priority > *max_priority) *max_priority = sect->priority;
+
+    if (pic30_debug)
+      printf("  %s (call), template += %x pwords\n",
+             sect->name, DATA_RECORD_HEADER_SIZE / 4);
+  }
+
 } /*static void bfd_pic30_scan_data_section (...)*/
 
 
@@ -3359,6 +3469,12 @@ get_aivt_base ()
     unsigned char *contents;
     lang_memory_region_type *region;
 
+    if (pic30_debug) {
+      printf("\nget_aivt_base: aivt disable bit location 0x%6.6x\n", 
+             aivtdis_bit_ptr);
+      printf("get_aivt_base: aivt location 0x%6.6x\n", aivtloc_ptr);
+    }
+
     LANG_FOR_EACH_INPUT_STATEMENT (f)
     {
       asection *sec;
@@ -3398,18 +3514,29 @@ get_aivt_base ()
               }
               aivt_base = ~(aivt_base);
               aivt_base &= aivtloc_mask;
-              fbslim_address = aivt_base * 1024;
+              if (pic30_pagesize) {
+                pagesize=pagesize_arg;
+              }
+              if (pagesize == 0x0) {
+                einfo(_("%P%X: Error: Cannot determine AIVT base address.\n"));
+              }
+              fbslim_address = aivt_base * pagesize;
               if (((fbslim_address < program_base_address()) ||
                    (fbslim_address >= program_end_address())) &&
                   (fbslim_address != 0)) /* If BSLIM[12:0] is set to all 1s
                                             Active Boot Segment size is zero.*/ 
                 einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));
               aivt_base -= 1;
-              aivt_base *= 1024;
+              aivt_base *= pagesize;
               /* CAW - this should be recorded in the resource information? */
-              aivt_len = 0x400; /* The device requires that the entire page
+              aivt_len = pagesize; /* The device requires that the entire page
                                    where the vector table resides
                                    be allocated. xc16-746 */
+              if (pic30_debug) {
+                printf("\nAIVT base address: 0x%4.4x\n", aivt_base);
+                printf("AIVT len:          0x%4.4x\n", aivt_len);
+                printf("Pagesize:          0x%4.4x\n", pagesize);
+              }
             }
             free(contents);
           }
@@ -3504,6 +3631,8 @@ bfd_pic30_after_parse()
     else
       pic30_startup0_file = "crt0_standard.o";
 
+    lang_select_startup_file(pic30_startup0_file, 0);
+
     einfo(_("%P: Warning: linker script did not specify CRT0_STARTUP file,"
             " default for this device: %s\n"), pic30_startup0_file );
   }
@@ -3513,8 +3642,19 @@ bfd_pic30_after_parse()
       pic30_startup1_file = "crt1_extended.o";
     else
       pic30_startup1_file = "crt1_standard.o";
+
+    lang_select_startup_file(pic30_startup1_file, 1);
+
     einfo(_("%P: Warning: linker script did not specify CRT1_STARTUP file,"
             " default for this device: %s\n"), pic30_startup1_file );
+  }
+
+  if (pic30_startmode_file == 0) {
+    pic30_startmode_file = "crt_start_mode_normal";
+    lang_select_startup_file(pic30_startmode_file, 2);
+
+    einfo(_("%P: Warning: linker script did not specify CRT_STARTMODE file,"
+            " default: %s\n"), pic30_startmode_file );
   }
 }
 
@@ -4815,40 +4955,143 @@ bfd_pic30_finish(void)
   */
 
   if (pic30_data_init)
-    {
-      sec = init_template->output_section;  /* find the template's output sec */
+    { 
+      unsigned int tblpage = 0, tbloffset = 0;
+
+      /* find the template's output sec */
+      if (init_data.init_template) 
+        sec = init_data.init_template->output_section;
+      else sec = 0;
 
       if (sec)
         {
-          bfd_vma dinit_addr = sec->lma + init_template->output_offset;
-          unsigned int tblpage   = dinit_addr >> 16;
-          unsigned int tbloffset = dinit_addr & 0xFFFF;
+          bfd_vma dinit_addr = sec->lma + 
+                               init_data.init_template->output_offset;
+          tblpage   = dinit_addr >> 16;
+          tbloffset = dinit_addr & 0xFFFF;
           if (pic30_debug)
             printf("Creating __dinit_tblpage = %x\n", tblpage);
           link_add_one_symbol (&link_info, output_bfd,
-                                            "__dinit_tblpage", BSF_GLOBAL,
-                                            bfd_abs_section_ptr, tblpage, 
-                                            "__dinit_tblpage", 1, 0, 0);
+                                 "__dinit_tblpage", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, tblpage, 
+                                 "__dinit_tblpage", 1, 0, 0);
           if (pic30_debug)
             printf("Creating __dinit_tbloffset = %x\n", tbloffset);
           link_add_one_symbol (&link_info, output_bfd,
-                                            "__dinit_tbloffset", BSF_GLOBAL,
-                                            bfd_abs_section_ptr, tbloffset,
-                                            "__dinit_tbloffset", 1, 0, 0);
+                                 "__dinit_tbloffset", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, tbloffset,
+                                 "__dinit_tbloffset", 1, 0, 0);
         }
-      sec = init_shared_template->output_section;  /* find the shared */
-                                                   /* template's output sec */
-      if (sec)
-       {  bfd_vma shared_dinit_addr = sec->lma + init_shared_template->output_offset;
-          if (pic30_debug)
-            printf("Creating __shared_dinit_addr = %x\n", shared_dinit_addr);
+      else
+        {
           link_add_one_symbol (&link_info, output_bfd,
-                                            "__shared_dinit_addr",
-                                            BSF_GLOBAL | BSF_WEAK,
-                                            bfd_abs_section_ptr,
-                                            shared_dinit_addr,
-                                            "__shared_dinit_addr", 1, 0, 0);
+                                 "__dinit_tblpage", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, 0, 
+                                 "__dinit_tblpage", 1, 0, 0);
+          link_add_one_symbol (&link_info, output_bfd,
+                                 "__dinit_tbloffset", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, 0,
+                                 "__dinit_tbloffset", 1, 0, 0);
        }
+
+      /* find the shared  template's output sec */
+      if (shared_init_data.init_template) 
+        sec = shared_init_data.init_template->output_section;  
+      else sec = 0;
+                                                   
+      if (sec)
+        {  bfd_vma dinit_addr = sec->lma + 
+                                shared_init_data.init_template->output_offset;
+
+           if (pic30_debug)
+             printf("Creating __shared_dinit_addr = %x\n", dinit_addr);
+           link_add_one_symbol (&link_info, output_bfd,
+                                  "__shared_dinit_addr", BSF_GLOBAL | BSF_WEAK,
+                                  bfd_abs_section_ptr,
+                                  dinit_addr,
+                                  "__shared_dinit_addr", 1, 0, 0);
+        } 
+      else 
+        {
+           link_add_one_symbol (&link_info, output_bfd,
+                                  "__shared_dinit_addr", BSF_GLOBAL | BSF_WEAK,
+                                  bfd_abs_section_ptr,
+                                  0,
+                                  "__shared_dinit_addr", 1, 0, 0);
+        }
+
+      /* find the template's output sec */
+      if (restart_init_data.init_template) 
+        sec = restart_init_data.init_template->output_section;
+      else sec = 0;
+
+      if (sec)
+        {
+          bfd_vma dinit_addr = sec->lma +
+                               restart_init_data.init_template->output_offset;
+          unsigned int tblpage   = dinit_addr >> 16;
+          unsigned int tbloffset = dinit_addr & 0xFFFF;
+          if (pic30_debug)
+            printf("Creating __restart_dinit_tblpage = %x\n", tblpage);
+          link_add_one_symbol (&link_info, output_bfd,
+                                 "__restart_dinit_tblpage", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, tblpage,
+                                 "__restart_dinit_tblpage", 1, 0, 0);
+          if (pic30_debug)
+            printf("Creating __restart_dinit_tbloffset = %x\n", tbloffset);
+          link_add_one_symbol (&link_info, output_bfd,
+                                 "__restart_dinit_tbloffset", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, tbloffset,
+                                 "__restart_dinit_tbloffset", 1, 0, 0);
+        }
+      else
+        {
+          /* if there is no template then we are not preserving symbols -
+             or there are none to preserve.
+
+             In the first case, the system won't be using a restart start
+             mode.  In the 2nd, we dont want to init anything */
+
+          link_add_one_symbol (&link_info, output_bfd,
+                                 "__restart_dinit_tblpage", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, 0,
+                                 "__restart_dinit_tblpage", 1, 0, 0);
+          link_add_one_symbol (&link_info, output_bfd,
+                                 "__restart_dinit_tbloffset", BSF_GLOBAL,
+                                 bfd_abs_section_ptr, 0,
+                                 "__restart_dinit_tbloffset", 1, 0, 0);
+        }
+ 
+
+      /* find the shared template's output sec */
+      if (restart_shared_init_data.init_template) 
+        sec = restart_shared_init_data.init_template->output_section;
+      else sec = 0;
+
+      if (sec)
+        {  bfd_vma dinit_addr = sec->lma +
+                                shared_init_data.init_template->output_offset;
+
+           if (pic30_debug)
+             printf("Creating __restart_shared_dinit_addr = %x\n", dinit_addr);
+           link_add_one_symbol (&link_info, output_bfd,
+                                  "__restart_shared_dinit_addr",
+                                  BSF_GLOBAL | BSF_WEAK,
+                                  bfd_abs_section_ptr,
+                                  dinit_addr,
+                                  "__restart_shared_dinit_addr", 
+                                  1, 0, 0);
+        }
+      else
+        {
+           link_add_one_symbol (&link_info, output_bfd,
+                                  "__restart_shared_dinit_addr",
+                                  BSF_GLOBAL | BSF_WEAK,
+                                  bfd_abs_section_ptr,
+                                  0,
+                                  "__restart_shared_dinit_addr",
+                                  1, 0, 0);
+        }
     }
 
   /*
@@ -5441,7 +5684,7 @@ smartio_symbols(struct bfd_link_info *info) {
        struct bfd_link_hash_entry *u = 0;
        struct bfd_link_hash_entry *full;
 
-       char suffix[] = "_aAcdeEfFgGnopsuxX";
+       char suffix[] = "_aAcdeEfFgGnopsuxXL";
 
        if (info) {
          undefs=info->hash->undefs;
@@ -5465,12 +5708,18 @@ smartio_symbols(struct bfd_link_info *info) {
          if (smartio_fn_list->cum_mask > 1) {
            /* this means that we have an accumulated suffix that includes
               more than just '0' [the wild-card-suffix] */
+           int Lfound = 0;
            for (letter = 0; letter < 26; letter++) {
              if (smartio_fn_list->cum_mask & (1ULL << letter+27))
                suffix[s++] = 'a' + letter;
-             if (smartio_fn_list->cum_mask & (1ULL << letter+1))
-               suffix[s++] = 'A' + letter;
+             if (smartio_fn_list->cum_mask & (1ULL << letter+1)) {
+               if (letter + 'A' == 'L') {
+                  Lfound = 1;
+               } else suffix[s++] = 'A' + letter;
+             }
            }
+           /* L comes last */
+           if (Lfound) suffix[s++] = 'L';
            suffix[s] = 0;
          } else {
            sprintf(suffix, "_0");
@@ -5987,8 +6236,13 @@ void pic30_pad_flash() {
   }
 }
 
-#if 1
-void pic30_create_data_init_template(void) {
+#if 0
+  /*
+   * CAW
+   *   why duplicate this function over and over?
+   */
+void pic30_create_data_init_template(void)
+ {
   struct pic30_section *s;
   int total_data = 0;
   asection *sec;
@@ -5997,14 +6251,19 @@ void pic30_create_data_init_template(void) {
   ** for section .dinit and add it to the link.
   */
   if (pic30_data_init)
-    {
+    { 
+
+      init_max_priority = 0;
       init_bfd = bfd_pic30_create_data_init_bfd (output_bfd);
       bfd_pic30_add_bfd_to_link (init_bfd, init_bfd->filename);
 
        /* Compute size of data init template */
       for (s = data_sections; s != NULL; s = s->next)
         if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
-          bfd_pic30_scan_data_section(s->sec, &total_data);
+          bfd_pic30_scan_data_section(s->sec, &total_data, &init_max_priority);
+      for (s = priority_code_sections; s != NULL; s = s->next)
+        if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+          bfd_pic30_scan_data_section(s->sec, &total_data, &init_max_priority);
 
       total_data += 4; /* zero terminated */
 
@@ -6032,7 +6291,8 @@ void pic30_create_data_init_template(void) {
       if (sec)
         {
           sec->_raw_size = total_data;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | 
+                         SEC_CODE | SEC_KEEP);
           sec->contents = init_data;
           bfd_set_section_size (init_bfd, sec, total_data);
           init_template = sec;  /* save a copy for later */
@@ -6050,7 +6310,102 @@ void pic30_create_data_init_template(void) {
           bfd_pic30_skip_data_section(s->sec, &total_data);
     }
 }
+#else
+static void pic30_create_data_init_template(struct an_init_template *ait,
+                                     struct pic30_section *data_section_list,
+                                     struct pic30_section *code_section_list)
+ {
+  struct pic30_section *s;
+  int total_data = 0;
+  asection *sec;
+  /*
+  ** If data init support is enabled, create a BFD
+  ** for section a init section and add it to the link (if it won't be empty)
+  */
+  if ((pic30_data_init) && 
+      ((data_section_list && data_section_list->next) || 
+       (code_section_list && code_section_list->next)))
+    { 
 
+      ait->max_priority = 0;
+      ait->abfd = bfd_pic30_create_data_init_bfd (output_bfd,
+                                                  ait->output_name, 
+                                                  ait->section_name);
+      bfd_pic30_add_bfd_to_link (ait->abfd, ait->abfd->filename);
+
+      /* how we initialized this data */
+      ait->section_list = data_section_list;
+      ait->priority_list = code_section_list;
+
+      /* Compute size of data init template */
+      for (s = data_section_list; s != NULL; s = s->next)
+        if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+          bfd_pic30_scan_data_section(s->sec, &total_data, &ait->max_priority);
+      for (s = code_section_list; s != NULL; s = s->next)
+        if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+          bfd_pic30_scan_data_section(s->sec, &total_data, &ait->max_priority);
+
+      total_data += 4; /* zero terminated */
+
+      if (pic30_debug)
+        {
+          printf("  null terminator, template += 1 pword\n");
+          printf("\nTotal initialized data %s: %x pwords\n",
+                 pic30_pack_data ? "(packed)" : "(not packed)",
+                 total_data / 4);
+        }
+
+      /* allocate memory for the template */
+      ait->init_data = (unsigned char *) bfd_alloc (output_bfd, total_data);
+      if (!ait->init_data)
+        {
+          fprintf( stderr, "Link Error: not enough memory for data template\n");
+          abort();
+        }
+
+      /* fill the template with a default value */
+      ait->init_data = memset( ait->init_data, 0x11, total_data);
+
+      /* attach it to the input section */
+      sec = bfd_get_section_by_name(ait->abfd, ait->section_name);
+      if (sec)
+        {
+          sec->_raw_size = total_data;
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | 
+                         SEC_CODE | SEC_KEEP);
+          sec->contents = ait->init_data;
+          bfd_set_section_size (ait->abfd, sec, total_data);
+          ait->init_template = sec;  /* save a copy for later */
+        }
+      else
+        if (pic30_debug)
+          printf("after_open: section .dinit not found\n");
+
+    } /* if (pic30_data_init) */
+  else
+    {
+      /* warn if initial data values will be ignored */
+      for (s = data_section_list; s != NULL; s = s->next)
+        if (s->sec)
+          bfd_pic30_skip_data_section(s->sec, &total_data);
+    }
+}
+#endif
+
+void pic30_create_data_init_templates() {
+  pic30_create_data_init_template(&init_data, data_sections, 
+                                  priority_code_sections);
+  pic30_create_data_init_template(&shared_init_data, shared_data_sections, 0);
+
+  pic30_create_data_init_template(&restart_init_data, restart_data_sections,
+                                  restart_priority_code_sections);
+  pic30_create_data_init_template(&restart_shared_init_data, 
+                                  restart_shared_data_sections,
+                                  restart_shared_priority_code_sections);
+}
+
+#if 0
+  /* duplicate */
 void pic30_create_shared_data_init_template(void) {
   struct pic30_section *s;
   int total_data = 0;
@@ -6060,14 +6415,14 @@ void pic30_create_shared_data_init_template(void) {
   ** for section .dinit and add it to the link.
   */
   if (pic30_data_init)
-    {
+    { 
       init_shared_bfd = bfd_pic30_create_shared_data_init_bfd (output_bfd);
       bfd_pic30_add_bfd_to_link (init_shared_bfd, init_shared_bfd->filename);
 
-       /* Compute size of data init template */
+      /* Compute size of data init template */
       for (s = shared_data_sections; s != NULL; s = s->next)
         if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
-          bfd_pic30_scan_data_section(s->sec, &total_data);
+          bfd_pic30_scan_data_section(s->sec, &total_data, &init_max_priority);
 
       total_data += 4; /* zero terminated */
 
@@ -6095,7 +6450,8 @@ void pic30_create_shared_data_init_template(void) {
       if (sec)
         {
           sec->_raw_size = total_data;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
+          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | 
+                         SEC_CODE | SEC_KEEP);
           sec->contents = init_shared_data;
           bfd_set_section_size (init_shared_bfd, sec, total_data);
           init_shared_template = sec;  /* save a copy for later */
@@ -6304,8 +6660,7 @@ gld${EMULATION_NAME}_after_open()
   /*
   ** create sections for the rest of the ivts if we need too
   */
-  if (pic30_isr) {
-
+  if ((pic30_isr) && (pic30_ivt)) {
     for (r = ivt_records_list; r != NULL; r = next) {
       next = r->next;
       if (r->name == 0) continue;
@@ -6339,36 +6694,54 @@ gld${EMULATION_NAME}_after_open()
         r->ivt_sec = ivt_sec;
         if (r->is_alternate_vector) {
           if (aivt_base == 0) {
-            fprintf(stderr,"Link Error: can't locate alternate vector "
-                           "table base address\n");
-            abort();
+            einfo(_("%P%F: Link Error: can't locate alternate vector "
+                           "table base address.\n" ));
           }
           bfd_set_section_vma(abfd, ivt_sec, aivt_base + r->offset);
         } else {
           if (ivt_base == 0) {
-            fprintf(stderr,"Link Error: can't locate vector "
-                           "table base address\n");
-            abort();
+            einfo(_("%P%F: Link Error: can't locate vector "
+                           "table base address.\n" ));
           }
           bfd_set_section_vma(abfd, ivt_sec, ivt_base + r->offset);
         }
-      } else {
-        /* clear the flag for the next pass */
-        if (r->is_alternate_vector) {
-          if (r->ivt_sec) {
-            if (aivt_base) {
-              /* fill in the base, which is available now */
-              bfd_set_section_vma(abfd, r->ivt_sec, aivt_base + r->offset);
-            } else {
-              r->ivt_sec->flags = 0;
-            }
-          }
+      } 
+      if (r->is_alternate_vector) {
+        if (aivt_base == 0) {
+          einfo(_("%P%F: Link Error: can't locate alternate vector "
+                         "table base address.\n" ));
         }
-        r->flags &= ~ivt_seen;
+        if (aivt_base + r->offset > max_aivt_addr) {
+          max_aivt_addr = aivt_base + r->offset;
+        }
+      } else {
+        if (ivt_base == 0) {
+          einfo(_("%P%F: Link Error: can't locate vector "
+                         "table base address.\n" ));
+        }
+        if (ivt_base + r->offset > max_ivt_addr) {
+          max_ivt_addr = ivt_base + r->offset;
+        }
       }
     }
   }
 
+  for (r = ivt_records_list; r != NULL; r = r->next) {
+    /* clear the flag for the next pass */
+    if (r->flags & ivt_seen) {
+      if (r->is_alternate_vector) {
+        if (r->ivt_sec) {
+          if (aivt_base) {
+            /* fill in the base, which is available now */
+            bfd_set_section_vma(abfd, r->ivt_sec, aivt_base + r->offset);
+          } else {
+            r->ivt_sec->flags = 0;
+          }
+        }
+      }
+      r->flags &= ~ivt_seen;
+    }
+  }
 
   /*
   ** SSR# 26079: If ICD2 option has been selected,
@@ -6591,9 +6964,12 @@ gld${EMULATION_NAME}_after_open()
     }
 
   /* init list of input data sections */
+  pic30_init_section_list(&priority_code_sections);
   pic30_init_section_list(&data_sections);
   pic30_init_section_list(&shared_data_sections);
   pic30_init_section_list(&shared_dinit_sections);
+  pic30_init_section_list(&restart_data_sections);
+  pic30_init_section_list(&restart_priority_code_sections);
 
   /*
    * Loop through all input sections and
@@ -6605,13 +6981,29 @@ gld${EMULATION_NAME}_after_open()
         for (sec = f->the_bfd->sections;
              sec != (asection *) NULL;
              sec = sec->next)
-          if ((sec->_raw_size > 0) && (sec->linked == 0) &&
-              (PIC30_IS_BSS_ATTR(sec) || PIC30_IS_DATA_ATTR(sec))) {
-            if (sec->shared == 1)
-              pic30_append_section_to_list(shared_data_sections, f, sec);
-            else
-              pic30_append_section_to_list(data_sections, f, sec);
+          if ((sec->_raw_size > 0) && (sec->linked == 0)) {
+            if (PIC30_IS_BSS_ATTR(sec) || PIC30_IS_DATA_ATTR(sec)) {
+              if (sec->shared == 1)
+                pic30_append_section_to_list(shared_data_sections, f, sec);
+              else
+                pic30_append_section_to_list(data_sections, f, sec);
+            } else if (PIC30_IS_CODE_ATTR(sec) && (sec->priority > 0)) {
+              pic30_append_section_to_list(priority_code_sections, f, sec);
             }
+            if ((preserved_sections) && (!PIC30_IS_PRESERVED_ATTR(sec))) {
+              /* make a separate list for non-preserved symbols */
+              if (PIC30_IS_BSS_ATTR(sec) || PIC30_IS_DATA_ATTR(sec)) {
+                if (sec->shared == 1)
+                  pic30_append_section_to_list(restart_shared_data_sections, 
+                                               f, sec);
+                else
+                  pic30_append_section_to_list(restart_data_sections, f, sec);
+              } else if (PIC30_IS_CODE_ATTR(sec) && (sec->priority > 0)) {
+                pic30_append_section_to_list(restart_priority_code_sections, 
+                                             f, sec);
+              }
+            }
+          }
       }
   }
 
@@ -6671,67 +7063,6 @@ gld${EMULATION_NAME}_after_open()
   }
 }
 
-#if 0
-  /*
-  ** If data init support is enabled, create a BFD
-  ** for section .dinit and add it to the link.
-  */
-  if (pic30_data_init)
-    {
-      init_bfd = bfd_pic30_create_data_init_bfd (output_bfd);
-      bfd_pic30_add_bfd_to_link (init_bfd, init_bfd->filename);
-
-       /* Compute size of data init template */
-      for (s = data_sections; s != NULL; s = s->next)
-        if (s->sec)
-          bfd_pic30_scan_data_section(s->sec, &total_data);
-
-      total_data += 4; /* zero terminated */
-
-      if (pic30_debug)
-        {
-          printf("  null terminator, template += 1 pword\n");
-          printf("\nTotal initialized data %s: %x pwords\n",
-                 pic30_pack_data ? "(packed)" : "(not packed)",
-                 total_data / 4);
-        }
-
-      /* allocate memory for the template */
-      init_data = (unsigned char *) bfd_alloc (output_bfd, total_data);
-      if (!init_data)
-        {
-          fprintf( stderr, "Link Error: not enough memory for data template\n");
-          abort();
-        }
-
-      /* fill the template with a default value */
-      init_data = memset( init_data, 0x11, total_data);
-
-      /* attach it to the input section */
-      sec = bfd_get_section_by_name(init_bfd, ".dinit");
-      if (sec)
-        {
-          sec->_raw_size = total_data;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
-          sec->contents = init_data;
-          bfd_set_section_size (init_bfd, sec, total_data);
-          init_template = sec;  /* save a copy for later */
-        }
-      else
-        if (pic30_debug)
-          printf("after_open: section .dinit not found\n");
-
-    } /* if (pic30_data_init) */
-  else
-    {
-      /* warn if initial data values will be ignored */
-      for (s = data_sections; s != NULL; s = s->next)
-        if (s->sec)
-          bfd_pic30_skip_data_section(s->sec, &total_data);
-    }
-#endif
-
-
  /*
   ** Look for a user-defined __reset function.
   **
@@ -6743,7 +7074,8 @@ gld${EMULATION_NAME}_after_open()
   */
   {
     struct bfd_link_hash_entry *h;
-    if ((h = bfd_pic30_is_defined_global_symbol("__reset"))) /* implies strong */
+    /* implies strong */
+    if ((h = bfd_pic30_is_defined_global_symbol("__reset"))) 
       {
         if (h->u.def.section != bfd_abs_section_ptr) {
           if (pic30_debug)
@@ -6757,6 +7089,24 @@ gld${EMULATION_NAME}_after_open()
               strcmp(pic30_startup1_file, h->u.def.section->owner->filename))
             bfd_pic30_remove_archive_module (pic30_startup1_file);
           pic30_has_user_startup = 1;
+        }
+      }
+  }
+
+  {
+    struct bfd_link_hash_entry *h;
+    /* implies strong */
+    if ((h = bfd_pic30_is_defined_global_symbol("__crt_start_mode"))) 
+      {
+        if (h->u.def.section != bfd_abs_section_ptr) {
+          if (pic30_debug)
+            printf("\nFound a user-defined startmode module\n");
+          /* for user-defined __reset, the linker script needs
+             to be modified to use the user-defined startup module */
+          if (pic30_startmode_file &&
+              strncmp(pic30_startmode_file, h->u.def.section->owner->filename,
+                      strlen(pic30_startmode_file)))
+            bfd_pic30_remove_archive_module (pic30_startmode_file);
         }
       }
   }
@@ -6781,8 +7131,8 @@ gld${EMULATION_NAME}_after_open()
             {
               if (pic30_debug)
                 printf("OK\n");
-              bfd_pic30_redefine_global_symbol ("__reset",
-                                                h->u.def.section, h->u.def.value);
+              bfd_pic30_redefine_global_symbol ("__reset", h->u.def.section,
+                                                h->u.def.value);
             }
           else
             {
@@ -6808,8 +7158,8 @@ gld${EMULATION_NAME}_after_open()
             {
               if (pic30_debug)
                 printf("OK\n");
-              bfd_pic30_redefine_global_symbol ("__reset",
-                                                h->u.def.section, h->u.def.value);
+              bfd_pic30_redefine_global_symbol ("__reset", h->u.def.section, 
+                                                h->u.def.value);
             }
           else
             {
@@ -7383,8 +7733,11 @@ gld${EMULATION_NAME}_place_orphan( file, sec)
       printf("%sRecording unmapped section: \"%s\", attr = %x\n",
              orphan_cnt++ ? "" : "\n", sec->name,
              pic30_attribute_map(sec));
+#if 0
+    /* this is not needed - we allocate preserved sections in
+         pic30-allocate.c :  locate_preserved_section CAW */
     if (PIC30_IS_PRESERVED_ATTR(sec)) {
-      for (s = inherited_sections; s != NULL; s= s->next) {
+      for (s = preserved_sections; s != NULL; s= s->next) {
          if (s->sec && (strcmp(sec->name, s->sec->name) == 0) &&
              (sec->_raw_size == s->sec->_raw_size)) {
            PIC30_SET_ABSOLUTE_ATTR(sec);
@@ -7392,6 +7745,7 @@ gld${EMULATION_NAME}_place_orphan( file, sec)
          }
       }
     }
+#endif
          
     if (!unassigned_sections)
       pic30_init_section_list(&unassigned_sections);
@@ -7493,6 +7847,45 @@ elf_link_check_archive_element (name, abfd, info)
       return FALSE;
     }
   }
+
+  if (strncmp(name, CRTMODE_KEY, sizeof(CRTMODE_KEY)-1) == 0) {
+    if (pic30_data_init) {
+      if (strncmp(abfd->filename, pic30_startmode_file, 
+                  strlen(pic30_startmode_file)) == 0) {
+#if 0
+        _bfd_generic_link_add_one_symbol (info, pic30_output_bfd, CRTMODE_KEY,
+                                          BSF_GLOBAL, bfd_abs_section_ptr,
+                                          0, CRTMODE_KEY, 1, 0, 0);
+#endif
+      } else if (pic30_preserve_application_info) {
+        if (strcmp(name,CRTMODE_KEY) == 0) {
+#if 0
+          _bfd_generic_link_add_one_symbol (info, pic30_output_bfd, CRTMODE_KEY,
+                                            BSF_GLOBAL, bfd_abs_section_ptr,
+                                            0, CRTMODE_KEY, 1, 0, 0);
+#endif
+          if (pic30_debug) {
+            printf("\nDefined as %s\n", CRTMODE_KEY);
+          }
+        } else {
+          if (pic30_debug) {
+            printf("\nSkipping %s\n", CRTMODE_KEY);
+          }
+          return FALSE;
+        }
+      } else {
+        if (strcmp(name,CRTMODEOFF_KEY) == 0) {
+#if 0
+          _bfd_generic_link_add_one_symbol (info, pic30_output_bfd, 
+                                            CRTMODEOFF_KEY, BSF_GLOBAL, 
+                                            bfd_abs_section_ptr, 0, 
+                                            CRTMODEOFF_KEY, 1, 0, 0);
+#endif
+        } else return FALSE;
+      }
+    } 
+  }
+
   
 /* In case when user refernces __reset in their code without defining it,
  *  the linker will look for an definition in the archive. 
@@ -7539,7 +7932,7 @@ elf_link_check_archive_element (name, abfd, info)
         usym->external_options_mask |= global_signature_mask;
         usym->options_set |= global_signature_set;
       }
-     }
+    }
     if (pic30_debug && usym) {
       printf(dbg_str1, name, usym->external_options_mask,
              usym->options_set);

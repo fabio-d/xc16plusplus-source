@@ -171,33 +171,43 @@ remove_section_from_bfd(bfd *abfd, asection *sec)
   return;
 } /* static void remove_section_from_bfd (...)*/
 
-static void
+static int
 report_allocation_error(struct pic30_section *s) {
 #define PREFIX "/tmp"
-    char *colon = "";
-    char *filename = "";
-    char *secname = "*";
-    char *s1 = pic30_section_size_string(s->sec);
-    char *s2 = pic30_section_attr_string(s->sec);
+  char *colon = "";
+  char *filename = "";
+  char *secname = "*";
+  struct pic30_section *t, *next;
+  int error_reported = 0;
 
-    /* report the file name, unless its a temp file */
-    if (strncmp(s->sec->owner->filename, PREFIX, strlen(PREFIX)) != 0) {
-      colon = ":";
-      filename = (char *) s->sec->owner->filename;
+  for ( t = s; t != NULL; t = next ) {
+    next = t->next;
+    if ( t->sec && t->sec->linked == 0 ) {
+      char *s1 = pic30_section_size_string(t->sec);
+      char *s2 = pic30_section_attr_string(t->sec);
+
+      error_reported++;
+      /* report the file name, unless its a temp file */
+      if (strncmp(t->sec->owner->filename, PREFIX, strlen(PREFIX)) != 0) {
+        colon = ":";
+        filename = (char *) t->sec->owner->filename;
+      }
+
+      /* report the section name, unless its based on a temp file */
+      if (strncmp(t->sec->name, PREFIX, strlen(PREFIX)) != 0)
+        secname = (char *) t->sec->name;
+
+      einfo(_("%X%s%s Link Error: Could not allocate section %s, %s, %s\n"),
+            filename, colon, secname, s1 ? s1 : "", s2 ? s2 : "");
+
+      if (s1) free(s1);  /* free the malloc'ed strings */
+      if (s2) free(s2);
+
+      if (pic30_debug)
+        printf("\n    Error: Could not allocate section %s\n", t->sec->name);
     }
-
-    /* report the section name, unless its based on a temp file */
-    if (strncmp(s->sec->name, PREFIX, strlen(PREFIX)) != 0)
-      secname = (char *) s->sec->name;
-
-    einfo(_("%X%s%s Link Error: Could not allocate section %s, %s, %s\n"),
-          filename, colon, secname, s1 ? s1 : "", s2 ? s2 : "");
-
-    if (s1) free(s1);  /* free the malloc'ed strings */
-    if (s2) free(s2);
-
-    if (pic30_debug)
-      printf("\n    Error: Could not allocate section %s\n", s->sec->name);
+  }
+  return error_reported;
 }
 
 /*
@@ -449,9 +459,9 @@ allocate_program_memory() {
 #endif
 
   reset_locate_options();
-  result |= locate_sections(address, 0, region);   /* most restrictive  */
-  result |= locate_sections(psv, 0, region);       /* :                 */
-  result |= locate_sections(all_attr, 0, region);  /* least restrictive */
+  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
+  result |= locate_sections(psv, 0, 0, region);       /* :                 */
+  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
 
   /* save the free blocks list */
   program_memory_free_blocks = free_blocks;
@@ -509,8 +519,8 @@ allocate_auxflash_memory() {
 #endif
 
   reset_locate_options();
-  result |= locate_sections(address, 0, region);   /* most restrictive  */
-  result |= locate_sections(all_attr, 0, region);  /* least restrictive */
+  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
+  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
 
 /* save the free blocks list */
   auxflash_memory_free_blocks = free_blocks;
@@ -598,39 +608,35 @@ allocate_data_memory() {
   }
   
   reset_locate_options();
-  result |= locate_sections(address, 0, region);    /* most restrictive  */
-  result |= locate_sections(dma, 0, region);        /* :                 */
-  result |= locate_sections(xmemory,0,  region);    /* :                 */
-  result |= locate_sections(ymemory, 0, region);    /* :                 */
-  result |= locate_sections(near, 0, region);       /* less restrictive  */
-  result |= locate_sections(all_attr, eds|stack|heap, region);
+  result |= locate_sections(all_attr, 0, 1, region);   /* preserved         */
+  result |= locate_sections(address, 0, 0, region);    /* most restrictive  */
+  result |= locate_sections(dma, 0, 0, region);        /* :                 */
+  result |= locate_sections(xmemory,0, 0,  region);    /* :                 */
+  result |= locate_sections(ymemory, 0, 0, region);    /* :                 */
+  result |= locate_sections(near, 0, 0, region);       /* less restrictive  */
+  result |= locate_sections(all_attr, eds|stack|heap, 0, region);
 
   /* EDS, first pass */
   set_locate_options(EXCLUDE_LOW_ADDR, max_stack);
-  result |= locate_sections(all_attr, stack|heap, region);
+  result |= locate_sections(all_attr, stack|heap, 0, region);
 
   /* EDS, second pass */
   set_locate_options(FAVOR_HIGH_ADDR, 0);
-  result |= locate_sections(all_attr, stack|heap, region);
+  result |= locate_sections(all_attr, stack|heap, 0, region);
 
   /* user-defined heap */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_heap);
-  result |= locate_sections(heap, 0, region);
+  result |= locate_sections(heap, 0, 0, region);
 
   /* user-defined stack */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_stack);
-  result |= locate_sections(stack, 0, region);
+  result |= locate_sections(stack, 0, 0, region);
 
   /* if any not previously linked sections are left in the allocation list,
      report an error */
-  for (s = alloc_section_list; s != NULL; s = next) {
-
-    next = s->next;
-    if (s->sec && s->sec->linked == 0){
-      report_allocation_error(s->next);
-      result = 1;
-      break;
-    }
+  s = alloc_section_list;
+  if ( s && s->next ) {
+    if (report_allocation_error(s->next)) result |= 1; 
   }
 
   /* save the free blocks list */
@@ -761,8 +767,8 @@ allocate_eedata_memory() {
   }
 
   reset_locate_options();
-  result |= locate_sections(address, 0, region);   /* most restrictive  */
-  result |= locate_sections(all_attr, 0, region);  /* least restrictive */
+  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
+  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
 
   return result;
 } /* allocate_eedata_memory() */
@@ -873,8 +879,8 @@ allocate_user_memory() {
     }
   
     reset_locate_options();
-    result |= locate_sections(address, 0, &temp_region);
-    result |= locate_sections(all_attr, 0, &temp_region);
+    result |= locate_sections(address, 0, 0, &temp_region);
+    result |= locate_sections(all_attr, 0, 0, &temp_region);
   }
 
   return result;
@@ -1088,6 +1094,7 @@ group_section_alignment(struct pic30_section *g)
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   bfd_vma len;
   struct pic30_memory *b;
+
 #if 0 
   if (PIC30_IS_PACKEDFLASH_ATTR(s->sec))
    s->sec->_raw_size = s->sec->_cooked_size =((s->sec->_raw_size * 3) / 4);
@@ -1185,6 +1192,182 @@ group_section_alignment(struct pic30_section *g)
   return result;
 } /* locate_single_section() */
  
+
+static void locate_preserved_section(struct pic30_section *s,
+                                     struct memory_region_struct *region) {
+#ifndef PIC30ELF
+  return;
+#else
+
+  if ((s->sec->user_set_vma != 0) || (s->sec->absolute != 0)) {
+    /* user set VMA (from gld file) or otherwise absolute... we have an
+       address - already allocated */
+    return;
+  }
+  if (PIC30_IS_UPDATE_ATTR(s->sec)) {
+    /* marked with update, definately not preserved */
+    return;
+  }
+
+  if ((preserved_sections) && (PIC30_IS_PRESERVED_ATTR(s->sec))) {
+    asymbol **preserved_symbols;
+    long num;
+    long int i,j;
+    asymbol *section_symbol = 0;
+    bfd_vma section_lma = 0;
+    asymbol *last_file_symbol = 0;
+    asymbol *matched_symbol = 0;
+    asymbol *matched_file = 0;
+    int section_has_symbols = 0;
+
+    preserved_symbols = bfd_pic30_load_symbol_table(s->sec->owner, &num);
+    if (pic30_debug) {
+      printf("   preserving symbols for %s\n",s->sec->name);
+    }
+    for (i = 0; i < num; i++) {
+      if (preserved_symbols[i]->flags & BSF_FILE) {
+        last_file_symbol = preserved_symbols[i];
+        continue;
+      }
+      if (preserved_symbols[i]->section != s->sec) {
+        continue;
+      }
+      if (preserved_symbols[i]->flags & BSF_SECTION_SYM) {
+        section_symbol = preserved_symbols[i];
+      } else {
+        /* try to validate the symbol address */
+        struct pic30_section *p;
+        
+        if (pic30_debug) {
+          printf("   looking for %s (0x%8.8x)\n",
+                 preserved_symbols[i]->name, preserved_symbols[i]->flags);
+        }
+        section_has_symbols = 1;
+        // matched_symbol = 0;
+        for (p = preserved_sections; p; p = p->next) {
+          asymbol **previous_syms;
+          long int previous_num;
+          asymbol *last_previous_file_symbol = 0;
+          int warning = 0;
+#define FLAGS_THAT_MATTER (SEC_READONLY | SEC_CODE | SEC_DATA | SEC_ROM)
+
+          if (p->sec == 0) continue;
+          if ((p->sec->flags & FLAGS_THAT_MATTER) != 
+              (s->sec->flags & FLAGS_THAT_MATTER)) {
+            if (pic30_debug) {
+              printf("Flags do not match: %8.8x != %8.8x\n", 
+                     p->sec->flags, s->sec->flags);
+            }
+            continue;
+          }
+          previous_syms = bfd_pic30_load_symbol_table(p->sec->owner,
+                                                            &previous_num);
+          for (j = 0; j < previous_num; j++) {
+            /* consider symbols in the current preserved section */
+            if (previous_syms[j]->flags & BSF_FILE) {
+              last_previous_file_symbol = previous_syms[j];
+            }
+            if (previous_syms[j]->section != p->sec) continue;
+            if (strcmp(previous_syms[j]->name,
+                       preserved_symbols[i]->name) == 0) {
+              if (pic30_debug) {
+                printf("   match %s 0x%x from %s\n",
+                       previous_syms[j]->name, previous_syms[j]->value,
+                       previous_syms[j]->section->name);
+              }
+#if 0
+              /* merging sections in a previous output file can make this
+                 appear to be true.... */
+              if (s->sec->_raw_size != previous_syms[j]->section->_raw_size) {
+                einfo("Warning: matched preserved section '%s' has changed "
+                      "size\n", s->sec->name);
+              }
+#endif
+              if (section_lma == 0) {
+                /* work-out preserved section lma based upon
+                     the current preserved symbol offset and the
+                     matched symbols offset within the previous section */
+                section_lma = previous_syms[j]->value +
+                              previous_syms[j]->section->lma -
+                              preserved_symbols[i]->value;
+                matched_symbol = previous_syms[j];
+                matched_file = last_previous_file_symbol;
+                if (pic30_debug)
+                  printf("  currently assigned lma: %p\n", section_lma);
+              } else {
+                /* we already picked a section lma; make sure all symbols
+                   fit */
+                if (section_lma != previous_syms[j]->value +
+                              previous_syms[j]->section->lma -
+                              preserved_symbols[i]->value) {
+                  if (warning == 0) {
+                    fprintf(stderr,
+                            "Warning: cannot match address for symbol '%s'\n"
+                            "\t in preserved section '%s'\n"
+                            "\t from file '%s'\n", 
+                            preserved_symbols[i]->name,
+                            s->sec->name,
+                            last_file_symbol ? last_file_symbol->name : 
+                                               "unknown");
+                    warning = 1;
+                    if (pic30_debug)
+                    fprintf(stderr,"Choices are:\n"
+                                   "\taddress: 0x%4.4x file: '%s'\n",
+                                   matched_symbol->section->lma,
+                                   matched_file->name);
+                  }
+                  if (pic30_debug)
+                  fprintf(stderr,"\taddress: 0x%4.4x file: '%s'\n",
+                                  previous_syms[j]->section->lma + previous_syms[j]->value,
+                                  last_previous_file_symbol->name);
+
+                  if (pic30_debug) {
+                    printf("Warning: cannot match address for symbol"
+                           " '%s'\n\tin preserved section %s\n",
+                           previous_syms[j]->name,s->sec->name);
+                    printf("  currently assigned lma: %p\n", section_lma);
+                    printf("  calculated lma: %p\n",
+                              previous_syms[j]->value +
+                                previous_syms[j]->section->lma -
+                                preserved_symbols[i]->value);
+                  }
+                  section_lma = -1;
+                }
+              }
+            }
+          }
+        }
+      }
+      if (pic30_debug) {
+        printf("   %s 0x%x %s\n",
+          preserved_symbols[i]->name, preserved_symbols[i]->value,
+          preserved_symbols[i]->flags & BSF_SECTION_SYM ?
+            "SECTION SYM" : "");
+      }
+    }
+    if (section_has_symbols == 0) return;
+    if (section_lma == 0) {
+      einfo("Warning: cannot find address for preserved section:"
+                     " '%s'\n",
+              s->sec->name ? s->sec->name : "unnamed section");
+    } else if (section_lma == -1) {
+      einfo("%FError: cannot match an address for preserved section\n\t"
+            "'%s'\n", s->sec->name);
+    } else {
+      struct pic30_memory b;
+      /* matched addresses */
+      if (pic30_debug) {
+         printf("   assigning lma %x\n", section_lma);
+      }
+      s->sec->lma = section_lma;
+      PIC30_SET_ABSOLUTE_ATTR(s->sec);
+      s->sec->linker_generated = 1;
+      locate_single_section(s, region);
+    }
+  }
+  return;
+#endif
+}
  
 /*
  * locate_sections()
@@ -1210,7 +1393,7 @@ group_section_alignment(struct pic30_section *g)
  */
 static int
 locate_sections(unsigned int mask, unsigned int block,
-                struct memory_region_struct *region) {
+                unsigned int preserved, struct memory_region_struct *region) {
 
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   struct pic30_section *s,*next;
@@ -1225,12 +1408,16 @@ locate_sections(unsigned int mask, unsigned int block,
   for (s = alloc_section_list; s != NULL; s = next) {
   
     next = s->next;
-    if (s->sec && (PIC30_IS_DATA_ATTR(s->sec) ||PIC30_IS_BSS_ATTR(s->sec)) &&
-          !PIC30_IS_ABSOLUTE_ATTR(s->sec) && (s->sec->linked == 1)) {
+    if (s->sec == 0) continue;
+    if (s->sec && 
+          (PIC30_IS_DATA_ATTR(s->sec) ||PIC30_IS_BSS_ATTR(s->sec)) &&
+          !PIC30_IS_ABSOLUTE_ATTR(s->sec) && 
+          (s->sec->linked == 1)) {
       update_section_info(s->sec->lma, s, region);
-    }
-    else {
-      if (s->sec && (s->attributes & mask) &&
+    } else {
+      if (preserved) {
+        locate_preserved_section(s,region);
+      } else if (s->sec && (s->attributes & mask) &&
           ((s->attributes & block) == 0)) {
         bfd_vma len = s->sec->_raw_size / opb;
 
@@ -1938,9 +2125,9 @@ select_free_block(struct pic30_section *s, unsigned int len,
        if ((b->addr + b->offset + len) == (region->origin + region->length))
         { if (config.map_file)
             fprintf(config.map_file, "/n Could not use block"
-                    " at address %d and of size % to locate section %s"
+                    " at address %d and of size %d to locate section %s"
                     " because this will lead to having executable code"
-                    "  at the last word of program memory./n",
+                    " at the last word of program memory./n",
                     b->addr, b->size, s->sec->name); 
          continue;
         }
@@ -1953,7 +2140,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
   if (locate_options != NO_LOCATE_OPTION)
     return (struct pic30_memory *) NULL; /* exit quietly */
   else
-    report_allocation_error(s);
+    (void) report_allocation_error(s);
 
 #if 0
   {
@@ -2079,6 +2266,7 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
 } /* finish_section_info() */
 
 
+#if 0
 #define update_section_addr(s,addr)                          \
   {                                                          \
   s->lma = addr;                                             \
@@ -2090,6 +2278,18 @@ finish_section_info(struct pic30_section *s, lang_output_section_statement_type 
   else                                                       \
     s->vma = addr;                                           \
   }
+#else
+void update_section_addr(asection *s,bfd_vma addr)  {
+  s->lma = addr;
+  if (PIC30_IS_PSV_ATTR(s) || PIC30_IS_EEDATA_ATTR(s) ||
+      PIC30_IS_AUXPSV_ATTR(s))
+    s->vma = PSV_BASE + (addr & 0x7FFF);
+  else if (PIC30_IS_PACKEDFLASH_ATTR(s))
+    s->vma = addr * 3 / 2;
+  else
+    s->vma = addr;
+}
+#endif
 
 /*
  * update_section_info()
@@ -2179,7 +2379,7 @@ update_group_section_info(bfd_vma alloc_addr,
 
   if (pic30_debug)
   printf("    updating grouped section info:"
-               "  vma = %lx, lma = %lx\n", s->sec->vma, s->sec->lma);
+               "  vma = %lx, lma = %lx\n", g->sec->vma, g->sec->lma);
 
   /* loop through the input sections in this group */
   for (s = alloc_section_list; s != NULL; s = next) {
@@ -2312,11 +2512,12 @@ build_alloc_section_list(unsigned int has_mask, unsigned hasnot_mask) {
   for (s = prev; s != NULL; s = next) {
 
     next = s->next;
-    if ((s->attributes & has_mask)  && ((s->attributes & hasnot_mask) == 0)){
-      if (pic30_debug)
+    if (((s->attributes & has_mask)  && ((s->attributes & hasnot_mask) == 0)) &&
+        (!s->sec->linker_generated || ((s->sec->flags & SEC_NEVER_LOAD) == 0))){
+      if (pic30_debug) {
         printf("  input section \"%s\", len = %lx, flags = %x, attr = %x\n",
-               s->sec->name, s->sec->_raw_size/opb, s->sec->flags, s->attributes);
-
+               s->sec->name,s->sec->_raw_size/opb,s->sec->flags, s->attributes);
+      }
       insert_alloc_section(alloc_section_list, s);
       prev->next = next; /* unlink it from unassigned_sections */
     } else
@@ -2377,7 +2578,11 @@ build_free_block_list(struct memory_region_struct *region,
         if (pic30_debug)
           printf("  block %d, addr = %lx, len = %lx\n",
                  ++cnt, dot, len);
-        pic30_add_to_memory_list(free_blocks, dot, len);  /* add free block */
+        if ((dot >= max_aivt_addr) && (dot < aivt_base + aivt_len)) {
+          (void) 0;
+        } else {
+          pic30_add_to_memory_list(free_blocks, dot, len);  /* add free block */
+        }
         dot += len + (s->sec->_raw_size / opb);           /* advance dot    */
       }
     }
@@ -2394,6 +2599,11 @@ build_free_block_list(struct memory_region_struct *region,
         print_output_section_statement((lang_output_section_statement_type *)s);
   }
 #endif
+
+  /* consume rest of aivt space, if required */
+  if ((dot >= aivt_base) && (dot < aivt_base + aivt_len)) {
+    dot = aivt_base + aivt_len;
+  }
 
   /* add a block for any free space remaining in this region */
   /* .. use dot, because region->current may have been set for CodeGuard */

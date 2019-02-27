@@ -154,7 +154,7 @@ bfd_boolean pic30_has_CG_settings = FALSE;
  * be declared const, because the table of devices read
  * from the resource file will be appended to it. */
 static bfd_arch_info_type generic_6 = 
-   ARCH ( 95,                "GENERIC-16DSP-CH", TRUE, 0, HAS_DSP | HAS_EDS | HAS_ISAV4);
+   ARCH ( 95,                "GENERIC-16DSP-CH", TRUE, 0, HAS_DSP | HAS_EDS | HAS_ISAV4 | HAS_DUALCORE);
 
 static bfd_arch_info_type generic_5 = 
    ARCH ( 94,                "GENERIC-16DSP-EP", TRUE, &generic_6, HAS_DSP | HAS_EDS | HAS_ECORE);
@@ -190,6 +190,7 @@ char *pic30_resource_version;
 static char *version_part1;
 
 unsigned int aivtdis_bit_ptr = 0;
+unsigned int pagesize = 0;
 unsigned int aivtdis_mask = 0;
 unsigned int aivtloc_ptr = 0;
 unsigned int aivtloc_mask = 0;
@@ -497,22 +498,27 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
       read_value(rik_int, &d3);
 
       if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
-          (((d2.v.i & MEM_PARTITIONED) != 0) == pic30_partition_flash) &&
           (d3.v.i == procID)) {
         if (debug)
           printf(".");
         read_value(rik_int, &d4);
         read_value(rik_int, &d5);
 
-        if (d2.v.i & MEM_IS_AIVT_ENABLED) {
-          pic30_has_floating_aivt = TRUE;
-          aivtdis_bit_ptr = d4.v.i;
-          aivtdis_mask = d5.v.i;
+        if (((d2.v.i & MEM_PARTITIONED) != 0) == pic30_partition_flash) {
+          if (d2.v.i & MEM_IS_AIVT_ENABLED) {
+            pic30_has_floating_aivt = TRUE;
+            aivtdis_bit_ptr = d4.v.i;
+            aivtdis_mask = d5.v.i;
+          }
+
+          if (d2.v.i & MEM_AIVT_LOCATION) {
+            aivtloc_ptr = d4.v.i;
+            aivtloc_mask = d5.v.i;
+          }
         }
 
-        if (d2.v.i & MEM_AIVT_LOCATION) {
-          aivtloc_ptr = d4.v.i;
-          aivtloc_mask = d5.v.i;
+        if (d2.v.i & MEM_PAGESIZE) {
+          pagesize = d5.v.i;
         }
       }  else free(d.v.s);
     }
@@ -546,6 +552,10 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
           printf(".");
 
         next = xmalloc(sizeof(ivt_record_type));
+
+        /* unfilled fields */
+        next->sec_name = 0;
+        next->ivt_sec = 0;
 
         next->name = d.v.s;
         next->offset = ((d2.v.i >> VECTOR_IDX_SHIFT) & 
@@ -589,7 +599,7 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
           pic30_has_fixed_aivt = TRUE;
           aivt_base = d4.v.i;
         }
-      } else free(d.v.s);
+      }  else free(d.v.s);
     }
   }
   close_rib();

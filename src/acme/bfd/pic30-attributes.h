@@ -8,10 +8,10 @@
 #define MASK1(a,b,c,d,e,f,g,h,i,j,k,l)
 #endif
 #if !defined(MASK2)
-#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r)
+#define MASK2(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t)
 #endif
 #if !defined(MASK3)
-#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q)
+#define MASK3(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t)
 #endif
 #if !defined(MASK4)
 #define MASK4(a,b,c,d)
@@ -37,6 +37,7 @@
 #define PIC30_SET_BOOT_ATTR_ARG(a) {}
 #define PIC30_SET_SECURE_ATTR_ARG(a) {}
 #define PIC30_SET_MEMORY_ATTR_ARG(a) {}
+#define PIC30_SET_PRIORITY_ATTR_ARG(a) {}
 #endif
 
 /*
@@ -92,12 +93,13 @@ ATTR( stack,   0, PIC30_SET_STACK_ATTR(sec) )
 ATTR( eds,     0, PIC30_SET_EDS_ATTR(sec) )
 ATTR( page,    0, PIC30_SET_PAGE_ATTR(sec) )
 ATTR( auxflash,0, PIC30_SET_AUXFLASH_ATTR(sec) )
-ATTR(packedflash, 0, PIC30_SET_PACKEDFLASH_ATTR(sec))
-ATTR(keep, 0, PIC30_SET_KEEP_ATTR(sec))
-ATTR(shared, 0, PIC30_SET_SHARED_ATTR(sec))
-ATTR(preserved, 0, PIC30_SET_PRESERVED_ATTR(sec))
-ATTR(auxpsv, 0, PIC30_SET_AUXPSV_ATTR(sec))
-
+ATTR( packedflash, 0, PIC30_SET_PACKEDFLASH_ATTR(sec))
+ATTR( keep, 0, PIC30_SET_KEEP_ATTR(sec))
+ATTR( shared, 0, PIC30_SET_SHARED_ATTR(sec))
+ATTR( preserved, 0, PIC30_SET_PRESERVED_ATTR(sec))
+ATTR( auxpsv, 0, PIC30_SET_AUXPSV_ATTR(sec))
+ATTR( update, 0, PIC30_SET_UPDATE_ATTR(sec))
+ATTR( priority, 1, PIC30_SET_PRIORITY_ATTR_ARG(arg))
 /*
  * ATTR_IS: Testing Section Attributes
  *
@@ -138,7 +140,9 @@ ATTR_IS( packedflash, PIC30_IS_PACKEDFLASH_ATTR(sec))
 ATTR_IS( keep, PIC30_IS_KEEP_ATTR(sec))
 ATTR_IS( shared, PIC30_IS_SHARED_ATTR(sec))
 ATTR_IS( preserved, PIC30_IS_PRESERVED_ATTR(sec))
-ATTR_IS(auxpsv, PIC30_IS_AUXPSV_ATTR(sec))
+ATTR_IS( auxpsv, PIC30_IS_AUXPSV_ATTR(sec))
+ATTR_IS( update, PIC30_IS_UPDATE_ATTR(sec))
+ATTR_IS( priority, PIC30_IS_PRIORITY_ATTR(sec))
 
 /*
  * MASK1: Attributes that represent section types
@@ -147,46 +151,224 @@ MASK1( code, data, bss, persist, psv, eedata, memory, heap, stack, auxflash, \
        packedflash, auxpsv)
 
 
+#define ACPT(X) (X)
+#define DENY(X) (0)
+
 /*
  * MASK2: Attributes that modify section types
  *
- * MASK2( type, modifier1, ... modifier17 )
+ * MASK2( type, modifier1, ... modifier18 )
+ * template:
+
+MASK2( xxxx, DENY(address),   DENY(near),   DENY(xmemory), DENY(ymemory), 
+             DENY(reverse),   DENY(align),  DENY(noload),  DENY(merge), 
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure), 
+             DENY(eds),       DENY(page),   DENY(keep),    DENY(shared), 
+             DENY(preserved), DENY(update), DENY(priority))
+
  */
-MASK2( code, address, 0, 0, 0, 0, align, noload, merge, info, 0, boot, secure, 0, page, keep, shared, preserved )
-MASK2( data, address, near, xmemory, ymemory, reverse, align, noload, merge, info, dma, 0, 0, eds, page, keep, shared, preserved )
-MASK2( bss, address, near, xmemory, ymemory, reverse, align, noload, 0, info, dma, boot, secure, eds, page, keep, shared, preserved )
-MASK2( persist, address, near, xmemory, ymemory, reverse, align, noload, 0, 0, dma, 0, 0, eds, page, keep, shared, preserved )
-MASK2( psv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep, shared, preserved )
-MASK2( eedata, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, 0, keep, shared, preserved )
-MASK2( memory, address, 0, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
-MASK2( heap, address, xmemory, ymemory, 0, 0, align, 0, 0, 0, 0, 0, 0, eds, 0, keep, shared, preserved )
-MASK2( stack, address, 0, 0, 0, 0, align, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
-MASK2( auxflash, address, 0, 0, 0, 0, align, noload, merge, info, 0, 0, 0, 0, page, keep, shared, preserved )
-MASK2( packedflash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
-MASK2( auxpsv, address, 0, 0, 0, reverse, align, noload, merge, 0, 0, boot, secure, 0, page, keep, shared, preserved )
+
+MASK2( code, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory), 
+             DENY(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge), 
+             ACPT(info),      DENY(dma),    ACPT(boot),    ACPT(secure), 
+             DENY(eds),       ACPT(page),   ACPT(keep),    ACPT(shared), 
+             DENY(preserved), DENY(update), ACPT(priority))
+
+MASK2( data, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory), 
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge), 
+             ACPT(info),      ACPT(dma),    ACPT(boot),    ACPT(secure), 
+             ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared), 
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK2( bss,  ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+             ACPT(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+             ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK2( persist, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+                ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+                DENY(info),      ACPT(dma),    DENY(boot),    DENY(secure),
+                ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                ACPT(preserved), ACPT(update), DENY(priority))
+
+MASK2( psv,  ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+             DENY(info),      DENY(dma),    ACPT(boot),    ACPT(secure),
+             DENY(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             DENY(preserved), DENY(update), DENY(priority))
+
+MASK2( eedata, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+               DENY(info),      DENY(dma),    ACPT(boot),    ACPT(secure),
+               DENY(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+               DENY(preserved), DENY(update), DENY(priority))
+
+MASK2( memory, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+               DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+               DENY(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+               ACPT(preserved), ACPT(update), DENY(priority))
+
+MASK2( heap, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+             DENY(reverse),   ACPT(align),  DENY(noload),  DENY(merge),
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+             ACPT(eds),       DENY(page),   ACPT(keep),    DENY(shared),
+             DENY(preserved), DENY(update), DENY(priority))
+
+MASK2( stack, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+              DENY(reverse),   ACPT(align),  DENY(noload),  DENY(merge),
+              DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+              DENY(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+              DENY(preserved), DENY(update), DENY(priority))
+
+MASK2( auxflash, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+                 DENY(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+                 DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+                 DENY(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                 DENY(preserved), DENY(update), ACPT(priority))
+
+MASK2( packedflash, DENY(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+                    DENY(reverse),   DENY(align),  DENY(noload),  DENY(merge),
+                    DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+                    DENY(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+                    DENY(preserved), DENY(update), DENY(priority))
+
+MASK2( auxpsv, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+               DENY(info),      DENY(dma),    ACPT(boot),    ACPT(secure),
+               DENY(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+               DENY(preserved), DENY(update), DENY(priority))
 
 /*
  * MASK3: Attributes that may be used in combination
  *
  * MASK3( key, attr1, ... attr16)
+ * template:
+
+MASK3( xxxx, DENY(address),   DENY(near),   DENY(xmemory), DENY(ymemory), 
+             DENY(reverse),   DENY(align),  DENY(noload),  DENY(merge), 
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure), 
+             DENY(eds),       DENY(page),   DENY(keep),    DENY(shared), 
+             DENY(preserved), DENY(update), DENY(priority))
  */
-MASK3( address, near, xmemory, ymemory, 0, 0, noload, 0, 0, dma, boot, secure, eds, page, keep, shared, preserved )
-MASK3( near, address, xmemory, ymemory, reverse, align, noload, merge, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
-MASK3( xmemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep, shared, preserved )
-MASK3( ymemory, address, near, 0, reverse, align, noload, merge, 0, 0, 0, 0, eds, page, keep, shared, preserved )
-MASK3( reverse, 0, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep, shared, preserved )
-MASK3( align, address, near, xmemory, ymemory, 0, noload, merge, 0, dma, boot, secure, eds, page, keep, shared, preserved )
-MASK3( noload, address, near, xmemory, ymemory, reverse, align, 0, 0, dma, boot, secure, eds, page, keep, shared, preserved )
-MASK3( merge, 0, near, xmemory, ymemory, reverse, align, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved )
-MASK3( dma, address, 0, 0, 0,  reverse, align, noload, 0, 0, 0, 0, eds, page, keep, shared, preserved )
-MASK3( boot, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved)
-MASK3( secure, address, 0, 0, reverse, align, noload, 0, 0, 0, 0, 0, eds, page, keep, shared, preserved )
-MASK3( eds, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, page, keep, shared, preserved )
-MASK3( page, address, near, xmemory, ymemory, reverse, align, noload, merge, 0, dma, boot, secure, eds, keep, shared, preserved )
-MASK3( info, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, keep, shared, preserved )
-MASK3(keep,address, near, xmemory, ymemory, reverse, align, noload, merge, dma, boot, secure, eds, page, info, shared, preserved)
-MASK3(shared, address, near, xmemory, ymemory, reverse, align, noload, merge, dma, boot, secure, eds, page, info, keep, preserved)
-MASK3(preserved, address, near, xmemory, ymemory, reverse, align, noload, merge,dma, boot, secure, eds, page, info, keep, shared)
+
+MASK3( address, DENY(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+                DENY(reverse),   DENY(align),  ACPT(noload),  DENY(merge),
+                DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+                ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( near, ACPT(address),   DENY(near),   ACPT(xmemory), ACPT(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+             DENY(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( xmemory, ACPT(address),   ACPT(near),   DENY(xmemory), DENY(ymemory),
+                ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+                DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+                ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( ymemory, ACPT(address),   ACPT(near),   DENY(xmemory), DENY(ymemory),
+                ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+                DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+                ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( reverse, DENY(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+                DENY(reverse),   DENY(align),  ACPT(noload),  ACPT(merge),
+                DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+                ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( align, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+              DENY(reverse),   DENY(align),  ACPT(noload),  ACPT(merge),
+              DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+              ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+              ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( noload, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+               ACPT(reverse),   ACPT(align),  DENY(noload),  DENY(merge),
+               DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+	       ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+	       ACPT(preserved), ACPT(update), DENY(priority))
+
+MASK3( merge, DENY(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+              ACPT(reverse),   ACPT(align),  DENY(noload),  DENY(merge),
+              DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+              ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+              ACPT(preserved), ACPT(update), DENY(priority))
+
+MASK3( dma,  ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+             ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( boot, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+             ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             DENY(preserved), DENY(update), ACPT(priority))
+
+MASK3( secure, ACPT(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  DENY(merge),
+               DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+               ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+               DENY(preserved), DENY(update), ACPT(priority))
+
+/* orginal allowed near --- why? */
+MASK3( eds,  ACPT(address),   DENY(near),   ACPT(xmemory), ACPT(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+             DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+             DENY(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( page, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+             DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+             ACPT(eds),       DENY(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+/* original allowed shared with info... which is not required */
+MASK3( info, DENY(address),   DENY(near),   DENY(xmemory), DENY(ymemory),
+             DENY(reverse),   DENY(align),  DENY(noload),  DENY(merge),
+             DENY(info),      DENY(dma),    DENY(boot),    DENY(secure),
+             DENY(eds),       DENY(page),   ACPT(keep),    DENY(shared),
+             DENY(preserved), DENY(update), DENY(priority))
+
+MASK3( keep, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+             ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+             ACPT(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+             ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+             ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( shared, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+               DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+               ACPT(eds),       ACPT(page),   ACPT(keep),    DENY(shared),
+               ACPT(preserved), ACPT(update), ACPT(priority))
+
+MASK3( preserved, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+                  ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+                  DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+                  ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                  DENY(preserved), DENY(update), ACPT(priority))
+
+MASK3( update, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+               ACPT(reverse),   ACPT(align),  ACPT(noload),  ACPT(merge),
+               DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+               ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+               DENY(preserved), DENY(update), ACPT(priority))
+
+MASK3( priority, ACPT(address),   ACPT(near),   ACPT(xmemory), ACPT(ymemory),
+                 ACPT(reverse),   ACPT(align),  DENY(noload),  DENY(merge),
+                 DENY(info),      ACPT(dma),    ACPT(boot),    ACPT(secure),
+                 ACPT(eds),       ACPT(page),   ACPT(keep),    ACPT(shared),
+                 ACPT(preserved), ACPT(update), DENY(priority))
+
 /*
  * MASK4: Reserved section names with implied attributes
  *

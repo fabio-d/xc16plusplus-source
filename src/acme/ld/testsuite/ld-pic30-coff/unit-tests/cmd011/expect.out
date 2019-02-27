@@ -9,8 +9,6 @@ Disassembly of section .text:
  102:	00 00 00 
  104:	0e 01 04    	goto      0x10e <bar>
  106:	00 00 00 
-Disassembly of section .ivt:
-Disassembly of section .aivt:
 Disassembly of section .text:
-Disassembly of section .dinit:
 Disassembly of section .isr:
+Disassembly of section .dinit:

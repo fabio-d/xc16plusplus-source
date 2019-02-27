@@ -5,7 +5,7 @@ Disassembly of section .text:
 
 00000100 <__reset>:
  100:	2f 80 20    	mov.w     #0x802, w15
- 102:	00 00 07    	rcall     0x104 <_main>
+ 102:	00 00 07    	rcall     0x104 <_main> <.text>
 Disassembly of section .text:
 
 00000104 <_main>:

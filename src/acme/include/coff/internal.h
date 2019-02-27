@@ -834,4 +834,5 @@ struct internal_reloc
 #define R_PIC30_P_ADDR_HI              249
 #define R_PIC30_WORD_ADDR_LO           250
 #define R_PIC30_WORD_ADDR_HI           251
+
 #endif /* GNU_COFF_INTERNAL_H */

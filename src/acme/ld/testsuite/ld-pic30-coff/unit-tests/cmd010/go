@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIB_PATH=$PIC30_CD/lib
 
 #
@@ -47,22 +47,22 @@ fi
 
 # first link with the normal startup module
 rm -f t.exe t1.map
-$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --data-init -Map=t1.map
+$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-coff --data-init -Map=t1.map
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --data-init -Map=t1.map"
+    echo "$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-coff --data-init -Map=t1.map"
     echo $err
     echo
 fi
 
 # now link with the smaller startup module
 rm -f t.exe t2.map
-$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --no-data-init -Map=t2.map
+$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-coff --no-data-init -Map=t2.map
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --no-data-init -Map=t2.map"
+    echo "$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-coff --no-data-init -Map=t2.map"
     echo $err
     echo
 fi

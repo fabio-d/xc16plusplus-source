@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GCC30=$PIC30_CD/bin/xc16-gcc
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
-BIN2HEX=$PIC30_CD/bin/xc16-bin2hex
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
 
 #
 # END CONFIGURATION

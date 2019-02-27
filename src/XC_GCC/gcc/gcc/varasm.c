@@ -2401,7 +2401,7 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
     {
       switch_to_section (sect);
 #ifdef _BUILD_C30_
-   pic30_emit_fillupper(decl,1);
+      pic30_emit_fillupper(decl,1);
 #endif
 
       if (DECL_ALIGN (decl) > BITS_PER_UNIT)

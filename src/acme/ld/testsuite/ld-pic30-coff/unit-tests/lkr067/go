@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-AR30=$PIC30_CD/bin/xc16-ar
-GLD30=$PIC30_CD/bin/xc16-ld
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+AR30="$PIC30_CD/bin/xc16-ar -omf=coff"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
 
 #
 # END CONFIGURATION
@@ -47,18 +47,18 @@ fi
 
 
 rm -f t.exe t.map
-$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a  > temp 2>&1
+$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a -T t.gld > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a"
+    echo "$GLD30 -o t.exe -p24HJ128GP206 --defsym=U1TXREG=0x90 -u __reset t1.a -T t.gld"
     echo $err
     echo
 fi
 
 # keep part of the expected error message
 grep -o "Warning.*" temp > test.out
-rm -f temp
+#rm -f temp
 
 if [ $vflag = "on" ]; then
     echo

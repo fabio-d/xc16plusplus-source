@@ -880,12 +880,12 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 
 #if defined(PIC30)
 
-#if PIC30_DEBUG
-  printf("\n_bfd_elf_make_section_from_shdr: %s, initial map = %x\n",
-         name, pic30_attribute_map(newsect));
-  printf("_bfd_elf_make_section_from_shdr: %s, sh_flags = %lx, sh_addr = %lx, sh_info = %lx\n",
-         name, hdr->sh_flags, hdr->sh_addr, hdr->sh_info);
-#endif
+  if (pic30_debug) {
+    printf("\n_bfd_elf_make_section_from_shdr: %s, initial map = %x\n",
+           name, pic30_attribute_map(newsect));
+    printf("_bfd_elf_make_section_from_shdr: %s, sh_flags = %lx, sh_addr = %lx, sh_info = %lx\n",
+           name, hdr->sh_flags, hdr->sh_addr, hdr->sh_info);
+  }
 
   if (hdr->sh_type == SHT_NOTE)
     PIC30_SET_INFO_ATTR(newsect);
@@ -921,9 +921,13 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
   syms = slurp_symtab (abfd);
 
   {
+
+#if 0
+    /* why? */
     char *ext_attr_prefix = "__ext_attr_";
     char *linked_prefix = "__linked_";
     char *exclude_prefix = "__exclude_";
+#endif
 
     asymbol **current = syms;
     const char *sym_name;
@@ -934,41 +938,80 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
       if (*current) {
         sym_name = bfd_asymbol_name(*current);
 
-        if (strstr(sym_name, ext_attr_prefix)) {
+        if (strstr(sym_name, EXT_ATTR_PREFIX)) {
           asection *s;
-          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          char *sec_name = (char *) &sym_name[strlen(EXT_ATTR_PREFIX)];
           bfd_vma attr = bfd_asymbol_value(*current);
 
-          for (s = abfd->sections; s != NULL; s = s->next)
-            if (strcmp(sec_name, s->name) == 0) { 
-              if ((attr & (STYP_PACKEDFLASH | STYP_AUXPSV)) && (s->flags & SEC_DATA))
-                s->flags &= ~SEC_DATA;
-              else if (attr & STYP_SHARED)
-                     s->shared = 1;
+          for (s = abfd->sections; s != NULL; s = s->next) {
+            /* not this section? */
+            if (strcmp(sec_name, newsect->name)) continue;
+            if (strcmp(sec_name, s->name) == 0) {
+              if ((attr & (STYP_PACKEDFLASH | STYP_AUXPSV)) && 
+                  (s->flags & SEC_DATA)) {
+                newsect->flags &= ~SEC_DATA;
+                if (pic30_debug) 
+                  printf("    removed SEC_DATA from %s\n", sec_name);
+              }
+              if (attr & STYP_SHARED) {
+                newsect->shared = 1;
+                if (pic30_debug) 
+                  printf("    added shared to %s\n", sec_name);
+              }
+              if (attr & STYP_PRESERVED) {
+                PIC30_SET_PRESERVED_ATTR(newsect);
+                if (pic30_debug) 
+                  printf("    added preserved to %s\n", sec_name);
+              }
+              if (attr & STYP_UPDATE) {
+                PIC30_SET_UPDATE_ATTR(newsect);
+                if (pic30_debug) 
+                  printf("    added update to %s\n", sec_name);
+              }
             }
+          }
         }
-        else if (strstr(sym_name, linked_prefix)) {
-          char *sec_name = (char *) &sym_name[strlen(linked_prefix)];
+        else if (strstr(sym_name, LINKED_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(LINKED_PREFIX)];
           asection *s;
           for (s = abfd->sections; s != NULL; s = s->next)
             if (strcmp(sec_name, s->name) == 0)
               s->linked = 1;
         }
-        else if (strstr(sym_name, exclude_prefix)) {
-          char *sec_name = (char *) &sym_name[strlen(exclude_prefix)];
+        else if (strstr(sym_name, EXCLUDE_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(EXCLUDE_PREFIX)];
           asection *s;
           for (s = abfd->sections; s != NULL; s = s->next)
             if (strcmp(sec_name, s->name) == 0) 
               s->flags |= SEC_EXCLUDE;
+        } else if (strstr(sym_name, PRIORITY_ATTR_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(PRIORITY_ATTR_PREFIX)];
+          asection *s;
+          bfd_vma attr = bfd_asymbol_value(*current);
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0) 
+              s->priority = attr;
         }
         current++;
       }
-   }
+    }
   }
+
+  if ((pic30_preserve_all) && (!PIC30_IS_UPDATE_ATTR(newsect))) {
+    /* simplify processing later */
+    PIC30_SET_PRESERVED_ATTR(newsect);
+    if (pic30_is_valid_attributes(pic30_attribute_map(newsect),0) == 0) {
+      newsect->preserved = 0;
+      if ((pic30_debug) && (newsect->preserved)) {
+        printf("\n*** section %s is marked preserved\n", newsect->name);
+      }
+    }
+  }
+
   
-#endif
   if (hdr->sh_flags & SHF_NOLOAD)  /* do this last */
     PIC30_SET_NOLOAD_ATTR(newsect);
+#endif
 
 
   if ((flags & SEC_ALLOC) != 0)
@@ -2023,9 +2066,12 @@ bfd_section_from_shdr (abfd, shindex)
   syms = slurp_symtab (abfd);
 
   {
+#if 0
     char *ext_attr_prefix = "__ext_attr_";
     char *linked_prefix = "__linked_";
     char *exclude_prefix = "__exclude_";
+#endif
+
     asymbol **current = syms;
     const char *sym_name;
     long count;
@@ -2035,9 +2081,9 @@ bfd_section_from_shdr (abfd, shindex)
       if (*current) {
         sym_name = bfd_asymbol_name(*current);
 
-        if (strstr(sym_name, ext_attr_prefix)) {
+        if (strstr(sym_name, EXT_ATTR_PREFIX)) {
           asection *s;
-          char *sec_name = (char *) &sym_name[strlen(ext_attr_prefix)];
+          char *sec_name = (char *) &sym_name[strlen(EXT_ATTR_PREFIX)];
           bfd_vma attr = bfd_asymbol_value(*current);
 
           for (s = abfd->sections; s != NULL; s = s->next)
@@ -2048,19 +2094,26 @@ bfd_section_from_shdr (abfd, shindex)
                      s->shared = 1;
             }
         }
-        else if (strstr(sym_name, linked_prefix)) {
-          char *sec_name = (char *) &sym_name[strlen(linked_prefix)];
+        else if (strstr(sym_name, LINKED_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(LINKED_PREFIX)];
           asection *s;
           for (s = abfd->sections; s != NULL; s = s->next)
             if (strcmp(sec_name, s->name) == 0)
               s->linked = 1;
         }
-        else if (strstr(sym_name, exclude_prefix)) {
-          char *sec_name = (char *) &sym_name[strlen(exclude_prefix)];
+        else if (strstr(sym_name, EXCLUDE_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(EXCLUDE_PREFIX)];
           asection *s;
           for (s = abfd->sections; s != NULL; s = s->next)
             if (strcmp(sec_name, s->name) == 0)
               s->flags |= SEC_EXCLUDE;
+        } else if (strstr(sym_name, PRIORITY_ATTR_PREFIX)) {
+          char *sec_name = (char *) &sym_name[strlen(EXCLUDE_PREFIX)];
+          asection *s;
+          bfd_vma attr = bfd_asymbol_value(*current);
+          for (s = abfd->sections; s != NULL; s = s->next)
+            if (strcmp(sec_name, s->name) == 0)
+              s->priority = attr;
         }
         current++;
       }

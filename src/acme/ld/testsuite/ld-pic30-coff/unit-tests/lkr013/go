@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 GLDPATH=$PIC30_CD/support/dsPIC30F/gld
 
 
@@ -50,7 +50,7 @@ echo
 }  >> test.out
 
 # make a copy of a device linker script
-cat $GLDPATH/p30f3014.gld > temp
+cat $GLDPATH/p30F3014.gld > temp
 
 # use perl again
 perl -n -e 'if (/(reset.*ORIGIN.*)/) {print "  $1\n"}' temp >> test.out

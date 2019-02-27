@@ -8,12 +8,13 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=coff"
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIBPATH=$PIC30_CD/lib
 
-BIN2HEX=$PIC30_CD/bin/xc16-bin2hex
+BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=coff"
 SIM30=$PIC30_CD/bin/sim30
 
 #
@@ -40,12 +41,12 @@ do
 done
 
 rm -f t1.s
-$PIC30_CD/bin/xc16-gcc -S t1.c -isystem $PIC30_CD/include -mconst-in-data
+$GCC30 -S t1.c -isystem $PIC30_CD/include -mconst-in-data
 err=$?
 if [ $vflag = "on" ]; then
-    clear
+    
     echo
-    echo "$PIC30_CD/bin/xc16-gcc -S t1.c -isystem $PIC30_CD/include -mconst-in-data"
+    echo "$GCC30 -S t1.c -isystem $PIC30_CD/include -mconst-in-data"
     echo $err
 fi
 
@@ -68,11 +69,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o -L $LIBPATH -lpic30 || exit 99
+$GLD30 -o t.exe t1.o t2.o -L$LIBPATH -lpic30-coff || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o t2.o -L $LIBPATH -lpic30"
+    echo "$GLD30 -o t.exe t1.o t2.o -L$LIBPATH -lpic30-coff"
     echo $err
 fi
 

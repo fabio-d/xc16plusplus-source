@@ -15,6 +15,7 @@ EXTRA_OPTS=
 CROSS=
 STATIC=
 BUILD_SHA=
+BUILDING_SHA=
 INSTALL_DIR=  
 XCLM_DIR=
 
@@ -67,7 +68,7 @@ while [ "$DONE" = "0" ]; do
          TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' `;
          SUFFIX=`echo $1 | sed -e 's/.*=//'`
          if ( echo $SUFFIX | grep -q -i "xclm" ); then
-           BUILD_SHA=1
+           BUILDING_SHA=1
          fi
          case $SUFFIX in
            *-*) SUFFIX=`echo $SUFFIX | sed -e 's/.*-/-/'`;;
@@ -138,20 +139,29 @@ else
 fi
 
 if [ ! -f $SRC_DIR/gcc/gcc/config/mchp-cci/mchp_sha.c ]; then
-  BUILD_SHA=
+  BUILDING_SHA=
 fi
 
-if [ "$BUILD_SHA" = "1" ]; then
+if [ "$BUILDING_SHA" = "1" ]; then
    echo "*** Creating XCLM SHA"
    gcc -o ${TMP:-/tmp}/build_sha \
       $SRC_DIR/gcc/gcc/config/mchp-cci/mchp_sha.c \
       $SRC_DIR/gcc/gcc/config/mchp-cci/sha256.c  -D_BUILD_SHA_CHECKSUM_
    BUILT_SHA=`${TMP:-/tmp}/build_sha $INSTALL_DIR/xclm/install/client/bin/xclm${EXE_SUFFIX} 2>&1`
+#   if [ "$TARGET_OS" = "linux" ]; then
+#      BUILT_SHA64=`${TMP:-/tmp}/build_sha $INSTALL_DIR/xclm64/install/client/bin/xclm${EXE_SUFFIX} 2>&1`
+#      if ( echo $BUILT_SHA64 | grep -q -i "Error:" ); then
+#        echo "$BUILT_SHA64"
+#        exit 1
+#     fi
+#     BUILD_SHA="-DMCHP_XCLM_SHA256_DIGEST_VAL64=$BUILT_SHA64"
+#   fi
    if ( echo $BUILT_SHA | grep -q -i "Error:" ); then
       echo "$BUILT_SHA"
       exit 1
    fi
-   BUILD_SHA="-DMCHP_XCLM_SHA256_DIGEST_VAL=$BUILT_SHA"
+   BUILD_SHA="$BUILD_SHA -DMCHP_XCLM_SHA256_DIGEST_VAL=$BUILT_SHA"
+   echo "$BUILD_SHA"
 fi
 
 if [ "$TARGET_OS" = "i386-darwin" ]; then
@@ -185,7 +195,7 @@ echo
 mkdir -p gmp
 ( cd gmp
 
-#  ABI=32 $SRC_DIR/gmp/configure --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC -lm"
+  echo ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" --build=$BUILD_OS
   ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" --build=$BUILD_OS
 
   make -j 2 install
@@ -307,10 +317,10 @@ mkdir -p gcc
   fi
 
   echo "{"
-  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
+  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
   echo "}"
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
 
 
   

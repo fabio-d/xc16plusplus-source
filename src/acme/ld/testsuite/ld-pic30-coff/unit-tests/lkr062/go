@@ -8,9 +8,9 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-GAS30="$PIC30_CD/bin/xc16-as -W"
-GLD30=$PIC30_CD/bin/xc16-ld
-OBJDUMP=$PIC30_CD/bin/xc16-objdump
+GAS30="$PIC30_CD/bin/xc16-as -omf=coff -W"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=coff"
+OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=coff"
 LIB_PATH=$PIC30_CD/lib
 
 #
@@ -46,11 +46,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --data-init -Map=t.map > test.out 2>&1
+$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30 --data-init -Map=t.map > test.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o -L $LIB_PATH -lpic30 --data-init -Map=t.map"
+    echo "$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30 --data-init -Map=t.map"
     cat test.out
     echo $err
     echo
@@ -69,6 +69,7 @@ fi
 # extract the size of section .dinit
 LINE1=`perl -n -e 'if (/^Idx(.*Size).*$/) {print "    $1\n"}' temp`
 LINE2=`perl -n -e 'if (/.*(\.dinit\s+\w+).*$/) {print "    $1\n"}' temp`
+LINE3=`perl -n -e 'if (/.*(\.shared.dinit\s+\w+).*$/) {print "    $1\n"}' temp`
 
 # build an output file
 rm -f test.out
@@ -78,6 +79,7 @@ rm -f test.out
     echo
     echo "$LINE1"
     echo "$LINE2"
+    echo "$LINE3"
     echo
 } > test.out
 

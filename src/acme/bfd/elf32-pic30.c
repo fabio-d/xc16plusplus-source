@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 /* Use REL instead of RELA for COFF compatibility */
 #define	PIC30_USE_RELA		0
 #if (PIC30_USE_RELA)
+#define USE_REL 		0
 #define USE_RELA		1
 #define	SRC_MASK(m)		0
 #else
@@ -82,6 +83,7 @@ bfd *pic30_output_bfd;
 /* Note: no default names for the startup modules */
 const char *pic30_startup0_file;
 const char *pic30_startup1_file;
+const char *pic30_startmode_file;
 
 /* Data Structures for the Handle Jump Table */
 bfd *handle_bfd;
@@ -92,14 +94,43 @@ struct handle_hash_table *handles;
 struct pic30_undefsym_table *undefsyms;
 
 /* Data Structures for the Data Init Template */
+#if 0
 bfd *init_bfd;
 unsigned char *init_data;
 asection *init_template = 0;
+int init_max_priority = 0;
+#else
+struct an_init_template init_data = { 
+                                      "data_init", ".dinit", 
+                                      0, 0, 0, 0, 0, 0,
+                                      "__shared_dinit_addr" 
+                                    };
+#endif
 
+struct an_init_template restart_init_data = {
+                                      "r_data_init", ".rdinit", 
+                                      0, 0, 0, 0, 0, 0,
+                                      "__restart_shared_dinit_addr" 
+                                    };
+
+#if 0
 /* Data Structures for the Shared Data Init Template */
 bfd *init_shared_bfd;
 unsigned char *init_shared_data;
 asection *init_shared_template = 0;
+#else
+struct an_init_template shared_init_data = { 
+                                      "shared_data_init", ".shared.dinit", 
+                                      0, 0, 0, 0, 0, 0,
+                                      0,
+                                    };
+#endif
+
+struct an_init_template restart_shared_init_data = { 
+                                      "r_shared_data_init", ".rshared.dinit", 
+                                      0, 0, 0, 0, 0, 0,
+                                      0,
+                                    };
 
 bfd *rom_usage_bfd;
 unsigned char *rom_usage_data;
@@ -115,13 +146,22 @@ unsigned char *isr_data;
 
 /* Data Structures for Input Data Sections */
 struct pic30_section *data_sections;
+struct pic30_section *restart_data_sections;
 
 /* Data Structures for Shared_Input Data Sections */
 struct pic30_section *shared_data_sections;
+struct pic30_section *restart_shared_data_sections;
+
+struct pic30_section *priority_code_sections;
+struct pic30_section *restart_priority_code_sections;
+struct pic30_section *restart_shared_priority_code_sections;
 
 struct pic30_section *shared_dinit_sections;
 struct pic30_section *inherited_sections;
 bfd_vma inherited_shared_dinit_address = 0;
+
+/* preserved addresses */
+struct pic30_section *preserved_sections;
 
 /* Data Structures for Input packed Sections */
 struct pic30_section *packed_sections;
@@ -189,15 +229,23 @@ bfd_vma pad_flash_arg = 0;
 bfd_boolean pic30_application_id = 0;
 bfd_boolean pic30_coresident_app = 0;
 bfd_boolean pic30_inherit_application_info = 0;
+bfd_boolean pic30_preserve_application_info = 0;
 char *application_id;
 char *inherited_application;
+char *preserved_application;
+bfd_boolean pic30_preserve_all = 0;
 bfd_boolean pic30_isa_v4 = 0;
+bfd_boolean pic30_has_ivt_option = 0;
+bfd_boolean pic30_ivt = TRUE;
+bfd_boolean pic30_pagesize = FALSE;
+unsigned int pagesize_arg = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
 bfd_boolean pic30_has_user_default_interrupt = 0;
 bfd_boolean pic30_has_managed_psv = 0;
 bfd_boolean pic30_has_psv_trap_errata = 0;
+bfd_boolean pic30_linking = FALSE;
 
 /* The base of data memory, which is
    also the limit of SFR address space */
@@ -216,6 +264,9 @@ char * memory_summary_arg;
 
 bfd_vma ivt_base = 0;
 bfd_vma aivt_base = 0;
+bfd_vma max_ivt_addr = 0;
+bfd_vma max_aivt_addr = 0;
+
 bfd_boolean aivt_enabled = FALSE;
 
 /* External function prototypes */
@@ -262,8 +313,8 @@ static void bfd_pic30_report_sections
   PARAMS ((bfd *, asection *, PTR));
 void bfd_pic30_clean_section_names
   PARAMS ((bfd *, asection *, PTR));
-static void bfd_pic30_process_data_section
-  PARAMS ((asection *, PTR));
+static void bfd_pic30_process_init_section
+  PARAMS ((asection *, PTR, int, int));
 static void bfd_pic30_write_data_header
   PARAMS ((unsigned char **,  bfd_vma,  bfd_vma, int));
 
@@ -1663,7 +1714,6 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          SRC_MASK(0x0ffff0),            /* src_mask */
          0x0ffff0,                      /* dst_mask */
          FALSE),                        /* pcrel_offset? */
-
 };
 
 /* A mapping from BFD reloc types to PIC30 ELF reloc types.  */
@@ -1998,7 +2048,7 @@ pic30_backend_object_p (abfd)
 {
   abfd->arch_info = bfd_lookup_arch (bfd_arch_pic30,
                                      elf_elfheader(abfd)->e_flags & EF_PIC30_PROC);
-  return TRUE;
+  return abfd->arch_info != 0;
 }
 
 /*
@@ -2134,7 +2184,7 @@ pic30_elf32_bfd_get_section_contents(abfd, section, location, offset, count)
   if (pic30_debug) {
     fprintf(stderr,"--> pic30_elf32_bfd_get_section_contents\n");
   }
-  if (pic30_display_as_readonly_memory_p(section)) {
+  if ((pic30_linking == TRUE) && pic30_display_as_readonly_memory_p(section)) {
     char *ps,*pd;
     int t;
 
@@ -2150,6 +2200,9 @@ pic30_elf32_bfd_get_section_contents(abfd, section, location, offset, count)
      * convert 
      *    (D)ata D (U)ppper (P)hantom D D U P =>
      *    D (B)lank D B D B 
+     *
+     * when importing an already linked readonly memory section
+     *
      */
     char *buffer = malloc(count);
 
@@ -2284,12 +2337,12 @@ bfd_pic30_locate_ivt(abfd, sect, fp)
   PTR fp;
 {
   unsigned int *ptr = fp;
-  if (strcmp(sect->name,".ivt") == 0) {
+  if (sect->linker_generated == 1) return;
+  if ((sect->flags & (SEC_CODE | SEC_LOAD)) != (SEC_CODE | SEC_LOAD)) return;
+  if ((sect->lma >= ivt_base) && (sect->lma <= max_ivt_addr))
     *ptr =  *ptr | USER_IVT_DEFINED;
-  }
-  if (strcmp(sect->name,".aivt") == 0) {
+  if ((sect->lma >= aivt_base) && (sect->lma <= max_aivt_addr))
     *ptr =  *ptr | USER_AIVT_DEFINED;
-  }
 }
 
 /*
@@ -2347,6 +2400,13 @@ bfd_pic30_clean_section_names(abfd, sect, fp)
 }
 
 /*
+ * format codes, matching CRT0 
+ *
+ */
+
+enum { CLEAR, COPY2, COPY3, CALL };
+      
+/*
 ** Write a data record header
 */
 static void
@@ -2356,18 +2416,26 @@ bfd_pic30_write_data_header(d, addr, len, format)
      bfd_vma len;
      int format;
 {
-  int eds_page;
 
-  /* extract eds page and OR into the format code */
-  eds_page = addr >> 15;
-  if (pic30_is_eds_machine(global_PROCESSOR)) {
-    if (eds_page == 0)
-      eds_page = 1;
-    else
-      addr = PIC30_PSVOFFSET(addr);
+  if (format == CALL) {
+    /* we want to call a pair */
+    len = addr & 0xFFFF0000UL;
+    len = len >> 16;
+    addr = addr & 0xFFFF;
+  } else {
+    /* extract eds page and OR into the format code */
+    int eds_page;
+
+    eds_page = addr >> 15;
+    if (pic30_is_eds_machine(global_PROCESSOR)) {
+      if (eds_page == 0)
+        eds_page = 1;
+      else
+        addr = PIC30_PSVOFFSET(addr);
+    }
+    format |= eds_page << 7;
+    addr &= 0xFFFF;
   }
-  format |= eds_page << 7;
-  addr &= 0xFFFF;
 
   /* write destination address */
   *(*d)++ = (unsigned char) (addr & 0xFF);
@@ -2391,13 +2459,18 @@ bfd_pic30_write_data_header(d, addr, len, format)
 ** If the section is BSS or DATA, write the appropriate
 ** record into the data init template.
 **
+** if data_or_code == 0 => data
+**                 == 1 => code (ie, CALL funcitons)
+**
 ** ToDo: If the data section exceeds 64K, break into
 ** multiple records.
 */
 static void
-bfd_pic30_process_data_section(sect, fp) 
+bfd_pic30_process_init_section(sect, fp, priority, data_or_code) 
      asection *sect;
      PTR fp;
+     int priority;
+     int data_or_code;
 {
   unsigned char *buf,*p;
   unsigned char **d = (unsigned char **) fp;
@@ -2405,8 +2478,20 @@ bfd_pic30_process_data_section(sect, fp)
   bfd_vma runtime_addr = sect->output_offset + sect->output_section->vma;
   Elf_Internal_Shdr *this_hdr;
 
-  enum { CLEAR, COPY2, COPY3 }; /* note matching definition in crt0.c */
-      
+  if (data_or_code == 1) {
+    if (PIC30_IS_CODE_ATTR(sect) &&  (sect->_raw_size > 0) &&
+        (sect->priority == priority)) {
+      if (pic30_debug)
+        printf("  %s (code), template addr = %lx, call addr = %lx, "
+               "priority = %d\n",
+               sect->name, (long unsigned int) *d, runtime_addr, priority);
+
+      /* write header only */
+      bfd_pic30_write_data_header(d, runtime_addr, runtime_size, CALL);
+    }
+    return;
+  }
+
   /* skip persistent or noload data sections */
   if (PIC30_IS_PERSIST_ATTR(sect) | PIC30_IS_NOLOAD_ATTR(sect))
     {
@@ -2417,24 +2502,28 @@ bfd_pic30_process_data_section(sect, fp)
     }
 
   /* process BSS-type sections */
-  if (PIC30_IS_BSS_ATTR(sect) && (sect->_raw_size > 0))
+  if (PIC30_IS_BSS_ATTR(sect) && (sect->_raw_size > 0) && 
+      (sect->priority == priority))
     {
       if (pic30_debug)
-        printf("  %s (bss), size = %x bytes, template addr = %lx\n",
+        printf("  %s (bss), size = %x bytes, template addr = %lx, "
+               "priority = %d\n",
                sect->name, (unsigned int) runtime_size,
-               (long unsigned int) *d);
+               (long unsigned int) *d, priority);
 
       /* write header only */
       bfd_pic30_write_data_header(d, runtime_addr, runtime_size, CLEAR);
     }
 
   /* process DATA-type sections */
-  if (PIC30_IS_DATA_ATTR(sect) && (sect->_raw_size > 0))
+  if (PIC30_IS_DATA_ATTR(sect) && (sect->_raw_size > 0) && 
+      (sect->priority == priority))
     {
       if (pic30_debug)
-        printf("  %s (data), size = %x bytes, template addr = %lx\n",
+        printf("  %s (data), size = %x bytes, template addr = %lx, "
+               "priority = %d\n",
                sect->name, (unsigned int) runtime_size,
-               (long unsigned int) *d);
+               (long unsigned int) *d, priority);
 
       /*
       ** load a copy of the section contents
@@ -2446,7 +2535,8 @@ bfd_pic30_process_data_section(sect, fp)
       buf = (unsigned char *) malloc (sect->_raw_size);
       if (!buf)
         {
-          fprintf( stderr, "Link Error: not enough memory for section contents\n");
+          fprintf(stderr,
+                  "Link Error: not enough memory for section contents\n");
           abort();
         }
 
@@ -2457,8 +2547,8 @@ bfd_pic30_process_data_section(sect, fp)
       bfd_seek(sect->output_section->owner, 0, SEEK_SET);
      
       if (!bfd_get_section_contents(sect->output_section->owner,
-                                    sect->output_section,
-                                    buf, sect->output_offset*2, sect->_raw_size))
+                                    sect->output_section, buf, 
+                                    sect->output_offset*2, sect->_raw_size))
         {
           fprintf( stderr, "Link Error: can't load section %s contents\n",
                    sect->name);
@@ -2512,7 +2602,7 @@ bfd_pic30_process_data_section(sect, fp)
     } /* process DATA-type sections */
 
   return;
-} /* static void bfd_pic30_process_data_section (...)*/
+} /* static void bfd_pic30_process_init_section (...)*/
 
 /*
 ** This routine is called via bfd_map_over_sections().
@@ -2532,10 +2622,39 @@ bfd_pic30_check_reloc_flag(abfd, sect, fp)
 }
 
 void
+pic30_debug_symbols(asymbol **syms,int count) {
+  int i;
+  
+  for (i = 0; i < count; i++) {
+    fprintf(stderr,"%6.6d %s\n", i, syms[i]->name);
+  }
+}
+
+void
+pic30_grep_symbol_name(asymbol **syms,int count, char *name) {
+  int i;
+  
+  for (i = 0; i < count; i++) {
+    if (strstr(syms[i]->name, name) != 0)
+    fprintf(stderr,"%6.6d %s\n", i, syms[i]->name);
+  }
+}
+
+void
 pic30_debug_section_list(asection *sect) {
   while (sect) {
     printf("section @ %p %s\n", sect, sect->name);
     sect = sect->next;
+  }
+}
+
+void find_section(asection *sec, const char *name) {
+  while (sec) {
+     if (strcmp(sec->name, name) == 0) {
+       printf("found seciton %s\n", name);
+       break;
+     }
+     sec = sec->next;
   }
 }
 
@@ -2580,6 +2699,20 @@ pic30_final_link (abfd, info)
 
   bfd_map_over_sections(abfd, &bfd_pic30_locate_ivt, &vector_table_status);
 
+  if (vector_table_status & (USER_AIVT_DEFINED | USER_IVT_DEFINED)) {
+    ivt_record_type *r;
+
+    for (r = ivt_records_list; r != NULL; r = r->next) {
+      if (r->is_alternate_vector) {
+         if (vector_table_status & USER_AIVT_DEFINED)
+            if (r->ivt_sec) r->ivt_sec->flags = 0;
+      } else {
+         if (vector_table_status & USER_IVT_DEFINED)
+            if (r->ivt_sec) r->ivt_sec->flags = 0;
+      }
+    }
+  }
+
   /*
   ** call the generic final link routine
   */
@@ -2600,142 +2733,132 @@ pic30_final_link (abfd, info)
       bfd_pic30_print_section_header();
       bfd_map_over_sections(abfd, &bfd_pic30_report_sections, 0);
   }
+
   if (pic30_data_init)
-  {
-      dinit_sec = init_template->output_section;
-      dinit_size = init_template->_raw_size;
-      dinit_offset = init_template->output_offset;
+  {   int p;
+      struct an_init_template *init_template_data[] = {
+        &init_data, 
+        &restart_init_data, 
+        &shared_init_data, 
+        &restart_shared_init_data, 
+        0 };
+      int init;
 
-      if (!dinit_sec)
-        {
-          fprintf( stderr, "Link Error: could not access data template\n");
-          abort();
+      for (init = 0; init_template_data[init]; init++) {
+
+        if (init_template_data[init]->init_template == 0) continue;
+
+        dinit_sec = init_template_data[init]->init_template->output_section;
+        dinit_size = init_template_data[init]->init_template->_raw_size;
+        dinit_offset = init_template_data[init]->init_template->output_offset;
+  
+        if (!dinit_sec)
+          {
+            fprintf( stderr, "Link Error: could not access data template\n");
+            abort();
+          }
+  
+  #if 0
+        printf("dinit_sec->name = %s\n", dinit_sec->name);
+        printf("dinit_size = %lx\n", dinit_size);
+        printf("dinit_offset = %lx\n", dinit_offset);
+  #endif
+  
+        /* clear SEC_IN_MEMORY flag if inaccurate */
+        if ((dinit_sec->contents == 0) && 
+            ((dinit_sec->flags & SEC_IN_MEMORY) != 0))
+          dinit_sec->flags &= ~ SEC_IN_MEMORY;
+  
+        /* get a copy of the (blank) template contents */
+        if (!bfd_get_section_contents (abfd, dinit_sec, 
+                                       init_template_data[init]->init_data, 
+                                       dinit_offset*opb, dinit_size))
+          {
+            fprintf( stderr, "Link Error: can't get section %s contents\n",
+                     dinit_sec->name);
+            abort();
+          }
+  
+        /* update the default fill value */
+        dat = init_template_data[init]->init_data;
+        for (i=0; i < dinit_size; i++)
+          *dat++ *= 2;
+  
+        /* scan sections and write data records */
+        if (pic30_debug)
+            printf("\nProcessing data sections:\n");
+        dat = init_template_data[init]->init_data;
+        for (p = 1; p <= init_template_data[init]->max_priority; p++) {
+          for (s = init_template_data[init]->section_list;
+               s != NULL; s = s->next)
+             if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+               bfd_pic30_process_init_section(s->sec, &dat, p, 0);
+          for (s = init_template_data[init]->priority_list;
+               s != NULL; s = s->next)
+             if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+               bfd_pic30_process_init_section(s->sec, &dat, p, 1);
         }
+        for (s = init_template_data[init]->section_list;
+             s != NULL; s = s->next)
+           if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+             bfd_pic30_process_init_section(s->sec, &dat, 0, 0);
+        for (s = init_template_data[init]->priority_list;
+             s != NULL; s = s->next)
+           if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
+             bfd_pic30_process_init_section(s->sec, &dat, 0, 1);
+  
+        if (init_template_data[init]->shared_data_link) {
+          asymbol **syms = bfd_get_outsymbols(abfd);
+          asymbol *sym = 0;
+          int count;
+          bfd_vma link_to = 0;
 
-#if 0
-      printf("dinit_sec->name = %s\n", dinit_sec->name);
-      printf("dinit_size = %lx\n", dinit_size);
-      printf("dinit_offset = %lx\n", dinit_offset);
-#endif
-
-      /* clear SEC_IN_MEMORY flag if inaccurate */
-      if ((dinit_sec->contents == 0) && ((dinit_sec->flags & SEC_IN_MEMORY) != 0))
-        dinit_sec->flags &= ~ SEC_IN_MEMORY;
-
-      /* get a copy of the (blank) template contents */
-      if (!bfd_get_section_contents (abfd, dinit_sec,
-                                     init_data, dinit_offset*opb, dinit_size))
-        {
-          fprintf( stderr, "Link Error: can't get section %s contents\n",
-                   dinit_sec->name);
-          abort();
+          for (count = 0; count < bfd_get_symcount(abfd); count ++) {
+             sym = *syms;
+             if (strcmp(sym->name,
+                 init_template_data[init]->shared_data_link) == 0) {
+               link_to = sym->value;
+               break;
+             }
+             syms++;
+          }
+  
+          /* link to a shared dinit */
+          if (link_to) {
+            *dat++ = (link_to & 0xFF); *dat++ = (link_to >> 8) & 0xFF;
+            *dat++ = ((link_to >> 16) & 0xFF) | 0x80; *dat++ = 0;
+          } else {
+            /* or write zero terminator */
+            *dat++ = 0; *dat++ = 0;
+            *dat++ = 0; *dat++ = 0;
+          }
+        } else {
+          /* write zero terminator */
+          *dat++ = 0; *dat++ = 0;
+          *dat++ = 0; *dat++ = 0;
         }
-
-      /* update the default fill value */
-      dat = init_data;
-      for (i=0; i < dinit_size; i++)
-        *dat++ *= 2;
-
-      /* scan sections and write data records */
-      if (pic30_debug)
-          printf("\nProcessing data sections:\n");
-      dat = init_data;
-      for (s = data_sections; s != NULL; s = s->next)
-         if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
-           bfd_pic30_process_data_section(s->sec, &dat);
-
-      asymbol **syms = bfd_get_outsymbols(abfd);
-      asymbol *sym = 0;
-      int count;
-      bfd_vma link_to = 0;
-      for (count = 0; count < bfd_get_symcount(abfd); count ++) {
-         sym = *syms;
-         if (strcmp(sym->name,"__shared_dinit_addr") == 0) {
-           link_to = sym->value;
-           break;
-         }
-         syms++;
+    
+        if (pic30_debug)
+            printf("  last template addr written = %lx\n",
+                   (long unsigned int) (dat -1));
+  
+        /* insert buffer into the data template section */
+        if (!bfd_set_section_contents (abfd, dinit_sec, 
+                                       init_template_data[init]->init_data, 
+                                       dinit_offset*opb, dinit_size))
+          {
+            fprintf( stderr, "Link Error: can't write section %s contents\n",
+                     dinit_sec->name);
+            abort();
+          }
+  
       }
-
-      /* link to .shared.dinit */
-      *dat++ = (link_to & 0xFF); *dat++ = (link_to >> 8) & 0xFF;
-      *dat++ = ((link_to >> 16) & 0xFF) | 0x80; *dat++ = 0;
-
-      if (pic30_debug)
-          printf("  last template addr written = %lx\n",
-                 (long unsigned int) (dat -1));
-
-      /* insert buffer into the data template section */
-      if (!bfd_set_section_contents (abfd, dinit_sec,
-                                     init_data, dinit_offset*opb, dinit_size))
-        {
-          fprintf( stderr, "Link Error: can't write section %s contents\n",
-                   dinit_sec->name);
-          abort();
-        }
-
-     /* .shared.dinit */
-      shared_dinit_sec = init_shared_template->output_section;
-      shared_dinit_size = init_shared_template->_raw_size;
-      shared_dinit_offset = init_shared_template->output_offset;
-
-      if (!shared_dinit_sec)
-        {
-          fprintf( stderr, "Link Error: could not access shared data template\n");
-          abort();
-        }
-
-#if 0
-      printf("dinit_sec->name = %s\n", dinit_sec->name);
-      printf("dinit_size = %lx\n", dinit_size);
-      printf("dinit_offset = %lx\n", dinit_offset);
-#endif
-
-      /* clear SEC_IN_MEMORY flag if inaccurate */
-      if ((shared_dinit_sec->contents == 0) && ((shared_dinit_sec->flags & SEC_IN_MEMORY) != 0))
-        shared_dinit_sec->flags &= ~ SEC_IN_MEMORY;
-
-      /* get a copy of the (blank) template contents */
-      if (!bfd_get_section_contents (abfd, shared_dinit_sec,
-                                     init_shared_data, shared_dinit_offset*opb,
-                                     shared_dinit_size))
-        {
-          fprintf( stderr, "Link Error: can't get section %s contents\n",
-                   shared_dinit_sec->name);
-          abort();
-        }
-
-      /* update the default fill value */
-      shared_dat = init_shared_data;
-      for (i=0; i < shared_dinit_size; i++)
-        *shared_dat++ *= 2;
-
-      /* scan sections and write data records */
-      if (pic30_debug)
-          printf("\nProcessing data sections:\n");
-      shared_dat = init_shared_data;
-      for (s = shared_data_sections; s != NULL; s = s->next)
-         if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
-           bfd_pic30_process_data_section(s->sec, &shared_dat);
-
-      /* write zero terminator */
-      *shared_dat++ = 0; *shared_dat++ = 0;
-      *shared_dat++ = 0; *shared_dat++ = 0;
-
-      if (pic30_debug)
-          printf("  last template addr written = %lx\n",
-                 (long unsigned int) shared_dat - 1);
-
-      /* insert buffer into the shared data template section */
-      if (!bfd_set_section_contents (abfd, shared_dinit_sec,
-                                     init_shared_data, shared_dinit_offset*opb,
-                                     shared_dinit_size))
-        {
-          fprintf( stderr, "Link Error: can't write section %s contents\n",
-                   shared_dinit_sec->name);
-          abort();
-        }
-     for (s = shared_dinit_sections; s!= NULL; s = s->next) {
+      if (shared_init_data.init_template) {
+        shared_dinit_sec = shared_init_data.init_template->output_section;
+      } else {
+        shared_dinit_sec = NULL;
+      }
+      for (s = shared_dinit_sections; s!= NULL; s = s->next) {
         if (s->sec && (s->sec != shared_dinit_sec)) {
           unsigned char *contents = (unsigned char *) bfd_alloc (abfd, 
                                                       s->sec->_raw_size);
@@ -2753,34 +2876,48 @@ pic30_final_link (abfd, info)
               (shared_dat[null_terminator + 1] == 0) &&
               (shared_dat[null_terminator + 2] == 0) &&
               (shared_dat[null_terminator + 3] == 0)) {
+            bfd_vma link_to = 0;
 #if 0
             if (pic30_inherit_application_info)
               link_to = excluded_shared_dinit_address;
             else
 #endif
+            if (shared_dinit_sec != NULL ) {
               link_to = shared_dinit_sec->vma;
+            } else {
+              link_to = NULL;
+            }
            
             shared_dat = shared_dat + (s->sec->_raw_size - 4);
             /* link to .shared.dinit */
-           *shared_dat++ = (link_to & 0xFF);
-           *shared_dat++ = (link_to >> 8) & 0xFF;
-           *shared_dat++ = ((link_to >> 16) & 0xFF) | 0x80; *shared_dat++ = 0;
+            if (link_to) {
+              *shared_dat++ = (link_to & 0xFF);
+              *shared_dat++ = (link_to >> 8) & 0xFF;
+              *shared_dat++ = ((link_to >> 16) & 0xFF) | 0x80; 
+              *shared_dat++ = 0;
+            } else {
+              *shared_dat++ = 0;
+              *shared_dat++ = 0;
+              *shared_dat++ = 0;
+              *shared_dat++ = 0;
+            }
           
-           if (!bfd_set_section_contents (abfd, s->sec, contents,
-                                          s->sec->output_offset*opb,
-                                          s->sec->_raw_size))
-           {
-            fprintf( stderr, "Link Error: can't write section %s contents\n",
-                     s->sec->name);
-            abort();
-           }
-         } else continue;
+            if (!bfd_set_section_contents (abfd, s->sec, contents,
+                                           s->sec->output_offset*opb,
+                                           s->sec->_raw_size))
+            {
+              fprintf( stderr, "Link Error: can't write section %s contents\n",
+                      s->sec->name);
+              abort();
+            }
+          } else continue;
         }
       }
 #if 0
     if (pic30_inherit_application_info) {
       for (sec = abfd->sections; sec != NULL; sec = sec->next) {
          if (strcmp(sec->name, ".shared.dinit$") == 0) {
+           bfd_vma link_to = 0;
            unsigned char *buf = (unsigned char *) bfd_alloc (abfd,
                                                        sec->_raw_size);
            if (!bfd_get_section_contents (abfd, sec, buf,
@@ -2810,7 +2947,7 @@ pic30_final_link (abfd, info)
     }
 #endif
   }
-#if 1
+
   if (packed_sections) {
     unsigned char *packed_data;
 
@@ -2829,7 +2966,7 @@ pic30_final_link (abfd, info)
      }
    }
   }
-#endif
+
   if (pic30_has_fill_option)
     {
      struct pic30_fill_option *o;
@@ -2892,11 +3029,11 @@ pic30_final_link (abfd, info)
 
       rom_dat = rom_usage_data;
       for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
-        if ((REPORT_AS_PROGRAM(sec) && 
-             pic30_in_bounds(sec, program_origin, program_length)) || 
-            (pic30_is_auxflash_machine(global_PROCESSOR) && 
-             REPORT_AS_AUXFLASH(sec) && 
-             pic30_in_bounds(sec, auxflash_origin, auxflash_length)) &&
+        if (((REPORT_AS_PROGRAM(sec) && 
+              pic30_in_bounds(sec, program_origin, program_length)) || 
+             (pic30_is_auxflash_machine(global_PROCESSOR) && 
+              REPORT_AS_AUXFLASH(sec) && 
+              pic30_in_bounds(sec, auxflash_origin, auxflash_length))) &&
             ((sec->flags & SEC_EXCLUDE) == 0)) {
             b_addr = sec->lma;
             e_addr = b_addr + (sec->_raw_size / 2) - 2;
@@ -3002,6 +3139,7 @@ pic30_final_link (abfd, info)
   /*  pass 0 - fill in vectors slots for vectors the user has defined */
   /*  pass 1 - fill the unseen slots with the defaulthandler */
   /*  pass 1 may be skipped by using the --no-isr option */
+  if (pic30_ivt)
   for (fill_ivt_pass = 0; fill_ivt_pass <= pic30_isr; fill_ivt_pass++) 
   { asymbol **syms;
     ivt_record_type *r;
@@ -3034,7 +3172,8 @@ pic30_final_link (abfd, info)
            delete_vector = 0;
            next = r->next;
            if (r->name && 
-               (((fill_ivt_pass == 0) && (strcmp(r->name, sym->name+1) == 0)) ||
+                (((fill_ivt_pass == 0) && (sym->name[0] == '_') &&  
+                  (strcmp(r->name, sym->name+1) == 0)) ||
                 ((fill_ivt_pass == 1) && ((r->flags & ivt_seen) == 0)))) {
              r->flags |= ivt_seen;
              if (r->is_alternate_vector) {
@@ -3042,11 +3181,11 @@ pic30_final_link (abfd, info)
                if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
                    (!pic30_has_floating_aivt && !pic30_has_fixed_aivt))
                  continue;
-                sec_name = xmalloc(strlen(r->name) + strlen(".aivt.") + 2);
+                sec_name = malloc(strlen(r->name) + strlen(".aivt.") + 2);
                 (void) sprintf(sec_name, ".aivt.%s", r->name);
              } else {
                 if (vector_table_status & USER_IVT_DEFINED) delete_vector=1;
-                sec_name = xmalloc(strlen(r->name) + strlen(".ivt.") + 2);
+                sec_name = malloc(strlen(r->name) + strlen(".ivt.") + 2);
                 (void) sprintf(sec_name, ".ivt.%s", r->name);
              }
              for (sec = abfd->sections; sec != NULL; sec = sec->next) {

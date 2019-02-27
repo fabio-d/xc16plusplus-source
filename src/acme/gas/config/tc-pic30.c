@@ -1263,9 +1263,9 @@ pic30_attribute (is_section)
         sec->vma = pic30_address(a);                                \
         sec->lma = pic30_address(a);
 #define PIC30_SET_ALIGN_ATTR_ARG(a)                                 \
-        record_alignment (sec, pic30_align_power(arg));
+        record_alignment (sec, pic30_align_power(a));
 #define PIC30_SET_MERGE_ATTR_ARG(a)                                 \
-        sec->entsize = pic30_element_size(arg);
+        sec->entsize = pic30_element_size(a);
 #define PIC30_SET_BOOT_ATTR_ARG(a)                                  \
         if (has_arg)  {                                             \
           access_entry = TRUE;                                      \
@@ -1294,6 +1294,9 @@ pic30_attribute (is_section)
           else                                                      \
             record_access_entry(sec->name, SECURE_SEG, (a));        \
         }
+#define PIC30_SET_PRIORITY_ATTR_ARG(a)                              \
+        sec->priority = a;
+
 #define ATTR(_id, _has_arg, _set_it)                                \
       if ((strlen(#_id) == len) && (strcmp( name, (#_id)) == 0)) {  \
         if (_has_arg && !has_arg)                                   \
@@ -3537,19 +3540,37 @@ pic30_section (push)
 
      /* encode any extended attributes in a symbol */
      if (pic30_extended_attribute_map(sec)) {
-      char *name;
-      char *ext_attr_prefix = "__ext_attr_";
-      symbolS * symbolp;
+       char *name;
+#if 0
+       char *ext_attr_prefix = "__ext_attr_";
+#endif
+       symbolS * symbolp;
 
-      name = xmalloc (strlen(sec->name) + strlen(ext_attr_prefix) + 1);
-      (void) sprintf(name, "%s%s", ext_attr_prefix, sec->name);
-      if (!symbol_find(name)) {
-        symbolp = symbol_new (name, absolute_section,
+       name = xmalloc (strlen(sec->name) + strlen(EXT_ATTR_PREFIX) + 1);
+       (void) sprintf(name, "%s%s", EXT_ATTR_PREFIX, sec->name);
+       if (!symbol_find(name)) {
+         symbolp = symbol_new (name, absolute_section,
                               (valueT) pic30_extended_attribute_map(sec),
                               &zero_address_frag);
 
-        symbol_table_insert (symbolp);
-        symbol_mark_resolved (symbolp);
+         symbol_table_insert (symbolp);
+         symbol_mark_resolved (symbolp);
+       }
+     }
+
+     if (sec->priority) {
+       char *name;
+       symbolS * symbolp;
+
+       name = xmalloc (strlen(sec->name) + strlen(PRIORITY_ATTR_PREFIX) + 1);
+       (void) sprintf(name, "%s%s", PRIORITY_ATTR_PREFIX, sec->name);
+       if (!symbol_find(name)) {
+         symbolp = symbol_new (name, absolute_section,
+                              (valueT) sec->priority,
+                              &zero_address_frag);
+
+         symbol_table_insert (symbolp);
+         symbol_mark_resolved (symbolp);
        }
      }
    } /* new style section directive */
@@ -4531,8 +4552,22 @@ md_begin (void)
       if (pic30_is_5V_machine(global_PROCESSOR))
         create_absolute_symbol("__HAS_5VOLTS", 1);
 
+      if (pic30_is_ecore_machine(global_PROCESSOR))
+        create_absolute_symbol("__HAS_EP", 1);
+
+      if (pic30_is_isav4_machine(global_PROCESSOR)) {
+        create_absolute_symbol("__TARGET_DIVIDE_CYCLES", 5);
+      } else {
+        create_absolute_symbol("__TARGET_DIVIDE_CYCLES", 17);
+      }
 
    } /* if (global_PROCESSOR) */
+   else {
+     /* if a global_PROCESSOR is not specified we can still use div insn */
+     as_warn (_("Using default target divide cycle count of 17; please specify"
+                 " device."));
+     create_absolute_symbol("__TARGET_DIVIDE_CYCLES", 17);
+   }
    /*
    ** Create a symbol to indicate which OMF is supported by the assembler
    */
@@ -8102,7 +8137,9 @@ pic30_create_insn (opcode, operands, operand_count)
 
             if (operands[i].X_md.modifier == PIC30_DMAOFFSET_FOUND)
               {
-                as_bad (_("Cannot use a constant as the argument of dmaoffset."));
+                as_bad (
+                        _("Cannot use a constant as the argument of dmaoffset.")
+                );
                 operands[i].X_add_number = 0;
               }
 
@@ -8114,7 +8151,8 @@ pic30_create_insn (opcode, operands, operand_count)
          {
             struct pic30_operand_value operand_value;
 
-            if (pic30_populate_operand_value (&(operands[i]), &operand_value,operand->type))
+            if (pic30_populate_operand_value (&(operands[i]), 
+                                              &operand_value,operand->type))
             {
               /*
               ** the operand can be calculated now
@@ -8202,178 +8240,210 @@ pic30_create_insn (opcode, operands, operand_count)
                              (reloc.pc_relative ? "TRUE" : "FALSE"),
                              reloc.value);
                                
+                  /* 2 won't allow larger offsets - CAW */
+#                 define FLASH_RELOC_SIZE 4
+
                   if (operands[i].X_md.modifier == PIC30_TBLOFFSET_FOUND)
                   {
                      if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::TBLOFFSET\n");
 
-                     if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                     if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                         (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)){
                        as_bad (_("%s%s"), "tbloffset", err_str);
                        break;
+                     } else {
+                       fix = fix_new_exp (
+                               frag_now, output_frag - frag_now->fr_literal,
+                               FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                               (reloc.value == 
+                                  BFD_RELOC_PIC30_UNSIGNED_10_TBLOFFSET) ?
+                                    BFD_RELOC_PIC30_UNSIGNED_10_TBLOFFSET :
+                                    BFD_RELOC_PIC30_WORD_TBLOFFSET);
                      }
-                     else
-                       fix = fix_new_exp (frag_now,
-                                          output_frag - frag_now->fr_literal,
-                                          2, &(operands[i]), FALSE,
-					  (reloc.value == BFD_RELOC_PIC30_UNSIGNED_10_TBLOFFSET)?
-                                          BFD_RELOC_PIC30_UNSIGNED_10_TBLOFFSET :
-					  BFD_RELOC_PIC30_WORD_TBLOFFSET);
                   } /* if (PIC30_TBLOFFSET_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_PSVOFFSET_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::PSVOFFSET\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) && 
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "psvoffset", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_PSVOFFSET :
+                                     BFD_RELOC_PIC30_WORD_PSVOFFSET);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_PSVOFFSET :
-                                           BFD_RELOC_PIC30_WORD_PSVOFFSET);
                     } /* if (PIC30_PSVOFFSET_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_TBLPAGE_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::TBLPAGE\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "tblpage", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_TBLPAGE :
+                                     BFD_RELOC_PIC30_WORD_TBLPAGE);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_TBLPAGE :
-                                           BFD_RELOC_PIC30_WORD_TBLPAGE);
                     } /* else if (PIC30_TBLPAGE_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_PSVPAGE_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::PSVPAGE\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "psvpage", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_PSVPAGE :
+                                     BFD_RELOC_PIC30_WORD_PSVPAGE);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_PSVPAGE :
-                                           BFD_RELOC_PIC30_WORD_PSVPAGE);
                     } /* else if (PIC30_PSVPAGE_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_HANDLE_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::HANDLE\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "handle", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                2, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_HANDLE :
+                                     BFD_RELOC_PIC30_WORD_HANDLE);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                          BFD_RELOC_PIC30_UNSIGNED_10_HANDLE :
-                                           BFD_RELOC_PIC30_WORD_HANDLE);
                     } /* else if (PIC30_HANDLE_FOUND) */
                  else if (operands[i].X_md.modifier == PIC30_DMAPAGE_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::DMAPAGE\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "dmapage", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                2, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_DMAPAGE :
+                                     BFD_RELOC_PIC30_WORD_DMAPAGE);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_DMAPAGE :
-                                           BFD_RELOC_PIC30_WORD_DMAPAGE);
                     } /* else if (PIC30_DMAPAGE_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_DMAOFFSET_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::DMAOFFSET\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "dmaoffset", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                2, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_DMAOFFSET :
+                                     BFD_RELOC_PIC30_WORD_DMAOFFSET);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                          BFD_RELOC_PIC30_UNSIGNED_10_DMAOFFSET :
-                                           BFD_RELOC_PIC30_WORD_DMAOFFSET);
                     } /* else if (PIC30_DMAOFFSET_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_PSVPTR_FOUND)
-                  {
-                     if (flag_debug)
+                    {
+                      if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::PSVPTR\n");
 
-                     fix = fix_new_exp (frag_now,
-                                        output_frag - frag_now->fr_literal,
-                                        2, &(operands[i]), FALSE,
-                                        BFD_RELOC_PIC30_WORD_PSVPTR);
-                  } /* else if (PIC30_PSVPTR_FOUND) */
+                      fix = fix_new_exp (
+                              frag_now, output_frag - frag_now->fr_literal,
+                              FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                              BFD_RELOC_PIC30_WORD_PSVPTR);
+                    } /* else if (PIC30_PSVPTR_FOUND) */
                   else if ((operands[i].X_md.modifier == PIC30_BOOT_FOUND) ||
                            (operands[i].X_md.modifier == PIC30_SECURE_FOUND))
-                  { 
-                     fix = fix_new_exp (frag_now,
-                                        output_frag - frag_now->fr_literal,
-                                        2, &(operands[i]), FALSE,
-                                        have_bra_insn ?
-                                        BFD_RELOC_PIC30_PCREL_ACCESS :
-                                        BFD_RELOC_PIC30_WORD_ACCESS);
-                  } /* else if ((operands[i].X_md.modifier == PIC30_BOOT_FOUND) || */
+                    { 
+                      if (flag_debug)
+                        fprintf (stdout, "    pic30_create_insn::BOOTSECURE\n");
+
+                      fix = fix_new_exp (
+                              frag_now, output_frag - frag_now->fr_literal,
+                              2, &(operands[i]), FALSE,
+                              have_bra_insn ?
+                                BFD_RELOC_PIC30_PCREL_ACCESS :
+                                BFD_RELOC_PIC30_WORD_ACCESS);
+                    } /* else if (PIC30_BOOT_FOUND || PIC30_SECURE_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_EDSPAGE_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::EDSPAGE\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))                      {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) && 
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "edspage", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_EDSPAGE :
+                                     BFD_RELOC_PIC30_WORD_EDSPAGE);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_EDSPAGE :
-                                           BFD_RELOC_PIC30_WORD_EDSPAGE);
                     } /* else if (PIC30_EDSPAGE_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_EDSOFFSET_FOUND)
                     {
                       if (flag_debug)
                         fprintf (stdout, "    pic30_create_insn::EDSOFFSET\n");
 
-                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&                                       (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)) {
+                      if ((reloc.value != BFD_RELOC_PIC30_WORD ) &&
+                          (reloc.value != BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10))
+                      {
                         as_bad (_("%s%s"), "edsoffset", err_str);
                         break;
+                      } else {
+                        fix = fix_new_exp (
+                                frag_now, output_frag - frag_now->fr_literal,
+                                FLASH_RELOC_SIZE, &(operands[i]), FALSE,
+                                (reloc.value == 
+                                   BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10) ?
+                                     BFD_RELOC_PIC30_UNSIGNED_10_EDSOFFSET :
+                                     BFD_RELOC_PIC30_WORD_EDSOFFSET);
                       }
-                      else
-                        fix = fix_new_exp (frag_now,
-                                           output_frag - frag_now->fr_literal,
-                                           2, &(operands[i]), FALSE,
-					   (reloc.value == BFD_RELOC_PIC30_NO_SHIFT_UNSIGNED_10)?
-                                           BFD_RELOC_PIC30_UNSIGNED_10_EDSOFFSET :
-                                           BFD_RELOC_PIC30_WORD_EDSOFFSET);
                     } /* else if (PIC30_EDSOFFSET_FOUND) */
                   else if (operands[i].X_md.modifier == PIC30_PACKED_HI_FOUND)
                     {
@@ -9278,15 +9348,17 @@ md_apply_fix3(fixP, valueP, seg)
          {   
             fixP->fx_done = FALSE;
 
-            if (fixP->fx_addsy == (symbolS *) NULL)
-            value =
-               pic30_apply_operator (fixP->fx_r_type, fixP->fx_offset, TRUE);
-            else
+            if (fixP->fx_addsy == (symbolS *) NULL) {
+               value = pic30_apply_operator (fixP->fx_r_type, 
+                                             fixP->fx_offset, TRUE);
+            } else {
+              /* CAW - GRRR http://fossil/repos.cgi/acme/fdiff?v1=38e7cfb41532fed0&v2=53243501a4a15aa9&sbs=1 */
 	      if (fixP->fx_r_type == BFD_RELOC_PIC30_PGM_ADDR_MSB)
                 {
                   fixP->fx_offset = (fixP->fx_offset)>>16;
 		}
               value = fixP->fx_offset;
+            }
 
             if (fixP->fx_subsy != (symbolS *) NULL)
             {
@@ -9485,6 +9557,7 @@ md_apply_fix3(fixP, valueP, seg)
         }
 
       /* general case: test fixup against operand match functions */
+      if (howto->partial_inplace)
       if (opnd->is_match)
       {
         if (!(*opnd->is_match)(&op_value))
@@ -9972,8 +10045,12 @@ pic30_create_bf_insn (opcode, operands)
              operands[i].X_add_number = operands[0].X_add_number +
                                         operands[i].X_add_number - 1;
              if (operands[i].X_add_number > 15)
+               as_bad (_("Field overflows destination, please check operands 0"
+                         " and 1.\n"));
+#if 0
                as_bad (_("Please refer to bfins instruction description "
                          "to provide correct operand values.\n"));
+#endif
            }       
            if (((opcode->opcode[0] == BFEXT_INSN) ||
                (opcode->opcode[0] == BFEXTF_INSN)) && (i == 3))

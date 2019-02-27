@@ -2,4 +2,6 @@
 t.exe:     file format coff-pic30
 
 Contents of section .text:
- 0124 202222 404424 111111          ""@D$...   
+ 0124 202222 404424                 ""@D$      
+Contents of section .text:
+ 012c 111111                       ...         

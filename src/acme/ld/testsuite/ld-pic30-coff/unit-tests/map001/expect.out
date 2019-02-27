@@ -1,27 +1,27 @@
 
 >>Simulator Output:
 
-81CE: 0123456789
-81DA: abcdefghijklmnopqrstuvwxyz
-8190: ABCDEFGHIJKLMNOPQRSTUVWXYZ
-81AC: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-81F6: abcdefABCDEF
+81E6: 0123456789
+81F2: abcdefghijklmnopqrstuvwxyz
+81A8: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+81C4: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+820E: abcdefABCDEF
 
 >>Linker Map File:
 
-                  0x000190                  LC2
-                  0x0001ac                  LC3
-                  0x0001ce                  LC0
-                  0x0001da                  LC1
-                  0x0001f6                  LC4
-                  0x0001ce                  LC0
-                  0x0001da                  LC1
-                  0x000190                  LC2
-                  0x0001ac                  LC3
-                  0x0001f6                  LC4
-                    0x8190                  LC2
-                    0x81ac                  LC3
-                    0x81ce                  LC0
-                    0x81da                  LC1
-                    0x81f6                  LC4
+                  0x0001a8                  LC2
+                  0x0001c4                  LC3
+                  0x0001e6                  LC0
+                  0x0001f2                  LC1
+                  0x00020e                  LC4
+                  0x0001e6                  LC0
+                  0x0001f2                  LC1
+                  0x0001a8                  LC2
+                  0x0001c4                  LC3
+                  0x00020e                  LC4
+                    0x81a8                  LC2
+                    0x81c4                  LC3
+                    0x81e6                  LC0
+                    0x81f2                  LC1
+                    0x820e                  LC4
 

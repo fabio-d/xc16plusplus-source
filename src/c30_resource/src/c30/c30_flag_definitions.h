@@ -43,23 +43,26 @@
 */
 
 /* IS_DEVICE_ID flags */
-#define HAS_DSP           1 << 8
-#define HAS_EEDATA        1 << 9
-#define HAS_DMA           1 << 10
-#define HAS_CODEGUARD     1 << 11
-#define HAS_PMP           1 << 12
-#define HAS_EDS           1 << 13
-#define HAS_PMPV2         1 << 14
-#define HAS_ECORE         1 << 15
-#define HAS_DMAV2         1 << 16
-#define HAS_AUXFLASH      1 << 17
-#define HAS_5VOLTS        1 << 18
-#define HAS_GIE           1 << 19
-#define HAS_DUALPARTITION 1 << 20
-#define HAS_DATAFLASH     1 << 21
-#define HAS_ALTREGS       1 << 22
-#define HAS_DUALCORE      1 << 23
-#define HAS_ISAV4         1 << 24 /* may be the same as HAS_DUALCORE? */
+#define HAS_DSP            1 << 8
+#define HAS_EEDATA         1 << 9
+#define HAS_DMA            1 << 10
+#define HAS_CODEGUARD      1 << 11
+#define HAS_PMP            1 << 12
+#define HAS_EDS            1 << 13
+#define HAS_PMPV2          1 << 14
+#define HAS_ECORE          1 << 15
+#define HAS_DMAV2          1 << 16
+#define HAS_AUXFLASH       1 << 17
+#define HAS_5VOLTS         1 << 18
+#define HAS_GIE            1 << 19
+#define HAS_DUALPARTITION  1 << 20
+#define HAS_DATAFLASH      1 << 21
+#define HAS_ALTREGS        1 << 22
+#define HAS_DUALCORE       1 << 23
+#define HAS_ISAV4          1 << 24 /* may be the same as HAS_DUALCORE? */
+#define HAS_EXTENDED_DEVID 1 << 27 /* when we get here, use a 2nd word */
+
+/* EXTENDED_DEVICE_ID flags - bits [0 - 31] */
 
 /* IS_CODEGUARD_ID flags */
 #define FLASH         1 << 8
@@ -103,6 +106,7 @@
 #define MEM_CONFIG_WORD     1 << 16 /* name and address of fuse */
 #define MEM_FIXED_IVT       1 << 17 /* loc of fixed IVT table (start,end) */
 #define MEM_FIXED_AIVT      1 << 18 /* loc of fixed IVT table (start,end) */
+#define MEM_PAGESIZE        1 << 19 /* (erasepagesize, pagesize) */
 
 /*
 ** Values that identify record types - bits [28-31]

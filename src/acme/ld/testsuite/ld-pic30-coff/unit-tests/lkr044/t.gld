@@ -3,7 +3,7 @@
 */
 
 OUTPUT_FORMAT("coff-pic30")
-OUTPUT_ARCH("xc16")
+OUTPUT_ARCH("pic30")
 EXTERN(__resetPRI)
 EXTERN(__resetALT)
 ENTRY(__reset)
