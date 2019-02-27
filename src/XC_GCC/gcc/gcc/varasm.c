@@ -2368,8 +2368,8 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
 
   /* Output any data that we will need to use the address of.  */
   if (DECL_INITIAL (decl) && DECL_INITIAL (decl) != error_mark_node)
-#ifdef _BUILD_C30_
   {
+#if defined(_BUILD_C30_)
     /* For C30 we need to output the 'constants' into the same section
        as the DECL, just in case the data is in a peculiar section */
     if (sect->common.flags & SECTION_CONST_NAME) 

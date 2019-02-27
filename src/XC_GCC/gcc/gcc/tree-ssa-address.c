@@ -454,14 +454,19 @@ move_pointer_to_base (struct mem_address *parts, aff_tree *addr)
 
 /* Adds ELT to PARTS.  */
 
+/*
+ * CAW - address space types may need a special type for the index/address
+ *     - pointers are not ints
+ */
+
 static void
-add_to_parts (struct mem_address *parts, tree elt)
+add_to_parts (struct mem_address *parts, tree elt, tree this_sizetype)
 {
   tree type;
 
   if (!parts->index)
     {
-      parts->index = fold_convert (sizetype, elt);
+      parts->index = fold_convert (this_sizetype, elt);
       return;
     }
 
@@ -476,7 +481,7 @@ add_to_parts (struct mem_address *parts, tree elt)
   if (POINTER_TYPE_P (type))
     parts->base = fold_build2 (POINTER_PLUS_EXPR, type,
 			       parts->base,
-			       fold_convert (sizetype, elt));
+			       fold_convert (this_sizetype, elt));
   else
     parts->base = fold_build2 (PLUS_EXPR, type,
 			       parts->base, elt);
@@ -498,6 +503,15 @@ most_expensive_mult_to_index (tree type, struct mem_address *parts,
   tree mult_elt = NULL_TREE, elt;
   unsigned i, j;
   enum tree_code op_code;
+  tree this_sizetype = sizetype;
+
+#ifdef _BUILD_C30_
+  if (TYPE_ADDR_SPACE(type) != ADDR_SPACE_GENERIC) {
+    this_sizetype = pic30_extended_pointer_integer_type(
+                      targetm.addr_space.address_mode(TYPE_ADDR_SPACE(type))
+                    );
+  }
+#endif
 
   best_mult = double_int_zero;
   for (i = 0; i < addr->n; i++)
@@ -539,18 +553,18 @@ most_expensive_mult_to_index (tree type, struct mem_address *parts,
 	  continue;
 	}
 
-      elt = fold_convert (sizetype, addr->elts[i].val);
+      elt = fold_convert (this_sizetype, addr->elts[i].val);
       if (mult_elt)
-	mult_elt = fold_build2 (op_code, sizetype, mult_elt, elt);
+	mult_elt = fold_build2 (op_code, this_sizetype, mult_elt, elt);
       else if (op_code == PLUS_EXPR)
 	mult_elt = elt;
       else
-	mult_elt = fold_build1 (NEGATE_EXPR, sizetype, elt);
+	mult_elt = fold_build1 (NEGATE_EXPR, this_sizetype, elt);
     }
   addr->n = j;
 
   parts->index = mult_elt;
-  parts->step = double_int_to_tree (sizetype, best_mult);
+  parts->step = double_int_to_tree (this_sizetype, best_mult);
 }
 
 /* Splits address ADDR for a memory access of type TYPE into PARTS.
@@ -575,6 +589,14 @@ addr_to_parts (tree type, aff_tree *addr, tree base_hint,
 #ifdef TARGET_POINTER_SIZETYPE
   if (base_hint)
     this_sizetype = TARGET_POINTER_SIZETYPE(TREE_TYPE(base_hint));
+#endif
+
+#ifdef _BUILD_C30_
+  if (TYPE_ADDR_SPACE(type) != ADDR_SPACE_GENERIC) {
+    this_sizetype = pic30_extended_pointer_integer_type(
+                      targetm.addr_space.address_mode(TYPE_ADDR_SPACE(type))
+                    );
+  }
 #endif
 
   parts->symbol = NULL_TREE;
@@ -610,10 +632,10 @@ addr_to_parts (tree type, aff_tree *addr, tree base_hint,
 	part = fold_build2 (MULT_EXPR, this_sizetype, part,
 			    double_int_to_tree (this_sizetype, 
 						addr->elts[i].coef));
-      add_to_parts (parts, part);
+      add_to_parts (parts, part, this_sizetype);
     }
   if (addr->rest)
-    add_to_parts (parts, fold_convert (this_sizetype, addr->rest));
+    add_to_parts (parts, fold_convert (this_sizetype, addr->rest), this_sizetype);
 }
 
 /* Force the PARTS to register.  */

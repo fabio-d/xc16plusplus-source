@@ -219,6 +219,14 @@ extern bfd_boolean pic30_debug;
       (PIC30_IS_BSS_ATTR(sec) ||       \
        PIC30_IS_DATA_ATTR(sec) ||      \
        PIC30_IS_PERSIST_ATTR(sec))))
+#define REPORT_AS_PROGRAM(s) \
+  (PIC30_IS_CODE_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || PIC30_IS_PSV_ATTR(s) || \
+   PIC30_IS_PACKEDFLASH_ATTR(s))
+#define REPORT_AS_AUXFLASH(s) \
+  (PIC30_IS_AUXFLASH_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || \
+   PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
+#define REPORT_AS_DATA(s) \
+  (PIC30_SECTION_IN_DATA_MEMORY(s) || PIC30_IS_MEMORY_ATTR(s))
 
 /*
 ** Macros used for access CodeGuard data structures

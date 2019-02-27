@@ -2112,7 +2112,7 @@ pic30_bfd_elf32_set_section_contents (abfd, section, location, offset, count)
   ** swapping 2 phantom bytes in data memory for 2
   ** padding bytes in program memory.
   */
-  if ((section->link_order_head != 0) && (section->linked == 0) && 
+  if ((section->link_order_head != 0) &&
       (PIC30_IS_PSV_ATTR(section) | PIC30_IS_AUXPSV_ATTR(section) |
        PIC30_IS_EEDATA_ATTR(section)))
   {
@@ -2182,7 +2182,7 @@ pic30_elf32_bfd_get_section_contents(abfd, section, location, offset, count)
   bfd_size_type count;
 {
   if (pic30_debug) {
-    fprintf(stderr,"--> pic30_elf32_bfd_get_section_contents\n");
+    printf("--> pic30_elf32_bfd_get_section_contents\n");
   }
   if ((pic30_linking == TRUE) && pic30_display_as_readonly_memory_p(section)) {
     char *ps,*pd;
@@ -2984,14 +2984,6 @@ pic30_final_link (abfd, info)
     }
 
 
-#define REPORT_AS_PROGRAM(s) \
-  (PIC30_IS_CODE_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || PIC30_IS_PSV_ATTR(s) || \
-   PIC30_IS_PACKEDFLASH_ATTR(s))
-#define REPORT_AS_AUXFLASH(s) \
-  (PIC30_IS_AUXFLASH_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || \
-   PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
-#define REPORT_AS_DATA(s) \
-  (PIC30_SECTION_IN_DATA_MEMORY(s) || PIC30_IS_MEMORY_ATTR(s))
 
    /* ROM usage contents */
   if (pic30_memory_usage)
@@ -3029,14 +3021,12 @@ pic30_final_link (abfd, info)
 
       rom_dat = rom_usage_data;
       for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
-        if (((REPORT_AS_PROGRAM(sec) && 
-              pic30_in_bounds(sec, program_origin, program_length)) || 
+        if (((REPORT_AS_PROGRAM(sec)) || 
              (pic30_is_auxflash_machine(global_PROCESSOR) && 
-              REPORT_AS_AUXFLASH(sec) && 
-              pic30_in_bounds(sec, auxflash_origin, auxflash_length))) &&
+              REPORT_AS_AUXFLASH(sec))) &&
             ((sec->flags & SEC_EXCLUDE) == 0)) {
             b_addr = sec->lma;
-            e_addr = b_addr + (sec->_raw_size / 2) - 2;
+            e_addr = b_addr + (sec->_raw_size / 2);
               *rom_dat++ = b_addr & 0xFF;
               *rom_dat++ = (b_addr >> 8) & 0xFF;
               *rom_dat++ = (b_addr >> 16) & 0xFF;
@@ -3105,7 +3095,7 @@ pic30_final_link (abfd, info)
          if (REPORT_AS_DATA(sec) && ((sec->flags & SEC_EXCLUDE) == 0))
           {
             b_addr = sec->lma;
-            e_addr = b_addr + (sec->_raw_size / 2) - 2;
+            e_addr = b_addr + (sec->_raw_size / 2);
               *ram_dat++ = b_addr & 0xFF;
               *ram_dat++ = (b_addr >> 8) & 0xFF;
               *ram_dat++ = (b_addr >> 16) & 0xFF;

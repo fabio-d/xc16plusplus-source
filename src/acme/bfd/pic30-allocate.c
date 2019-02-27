@@ -611,9 +611,10 @@ allocate_data_memory() {
   result |= locate_sections(all_attr, 0, 1, region);   /* preserved         */
   result |= locate_sections(address, 0, 0, region);    /* most restrictive  */
   result |= locate_sections(dma, 0, 0, region);        /* :                 */
+  result |= locate_sections(near, 0, 0, region);
   result |= locate_sections(xmemory,0, 0,  region);    /* :                 */
   result |= locate_sections(ymemory, 0, 0, region);    /* :                 */
-  result |= locate_sections(near, 0, 0, region);       /* less restrictive  */
+         /* less restrictive  */
   result |= locate_sections(all_attr, eds|stack|heap, 0, region);
 
   /* EDS, first pass */

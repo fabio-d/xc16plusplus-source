@@ -6608,8 +6608,9 @@ void pic30_create_rom_usage_template(void) {
           }
       }
       rom_usage_size += 8; /* .text section in linker script */
+      rom_usage_size += 8; /* .reset section in linker script */
       rom_usage_size += 16; /* count for .rom_usage and .ram_usage */
-      rom_usage_size += 4; /* zero terminated */
+      rom_usage_size += 8; /* zero terminated */
 
 
       /* allocate memory for the template */
@@ -6659,7 +6660,7 @@ void pic30_create_ram_usage_template(void) {
             ram_usage_size += 8;
       }
 
-      ram_usage_size += 4; /* zero terminated */
+      ram_usage_size += 8; /* zero terminated */
 
 
       /* allocate memory for the template */

@@ -4226,7 +4226,7 @@ static void pic30_init_builtins(void) {
   (*lang_hooks.types.register_builtin_type) (ext_ptr_type, "__ext_ptr_t");
 
   /* type for the 32bit EDS pointer type */
-  eds_ptr_type = make_node(POINTER_TYPE);
+  eds_ptr_type = make_node(INTEGER_TYPE);
   TREE_TYPE(eds_ptr_type) = char_type_node;
   SET_TYPE_MODE(eds_ptr_type,P32EDSmode);
   nbits = GET_MODE_BITSIZE(TYPE_MODE(eds_ptr_type));
@@ -4788,6 +4788,14 @@ static void pic30_init_builtins(void) {
   
   add_builtin_function_public("_Static_assert", fn_type, 
           PIC30_BUILTIN_STATICASSERT, BUILT_IN_MD, NULL, NULL_TREE);
+
+  fn_type = build_function_type_list(unsigned_type_node, unsigned_type_node,
+                                     NULL_TREE);
+  add_builtin_function_public("__builtin_ff1l", fn_type,
+          PIC30_BUILTIN_FF1L, BUILT_IN_MD, NULL, NULL_TREE);
+  add_builtin_function_public("__builtin_ff1r", fn_type,
+          PIC30_BUILTIN_FF1R, BUILT_IN_MD, NULL, NULL_TREE);
+
 }
 
 /*
@@ -7636,6 +7644,27 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         fn2(target, r0)
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
+      return target;
+      break;
+
+    case PIC30_BUILTIN_FF1R:
+      fn2 = gen_ffshi2;
+      /* FALLSTHROUGH */
+    case PIC30_BUILTIN_FF1L:
+      if (fn2 == 0) fn2 = gen_ff1lhi2;
+      
+      arg0 = TREE_VALUE(arglist);
+      r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
+      if (!pic30_mode2_operand(r0, GET_MODE(r0))) {
+        r0 = force_reg(GET_MODE(r0), r0);
+      }
+      if (!target || !register_operand(target, HImode))
+      {
+        target = gen_reg_rtx(HImode);
+      }
+      emit_insn(
+        fn2(target, r0)
+      );
       return target;
       break;
   }
@@ -10554,6 +10583,7 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
           case P24PROGmode:
           case P24PSVmode:
           case P32EDSmode:
+          case P32DFmode:
           case P32PEDSmode: {
             rtx temp;
 
@@ -15796,7 +15826,26 @@ section *pic30_select_section (tree decl, int reloc,
     ident = XSTR(XEXP(rtl, 0), 0);
     flags = validate_identifier_flags(ident);
     if (DECL_SECTION_NAME(decl)) {
+#if 0
+      /* Not sure we really need to put 'const's into the same section
+         as the global object.   We have done this since C30 v1.30, but why?
+
+         consider:
+   
+         struct {
+           int foo;
+           const char *bar;
+         } __prog__ foo __attribute__((section("eek"),space(prog)));
+
+         The pointer bar is space(prog) (section eek) but bar is pointint
+         to *the* psv section.
+
+         cannot find a counter example to say we need this
+      */
       s =  TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
+#else
+      s = NULL;
+#endif
     } else if (TREE_CODE(decl) == VAR_DECL) {
       s = force_section_name(decl);
     }
@@ -20023,6 +20072,10 @@ unsigned int pic30_merge_accumulators(void) {
         for (next_insn = NEXT_INSN(insn); next_insn;
              next_insn = NEXT_INSN(next_insn)) {
           if (!INSN_P(next_insn)) continue;
+          if (CALL_P(next_insn)) {
+            // cannot replace the set of a call insn with an accumulatro
+            continue;
+          }
           next_p = PATTERN(next_insn);
           if (reg_mentioned_p(SET_DEST(p), next_p)) {
             if (GET_CODE(next_p) == PARALLEL) {
@@ -20061,6 +20114,10 @@ unsigned int pic30_merge_accumulators(void) {
           changed = 0;
           for (; prev_insn; prev_insn = PREV_INSN(prev_insn)) {
             if (!INSN_P(prev_insn)) continue;
+            if (CALL_P(prev_insn)) {
+              // cannot replace the set of a call insn with an accumulatro
+              continue;
+            }
             prev_p = PATTERN(prev_insn);
             if (GET_CODE(prev_p) == PARALLEL) {
               prev_p = XVECEXP(prev_p, 0, 0);
@@ -20070,10 +20127,8 @@ unsigned int pic30_merge_accumulators(void) {
               if (GET_CODE(SET_SRC(p)) == SUBREG)
                 src = XEXP(SET_SRC(p),0);
               if (SET_DEST(prev_p) == src) {
-#if MCHP_DEBUG
                 if (pic30_trace_all_addresses())
                   fprintf(stderr,"merge: %p and %p\n", prev_insn, insn);
-#endif
                 changed=1;
                 replace_rtx(prev_insn, SET_DEST(prev_p), SET_DEST(p));
                 if (GET_CODE(SET_SRC(p)) == SUBREG) {
@@ -20082,10 +20137,8 @@ unsigned int pic30_merge_accumulators(void) {
                                              SET_SRC(prev_p),0));
                 }
                 delete_insn(insn);
-#if MCHP_DEBUG
                 if (pic30_trace_all_addresses())
                   debug_rtx(prev_insn);
-#endif
                 /* reset for DO */
                 insn = prev_insn;
                 prev_insn = PREV_INSN(insn);
@@ -20131,6 +20184,17 @@ unsigned int pic30_validate_dsp_instructions(void) {
       case PIC30_BUILTIN_SACD:
       case PIC30_BUILTIN_SACR:
         /* result is not an accumulator */
+        if (INSN_P (x)) {
+          p = PATTERN(x);
+          if (GET_CODE(p) == PARALLEL) {
+            p = XVECEXP(p,0,0);
+          }
+          if ((GET_CODE(p) == SET) &&
+               pic30_accumulator_operand(SET_DEST(p),HImode)) {
+            error("Unexpected DSP accumulator result (%F)", fnid);
+            err_cnt++;
+          }
+        }
         dest_regno = -1;
         break;
       case PIC30_BUILTIN_MULSS:

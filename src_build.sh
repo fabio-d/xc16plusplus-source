@@ -1,4 +1,4 @@
-:
+#!/bin/bash
 
 THIS_DIR=`pwd`
 
