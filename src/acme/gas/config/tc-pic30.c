@@ -396,6 +396,7 @@ void pic30_bss (int);
 void pic30_cons (int);
 void pic30_data (int);
 void pic30_error (int);
+void pic30_warn (int);
 void pic30_fill (int);
 void pic30_fillupper (int);
 void pic30_fillvalue (int);
@@ -465,6 +466,7 @@ const pseudo_typeS md_pseudo_table[] =
    { "ds.w",       pic30_not_supported, (int) DS_W       },
    { "ds.x",       pic30_not_supported, (int) DS_X       },
    { "error",      pic30_error,         0                },
+   { "warn",       pic30_warn,          0                },
 #ifdef OBJ_ELF
    { "file",        (void (*) PARAMS ((int))) dwarf2_directive_file,0 },
 #endif
@@ -2929,6 +2931,39 @@ pic30_error(ignore)
 /******************************************************************************/
 
 void
+pic30_warn(ignore)
+   int ignore __attribute__((__unused__));
+
+/******************************************************************************
+ *
+ *   Handles the .warn pseudo-op.
+ *
+ *   ARGUMENT          DESCRIPTION
+ *   --------------------------------------------------------------------------
+ *   ignore            unused
+ *
+ ******************************************************************************/
+
+{
+   char * warn_text;
+   int i;
+
+   warn_text = demand_copy_string(&i);
+   if (warn_text == NULL)
+   {
+     /* demand_copy_string has already printed an error and
+       called ignore_rest_of_line.  */
+     as_warn(_(".warn directive encountered"));
+     return;
+   } /* if (warn_text == NULL) */
+
+   demand_empty_rest_of_line();
+   as_warn(_("%s"), warn_text);
+} /* void pic30_warn(int) */
+
+/******************************************************************************/
+
+void
 pic30_update_section_info (void)
 
 /******************************************************************************
@@ -4491,6 +4526,7 @@ md_begin (void)
       symbol_mark_resolved (symbolp);
 
       free (processor);
+      processor = NULL;
 
       /* create a symbol for the processor family */
       switch (proc_family)
@@ -4531,6 +4567,7 @@ md_begin (void)
       symbol_table_insert (symbolp);
       symbol_mark_resolved (symbolp);
       free (family);
+      family = NULL;
 
       /* Add symbols for generic devices */
       if (strcmp(global_PROCESSOR->printable_name, "GENERIC-16BIT")==0)
@@ -4552,11 +4589,13 @@ md_begin (void)
           strcmp(global_PROCESSOR->printable_name, "GENERIC-16DSP-CH")==0) {
           processor=(char *)"__GENERIC_16DSP_CH";
       }
-      symbolp = symbol_new(processor, absolute_section,
-                            (valueT) 1, &zero_address_frag);
-
-      symbol_table_insert (symbolp);
-      symbol_mark_resolved (symbolp);
+      if (processor) {
+        symbolp = symbol_new(processor, absolute_section,
+                              (valueT) 1, &zero_address_frag);
+  
+        symbol_table_insert (symbolp);
+        symbol_mark_resolved (symbolp);
+      }
 
 
       /* create other symbols we may need */
@@ -7404,8 +7443,7 @@ pic30_populate_operand_value (expression, operand_value, operand_type)
 
       case O_symbol:
  	 if (operand_type & OPND_PAGE_SYMBOL) {
-	   operand_value->value = 
-             (long int)expression->X_add_symbol->bsym->name;
+	   operand_value->str_value = expression->X_add_symbol->bsym->name;
            operand_value->type = OPND_PAGE_SYMBOL;
          } else rc = FALSE;
          break;
@@ -7529,6 +7567,7 @@ pic30_find_opcode_based_on_operands (opcode, operands, operand_count,
             const unsigned long operator_mask =
                pic30_operator_mask[operands[i].X_op];
             struct pic30_operand_value check_for_match;
+            int tried_match = 0;
 
             if (flag_debug)
             {
@@ -7544,10 +7583,13 @@ pic30_find_opcode_based_on_operands (opcode, operands, operand_count,
             {
                if ((operand->is_match) &&
                    (pic30_populate_operand_value (&(operands[i]),
-                                                 &check_for_match,0)))
+                                                 &check_for_match,0))) {
+                  tried_match = 1;
                   types_match = (*operand->is_match)(&check_for_match);
+               }
             }
             else if (operand->type == OPND_PAGE_SYMBOL) {
+              tried_match = 1;
               pic30_populate_operand_value(&(operands[i]), &check_for_match,
 					   OPND_PAGE_SYMBOL);
               types_match = (*operand->is_match)(&check_for_match);
@@ -7557,12 +7599,15 @@ pic30_find_opcode_based_on_operands (opcode, operands, operand_count,
 
             if (!types_match)
             {
-              if (i+1 > *err_operand) {
+              /* CAW - don't record failures that we didn't even try... 
+               *     - if there's an error message, replace a non-error messg
+               */
+              if ((tried_match) && ((i+1 > *err_operand) || 
+                                    (*err_string == NULL))) {
                   *err_operand = i+1;
                   *err_string = operand->info_string;
               }
-
-               break; /* out of for loop */
+              break; /* out of for loop */
             } /* if (!types_match) */
          } /* for i */
 
@@ -10043,10 +10088,10 @@ pic30_create_bf_insn (opcode, operands)
    unsigned short i;
 
    if (flag_debug)
-      printf ("--> pic30_create_do_insn::begin\n");
+      printf ("--> pic30_create_bf_insn::begin\n");
 
    /* keep globals current */
-   global_current_location += PIC30_SIZE_OF_PROGRAM_WORD;
+   global_current_location += (PIC30_SIZE_OF_PROGRAM_WORD * 2); 
    global_p_directive_active = FALSE;
    
 

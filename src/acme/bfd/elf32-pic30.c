@@ -173,6 +173,7 @@ bfd_vma  end_address[SEGMENTS][MEMORIES];
 /* Data structure for free program memory blocks */
 struct pic30_memory *program_memory_free_blocks;
 struct pic30_memory *auxflash_memory_free_blocks;
+struct pic30_memory *aivt_free_blocks;
 
 /* Data structures for fill option */
 struct pic30_fill_option *pic30_fill_option_list;
@@ -266,6 +267,7 @@ bfd_boolean dma_end_defined = FALSE;
 
 char * memory_summary_arg;
 
+int ivt_elements = 0;
 bfd_vma ivt_base = 0;
 bfd_vma aivt_base = 0;
 bfd_vma max_ivt_addr = 0;

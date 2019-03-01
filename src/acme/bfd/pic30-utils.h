@@ -447,6 +447,7 @@ extern fuse_setting_type *fuse_settings;
 extern codeguard_setting_type *CG_settings;
 extern bfd_boolean pic30_has_CG_settings;
 extern bfd_vma aivt_base;
+extern int ivt_elements;
 extern bfd_vma ivt_base;
 extern bfd_vma max_aivt_addr;
 extern bfd_vma max_ivt_addr;
@@ -505,6 +506,7 @@ extern struct pic30_deferred_archive_members *pic30_pop_tail_archive();
 extern void pic30_clear_deferred(void);
 extern int pic30_count_ones(unsigned int a);
 
+extern void build_aivt_free_block_list(bfd_vma start, bfd_vma length);
 
 /*****************************************************************************/
 

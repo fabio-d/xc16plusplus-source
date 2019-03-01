@@ -2832,7 +2832,7 @@ disassemble_data (abfd)
       if (back_to_back_psrd_count) {
         fprintf(where,
                 "\nFor more information, "
-                "please review http://www.microchip.com/erratum_psrd_psrd\n");
+                "please review https://www.microchip.com/erratum_psrd_psrd\n");
       }
       fprintf(where,"\n");
     }

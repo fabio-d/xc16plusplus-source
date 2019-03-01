@@ -143,7 +143,8 @@ enum pic30_builtins
    PIC30_BUILTIN_ACCH,
    PIC30_BUILTIN_ACCU,
    PIC30_BUILTIN_FF1R,
-   PIC30_BUILTIN_FF1L
+   PIC30_BUILTIN_FF1L,
+   PIC30_BUILTIN_WRITERPCON
 };
 
 #define       TARGET_USE_PA   1
@@ -172,6 +173,8 @@ enum pic30_builtins
 #define CC1_SPEC  " \
   %(mchp_cci_cc1_spec) \
   %{!mresource=: %{!mdfp=*: -mresource=%I-../../c30_device.info}} \
+  %{mpa: %{save-temps: -save-temps} %{save-temps=*: -save-temps=%*}} \
+  %{mpa=*: %{save-temps: -save-temps} %{save-temps=*: -save-temps=%*}} \
   -omf=" OMF
 
 #define LINK_SPEC   " \
@@ -3070,4 +3073,6 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define USE_LOAD_PRE_DECREMENT(mode)  (((mode) == QImode) || ((mode) == HImode))
 #define USE_STORE_PRE_INCREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
 #define USE_STORE_PRE_DECREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
+
+extern void record_psv_tracking(int delete, int clear, rtx x);
 

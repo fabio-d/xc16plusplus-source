@@ -1283,6 +1283,7 @@
   (UNSPECV_PSVCONVERT          108)
   (UNSPEC_FF1L                 109)
   (UNSPEC_ASHIFTSI_LOW         110)
+  (UNSPECV_WRITERPCON          111) ; __builtin_write_RPCON
   (UNSPECV_TEMP                199)
  ]
 )
@@ -5723,10 +5724,10 @@
   "
 {
   if (pic30_emit_move_sequence(operands, QImode)) DONE;
-  if (pic30_move_operand(operands[1],GET_MODE(operands[1]))) {
+  if (pic30_move_operand(operands[1],QImode)) {
      emit(gen_movqi_gen_DATA(operands[0],operands[1]));
      DONE;
-  } else if (pic30_move_APSV_operand(operands[1],GET_MODE(operands[1]))) {
+  } else if (pic30_move_APSV_operand(operands[1],QImode)) {
      emit(gen_movqi_gen_APSV(operands[0],operands[1]));
      DONE;
   }
@@ -7179,6 +7180,8 @@
   ""
   "
    if (TARGET_TRACK_PSVPAG) {
+     extern int set_psv_called;
+     set_psv_called=1;
      emit_insn(
        gen_set_nvpsv(operand0)
      );
@@ -15046,7 +15049,11 @@
         }
       }
     case 6: /* < = r */
-      return \"mov.d %t1,%0\;mov.d %1,%0\";
+      if (pic30_pre_modify(operands[1])) {
+        return \"sub %r0,#8,%r0\;mov.d %1, [%r0++]\;mov.d %t1, [%r0--]\";
+      } else {
+        return \"mov.d %1,[%r0++]\;mov.d %t1,[%r0--]\;sub %r0,#8,%r0\";
+      }
     case 7: /* TU = r */
       return \"mov %1,%0\;\"
              \"mov %d1,%Q0\;\"
@@ -15429,7 +15436,7 @@
   ""
   "
 {
-   if (pic30_emit_move_sequence(operands, GET_MODE(operands[0]))) DONE;
+   if (pic30_emit_move_sequence(operands, <MODE>mode)) DONE;
 }")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -29799,7 +29806,7 @@
           emit(gen_one_cmplqi2_APSV(operands[0],operands[1]));
           DONE;
         } else {
-          rtx op1 = gen_reg_rtx(GET_MODE(operands[1]));
+          rtx op1 = gen_reg_rtx(QImode);
 
           emit_move_insn(op1, operands[1]);
           emit(gen_one_cmplqi2_DATA(operands[0],op1));
@@ -29851,7 +29858,7 @@
           emit(gen_one_cmplhi2_APSV(operands[0],operands[1]));
           DONE;
         } else {
-          rtx op1 = gen_reg_rtx(GET_MODE(operands[1]));
+          rtx op1 = gen_reg_rtx(HImode);
 
           emit_move_insn(op1, operands[1]);
           emit(gen_one_cmplhi2_DATA(operands[0],op1));
@@ -32751,7 +32758,9 @@
           } else {
             return \"bfins #%2,#%1,%3,%0\";
           }
-        } 
+        } else {
+          gcc_assert(0);
+        }
       } else {
         return \"bfins #%2,#%1,%3,%0\";
       }
@@ -32836,7 +32845,10 @@
   int mode;
   if (pic30_isav4_target() && 
       pic30_mode2_or_near_operand(operands[0],VOIDmode) &&
-      (INTVAL(operands[1]) > 1)) {
+      (INTVAL(operands[1]) > 1) &&
+      pic30_reg_or_lit8(operands[3], VOIDmode) &&
+      (INTVAL(operands[1])+INTVAL(operands[2])<17)
+     ) {
       emit(
         gen_bfins(operands[0],operands[1],operands[2],operands[3])
       );
@@ -33231,12 +33243,16 @@
        if (psv_page == 0) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
          psv_page = gen_reg_rtx(HImode);
-         emit(
-           gen_save_const_psv(psv_page, sfr)
+         record_psv_tracking(0,0,
+           emit(
+             gen_save_const_psv(psv_page, sfr)
+           )
          );
        } 
-       emit(
-         gen_set_psv(psv_page)
+       record_psv_tracking(0,0,
+         emit(
+           gen_set_nvpsv(psv_page)
+         )
        );
      }
      emit(
@@ -33254,11 +33270,15 @@
        } else DONE;
        psv_page = gen_reg_rtx(HImode);
 #if 1
-       emit(
-         gen_save_const_psv(psv_page, sfr)
+       record_psv_tracking(0,0,
+         emit(
+           gen_save_const_psv(psv_page, sfr)
+         )
        );
-       emit(
-         gen_set_psv(psv_page)
+       record_psv_tracking(0,0,
+         emit(
+           gen_set_nvpsv(psv_page)
+         )
        );
 #else
        emit(
@@ -33448,12 +33468,16 @@
        if (psv_page == 0) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
          psv_page = gen_reg_rtx(HImode);
-         emit(
-           gen_save_const_psv(psv_page, sfr)
+         record_psv_tracking(0,0,
+           emit(
+             gen_save_const_psv(psv_page, sfr)
+           )
          );
        }
-       emit(
-         gen_set_psv(psv_page)
+       record_psv_tracking(0,0,
+         emit(
+           gen_set_nvpsv(psv_page)
+         )
        );
      }
      emit(
@@ -33470,11 +33494,15 @@
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
        } else DONE;
        psv_page = gen_reg_rtx(HImode);
-       emit(
-         gen_save_const_psv(psv_page, sfr)
+       record_psv_tracking(0,0,
+         emit(
+           gen_save_const_psv(psv_page, sfr)
+         )
        );
-       emit(
-         gen_set_psv(psv_page)
+       record_psv_tracking(0,0,
+         emit(
+           gen_set_nvpsv(psv_page)
+         )
        );
      }    
 
@@ -33655,12 +33683,16 @@
     if (psv_page == 0) {
       sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
       psv_page = gen_reg_rtx(HImode);
-      emit(
-        gen_save_const_psv(psv_page, sfr)
+      record_psv_tracking(0,0,
+        emit(
+          gen_save_const_psv(psv_page, sfr)
+        )
       );
     }
-    emit(
-      gen_set_psv(psv_page)
+    record_psv_tracking(0,0,
+      emit(
+        gen_set_nvpsv(psv_page)
+      )
     );
   }
   emit(
@@ -33677,11 +33709,15 @@
       sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
     } else DONE;
     psv_page = gen_reg_rtx(HImode);
-    emit(
-      gen_save_const_psv(psv_page, sfr)
+    record_psv_tracking(0,0,
+      emit(
+        gen_save_const_psv(psv_page, sfr)
+      )
     );
-    emit(
-      gen_set_psv(psv_page)
+    record_psv_tracking(0,0,
+      emit(
+        gen_set_nvpsv(psv_page)
+      )
     );
   }   
 
@@ -34050,7 +34086,18 @@
   ".set ___PA___,0\;mov _DFCON,%2\;bset %2,#7\;mov %0,_DFKEY\;mov %1,_DFKEY\;mov %2,_DFCON\;clr %0\;clr %1\;.set ___PA___,1"
 )
 
-
+(define_insn "write_rpcon"
+  [ (unspec_volatile [
+      (match_operand 0 "pic30_register_operand" "r")] UNSPECV_WRITERPCON)
+    (clobber 
+         (match_scratch:HI 1                          "=&r"))
+  ]
+  ""
+  ".set ___PA___,0\;mov #0x55,%1\;mov %1,_NVMKEY\;mov #0xAA,%1\;mov %1,_NVMKEY\;mov %0,_RPCON\;.set ___PA___,1"
+  [
+    (set_attr "type" "etc")
+  ]
+)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; nop
@@ -34322,9 +34369,9 @@
   "*
    {
      if (which_alternative == 0) {
-       return \"mov _DISICNT,%1\;disi #0x3FFF\;mov #0xE0,%0\;ior _SR\;mov %1,_DISICNT\;mov w0,_WREG0\";
+       return \"disi #0x4\;mov #0xE0,%0\;ior _SR\";
      } else {
-      return \"mov _DISICNT,%1\;disi #0x3FFF\;mov _SR,%1\;ior #0xE0,%1\;mov %1,_SR\;mov %1,_DISICNT\;mov w0,_WREG0\";
+       return \"disi #0x6\;mov _SR,%1\;ior #0xE0,%1\;mov %1,_SR\";
      }
    }"
 )
@@ -34336,7 +34383,7 @@
    (clobber
       (match_scratch:HI 1  "=r"))]
   ""
-  "mov _DISICNT,%1\;disi #0x3FFF\;mov _SR,%0\;and.b #0x1F,%0\;mov %0,_SR\;mov %1,_DISICNT\;mov w0,_WREG0"
+  "disi #0x6\;mov _SR,%0\;and.b #0x1F,%0\;mov %0,_SR"
 )
 
 (define_expand "disable_isr"

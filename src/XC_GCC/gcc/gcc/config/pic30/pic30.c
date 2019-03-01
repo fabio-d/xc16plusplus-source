@@ -742,7 +742,7 @@ pic30_errata_map errata_map[] = {
                         "\t\texecuted back to back, one or more subsequent\n"
                         "\t\tinstructions will be mis-executed. For more\n"
                         "\t\tinformation, please review\n"
-                        "\t\thttp://www.microchip.com/erratum_psrd_psrd.\n",
+                        "\t\thttps://www.microchip.com/erratum_psrd_psrd.\n",
     0, 0 },
 #endif
   { "psrd_psrd",     psrd_psrd_errata_movd,
@@ -752,7 +752,7 @@ pic30_errata_map errata_map[] = {
                         "\t\texecuted back to back, one or more subsequent\n"
                         "\t\tinstructions will be mis-executed. For more\n"
                         "\t\tinformation, please review\n"
-                        "\t\thttp://www.microchip.com/erratum_psrd_psrd.\n",
+                        "\t\thttps://www.microchip.com/erratum_psrd_psrd.\n",
     0, 0 },
   { 0, 0, 0, 0, 0 }
 };
@@ -833,7 +833,7 @@ static int pic30_const_in_code_tree_p(tree exp);
 static unsigned int pic30_case_values_threshold(void);
 static cheap_rtx_list *pic30_adjust_frame_remap_insn = 0;
 static tree constant_string(rtx x);
-static const char *pic30_set_constant_section_helper(const char **name,
+       const char *pic30_set_constant_section_helper(const char **name,
                                                      SECTION_FLAGS_INT *flags,
                                                      tree *decl, int set);
 static void push_cheap_rtx(cheap_rtx_list **l, rtx x, tree t, int flag);
@@ -897,7 +897,7 @@ static void pic30_dependencies_evaluation_hook(rtx head, rtx tail);
 static int set_section_stack(const char *pszSectionName,
                              SECTION_FLAGS_INT pszSectionFlag);
 bool pic30_frame_pointer_required(void);
-static void pic30_expand_to_rtl_hook(void);
+static void pic30_expand_to_rtl_hook(int);
 
 void pic30_no_section(void);
 static int pic30_valid_readwrite_attribute(tree args, tree identifier,
@@ -3293,7 +3293,7 @@ void pic30_override_options_after_change(void) {
     #define NULLIFY(X) \
     if ((X) && (message_displayed++ == 0)) \
       fnotice(stderr,"Options have been disabled due to %s license\n" \
-              "Visit http://www.microchip.com/MPLABXCcompilers to purchase a new key.\n", \
+              "Visit https://www.microchip.com/compilers to purchase a new key.\n", \
               invalid); \
     X
 
@@ -3746,10 +3746,10 @@ void pic30_override_options(void) {
     } else if (pic30_license_valid == LMR_INVALIDFORDEVICE) {
       warning_at(0,0, "Your license is invalid for the device selected.\n"
             "Select an appropriate device, or acquire the correct license.\n"
-            "Visit http://www.microchip.com/ to purchase a new key.\n");
+            "Visit https://www.microchip.com/ to purchase a new key.\n");
     } else if (pic30_license_valid == LMR_BADCMDLINE) {
       warning_at(0,0,"License manager failure, please contact your support\n"
-            "representative or http://www.microchip.com/support\n");
+            "representative or https://www.microchip.com/technical-support\n");
     } else {
       warning_at(0,0,"General License error, please install a license\n");
     }
@@ -3772,7 +3772,7 @@ void pic30_override_options(void) {
     #define NULLIFY(X) \
     if ((X) && (message_displayed++ == 0)) \
       fnotice(stderr,"Options have been disabled due to %s license\n" \
-              "Visit http://www.microchip.com/ to purchase a new key.\n", \
+              "Visit https://www.microchip.com/ to purchase a new key.\n", \
               invalid); \
     X
 
@@ -4493,6 +4493,15 @@ static void pic30_init_builtins(void) {
                       unsigned_type_node, p0_type, NULL_TREE);
   add_builtin_function_public("__builtin_write_PWMSFR", fn_type,
                    PIC30_BUILTIN_WRITEPWMSFR, BUILT_IN_MD, NULL, NULL_TREE);
+
+  /* builtin to write to RPCON
+  ** Prototype: void __builtin_write_RPCON(unsigned int value);
+  */
+  fn_type = build_function_type_list(void_type_node, unsigned_type_node, 
+                   NULL_TREE);
+  add_builtin_function_public("__builtin_write_RPCON", fn_type,
+                   PIC30_BUILTIN_WRITERPCON, BUILT_IN_MD, NULL, NULL_TREE);
+  
 
   /*
   ** builtin for safe reading of an SFR.
@@ -5263,6 +5272,17 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       emit_insn(gen_write_pwmsfr(gen_rtx_MEM(HImode,r0),r1,r2,r3,
                                  gen_rtx_MEM(HImode,r4)));
 
+      break;
+    }
+    
+    case PIC30_BUILTIN_WRITERPCON: {
+      arg0 = TREE_VALUE(arglist);
+      r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
+      if (!register_operand(r0, HImode))
+      {
+        r0 = copy_to_mode_reg(HImode, r0);
+      }
+      emit_insn(gen_write_rpcon(r0));
       break;
     }
 
@@ -12182,7 +12202,7 @@ int pic30_one_bit_set(enum machine_mode mode, rtx x, int set) {
     mask = -1;
   }
   if (GET_CODE(x) == CONST_INT) {
-    return pic30_one_bit_set_p(set ? INTVAL(x) & mask : ~(INTVAL(x) & mask));
+    return pic30_one_bit_set_p(set ? INTVAL(x) & mask : ((~INTVAL(x)) & mask));
   }
   return 0;
 }
@@ -12819,7 +12839,8 @@ void pic30_expand_prologue(void) {
   static char constconst[] = "_const_psvpage";
   static char *psvpage;
 
-  psvpage = pic30_eds_target() ? PIC30_NEAR_FLAG "DSRPAG" : PIC30_NEAR_FLAG "PSVPAG";
+  psvpage = pic30_eds_target() ? PIC30_NEAR_FLAG "DSRPAG" : 
+                                 PIC30_NEAR_FLAG "PSVPAG";
   is_boot_fn = (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                                  DECL_ATTRIBUTES(current_function_decl)) != 0);
 
@@ -13435,6 +13456,14 @@ void pic30_expand_epilogue(void) {
       if (fScratch) (void) pic30_expand_pop(HImode, regno);
     }
 
+    if (pic30_eds_target()) {
+      sp = stack_pointer_rtx;
+      sp = gen_rtx_PRE_DEC(HImode, sp);
+      sp = gen_rtx_MEM(HImode, sp);
+      sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "DSWPAG");
+      sfr = gen_rtx_MEM(HImode, sfr);
+      insn = emit_insn(gen_pophi(sfr, sp));
+    }
     sp = stack_pointer_rtx;
     sp = gen_rtx_PRE_DEC(HImode, sp);
     sp = gen_rtx_MEM(HImode, sp);
@@ -16504,21 +16533,23 @@ const char *pic30_set_constant_section_helper(const char **name,
   static SECTION_FLAGS_INT saved_flags;
   static tree saved_decl;
 
-  if (*flags && *name && *decl) {
-    if (saved_name) free(saved_name);
+  if (set) {
+    if (*flags && *name && *decl) {
+      // if (saved_name) free(saved_name);
 
-    saved_name = xstrdup(*name);
-    saved_flags = *flags;
-    saved_decl = *decl;
-  } else if ((set) && (*name == 0)) {
-    if (saved_name) free(saved_name);
-    saved_name = 0;
+      saved_name = *name;
+      saved_flags = *flags;
+      saved_decl = *decl;
+    } else if (*name == 0) {
+      // if (saved_name) free(saved_name);
+      saved_name = 0;
 
-    if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
-      saved_name = xstrdup(".const");
-      saved_decl = 0;
-      saved_flags = SECTION_READ_ONLY | SECTION_PAGE;
-    }
+      if (TARGET_CONST_IN_CODE || TARGET_CONST_IN_PSV) {
+        saved_name = ".const";
+        saved_decl = 0;
+        saved_flags = SECTION_READ_ONLY | SECTION_PAGE;
+      }
+    } 
   } 
   if (!set) {
     if (name) *name = saved_name;
@@ -21673,13 +21704,29 @@ void pic30_adjust_reg_alloc_order() {
 }
 
 static rtx pic30_psv_value = 0;
+int set_psv_called=0;
+
+void record_psv_tracking(int delete, int clear, rtx x) {
+  static struct cheap_rtx_list *psv_check = 0;
+
+  if (clear == 0) {
+    push_cheap_rtx(&psv_check, x, 0, 0);
+  } else {
+    while (psv_check) {
+      x = pop_cheap_rtx(&psv_check, 0, 0);
+      if (x && delete) {
+        delete_insn(x);
+      }
+    }
+  }
+}
 
 rtx pic30_get_set_psv_value(rtx set) {
   if (set) pic30_psv_value = set;
   return pic30_psv_value;
 }
 
-void pic30_expand_to_rtl_hook(void) {
+void pic30_expand_to_rtl_hook(int end) {
   rtx sfr;
   rtx reg;
   int is_secure_fn, is_boot_fn;
@@ -21687,35 +21734,45 @@ void pic30_expand_to_rtl_hook(void) {
   static char secureconst[] = "_secureconst_psvpage";
   static char constconst[] = "_const_psvpage";
   
-  pic30_psv_value = 0;
-  if (TARGET_TRACK_PSVPAG & TARGET_CONST_IN_CODE) {
-    const char *name;
+  if (end == 0) {
+    pic30_psv_value = 0;
+    if (TARGET_TRACK_PSVPAG && TARGET_CONST_IN_CODE) {
+      const char *name;
 
-    /* If const-in-code is enabled, we come into the function with PSVPAG set
-       for constants - but we don't know this */
-    name = IDENTIFIER_POINTER(DECL_NAME(current_function_decl));
+      /* If const-in-code is enabled, we come into the function with PSVPAG set
+         for constants - but we don't know this */
+      name = IDENTIFIER_POINTER(DECL_NAME(current_function_decl));
+  
+      is_boot_fn = (lookup_attribute(
+                        IDENTIFIER_POINTER(pic30_identBoot[0]),
+                        DECL_ATTRIBUTES(current_function_decl)) != 0);
+      is_secure_fn = (lookup_attribute(
+                        IDENTIFIER_POINTER(pic30_identSecure[0]),
+                        DECL_ATTRIBUTES(current_function_decl))!= 0);
 
-    is_boot_fn = (lookup_attribute(
-                      IDENTIFIER_POINTER(pic30_identBoot[0]),
-                      DECL_ATTRIBUTES(current_function_decl)) != 0);
-    is_secure_fn = (lookup_attribute(
-                      IDENTIFIER_POINTER(pic30_identSecure[0]),
-                      DECL_ATTRIBUTES(current_function_decl))!= 0);
-
-    if (is_boot_fn)
-      sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
-    else if (is_secure_fn)
-      sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
-    else
-      sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
-    reg = gen_reg_rtx(HImode);
-    emit(
-      gen_movhi_address(reg,sfr)
-    );
-    (void) pic30_get_set_psv_value(reg);
-    emit(
-      gen_set_psv(reg)
-    );
+      if (is_boot_fn)
+        sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
+      else if (is_secure_fn)
+        sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
+      else
+        sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
+      reg = gen_reg_rtx(HImode);
+      record_psv_tracking(0, 0, 
+        emit(
+          gen_movhi_address(reg,sfr)
+        )
+      );
+      (void) pic30_get_set_psv_value(reg);
+      record_psv_tracking(0,0,
+        emit(
+          gen_set_psv(reg)
+        )
+      );
+      set_psv_called=0;
+    }
+  } else {
+    /* expand_to_rtl_hook called at the end, too */
+    record_psv_tracking((set_psv_called == 0), 1, 0);
   }
 }
 

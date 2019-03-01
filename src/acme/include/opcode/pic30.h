@@ -57,7 +57,10 @@ enum pic30_modifier
 
 struct pic30_operand_value
 {
-  long value;
+  union {
+    long value;
+    const char *str_value;
+  };
   unsigned long type;           /* holds operatorT */
   long optional_value;
   enum pic30_modifier modifier;

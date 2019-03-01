@@ -715,7 +715,12 @@ struct GTY(()) constant_descriptor_tree {
      hashfn is called can't work properly, as that means recursive
      use of the hash table during hash table expansion.  */
   hashval_t hash;
+
+  /* section name for which this data belongs */
   const char *section_name;
+
+  /* declaration which last USED this data */
+  tree last_decl;
 };
 
 /* Return true when function NODE is only called directly.

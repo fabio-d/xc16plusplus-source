@@ -159,6 +159,9 @@ extern int pic30_invalid_address_operand(rtx op, enum machine_mode mode);
 extern const char *pic30_set_constant_section(const char *name,
                                               SECTION_FLAGS_INT flags,
                                               tree decl);
+extern const char *pic30_set_constant_section_helper(const char **name,
+                                                     SECTION_FLAGS_INT *flags,
+                                                     tree *decl, int set);
 extern const char *pic30_get_constant_section(void);
 extern int pic30_asm_function_p(int);
 extern int pic30_interrupt_function_p(tree);

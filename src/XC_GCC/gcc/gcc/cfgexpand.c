@@ -3836,7 +3836,7 @@ gimple_expand_cfg (void)
   discover_nonconstant_array_refs ();
 
 #ifndef _BUILD_C30_
-  targetm.expand_to_rtl_hook ();
+  targetm.expand_to_rtl_hook (0);
 #endif
   crtl->stack_alignment_needed = STACK_BOUNDARY;
   crtl->max_used_stack_slot_alignment = STACK_BOUNDARY;
@@ -3863,7 +3863,7 @@ gimple_expand_cfg (void)
   /* Set up parameters and prepare for return, for the function.  */
   expand_function_start (current_function_decl);
 #ifdef _BUILD_C30_
-  targetm.expand_to_rtl_hook ();
+  targetm.expand_to_rtl_hook (0);
 #endif
 
   /* Now that we also have the parameter RTXs, copy them over to our
@@ -4012,6 +4012,12 @@ gimple_expand_cfg (void)
   /* Now that we're done expanding trees to RTL, we shouldn't have any
      more CONCATs anywhere.  */
   generating_concat_p = 0;
+
+#ifdef _BUILD_C30_
+  /* extension -- call expand_to_rtl_hook again, with 1 to indicate that
+     we are finished expanding ... */
+  targetm.expand_to_rtl_hook (1);
+#endif
 
   if (dump_file)
     {

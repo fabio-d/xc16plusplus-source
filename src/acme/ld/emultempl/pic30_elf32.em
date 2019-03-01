@@ -7267,6 +7267,7 @@ gld${EMULATION_NAME}_before_allocation()
   extern bfd_vma aivt_base;
   extern bfd_boolean aivt_enabled;
   extern bfd_vma aivt_len;
+  extern int ivt_elements;
 
   if (pic30_debug)
     {
@@ -7295,6 +7296,9 @@ gld${EMULATION_NAME}_before_allocation()
     lang_memory_region_type *region;
 
     region = lang_memory_region_lookup ("program");
+                                          /* elements ? */
+    build_aivt_free_block_list(aivt_base + ivt_elements * 2, 
+                               aivt_len - (ivt_elements * 2));
     region->current = fbslim_address;
   }
   if (pic30_debug)

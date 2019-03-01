@@ -237,18 +237,9 @@ static char * get_first_input_target
   PARAMS ((void));
 
 #ifdef PIC30
-#if 0
-/* CAW - moved to the emulation file */
-void get_aivt_base PARAMS ((void));
-
-bfd_boolean aivt_enabled = FALSE;
-bfd_vma aivt_base = 0;
-bfd_vma aivt_len = 0;
-#else
 extern bfd_boolean aivt_enabled;
 extern bfd_vma aivt_base;
 extern bfd_vma aivt_len;
-#endif
 extern struct pic30_undefsym_table *pic30_undefsym_init
   PARAMS ((void));
 extern void pic30_init_section_list
@@ -3812,6 +3803,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                               os->bfd_section->name, os->region->name);
                     }
                   }
+                  next = unassigned_sections;
                 }
               }
             }
@@ -5176,17 +5168,6 @@ lang_process ()
 
   if (global_PROCESSOR && !pic30_is_generic(global_PROCESSOR)) {
     pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
-#if 0
-    pic30_get_ivt(global_PROCESSOR, pic30_debug);
-    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
-#endif
-
-#if 0
-   /* cannot do this part yet... its not possible, the input langauge
-        statements have not been processed */
-   if (pic30_has_floating_aivt)
-     get_aivt_base();
-#endif
 
   }
 
@@ -6406,82 +6387,3 @@ lang_add_unique (name)
   ent->next = unique_section_list;
   unique_section_list = ent;
 }
-
-#if 0
-/* CAW - moved to the emulation file */
-void 
-get_aivt_base ()
-{
-    bfd_size_type len;
-    int i, count = 0;
-    unsigned int aivtdis_bit = 0;
-    unsigned char *contents;
-    lang_memory_region_type *region;
-
-    LANG_FOR_EACH_INPUT_STATEMENT (f) 
-    {
-      asection *sec; 
-      for (sec = f->the_bfd->sections; sec != NULL; sec = sec->next)
-      {
-        if (PIC30_IS_ABSOLUTE_ATTR(sec))
-        {
-          len = bfd_section_size (f->the_bfd, sec);
-          if ((aivtdis_bit_ptr >= sec->vma) &&
-              (aivtdis_bit_ptr < sec->vma + len))
-          {
-            contents = xmalloc (len);
-            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
-              einfo (_("%X%P: unable to read %s section contents\n"), sec);
-            else
-            {
-              for (i = 0; i < 3; i++)  {
-                unsigned int val = contents[i+(aivtdis_bit_ptr - sec->vma)];
-                aivtdis_bit |= val << (i * 8);
-              }
-              if ((aivtdis_bit & aivtdis_mask) == 0)
-                aivt_enabled = TRUE;
-            }
-            free(contents);
-          }
-          if ((aivtloc_ptr >= sec->vma) && 
-              (aivtloc_ptr < sec->vma + len))
-          {
-            contents = xmalloc (len);
-            if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
-              einfo (_("%X%P: unable to read %s section contents\n"), sec);
-            else
-            {
-              for (i = 0; i < 3; i++) {
-                unsigned int val = contents[i+(aivtloc_ptr - sec->vma)];
-                aivt_base |= val << (i * 8);
-              }
-              aivt_base = ~(aivt_base);
-              aivt_base &= aivtloc_mask;
-              aivt_base -= 1;
-              aivt_base *= 1024;
-              /* CAW - this should be recorded in the resource information? */
-              aivt_len = 0x400; /* The device requires that the entire page 
-                                   where the vector table resides 
-                                   be allocated. xc16-746 */
-              /* CAW - Also, this defines the boot sector boundary */
-              {  extern bfd_boolean pic30_has_user_boot;
-                 extern unsigned int pic30_boot_flash_size;
-
-                 pic30_has_user_boot = 1;
-                 pic30_boot_flash_size =  aivt_base;
-              }
-            }
-            free(contents);
-          } 
-        }
-      }
-    }
-    
-    region = lang_memory_region_lookup ("program");
-    
-    if ((aivt_base < region->origin) || 
-        (aivt_base >= (region->origin + region->length)))
-      aivt_enabled = FALSE;
-
-}
-#endif

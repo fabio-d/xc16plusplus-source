@@ -107,6 +107,7 @@ enum {
 /* Data structure for free program memory blocks */
 extern struct pic30_memory *program_memory_free_blocks;
 extern struct pic30_memory *auxflash_memory_free_blocks;
+extern struct pic30_memory *aivt_free_blocks;
 
 static int locate_options = 0;
 static bfd_vma exclude_addr = 0;
@@ -1584,6 +1585,10 @@ select_free_block(struct pic30_section *s, unsigned int len,
     if (PIC30_IS_SHARED_ATTR(s->sec) && PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
       b = pic30_static_assign_memory(shared_data_memory_blocks,len,s->sec->lma);
     }
+    if ((!b) && (PIC30_IS_CODE_ATTR(s->sec) || PIC30_IS_PSV_ATTR(s->sec))) {
+      /* see if this space at the end of the aivt */
+      b = pic30_static_assign_memory(aivt_free_blocks, len, s->sec->lma);
+    }
 #endif
     if (!b) b = pic30_static_assign_memory(free_blocks, len, s->sec->lma);
     if (!b) {
@@ -2538,6 +2543,18 @@ build_alloc_section_list(unsigned int has_mask, unsigned hasnot_mask) {
   }
 } /* build_alloc_section_list() */
 
+
+void
+build_aivt_free_block_list(bfd_vma start, bfd_vma length) {
+  unsigned int opb = bfd_octets_per_byte(output_bfd);
+
+  if (aivt_free_blocks)
+     pic30_free_memory_list(&aivt_free_blocks);
+
+  pic30_init_memory_list(&aivt_free_blocks);
+
+  pic30_add_to_memory_list(aivt_free_blocks, start, length);
+}
 
 /*
  * build_free_block_list()

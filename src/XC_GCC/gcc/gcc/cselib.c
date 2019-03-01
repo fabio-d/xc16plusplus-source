@@ -629,6 +629,10 @@ rtx_equal_for_cselib_p (rtx x, rtx y)
   const char *fmt;
   int i;
 
+  /* if one access is volatile, we can't say they are equal */
+  if (MEM_VOLATILE_P(x)) return 0;
+  if (MEM_VOLATILE_P(y)) return 0;
+
   if (REG_P (x) || MEM_P (x))
     {
       cselib_val *e = cselib_lookup (x, GET_MODE (x), 0);

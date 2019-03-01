@@ -88,6 +88,19 @@ int size_directive_output;
    this holds 0.  */
 
 tree last_assemble_variable_decl;
+#ifdef _BUILD_C30_
+/* the decl we are currently outputing consts for, cleared after 
+ *  assemble_variable_contents 
+ *
+ *  ie, last_assemble_variable_decl == NULL
+ *      last_output_address_constants_decl != NULL 
+ *         => creating addressed contents
+ *    
+ *      last_assemble_variable_decl == last_output_address_constants_decl
+ *         => creating object
+ */
+tree last_output_address_constants_decl;
+#endif
 
 /* The following global variable indicates if the first basic block
    in a function belongs to the cold partition or not.  */
@@ -2372,10 +2385,14 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
 #if defined(_BUILD_C30_)
     /* For C30 we need to output the 'constants' into the same section
        as the DECL, just in case the data is in a peculiar section */
-    if (sect->common.flags & SECTION_CONST_NAME) 
+    if (sect->common.flags & SECTION_CONST_NAME) {
+      /* SECTION_CONST_NAME is only set if there is a named section acting
+         as .const */
       pic30_set_constant_section(sect->named.name, sect->common.flags,
                                  sect->named.decl);
+    }
 #endif
+    last_output_address_constants_decl = decl;
     output_addressed_constants (DECL_INITIAL (decl));
   }
 
@@ -2410,6 +2427,7 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
 #ifdef _BUILD_C30_
     if (sect->common.flags & SECTION_CONST_NAME) 
       pic30_set_constant_section(0,0,sect->named.decl);
+    last_output_address_constants_decl = NULL;
 #endif
 #ifdef _BUILD_C30_
    pic30_emit_fillupper(decl,0);
@@ -3126,10 +3144,20 @@ const_desc_eq (const void *p1, const void *p2)
   if (c1->hash != c2->hash)
     return 0;
 #ifdef _BUILD_C30_
-  if (c1->section_name || c2->section_name) {
+  if ((c1->last_decl != NULL) && (c2->last_decl != NULL)) {
+    /* ensure that this descriptor is appropriate for this decl -
+     * ie, we have output_addressed_constants, so make sure we pick the right
+     *     constant
+     */
+    if (c1->last_decl != c2->last_decl) return 0;
+  } else if (c1->section_name || c2->section_name) {
+    /* ensure that the desc is in the same section */
+    /* we are in the process of output_addressed_constants, make sure the 
+     *   section is correct */
     if ((c1->section_name == 0) || (c2->section_name == 0)) return 0;
     if (strcmp(c1->section_name,c2->section_name) != 0) return 0;
-  } /* else no named section */
+  }
+  /* make sure the constant matches! */
 #endif
   return compare_constant (c1->value, c2->value);
 }
@@ -3477,7 +3505,16 @@ output_constant_def (tree exp, int defer)
   key.value = exp;
   key.hash = const_hash_1 (exp);
 #ifdef _BUILD_C30_
+  /* when we are in the process of 'output_addressed_constants' the current
+   * section_name will represent the correct section to place the constant.
+   *
+   * when we are in the process of 'assemble_variable_contents' the current
+   * section_name will represent the correct section to place the object; we
+   * should lookup the constant based on the decl for which we are creating
+   * content --- which might not be in the same section
+   */
   key.section_name = section_name;
+  key.last_decl = last_assemble_variable_decl;
 #endif
   loc = htab_find_slot_with_hash (const_desc_htab, &key, key.hash, INSERT);
 
@@ -3487,13 +3524,18 @@ output_constant_def (tree exp, int defer)
       desc = build_constant_desc (exp);
       desc->hash = key.hash;
 #ifdef _BUILD_C30_
-      desc->section_name = section_name ? xstrdup(section_name) : section_name;
+      desc->section_name = section_name;
       if (loc)
 #endif
       *loc = desc;
     }
 
   maybe_output_constant_def_contents (desc, defer);
+
+#ifdef _BUILD_C30_
+  desc->last_decl = last_output_address_constants_decl;
+#endif
+
   return desc->rtl;
 }
 
@@ -4269,7 +4311,7 @@ compute_reloc_for_constant (tree exp)
    Indicate whether an ADDR_EXPR has been encountered.  */
 
 static void
-output_addressed_constants (tree exp)
+output_addressed_constants_1 (tree exp, int addr_space_qualified)
 {
   tree tem;
 
@@ -4278,7 +4320,7 @@ output_addressed_constants (tree exp)
 #ifdef _BUILD_C30_
     /* ADDR_SPACE_CONVERT_EXPR can be constant too */
     case ADDR_SPACE_CONVERT_EXPR:
-      output_addressed_constants(TREE_OPERAND(exp,0));
+      output_addressed_constants_1(TREE_OPERAND(exp,0),1);
       break;
 #endif
 
@@ -4303,23 +4345,44 @@ output_addressed_constants (tree exp)
     case PLUS_EXPR:
     case POINTER_PLUS_EXPR:
     case MINUS_EXPR:
-      output_addressed_constants (TREE_OPERAND (exp, 1));
+      output_addressed_constants_1 (TREE_OPERAND (exp, 1),addr_space_qualified);
       /* Fall through.  */
 
     CASE_CONVERT:
     case VIEW_CONVERT_EXPR:
-      output_addressed_constants (TREE_OPERAND (exp, 0));
-      break;
+#ifdef _BUILD_C30_
+      /* a cast; if we have const-in-code enabled, and this is a const char *,
+       *   output this to the const section UNLESS we are assigning to 
+       *   a ADDR_SPACE_CONVERT_EXPR
+       */
+      { const char *current_section_name;
+        SECTION_FLAGS_INT current_section_flags;
+        tree current_decl;
+       
+        pic30_set_constant_section_helper(&current_section_name, 
+                                          &current_section_flags, 
+                                          &current_decl, 0);
+        if ((addr_space_qualified == 0) && TARGET_CONST_IN_CODE && 
+            TREE_READONLY(exp)) {
+          pic30_set_constant_section(0,0,0);
+        }
+#endif
+        output_addressed_constants_1 (TREE_OPERAND (exp, 0),
+                                      addr_space_qualified);
+      }
+        break;
 
     case CONSTRUCTOR:
       {
 	unsigned HOST_WIDE_INT idx;
+#if 0
         if (TREE_CODE(TREE_TYPE(exp)) == RECORD_TYPE) {
           pic30_set_constant_section(0,0,0);
         }
+#endif
 	FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (exp), idx, tem)
 	  if (tem != 0)
-	    output_addressed_constants (tem);
+	    output_addressed_constants_1 (tem, addr_space_qualified);
       }
       break;
 
@@ -4327,6 +4390,12 @@ output_addressed_constants (tree exp)
       break;
     }
 }
+
+static void
+output_addressed_constants (tree exp) {
+  output_addressed_constants_1(exp,0);
+}
+
 
 /* Whether a constructor CTOR is a valid static constant initializer if all
    its elements are.  This used to be internal to initializer_constant_valid_p

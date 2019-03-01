@@ -406,6 +406,8 @@ extern const struct pic30_processor pic30_processors[];
 #endif
 extern const int pic30_num_processors;
 
+#if 0
+/* CAW - not used */
 struct pic30_predefined_symbol
 {
    const char * name;
@@ -414,6 +416,7 @@ struct pic30_predefined_symbol
 
 extern const struct pic30_predefined_symbol pic30_sfr_symbols[];
 extern const int pic30_num_sfr_symbols;
+#endif
 
 /******************************************************************************/
 

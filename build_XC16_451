@@ -19,7 +19,7 @@ BUILDING_SHA=
 INSTALL_DIR=  
 XCLM_DIR=
 
-BUGURL="http://www.microchip.com/support"
+BUGURL="https://www.microchip.com/technical-support"
 
 # What is the native host?
 export NATIVE=
@@ -280,8 +280,8 @@ mkdir -p zlib
 fi
 
 if [ $SUFFIX == "-xclm" ] || [ $SUFFIX == "-exlm" ]; then
-  XCLM_DIR=`find $SRC_DIR/../ -iname xclm_public.h -exec dirname {} \;`
-  if [ ! -f $XCLM_DIR/xclm_public.h ]; then
+  XCLM_DIR=`find $SRC_DIR/../xclm-release -iname xclm_public.h -exec dirname {} \;`
+  if [ ! -f "$XCLM_DIR/xclm_public.h" ]; then
     echo "**** cannot find dir containing xclm_public.h"
     exit 1
   fi

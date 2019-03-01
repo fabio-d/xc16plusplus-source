@@ -777,8 +777,26 @@ exp_fold_tree (tree, current_section, allocation_done, dot, dotp)
 		    {
 		      bfd_vma nextdot;
 
-		      nextdot = (result.value
-				 + current_section->bfd_section->vma);
+#ifdef PIC30
+                      /* CAW - XC16-1037, the 'result' is already offset by
+                       *       the section start because we have converted
+                       *       it to an ABS section; don't add teh vma again
+                       *
+                       * NB, current binutils code does this:
+                       * if (expld.result.section != NULL)
+		       *    nextdot += expld.result.section->vma;
+		       * else
+		       *    nextdot += expld.section->vma;
+                       *
+                       * which has the effect of adding the ABS vma in (0)
+                       */
+
+		      if (result.section == abs_output_section)
+			nextdot = result.value;
+		      else 
+#endif
+			nextdot = (result.value
+				+ current_section->bfd_section->vma);
 		      if (nextdot < dot
 			  && current_section != abs_output_section)
 			einfo (_("%F%S cannot move location counter backwards (from %V to %V)\n"),

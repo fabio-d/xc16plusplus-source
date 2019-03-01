@@ -29,7 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifdef BUGURL
 const char bug_report_url[] = BUGURL;
 #else
-const char bug_report_url[] = "<URL:http://www.microchip.com/support>";
+const char bug_report_url[] = "<URL:https://www.microchip.com/technical-support>";
 #endif
 
 /* The complete version string, assembled from several pieces.

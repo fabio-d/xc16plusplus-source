@@ -519,7 +519,7 @@ ld_abort (file, line, fn)
     einfo (_("%P: internal error: aborting at %s line %d\n"),
 	   file, line);
 #ifdef PIC30
-  einfo (_("%P%F: please report this bug to http://www.microchip.com/support\n"));
+  einfo (_("%P%F: please report this bug to https://www.microchip.com/technical-support\n"));
 #else
   einfo (_("%P%F: please report this bug\n"));
 #endif

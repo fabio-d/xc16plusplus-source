@@ -356,7 +356,7 @@ const int pic30_num_registers =
 
 const char *pic30_page_registers[] = { "DSRPAG", "DSWPAG", "TBLPAG",
                                        "<not-a-pag>", 0 };
-
+#if 0
 /******************************************************************************
  * pic30_sfr_symbols[]
  ******************************************************************************/
@@ -410,6 +410,8 @@ const struct pic30_predefined_symbol pic30_sfr_symbols[] =
 
 const int pic30_num_sfr_symbols =
    (sizeof(pic30_sfr_symbols) / sizeof(struct pic30_predefined_symbol));
+#endif
+
 
 /******************************************************************************
  * pic30_relocation_info[]
@@ -1008,7 +1010,7 @@ const struct pic30_operand pic30_operands[] =
 	FALSE,				/* immediate operand ? */
        	PIC30_RELOC_INFO_NONE ,   	/* default relocation type */
 	pic30_match_page_reg,   	/* is_match() */
-        "Operand must be between 0 and 16383, inclusive.",
+        "Invalid register, must be: DSRPAG, DSWPAG, or TBLPAG.",
 	pic30_insert_page_reg,      	                /* insert() */
 	pic30_extract_page_reg				/* extract() */
    },
@@ -5720,8 +5722,10 @@ pic30_match_page_reg (check)
 
 { int i;
 
-  for (i = 0; pic30_page_registers[i]; i++) {
-    if (strcmp(pic30_page_registers[i], check->value) == 0) return 1;
+  if (check->type == OPND_PAGE_SYMBOL) {
+    for (i = 0; pic30_page_registers[i]; i++) {
+      if (strcmp(pic30_page_registers[i], check->str_value) == 0) return 1;
+    }
   }
   return 0;
 } 
@@ -6865,10 +6869,11 @@ pic30_insert_page_reg (insn, flags, opnd, operand_value,
    char **error_msg;
 {
 
-  int i;
+  int i = 3; // invalid
 
+  if (operand_value->type == OPND_PAGE_SYMBOL)
   for (i = 0; pic30_page_registers[i]; i++) {
-    if (strcmp(pic30_page_registers[i], operand_value->value) == 0) {
+    if (strcmp(pic30_page_registers[i], operand_value->str_value) == 0) {
       break;
     }
   }

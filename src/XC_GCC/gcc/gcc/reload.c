@@ -6087,9 +6087,16 @@ find_reloads_address_1 (enum machine_mode mode, rtx x, int context,
 	  gcc_assert (regno < FIRST_PSEUDO_REGISTER
 		      || reg_equiv_constant[regno] == 0);
 
-#if defined(_BUILD_C30_) && 0
+#if defined(_BUILD_C30_) && 1
           /* fix for c30-242 (orig), c30-505 (4.5.1 port) */
-#else
+          if (num_not_at_initial_offset) {
+            /* doing this code when num_not_at_initial_offset causes us to
+                  miss the update.  leaving it out allows us to generate
+                  bad offsets */
+  
+            /* mix it up */
+          } else 
+#endif
 	  /* Handle a register that is equivalent to a memory location
 	     which cannot be addressed directly.  */
 	  if (reg_equiv_memory_loc[regno] != 0
@@ -6115,7 +6122,7 @@ find_reloads_address_1 (enum machine_mode mode, rtx x, int context,
 		  /* Proceed to reload that, as if it contained a register.  */
 		}
 	    }
-#endif
+
 
 	  /* If we have a hard register that is ok in this incdec context,
 	     don't make a reload.  If the register isn't nice enough for

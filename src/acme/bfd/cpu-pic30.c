@@ -545,9 +545,10 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         } 
         if (d2.v.i & MEM_PAGESIZE) {
           pagesize = d5.v.i;
-        } else if (d2.v.i & MEM_FIXED_IVT)
+        } else if (d2.v.i & MEM_FIXED_IVT) {
           ivt_base = d4.v.i;
-        else if (d2.v.i & MEM_FIXED_AIVT) {
+          ivt_elements = d5.v.i;
+        } else if (d2.v.i & MEM_FIXED_AIVT) {
           pic30_has_fixed_aivt = TRUE;
           aivt_base = d4.v.i;
        } else if (d2.v.i & MEM_FLASH) { 
@@ -1444,17 +1445,25 @@ void pic30_remove_archive(carsym *symdef, asymbol *sym) {
     }
   }
   /* each bfd may have multiple symbols */
-  for (m = pic30_deferred; m; last = m, m = next) {
+  for (m = pic30_deferred; m; m = next) {
     next = m->next;
     if (m->abfd == removed_bfd) {
       if (pic30_debug)
         printf("...removed %s\n", m->abfd->filename);
+      /* Since we are removing m do not update last to m
+       * pic30_deferred will move along with m if m is first
+       */
       if (m != pic30_deferred) {
         last->next = next;
       } else {
         pic30_deferred = next;
       }
       free(m);
+    } else {
+      /* Update last to m when m exists. We do it here because we are sure
+       * that m exists at this point of code execution.
+       */
+      last = m;
     }
   }
 }
@@ -1474,17 +1483,25 @@ struct pic30_deferred_archive_members *pic30_pop_tail_archive() {
   return_m = m;
 
   /* each bfd may have multiple symbols */
-  for (m = pic30_deferred; m; last = m, m = next) {
+  for (m = pic30_deferred; m; m = next) {
     next = m->next;
     if (m->abfd == return_m->abfd) {
       if (pic30_debug)
         printf("...removed %s\n", m->abfd->filename);
+      /* Since we are removing m do not update last to m
+       * pic30_deferred will move along with m if m is first
+       */
       if (m != pic30_deferred) {
         last->next = next;
       } else {
         pic30_deferred = next;
       }
       free(m);
+    } else {
+      /* Update last to m when m exists. We do it here because we are sure
+       * that m exists at this point of code execution.
+       */
+      last = m;
     }
   }
 

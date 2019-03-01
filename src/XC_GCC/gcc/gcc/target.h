@@ -1045,7 +1045,7 @@ struct gcc_target
 
   /* This target hook allows the backend to perform additional
      processing while initializing for variable expansion.  */
-  void (* expand_to_rtl_hook) (void);
+  void (* expand_to_rtl_hook) (int);
 
   /* This target hook allows the backend to perform additional
      instantiations on rtx that are not actually in insns yet,
