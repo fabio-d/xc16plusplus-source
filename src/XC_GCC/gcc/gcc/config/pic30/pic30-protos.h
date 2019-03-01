@@ -193,7 +193,7 @@ extern void pic30_expand_epilogue(void);
 extern int pic30_null_epilogue_p(int in_peep);
 extern int pic30_which_bit(int);
 extern int pic30_one_bit_set_p(int);
-extern int pic30_one_bit_set(rtx,int set);
+extern int pic30_one_bit_set(enum machine_mode mode, rtx,int set);
 extern int pic30_libcall(const char *);
 extern char *pic30_text_section_asm_op(void);
 extern char *pic30_data_section_asm_op(void);
@@ -424,6 +424,10 @@ int pic30_legitimize_reload_address(rtx X, enum machine_mode MODE,
                                     int TYPE,
                                     unsigned int IND_LEVELS,
                                     rtx insn);
+extern int pic30_will_reload_again;
+
+tree pic30_fold_convert_const_int_from_fixed (tree type, const_tree arg1);
+
 #ifdef GCC_C_PRAGMA_H
 #endif
 

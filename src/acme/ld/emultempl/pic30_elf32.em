@@ -381,7 +381,7 @@ static lang_memory_region_type *region_lookup
   PARAMS ((char *));
 
 static bfd_boolean elf_link_check_archive_element
-  PARAMS ((char *, bfd *, struct bfd_link_info *));
+  PARAMS ((char *, bfd *, struct bfd_link_info *,unsigned int *, unsigned int*));
 
 static void update_object_compatibility
   PARAMS ((const char *, bfd *, unsigned int *, unsigned int *));
@@ -2338,6 +2338,15 @@ bfd_pic30_create_jump_table_bfd (parent)
   bfd_set_section_contents (abfd, sec, handle_data, 0, size);
 
   /*
+  ** make_readable frees sowmthing that causes an error with debuging malloc 
+  **   we are acessing a freed area here, so just move it
+  */
+  if (pic30_debug) {
+    bfd_pic30_dump_symbol_table(abfd);
+    bfd_pic30_dump_reloc_table(abfd, sec);
+  }
+
+  /*
   ** finish it
   */
   if (!bfd_make_readable (abfd))
@@ -2345,11 +2354,6 @@ bfd_pic30_create_jump_table_bfd (parent)
         fprintf(stderr, "Link Error: "
 	                "can't make jump table readable\n");
         abort();
-  }
-
-  if (pic30_debug) {
-    bfd_pic30_dump_symbol_table(abfd);
-    bfd_pic30_dump_reloc_table(abfd, sec);
   }
 
   return(abfd);
@@ -5934,14 +5938,16 @@ static void pic30_create_unused_program_sections
      if (sec)
       {
        sec->_raw_size = size;
-       sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE);
+       sec->flags |= (SEC_KEEP | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE);
        sec->contents = fill_data;
        bfd_set_section_size (fill_bfd, sec, size);
        fill_bfd->sections = sec;  /* save a copy for later */
       }
-     else
+     else {
        if (pic30_debug)
          printf("after_open: section %s not found\n", sec->name);
+       return;
+     }
 
      region = region_lookup ("program");
 
@@ -6001,15 +6007,17 @@ static void pic30_create_unused_auxflash_sections
      if (sec)
       {
        sec->_raw_size = size;
-       sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD);
+       sec->flags |= (SEC_KEEP | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD);
        PIC30_SET_AUXFLASH_ATTR(sec);
        sec->contents = fill_data;
        bfd_set_section_size (fill_bfd, sec, size);
        fill_bfd->sections = sec;  /* save a copy for later */
       }
-     else
+     else {
        if (pic30_debug)
          printf("after_open: section %s not found\n", sec->name);
+       return;
+     }
      
      region = region_lookup ("auxflash");
      update_section_info(b->addr, s, region);
@@ -6080,7 +6088,7 @@ void pic30_create_specific_fill_sections(void)
        if (sec)
         {
          sec->_raw_size = size;
-         sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE);
+         sec->flags |= (SEC_KEEP | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE);
          PIC30_SET_ABSOLUTE_ATTR(sec);
          sec->contents = fill_data;
          bfd_set_section_size (fill_bfd, sec, size);
@@ -6417,73 +6425,6 @@ void pic30_create_data_init_templates() {
                                   restart_shared_data_sections,
                                   restart_shared_priority_code_sections);
 }
-
-#if 0
-  /* duplicate */
-void pic30_create_shared_data_init_template(void) {
-  struct pic30_section *s;
-  int total_data = 0;
-  asection *sec;
-  /*
-  ** If data init support is enabled, create a BFD
-  ** for section .dinit and add it to the link.
-  */
-  if (pic30_data_init)
-    { 
-      init_shared_bfd = bfd_pic30_create_shared_data_init_bfd (output_bfd);
-      bfd_pic30_add_bfd_to_link (init_shared_bfd, init_shared_bfd->filename);
-
-      /* Compute size of data init template */
-      for (s = shared_data_sections; s != NULL; s = s->next)
-        if ((s->sec) && ((s->sec->flags & SEC_EXCLUDE) == 0))
-          bfd_pic30_scan_data_section(s->sec, &total_data, &init_max_priority);
-
-      total_data += 4; /* zero terminated */
-
-      if (pic30_debug)
-        {
-          printf("  null terminator, template += 1 pword\n");
-          printf("\nTotal initialized data %s: %x pwords\n",
-                 pic30_pack_data ? "(packed)" : "(not packed)",
-                 total_data / 4);
-        }
-
-      /* allocate memory for the template */
-      init_shared_data = (unsigned char *) bfd_alloc (output_bfd, total_data);
-      if (!init_shared_data)
-        {
-          fprintf( stderr, "Link Error: not enough memory for data template\n");
-          abort();
-        }
-
-      /* fill the template with a default value */
-      init_shared_data = memset( init_shared_data, 0x11, total_data);
-
-      /* attach it to the input section */
-      sec = bfd_get_section_by_name(init_shared_bfd, ".shared.dinit");
-      if (sec)
-        {
-          sec->_raw_size = total_data;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | 
-                         SEC_CODE | SEC_KEEP);
-          sec->contents = init_shared_data;
-          bfd_set_section_size (init_shared_bfd, sec, total_data);
-          init_shared_template = sec;  /* save a copy for later */
-        }
-      else
-        if (pic30_debug)
-          printf("after_open: section .shared.dinit not found\n");
-
-    } /* if (pic30_data_init) */
-  else
-    {
-      /* warn if initial data values will be ignored */
-      for (s = shared_data_sections; s != NULL; s = s->next)
-        if (s->sec)
-          bfd_pic30_skip_data_section(s->sec, &total_data);
-    }
-}
-#endif
 
 void pic30_create_rom_usage_template(void) {
   struct pic30_section *s;
@@ -7609,10 +7550,11 @@ gld${EMULATION_NAME}_finish()
     bfd_pic30_report_memory_usage (config.map_file);
     pic30_report_external_symbols (config.map_file);
   }
-  if (pic30_report_mem)
+  if (pic30_report_mem) {
     if ((!pic30_mafrlcsj)&&(!pic30_mafrlcsj2)) {
       bfd_pic30_report_memory_usage (stdout);
     }
+  }
 
   if (pic30_memory_summary) 
      bfd_pic30_memory_summary(memory_summary_arg);
@@ -7797,12 +7739,13 @@ gld${EMULATION_NAME}_place_orphan( file, sec)
 
 } /*static void gld${EMULATION_NAME}_place_orphan () */
 
-
 static bfd_boolean
-elf_link_check_archive_element (name, abfd, info)
+elf_link_check_archive_element (name, abfd, info, new_mask_bits, new_set_bits)
      char *name;
      bfd *abfd;
      struct bfd_link_info *info;
+     unsigned int *new_mask_bits;
+     unsigned int *new_set_bits;
 {
   bfd_boolean result = TRUE;
   unsigned int signature_pairs = 0;
@@ -7923,7 +7866,7 @@ elf_link_check_archive_element (name, abfd, info)
   ** Compare object signatures
   */
   if (pic30_select_objects) {
-    const char *dbg_str1 = "\nSeeking a definition for %s (0x%x 0x%x)\n";
+    const char *dbg_str1 = "\n2) Seeking a definition for %s (0x%x 0x%x)\n";
     const char *dbg_str2 = "  consider %s (0x%x 0x%x) ... ";
     const char *dbg_str3 = "no signature found\n";
     struct pic30_undefsym_entry *usym = 0;
@@ -7963,8 +7906,28 @@ elf_link_check_archive_element (name, abfd, info)
     if (usym && has_sig) {
       mask = signature_mask & usym->external_options_mask;
       if ((mask & signature_set) == (mask & usym->options_set)) {
+        unsigned int new_mask = global_signature_mask | signature_mask;
+        unsigned int new_mask_delta = new_mask ^ global_signature_mask;
+        unsigned int new_bits_in_mask = pic30_count_ones(new_mask_delta);
+
+        unsigned int new_set = global_signature_set | signature_set;
+        unsigned int new_set_delta = new_set ^ global_signature_set;
+        unsigned int new_bits_in_set = pic30_count_ones(new_set_delta);
+        
+
+        /* new_bits_set are the number of bits that need to be added to
+         *   the signature mask in order to choose this symbol ...
+         *   it may not be the best option and it does distinguish between
+         *   adding a requirement (and that requirement is clear) and adding
+         *   a must-have requirement (1,0) == (1,1) for these purposes
+         *
+         * in either case it represents a further restriction on future
+         * object selection 
+         */
         if (pic30_debug)
-          printf("OK\n");
+          printf("OK [+%d bits, +%d]\n", new_bits_in_mask, new_bits_in_set);
+        *new_mask_bits = new_bits_in_mask;
+        *new_set_bits = new_bits_in_set;
         result = TRUE;
       } else {
         result = FALSE;
@@ -7978,7 +7941,7 @@ elf_link_check_archive_element (name, abfd, info)
   /* we may need to pull this symbol in because it is a SMARTIO fn */
   if (pic30_force_keep_symbol)
       (void) pic30_force_keep_symbol(name, abfd->filename);
-  return TRUE;
+  return result;
 } 
 
 /*
@@ -8072,7 +8035,9 @@ update_object_compatibility(const char *symname, bfd *abfd,
 
 
 bfd_boolean (*pic30_elf_link_check_archive_element)(char *name, bfd *abfd,
-                                                    struct bfd_link_info *) = 
+                                                    struct bfd_link_info *,
+                                                    unsigned int *,
+                                                    unsigned int *) = 
   elf_link_check_archive_element;
 
 void (*pic30_update_object_compatibility)(const char *symname, bfd *abfd,

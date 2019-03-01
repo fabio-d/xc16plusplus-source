@@ -1202,8 +1202,11 @@ bfd_map_over_sections (abfd, operation, user_storage)
   for (sect = abfd->sections; sect != NULL; i++, sect = sect->next)
     (*operation) (abfd, sect, user_storage);
 
+#ifndef PIC30
   if (i != abfd->section_count)	/* Debugging */
     abort ();
+#endif
+
 }
 
 /*

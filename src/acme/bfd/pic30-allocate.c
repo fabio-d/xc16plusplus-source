@@ -391,6 +391,10 @@ allocate_memory() {
       }
 
       if (merge) {
+        if (next == statement_list.tail) {
+          /* merging with the end of the list */
+          statement_list.tail = &os->header.next;
+        }
         os->header.next = next->header.next;  /* unlink the merged statement */
         next = os;                            /* try to merge another one */
       }
@@ -2640,6 +2644,4 @@ static void
 remove_free_block(struct pic30_memory *b) {
   pic30_remove_from_memory_list(free_blocks, b);
 }
-
-
 

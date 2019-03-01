@@ -1322,3 +1322,164 @@ void pic30_get_ivt(const bfd_arch_info_type *proc, int debug)
   process_resource_file(IVT, proc->mach, debug);
 }
 
+/*
+ * object selection
+ *
+ */
+
+struct pic30_deferred_archive_members *pic30_deferred = NULL;
+
+int pic30_count_ones(unsigned int a) {
+  int result = 0;
+
+  while (a) {
+    if (a & 1) result++;
+    a = a >> 1;
+  }
+  return result;
+}
+
+void pic30_defer_archive(carsym *symdef,
+                         asymbol *sym,
+                         bfd *abfd, 
+                         struct bfd_link_info *info, 
+                         unsigned int new_mask_bits, 
+                         unsigned int new_set_bits,
+                         symindex aye) {
+  struct pic30_deferred_archive_members *m;
+  const char *name;
+
+  if (symdef)
+     name = symdef->name;
+  else if (sym) 
+     name = sym->name;
+  else 
+     abort();
+
+  if (pic30_debug)
+    printf("...Defer %s [%s]\n", name, abfd->filename);
+  for (m = pic30_deferred; m; m = m->next) {
+    if (m->symdef ? 
+          (strcmp(m->symdef->name, name) == 0) :
+          (strcmp(m->sym->name, name) == 0)) {
+      /* deffered match found already */
+      if ((new_mask_bits < m->new_mask_bits) ||
+          ((new_mask_bits == m->new_mask_bits) && 
+           (new_set_bits < m->new_set_bits))) {
+         /* this one is better iff there are fewer mask bits set or
+          * there are no more mask bits set, and there are less 1 bits 
+          * requried */
+         if (pic30_debug)
+           printf("...Improving match from (%d,%d)\n",  m->new_mask_bits,
+                                                         m->new_set_bits);
+         m->symdef = symdef;
+         m->sym = sym;
+         m->info = info;
+         m->abfd = abfd;
+         m->new_mask_bits = new_mask_bits;
+         m->new_set_bits = new_set_bits;
+         m->aye = aye;
+      }
+      return;
+    }
+  }
+  m = malloc(sizeof(struct pic30_deferred_archive_members));
+  m->symdef = symdef;
+  m->sym = sym;
+  m->info = info;
+  m->abfd = abfd;
+  m->new_mask_bits = new_mask_bits;
+  m->new_set_bits = new_set_bits;
+  m->next = pic30_deferred;
+  m->aye = aye;
+  pic30_deferred = m;
+}
+
+void pic30_remove_archive(carsym *symdef, asymbol *sym) {
+  struct pic30_deferred_archive_members *m,*last = 0, *next;
+  const char *name;
+  bfd *removed_bfd = 0;
+
+  if (symdef)
+     name = symdef->name;
+  else if (sym) 
+     name = sym->name;
+  else 
+     abort();
+  if (pic30_debug)
+    printf("...remove %s\n", name);
+
+  /* each symbol is in the list once */
+  for (m = pic30_deferred; m; last = m, m = m->next) {
+    if (m->symdef ? 
+          (strcmp(m->symdef->name, name) == 0) :
+          (strcmp(m->sym->name, name) == 0)) {
+      if (pic30_debug)
+        printf("...removed %s\n", m->abfd->filename);
+      removed_bfd = m->abfd;
+      if (last) {
+        last->next = m->next;
+      } else {
+        pic30_deferred = m->next;
+      }
+      free(m);
+      break;
+    }
+  }
+  /* each bfd may have multiple symbols */
+  for (m = pic30_deferred; m; last = m, m = next) {
+    next = m->next;
+    if (m->abfd == removed_bfd) {
+      if (pic30_debug)
+        printf("...removed %s\n", m->abfd->filename);
+      if (m != pic30_deferred) {
+        last->next = next;
+      } else {
+        pic30_deferred = next;
+      }
+      free(m);
+    }
+  }
+}
+
+struct pic30_deferred_archive_members *pic30_pop_tail_archive() {
+  struct pic30_deferred_archive_members *m,*last = 0,*next,*return_m;
+
+  for (m = pic30_deferred; m && m->next; last = m,m = m->next);
+  if (last) {
+    last->next = NULL;
+  } else {
+    pic30_deferred = NULL;
+  }
+  if (m && pic30_debug)
+    printf("...pop tail %s\n", m->symdef ? m->symdef->name : m->sym->name);
+
+  return_m = m;
+
+  /* each bfd may have multiple symbols */
+  for (m = pic30_deferred; m; last = m, m = next) {
+    next = m->next;
+    if (m->abfd == return_m->abfd) {
+      if (pic30_debug)
+        printf("...removed %s\n", m->abfd->filename);
+      if (m != pic30_deferred) {
+        last->next = next;
+      } else {
+        pic30_deferred = next;
+      }
+      free(m);
+    }
+  }
+
+  return return_m;
+}
+
+void pic30_clear_deferred(void) {
+  struct pic30_deferred_archive_members *m,*next = 0;
+         
+  for (m = pic30_deferred; m; m = next) {
+    next = m->next;
+    free(m);
+  }
+  pic30_deferred = NULL;
+}

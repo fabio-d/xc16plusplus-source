@@ -1222,7 +1222,9 @@ extern bfd *pic30_output_bfd;
 
 bfd_boolean
 pic30_is_valid_archive_element(struct bfd_link_info *info,
-                               asymbol *p, bfd *abfd) {
+                               asymbol *p, bfd *abfd,
+                               unsigned int *new_mask_bits,
+                               unsigned int *new_set_bits) {
   bfd_boolean result = TRUE;
   unsigned int signature_pairs = 0;
   unsigned int signature_mask = 0;
@@ -1340,7 +1342,7 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
   ** Compare object signatures
   */
   if (result && pic30_select_objects) {
-    const char *dbg_str1 = "\nSeeking a definition for %s (0x%x 0x%x)\n";
+    const char *dbg_str1 = "\n1) Seeking a definition for %s (0x%x 0x%x)\n";
     const char *dbg_str2 = "  consider %s (0x%x 0x%x) ... ";
     const char *dbg_str3 = "no signature found\n";
     struct pic30_undefsym_entry *usym = 0;
@@ -1383,8 +1385,28 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
     if (usym && has_sig) {
       mask = signature_mask & usym->external_options_mask; 
       if ((mask & signature_set) == (mask & usym->options_set)) {
+        unsigned int new_mask = global_signature_mask | signature_mask;
+        unsigned int new_mask_delta = new_mask ^ global_signature_mask;
+        unsigned int new_bits_in_mask = pic30_count_ones(new_mask_delta);
+
+        unsigned int new_set = global_signature_set | signature_set;
+        unsigned int new_set_delta = new_set ^ global_signature_set;
+        unsigned int new_bits_in_set = pic30_count_ones(new_set_delta);
+        
+
+        /* new_bits_set are the number of bits that need to be added to
+         *   the signature mask in order to choose this symbol ...
+         *   it may not be the best option and it does distinguish between
+         *   adding a requirement (and that requirement is clear) and adding
+         *   a must-have requirement (1,0) == (1,1) for these purposes
+         *
+         * in either case it represents a further restriction on future
+         * object selection 
+         */
         if (pic30_debug)
-          printf("OK\n");
+          printf("OK [+%d bits, +%d]\n", new_bits_in_mask, new_bits_in_set);
+        *new_mask_bits = new_bits_in_mask;
+        *new_set_bits = new_bits_in_set;
         result = TRUE;
       } else {
         result = FALSE;
@@ -1395,11 +1417,6 @@ pic30_is_valid_archive_element(struct bfd_link_info *info,
   }
 
   /* ToDo: inherit boot, secure attributes */
-
-#if 0
-    printf("pic30_is_valid_archive_element: %s\n",
-           result ? "TRUE" : "FALSE");
-#endif
 
   return result;
 } 
@@ -1417,9 +1434,13 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
      bfd_boolean collect;
 {
   asymbol **pp, **ppend;
+#ifdef PIC30
+  struct pic30_deferred_archive_members *deferred_member = 0;
+#endif
 
   *pneeded = FALSE;
 
+   
 #if 0
   /* DEBUG */
   printf("    generic_link_check_archive_element:\n");
@@ -1445,11 +1466,21 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
 
   pp = _bfd_generic_link_get_symbols (abfd);
   ppend = pp + _bfd_generic_link_get_symcount (abfd);
+#ifdef PIC30
+  for (; ((pp < ppend) || (deferred_member = pic30_pop_tail_archive())); pp++)
+#else
   for (; pp < ppend; pp++)
+#endif
     {
       asymbol *p;
       struct bfd_link_hash_entry *h;
 
+#ifdef PIC30
+      if (deferred_member) {
+        BFD_ASSERT(pp >= ppend);
+        p = deferred_member->sym;
+      } else 
+#endif
       p = *pp;
 
       /* We are only interested in globally visible symbols.  */
@@ -1481,9 +1512,39 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
             bfd_size_type symcount;
             asymbol **symbols;
 #ifdef PIC30
+            unsigned valid;
+            unsigned int new_mask_bits,
+                         new_set_bits;
+
             /* check this element against target-specific rules */
+#if 0
             if (pic30_is_valid_archive_element(info,p,abfd) == FALSE)
               continue;
+#endif
+            valid = pic30_is_valid_archive_element (
+                         info, p, abfd,
+                         &new_mask_bits, &new_set_bits);
+            if (valid) {
+              if (new_mask_bits == 0) {
+                if (pic30_debug) {
+                  printf("...perfect match\n");
+                }
+                pic30_remove_archive(NULL,p);
+              } else if (deferred_member) {
+                if (pic30_debug) {
+                  printf("...taken match\n");
+                }
+              } else {
+                pic30_defer_archive(NULL, p, abfd, info,
+                                    new_mask_bits, new_set_bits, 0);
+                continue;
+              }
+            } else {
+              if (pic30_debug) {
+                  printf("...No match\n");
+              }
+              continue;
+            }
 #endif
 
             /* This object file defines this symbol, so pull it in.  */
@@ -1503,9 +1564,41 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
       }
 
 #ifdef PIC30
-      /* check this element against target-specific rules */
-      if (pic30_is_valid_archive_element(info,p,abfd) == FALSE)
-        continue;
+      {
+        unsigned int valid;
+        unsigned int new_mask_bits,
+                     new_set_bits;
+#if 0
+        /* check this element against target-specific rules */
+        if (pic30_is_valid_archive_element(info,p,abfd) == FALSE)
+          continue;
+#endif
+
+        valid = pic30_is_valid_archive_element (
+                       info, p, abfd,
+                       &new_mask_bits, &new_set_bits);
+        if (valid) {
+          if (new_mask_bits == 0) {
+            if (pic30_debug) {
+              printf("...perfect match\n");
+            }
+            pic30_remove_archive(NULL, p);
+          } else if (deferred_member) {
+            if (pic30_debug) {
+              printf("...taken match\n");
+            }
+          } else {
+            pic30_defer_archive(NULL, p, abfd, info,
+                                new_mask_bits, new_set_bits, 0);
+            continue;
+          }
+        } else {
+          if (pic30_debug) {
+              printf("...No match\n");
+          }
+          continue;
+        }
+      }
 #endif
 
       if (! bfd_is_com_section (p->section))

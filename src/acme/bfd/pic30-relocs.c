@@ -112,6 +112,7 @@
 #define R_PIC30_SHIFT8_UNSIGNED_8      239
 #define R_PIC30_ADDR_LO                240
 #define R_PIC30_ADDR_HI                241
+#define R_PIC30_BRANCH_ABSOLUTE6       242
 
 /*
 ** relocation field descriptions
@@ -351,6 +352,9 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_ADDR_HI, 0, 1, 16, FALSE, 0, complain_overflow_dont,
          RELOC_SPECIAL_FN_OPERATORS, "ADDR_HI",
          TRUE, 0x0000ffff, 0x0000ffff, FALSE),
+   HOWTO(R_PIC30_BRANCH_ABSOLUTE6, 1, 0, 6, TRUE, 4, complain_overflow_signed,
+         RELOC_SPECIAL_FN_PCREL, "BRANCH ABSOLUTE 6",
+         TRUE, 0x0002F0, 0x0002F0, TRUE),
 };
 
 
@@ -372,6 +376,7 @@ pic30_adjustable_against_section (type)
       case R_PIC30_PCREL_BRANCH_SLIT6:
       case R_PIC30_PCREL_BRANCH:
       case R_PIC30_PCREL_DO:
+      case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_BRANCH_ABSOLUTE:
       case R_PIC30_DO_ABSOLUTE:
       case R_PIC30_PGM_ADDR_MSB:

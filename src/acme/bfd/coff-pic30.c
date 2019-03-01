@@ -624,6 +624,9 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_WORD_ADDR_HI, 0, 2, 16, FALSE, 4, complain_overflow_bitfield,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - ADDR_HI",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
+   HOWTO(R_PIC30_BRANCH_ABSOLUTE6, 1, 0, 6, TRUE, 4, complain_overflow_dont,
+         RELOC_SPECIAL_FN_PCREL, "BRANCH ABSOLUTE 6",
+         TRUE, 0x02f0, 0x0002f0, TRUE),
 
 };
 
@@ -640,6 +643,7 @@ pic30_adjustable_against_section (type)
       case R_PIC30_PCREL_BRANCH_SLIT6:
       case R_PIC30_PCREL_BRANCH:
       case R_PIC30_PCREL_DO:
+      case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_BRANCH_ABSOLUTE:
       case R_PIC30_DO_ABSOLUTE:
       case R_PIC30_PGM_ADDR_MSB:
@@ -1089,6 +1093,11 @@ void pic30_rtype2howto (internal, dst)
          internal->howto = pic30_coff_howto_table + 93;
          break;
 
+      case R_PIC30_BRANCH_ABSOLUTE6:
+         internal->howto = pic30_coff_howto_table + 94;
+         break;
+
+
       default:
          abort ();
          break;
@@ -1461,6 +1470,9 @@ static reloc_howto_type * pic30_bfd_reloc_type_lookup (abfd, code)
          break;
       case BFD_RELOC_PIC30_WORD_ADDR_HI:
          return pic30_coff_howto_table + 93;
+         break;
+      case BFD_RELOC_PIC30_BRANCH_ABSOLUTE6:
+         return pic30_coff_howto_table + 94;
          break;
 
       default:
@@ -2901,6 +2913,7 @@ pic30_bfd_reloc_range_check (howto, relocation, abfd, symbol, error_msg)
         if ((relocation > 0xFFFFFF) && ~(relocation | 0x7FFFFF))
           rc = bfd_reloc_overflow;
         break;
+      case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_PCREL_BRANCH_SLIT6:
         /* valid range is [-32..31] and not [-2, -1, 0] */
         if ((relocation > 0x1F) && ~(relocation | 0xC000001F))
@@ -3253,20 +3266,21 @@ pic30_coff_perform_pc_relative (abfd, reloc_entry, symbol, data,
         short offset = pic30_coff_extract_bytes (abfd, data, 2, octets,
                                                  TRUE, TRUE);
 
-        if (howto->type == R_PIC30_PCREL_BRANCH_SLIT6) {
+        if ((howto->type == R_PIC30_PCREL_BRANCH_SLIT6) ||
+            (howto->type == R_PIC30_BRANCH_ABSOLUTE6)) {
 	  
 	   offset = (offset >> 4) & 0x3f;
            if (offset){
              unsigned char *byte_data = data;
              // offset truncated in insn for full range, unpack
 
-           if (offset >= 32)
-             offset -= 64;
-           reloc_entry->addend = offset * 2;
-            /* zero out 6 bits starting at bit 4 */
-            byte_data[octets+0] = byte_data[octets+0] & 0x0F;
-            byte_data[octets+1] = byte_data[octets+1] & 0xFC;
-          }
+             if (offset >= 32)
+               offset -= 64;
+             reloc_entry->addend = offset * 2;
+             /* zero out 6 bits starting at bit 4 */
+             byte_data[octets+0] = byte_data[octets+0] & 0x0F;
+             byte_data[octets+1] = byte_data[octets+1] & 0xFC;
+           }
         }
 
 	else if (offset) /* store as addend, clear instruction offset */
@@ -4781,6 +4795,7 @@ pic30_coff_perform_generic (abfd, reloc_entry, symbol, data,
           case R_PIC30_PCREL_DO:
           case R_PIC30_DO_ABSOLUTE:
           case R_PIC30_PCREL_BRANCH:
+          case R_PIC30_BRANCH_ABSOLUTE6:
           case R_PIC30_BRANCH_ABSOLUTE:
           case R_PIC30_PGM_ADDR_LSB:
           case R_PIC30_PGM_ADDR_MSB:

@@ -3502,6 +3502,15 @@ find_reloads (rtx insn, int replace, int ind_levels, int live_known,
 		win = 1;
 		break;
 
+#ifdef _BUILD_C30_
+              case 'q':
+                if (!force_reload) {
+                  if (EXTRA_CONSTRAINT_STR (operand, c, p))
+                    win = 1;
+                    break;
+                }
+                /* FALLSTHROUGH */
+#endif
 	      case 'g':
 		if (! force_reload
 		    /* A PLUS is never a valid operand, but reload can make

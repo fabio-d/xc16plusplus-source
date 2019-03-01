@@ -855,7 +855,7 @@ static int pic30_function_arg_partial_nregs(CUMULATIVE_ARGS *cum,
                                             tree type, bool named);
 static const char *pic30_unique_section_name(tree decl);
 static void pic30_unique_section(tree decl, int reloc);
-static bool pic30_valid_pointer_mode(enum machine_mode mode);
+       bool pic30_valid_pointer_mode(enum machine_mode mode);
 static bool pic30_rtx_costs(rtx RTX, int CODE, int OUTER_CODE, int *total,
                             bool speed);
 static inline int pic30_obj_elf_p(void);
@@ -1418,7 +1418,9 @@ static int pic30_bsearch_vsf_compare(const void *va, const void *vb) {
 
 /* validates a section declaration based on its name and any flags */
 static SECTION_FLAGS_INT validate_section_flags(const char *name,
-                                                SECTION_FLAGS_INT attr_flags) {
+                                                SECTION_FLAGS_INT attr_flags,
+                                                int quiet) {
+  /* if quiet, just checking ... */
   SECTION_FLAGS_INT set_flags = attr_flags;
   struct reserved_section_names_ *r_section = 0;
   struct valid_section_flags_ *v_flags = 0;
@@ -1477,14 +1479,15 @@ static SECTION_FLAGS_INT validate_section_flags(const char *name,
               }
             }
             if (!v_flags->flag_name) {
-              warning(0,"'%c': unrecognized old-style section flag", *s);
+              if (!quiet) 
+                warning(0,"'%c': unrecognized old-style section flag", *s);
               break;
             }
             *s = ' ';
             comma=' ';
           }
           first_flag = 0;
-        } else warning(0,"'%s': unrecognized section flag", f);
+        } else if (quiet == 0) warning(0,"'%s': unrecognized section flag", f);
       } else {
         set_flags |= v_flags->flag_mask;
       }
@@ -1498,7 +1501,7 @@ static SECTION_FLAGS_INT validate_section_flags(const char *name,
   for (v_flags = valid_section_flags; v_flags->flag_name; v_flags++) {
     if ((set_flags & v_flags->flag_mask) &&
         (set_flags & v_flags->incompatable_with)) {
-      error("incompatible section flags for section '%s'", name);
+      if (!quiet) error("incompatible section flags for section '%s'", name);
       return set_flags;
     }
   }
@@ -1833,6 +1836,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
   tree merge_attr = 0;
   SECTION_FLAGS_INT flags = 0;
   const char *ident;
+  const char *section_name = 0;
   int section_type_set = 0;
   int aux_psv = 0;
   int auto_psv = 0;
@@ -2007,8 +2011,8 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
   aux_psv = (space_attr && IDENT_AUXPSV(TREE_VALUE(TREE_VALUE(space_attr))));
   ident = IDENTIFIER_POINTER(DECL_NAME(decl));
   if (DECL_SECTION_NAME(decl)) {
-    const char *name = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
-    flags = pic30_section_type_flags(0, name, 1);
+    section_name = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
+    flags = pic30_section_type_flags(0, section_name, 1);
     if ((flags & SECTION_WRITE) && (!DECL_INITIAL(decl))) {
       flags &= ~SECTION_WRITE;
       flags |= SECTION_BSS;
@@ -2035,14 +2039,16 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
         (pic30_unified_mode(decl) != machine_Pmode)) {
      flags |= SECTION_EDS;
     } else if (TARGET_CONST_IN_CODE) {
-      if (TREE_CODE(decl) == STRING_CST)
-        /* -fwriteable_strings no longer supported */
-        flags |= SECTION_READ_ONLY;
-      if (TREE_CODE(decl) == VAR_DECL) {
-
-        if (!space_attr && TREE_READONLY(decl) &&
-            (DECL_INITIAL(decl) || (DECL_EXTERNAL(decl))))
-          flags |= SECTION_READ_ONLY;
+      if (!section_name) {
+          if (TREE_CODE(decl) == STRING_CST)
+            /* -fwriteable_strings no longer supported */
+            flags |= SECTION_READ_ONLY;
+          if (TREE_CODE(decl) == VAR_DECL) {
+    
+            if (!space_attr && TREE_READONLY(decl) &&
+                (DECL_INITIAL(decl) || (DECL_EXTERNAL(decl))))
+              flags |= SECTION_READ_ONLY;
+          }
       }
     }
 #ifdef __C30_BETA__
@@ -2671,7 +2677,6 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
         }
       }
     }
-    psv |= implied_psv;
 
     /* force preserved ? */
     if ((TARGET_PRESERVE_ALL) && (!update) && (!psv) && (!prog) && 
@@ -2679,10 +2684,31 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       force_preserved = 1;
     }
     if (DECL_SECTION_NAME (decl)) {
+      SECTION_FLAGS_INT named_flags;
+      int i;
+
       pszSectionName = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
+#if 0
+      /* we could check... but */
+      /* if the section name constains flags, we might invalidate
+         implied psv */
+      named_flags = validate_section_flags(pszSectionName,0,1);
+      for (i = 0; valid_section_flags[i].flag_name; i++) {
+        if (named_flags & valid_section_flags[i].flag_mask) {
+          if (valid_section_flags[i].incompatable_with & SECTION_PSV) {
+            implied_psv = 0;
+          }
+        }
+      }
+#else 
+      /* a named section should never have implied psv... */
+      implied_psv = 0;
+#endif
     } else if ((a) || (r)) {
       pszSectionName = pic30_default_section;
     } 
+
+    psv |= implied_psv;
     if (r || u || psv) {
       if (pszSectionName && strcmp(pszSectionName,pic30_default_section)) {
         pszSectionName = 0;
@@ -3240,7 +3266,7 @@ void pic30_override_options_after_change(void) {
     #define NULLIFY(X) \
     if ((X) && (message_displayed++ == 0)) \
       fnotice(stderr,"Options have been disabled due to %s license\n" \
-              "Visit http://www.microchip.com/ to purchase a new key.\n", \
+              "Visit http://www.microchip.com/MPLABXCcompilers to purchase a new key.\n", \
               invalid); \
     X
 
@@ -5518,6 +5544,11 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return NULL_RTX;
 
     case PIC30_BUILTIN_DIVF:
+      if (!(pic30_dsp_target())) {
+        error("__builtin_divf is not supported on this target");
+        return NULL_RTX;
+      }
+
       arg0 = TREE_VALUE(arglist);
       if (arg0 == error_mark_node) return const0_rtx;
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
@@ -7710,12 +7741,24 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 
     case PIC30_BUILTIN_ACCL:
       fn2 = gen_acclhi;
+      id = "ACCL";
       /* FALLSTHROUGH */     
     case PIC30_BUILTIN_ACCH:
-      if (fn2 == 0) fn2 = gen_acchhi;
+      if (fn2 == 0) {
+        fn2 = gen_acchhi;
+        id = "ACCH";
+      }
       /* FALLSTHROUGH */     
     case PIC30_BUILTIN_ACCU:
-      if (fn2 == 0) fn2 = gen_accuhi;
+      if (fn2 == 0) {
+        fn2 = gen_accuhi;
+        id = "ACCU";
+      }
+
+      if (!(pic30_dsp_target())) {
+        error("__builtin_%s is not supported on this target", id);
+        return NULL_RTX;
+      }
 
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
@@ -7858,6 +7901,7 @@ int pic30_fixed_point_mode(enum machine_mode mode) {
     case UDAmode:
     case TAmode:
     case UTAmode:
+      return 3;
 
     case SQmode:        /* 32-bit  */
     case USQmode:
@@ -7865,6 +7909,7 @@ int pic30_fixed_point_mode(enum machine_mode mode) {
     case UTQmode:
     case DQmode:        /*   Point */
     case UDQmode:
+      return 2;
 
     case QQmode:        /* 16-bit  */
     case UQQmode:       /*   Fixed */
@@ -12041,9 +12086,15 @@ int pic30_one_bit_set_p(int x) {
     return(x && (x & (x - 1)) == 0);
 }
 
-int pic30_one_bit_set(rtx x, int set) {
+int pic30_one_bit_set(enum machine_mode mode, rtx x, int set) {
+  HOST_WIDE_INT mask;
+
+  mask = (1 << (GET_MODE_SIZE(mode) * BITS_PER_UNIT)) -1;
+  if (mask == 0) {
+    mask = -1;
+  }
   if (GET_CODE(x) == CONST_INT) {
-    return pic30_one_bit_set_p(set ? INTVAL(x) : ~INTVAL(x));
+    return pic30_one_bit_set_p(set ? INTVAL(x) & mask : ~(INTVAL(x) & mask));
   }
   return 0;
 }
@@ -16971,7 +17022,7 @@ SECTION_FLAGS_INT pic30_section_type_flags(tree decl, const char *name,
 
   if (name) {
     if (strcmp(name,pic30_default_section) == 0) flag |= SECTION_FORGET;
-    flag = validate_section_flags(name,flag);
+    flag = validate_section_flags(name,flag,0);
   }
   return flag ;
 }
@@ -18817,27 +18868,14 @@ bool pic30_valid_pointer_mode(enum machine_mode mode) {
   switch (mode) {
     case P16APSVmode:
     case HImode:
-#if 0
-      return 1;
-#endif
-
     case P16PMPmode:
     case P24PROGmode:
     case P24PSVmode:
     case P32EXTmode:
     case P32DFmode:
-#if 0
-      break;
-#endif
-
     case P32PEDSmode:
     case P32EDSmode:
-#if 0
-      if (TARGET_EDS)
-#endif
         return 1;
-        
-      break;
 
     default:  break;
   }
@@ -19020,6 +19058,9 @@ static bool pic30_rtx_costs(rtx RTX, int CODE, int OUTER_CODE ATTRIBUTE_UNUSED,
   int result = 0;
 
   switch (CODE) {
+    case CONST_FIXED:
+      result = COSTS_N_INSNS(2*pic30_fixed_point_mode(GET_MODE(RTX)));
+      break;
     case CONST_INT:
       result = (INTVAL(RTX) == 0) ? 1 :
                (-31 <= INTVAL(RTX) && INTVAL(RTX) <= 31) ? 1 :
@@ -19261,14 +19302,20 @@ char *pic30_default_include_path(const char *prefix) {
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33F_INCLUDE_PATH);
       inc_path = MPLABC30_PIC33F_INC_PATH;
-    } else if (target_flags & (MASK_ARCH_PIC33E | MASK_ARCH_PIC33CH)) {
-      /* 33E and 33CH are in the same foler */
+    } else if (target_flags & MASK_ARCH_PIC33E) {
       my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC33E_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33E_INCLUDE_PATH);
       inc_path = MPLABC30_PIC33E_INC_PATH;
+    } else if (target_flags & MASK_ARCH_PIC33CH) {
+      my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
+                                 MPLABC30_PIC33C_INCLUDE_PATH),1);
+      sprintf(my_space,"%s%s%s", common,
+                                 PATH_SEPARATOR_STR,
+                                 MPLABC30_PIC33C_INCLUDE_PATH);
+      inc_path = MPLABC30_PIC33C_INC_PATH;
     } else {
       /* generic */
       my_space = (char*)xcalloc(extra,1);
@@ -20183,7 +20230,6 @@ unsigned int pic30_track_sfrs(void) {
   int we_care = 0;
 
   corcon = gen_rtx_REG(HImode,CORCON);
-
   for (insn = get_insns(); insn; insn = NEXT_INSN(insn)) {
     if (NOTE_P(insn)) {
       if (NOTE_KIND(insn) == NOTE_INSN_FUNCTION_BEG) {
@@ -20201,8 +20247,12 @@ unsigned int pic30_track_sfrs(void) {
       rtx set;
  
       pat = PATTERN(insn);
-      if (reg_mentioned_p(corcon, pat)) {
+      if (pic30_fixed_point_supported_p() && reg_mentioned_p(corcon, pat)) {
         set = single_set(insn);
+        if (set == NULL_RTX) {
+          /* some other kind of use */
+          continue;
+        }
         if (dump_file) {
           fprintf(dump_file,"\nstatus: %d %d\n", SATA_status, SATB_status);
           print_rtl(dump_file,set);
@@ -20601,6 +20651,91 @@ unsigned int pic30_merge_accumulators(void) {
   return 0;
 }
 
+unsigned int pic30_validate_nondsp_operands(rtx insn, rtx pat, int *pos, 
+                                            int allowable_opnds) {
+  int i,j,k;
+  rtvec v = NULL_RTX;
+  const char *format_ptr;
+  int format_len;
+  int allowed;
+  int n;
+  int result = 0;
+  rtx inner;
+
+  if (pos == 0) {
+    n = 0;
+    pos = &n;
+  } else {
+    n = *pos;
+  }
+
+  if (pat == 0) {
+    pat = PATTERN(insn);
+  }
+
+  format_ptr = GET_RTX_FORMAT(GET_CODE(pat));
+  format_len = GET_RTX_LENGTH (GET_CODE(pat));
+
+  for (i = 0; i < format_len; i++) {
+    v = NULL_RTX;
+    allowed=0;
+    switch (*format_ptr++) {
+      case 'e':
+        inner = XEXP(pat,i);
+        if ((GET_CODE(inner) ==  UNSPEC) ||
+            (GET_CODE(inner) ==  UNSPEC_VOLATILE)) {
+          for (j = 0; j < XVECLEN(XEXP(pat,i),0); j++) {
+            inner = XVECEXP(XEXP(pat,i),0,j);
+            if (REG_P(inner)) {
+              if (pic30_accumulator_operand(inner,HImode)) {
+                allowed = (allowable_opnds & (1 << n));
+                if (!allowed) {
+                return n;
+                }
+              }
+              n++;
+            } else if (GET_RTX_LENGTH(GET_CODE(inner)) > 1) {
+              result = pic30_validate_nondsp_operands(insn, inner, &n,
+                                                      allowable_opnds);
+            } else n++;
+          }
+        } else {
+          if (REG_P(inner)) {
+            if (pic30_accumulator_operand(inner,HImode)) {
+              allowed = (allowable_opnds & (1 << n));
+              if (!allowed) {
+                return n;
+              }
+            }
+            n++;
+          } else if (GET_RTX_LENGTH(GET_CODE(inner)) > 1) {
+            result = pic30_validate_nondsp_operands(insn, inner, &n,
+                                                    allowable_opnds);
+          } else n++;
+        }
+        break;
+
+      case 'E':
+        v = XVEC(pat,i);
+        break;
+    }
+
+    if (v) {
+      int j;
+      int len = GET_NUM_ELEM(v);
+
+      for (j = 0; j < len; j++) {
+        result = pic30_validate_nondsp_operands(insn, RTVEC_ELT(v,j),&n, 
+                                                allowable_opnds);
+        if (result) return result;
+      }
+    }
+  }
+  *pos = n;
+  return result;
+}
+
+  
 unsigned int pic30_validate_dsp_instructions(void) {
   int i;
   rtx o, p, v, x;
@@ -20685,6 +20820,9 @@ unsigned int pic30_validate_dsp_instructions(void) {
     }
 
     if (INSN_P (x)) {
+      /* can be used for fall through patterns */
+      unsigned int accumulator_mask = 0;
+
       p = PATTERN(x);
 
       /* check operands */
@@ -20740,6 +20878,10 @@ unsigned int pic30_validate_dsp_instructions(void) {
 
         case PIC30_BUILTIN_CLR:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_CLR_PREFETCH:
@@ -20761,11 +20903,16 @@ unsigned int pic30_validate_dsp_instructions(void) {
               }
             }
           }
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0) + (1<<13))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_MSC:
           /* FALLSTHROUGH */
         case PIC30_BUILTIN_MAC:
+          accumulator_mask |= (1 << 15);
           if ((GET_CODE(p) == PARALLEL)  && (XVECLEN(p,0) > 5)) {
             /* There may be only 5 */
             v = XVECEXP(p,0,5);      /* 5th opnd uses mac */
@@ -20782,6 +20929,7 @@ unsigned int pic30_validate_dsp_instructions(void) {
           }
           /* FALLSTHROUGH */
         case PIC30_BUILTIN_EDAC:
+          accumulator_mask |= (1 << 1) + (1 << 0);
           if (GET_CODE(p) == PARALLEL) {
             v = p;
             p = XVECEXP(p,0,0);      /* 0th opnd of src of 0th element
@@ -20796,16 +20944,32 @@ unsigned int pic30_validate_dsp_instructions(void) {
               err_cnt++;
             }
           }
+          if (pic30_validate_nondsp_operands(x,0,0,accumulator_mask)) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_ED:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
         case PIC30_BUILTIN_LAC:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
         case PIC30_BUILTIN_LACD:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_MOVSAC:
@@ -20819,13 +20983,25 @@ unsigned int pic30_validate_dsp_instructions(void) {
               err_cnt++;
             }
           }
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0) + (1<<11))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_MPYN:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
         case PIC30_BUILTIN_MPY:
           /* just the result */
+          if (pic30_validate_nondsp_operands(x,0,0,(1 << 0))) {
+            error("Accumulator register inappropriately passed to %F", fnid);
+            err_cnt++;
+          }
           break;
 
         case PIC30_BUILTIN_ACCL:
@@ -21549,6 +21725,97 @@ int pic30_psrd_psrd_errata_movd(rtx op1, rtx op2) {
     }
   }
   return count;
+}
+
+tree
+pic30_fold_convert_const_int_from_fixed (tree type, const_tree arg1)
+{
+  tree t;
+  double_int temp, temp_trunc;
+  unsigned int mode;
+  unsigned int last_fractional_bit;
+
+  /* Right shift FIXED_CST to temp by fbit.  */
+  temp = TREE_FIXED_CST (arg1).data;
+  mode = TREE_FIXED_CST (arg1).mode;
+  last_fractional_bit = GET_MODE_FBIT(mode)-1;
+  if (GET_MODE_FBIT (mode) < 2 * HOST_BITS_PER_WIDE_INT)
+    {
+      lshift_double (temp.low, temp.high,
+                     - GET_MODE_FBIT (mode), 2 * HOST_BITS_PER_WIDE_INT,
+                     &temp.low, &temp.high, SIGNED_FIXED_POINT_MODE_P (mode));
+
+      /* Left shift temp to temp_trunc by fbit.  */
+      lshift_double (temp.low, temp.high,
+                     GET_MODE_FBIT (mode), 2 * HOST_BITS_PER_WIDE_INT,
+                     &temp_trunc.low, &temp_trunc.high,
+                     SIGNED_FIXED_POINT_MODE_P (mode));
+    }
+  else
+    {
+      temp.low = 0;
+      temp.high = 0;
+      temp_trunc.low = 0;
+      temp_trunc.high = 0;
+    }
+
+  if (TYPE_UNSIGNED(type)) {
+    /* truncate to IBITs of integer to mimic zero extend */
+    HOST_WIDE_INT mask;
+    if (GET_MODE_IBIT(mode) > HOST_BITS_PER_WIDE_INT) {
+      mask = (1 << GET_MODE_IBIT(mode) - HOST_BITS_PER_WIDE_INT) -1;
+      temp.high &= mask;
+    } else {
+      mask = (1 << GET_MODE_IBIT(mode)) -1;
+      temp.low &= mask;
+      temp.high = 0;
+    }
+  }
+
+  if (pic30_fp_round == pic30_conventional) {
+    /* on dsPIC conventional rounding is straight-forward; add the top 
+       fractional bit into the integer */
+    double_int orig = TREE_FIXED_CST(arg1).data;
+    if (GET_MODE_FBIT(mode) <= HOST_BITS_PER_WIDE_INT) {
+      if (orig.low & (1 << last_fractional_bit)) {
+        double_int one;
+        one.low = 1;
+        one.high = 0;
+        temp = double_int_add (temp, one);
+      }
+    } else gcc_assert(0);
+  } else if (pic30_fp_round == pic30_convergent) {
+    /* do the extra */
+    double_int orig = TREE_FIXED_CST(arg1).data;
+
+    if (GET_MODE_FBIT(mode) <= HOST_BITS_PER_WIDE_INT) {
+      if ((orig.low & ((1 << GET_MODE_FBIT(mode)) - 1)) == 
+           (1 << last_fractional_bit)) {
+        if (orig.low & (1 << GET_MODE_FBIT(mode))) {
+          double_int one;
+          one.low = 1;
+          one.high = 0;
+          temp = double_int_add (temp, one);
+        }
+      } else if (orig.low & (1 << last_fractional_bit)) {
+        double_int one;
+        one.low = 1;
+        one.high = 0;
+        temp = double_int_add (temp, one);
+      }
+    }
+  } 
+  /* else truncation/chop - let the bits drop off */
+
+  /* Given a fixed-point constant, make new constant with new type,
+     appropriately sign-extended or truncated.  */
+  t = force_fit_type_double (type, temp.low, temp.high, -1,
+                             (temp.high < 0
+                              && (TYPE_UNSIGNED (type)
+                                  < TYPE_UNSIGNED (TREE_TYPE (arg1))))
+                             | TREE_OVERFLOW (arg1));
+
+  return t;
 }
 
 extern struct rtl_opt_pass pass_validate_dsp_instructions;

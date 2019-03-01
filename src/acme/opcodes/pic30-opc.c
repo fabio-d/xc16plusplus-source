@@ -1553,11 +1553,11 @@ const struct pic30_opcode pic30_opcodes[] =
     * BFEXT
     ***************************************************************************/
    { "bfext",     BFEXT,      4, { SHIFT_LITERAL, WID5, P_SRC_REG, SRC_REG }, 
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_UNK
    },
    { "bfext",     BFEXTF,     4, { SHIFT_LITERAL, WID5, FILE_REG_WORD, SRC_REG},
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_UNK
    },
 
@@ -1565,17 +1565,17 @@ const struct pic30_opcode pic30_opcodes[] =
     * BFINS
     ***************************************************************************/
    { "bfins",     BFINS,      4, { SHIFT_LITERAL, WID5, SRC_REG, P_SRC_REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_UNK
    },
    { "bfins",     BFINSF,     4, { SHIFT_LITERAL, WID5, SRC_REG,
                                     FILE_REG_WORD }, 
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_UNK
    },
    { "bfins",     BFINSL,     4, { SHIFT_LITERAL, WID5, LITERAL_8BIT,
                                     P_SRC_REG }, 
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_UNK
    },   
 
@@ -2472,15 +2472,15 @@ const struct pic30_opcode pic30_opcodes[] =
     DIVS2 Wm,Wn      Signed integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
     ***************************************************************************/
    { "div2.sd",   DIVSD2,     2, { DIVIDEND32_REG, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
    { "div2.sw",   DIVSW2,     2, { DIVIDEND16_REG_2, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
    { "div2.s",    DIVSW2,     2, { DIVIDEND16_REG_2, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
 
@@ -2504,15 +2504,15 @@ const struct pic30_opcode pic30_opcodes[] =
     DIVU2 Wm,Wn     Unsigned integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
     ***************************************************************************/
    { "div2.ud",   DIVUD2,     2, { DIVIDEND32_REG, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
    { "div2.uw",   DIVUW2,     2, { DIVIDEND16_REG_2, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
    { "div2.u",    DIVUW2,     2, { DIVIDEND16_REG_2, REG },
-                  F_IS_DSP_INSN | F_ISAV4,
+                  F_ISAV4,
                   S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
    },
 
@@ -4658,7 +4658,7 @@ const struct pic30_opcode pic30_opcodes[] =
    { "vfslv",     VFSLV,      3, { P_SRC_REG, 
                                    IND_DST_REG_POST_INC, 
                                    LITERAL_2BIT},
-                  F_WORD | F_IS_DSP_INSN | F_ISAV4,
+                  F_WORD | F_ISAV4,
                   S_NOP
    },
 
@@ -6104,7 +6104,8 @@ pic30_extract_offset (insn, info, flags, opnd, err)
 {
    long offset = PIC30_EXTRACT_OPERAND (insn, opnd->bits, opnd->shift);
 
-   char * rc = (char *) malloc (BUFSIZ);
+   unsigned int len = 80;
+   char * rc = (char *) malloc (len);
 
    /* Sign-extend the result if offset is negative. */
    if (opnd->bits == 16) {
@@ -6148,6 +6149,10 @@ pic30_extract_offset (insn, info, flags, opnd, err)
             sym = info->symbols[y];
             try = bfd_asymbol_value (sym);
             if (try == info->target) {
+              if (strlen(rc) + strlen(bfd_asymbol_name(sym)) + 4 > len) {
+                rc = realloc(rc,len+256);
+                len = len + 256;
+              }
               strcat(rc, " <");
               strcat(rc, bfd_asymbol_name(sym));
               strcat(rc, ">");

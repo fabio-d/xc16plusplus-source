@@ -2365,6 +2365,12 @@ fold_convert_const_int_from_fixed (tree type, const_tree arg1)
   double_int temp, temp_trunc;
   unsigned int mode;
 
+#ifdef _BUILD_C30_
+  /* DSPIC supports different rounding modes; copy this function and 
+       modify it target-wise */
+  return pic30_fold_convert_const_int_from_fixed (type, arg1);
+#endif
+
   /* Right shift FIXED_CST to temp by fbit.  */
   temp = TREE_FIXED_CST (arg1).data;
   mode = TREE_FIXED_CST (arg1).mode;

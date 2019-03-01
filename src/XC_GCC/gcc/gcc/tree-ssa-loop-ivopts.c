@@ -5507,6 +5507,15 @@ rewrite_use_nonlinear_expr (struct ivopts_data *data,
 	  || old_code == MINUS_EXPR
 	  || old_code == POINTER_PLUS_EXPR)
 	{
+#if defined(_BUILD_C30_)
+          if (pic30_valid_pointer_mode(TYPE_MODE(TREE_TYPE(cand->var_after))) &&
+              (TYPE_MODE(TREE_TYPE(cand->var_after)) != HImode)) {
+            /* if we were POINTER_PLUS_EXPR, put it back so we can 
+             *    perform the correct increment for extended modes (xc16-956) 
+             */
+            incr_code = old_code;
+          }
+#endif
 	  if (gimple_assign_rhs1 (use->stmt) == cand->var_before)
 	    op = gimple_assign_rhs2 (use->stmt);
 	  else if (old_code != MINUS_EXPR

@@ -629,7 +629,7 @@ new_statement (type, size, list)
 
   new->header.type = type;
   new->header.next = (lang_statement_union_type *) NULL;
-  lang_statement_append (list, new, &new->header.next);
+  lang_statement_append (list, new, &new->header.next,1);
   return new;
 }
 
@@ -753,7 +753,7 @@ new_afile (name, file_type, target, add_to_list)
   p->loaded = FALSE;
   lang_statement_append (&input_file_chain,
 			 (lang_statement_union_type *) p,
-			 &p->next_real_file);
+			 &p->next_real_file,0);
   return p;
 }
 
@@ -942,7 +942,7 @@ lang_output_section_statement_lookup (name)
 
       lang_statement_append (&lang_output_section_statement,
 			     (lang_statement_union_type *) lookup,
-			     &lookup->next);
+			     &lookup->next,0);
     }
   return lookup;
 }
@@ -3104,6 +3104,9 @@ print_statement (s, os)
      lang_statement_union_type *s;
      lang_output_section_statement_type *os;
 {
+  if(pic30_debug) {
+    fprintf(config.map_file,"<<<<<<< %p >>>>>>>> \n", s);
+  }
   switch (s->header.type)
     {
     default:
@@ -3200,6 +3203,38 @@ dprint_statement (s, n)
 	  print_statement (s, abs_output_section);
 	  s = s->header.next;
 	}
+    }
+
+  config.map_file = map_save;
+}
+
+void
+dprint_last_statement (s, n)
+     lang_statement_union_type *s;
+     int n;
+{
+  FILE *map_save = config.map_file;
+  static lang_statement_union_type *buffer[20];
+  int i = 0;
+
+  config.map_file = stderr;
+
+  if (n < 0)
+    print_statement_list (s, abs_output_section);
+  else
+    {
+      while (s) {
+        buffer[i++] = s;
+        s = s->header.next;
+        if (i > 19)
+          i = 0;
+      }
+      while (--n >= 0)
+        {
+          i = i -1;
+          if (i < 0) i = 19;
+          print_statement (buffer[i], abs_output_section);
+        }
     }
 
   config.map_file = map_save;
@@ -3375,8 +3410,10 @@ lang_check_section_addresses ()
 	  */
 	  {
             int s_pmem  = PIC30_SECTION_IN_PROGRAM_MEMORY(s) |
+                          PIC30_IS_PACKEDFLASH_ATTR(s) |
                           PIC30_SECTION_IN_PSV_MEMORY(s);
             int os_pmem = PIC30_SECTION_IN_PROGRAM_MEMORY(os) |
+                          PIC30_IS_PACKEDFLASH_ATTR(os) |
                           PIC30_SECTION_IN_PSV_MEMORY(os);
             int ex_mem  = PIC30_IS_MEMORY_ATTR(s) |
                           PIC30_IS_MEMORY_ATTR(os);
@@ -4847,7 +4884,7 @@ ldlang_add_file (entry)
 
   lang_statement_append (&file_chain,
 			 (lang_statement_union_type *) entry,
-			 &entry->next);
+			 &entry->next,0);
 
   /* The BFD linker needs to have a list of all input BFDs involved in
      a link.  */
@@ -5625,13 +5662,70 @@ lang_abs_symbol_at_end_of (secname, name)
 }
 
 void
-lang_statement_append (list, element, field)
+pic30_print_list(lang_statement_list_type *list, 
+                 lang_statement_union_type *element) {
+  lang_statement_union_type *s;
+  int got_element = 0;
+
+  if (list->head) {
+    int i = 0;
+    for (s = list->head; s; s = s->header.next) {
+      fprintf(stderr,"%d) <<<< %p next @ %p >>>>\n",i++,s,&s->header.next);
+      if (s == element) {
+        got_element = 1;
+      }
+    }
+    if (got_element == 0) {
+        fprintf(stderr,"*********** list corruption\n");
+    }
+  }
+}
+
+int
+pic30_list_count(lang_statement_list_type *list) {
+  lang_statement_union_type *s;
+
+  int i = 0;
+
+  if (list->head) {
+    for (s = list->head; s; s = s->header.next) i++;
+  }
+  return i;
+}
+
+void
+lang_statement_append (list, element, field, can_check)
      lang_statement_list_type *list;
      lang_statement_union_type *element;
      lang_statement_union_type **field;
+     int can_check;
 {
+#if 0
+  volatile int current_length = 0;
+
+  if (can_check)
+    current_length = pic30_list_count(list);
+#endif
   *(list->tail) = element;
   list->tail = field;
+#if 0
+  {
+    lang_statement_union_type *s;
+    int got_element = 0;
+
+    if (list->head && can_check) {
+      for (s = list->head; s; s = s->header.next) {
+        if (s == element) {
+          got_element = 1;
+          break;
+        }
+      }
+      if (got_element == 0) {
+        fprintf(stderr,"*********** list corruption\n");
+      }
+    }
+  }
+#endif
 }
 
 /* Set the output format type.  -oformat overrides scripts.  */

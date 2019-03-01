@@ -1714,6 +1714,20 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          SRC_MASK(0x0ffff0),            /* src_mask */
          0x0ffff0,                      /* dst_mask */
          FALSE),                        /* pcrel_offset? */
+  /* branch abosolute for 6-bit branches */
+  HOWTO(R_PIC30_BRANCH_ABSOLUTE6,       /* type */
+         1,                             /* rightshift */
+         0,                             /* size (0=byte, 1=short, 2=long) */
+         6,                             /* bitsize */
+         TRUE,                          /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_PCREL,        /* special_function */
+         "BRANCH ABSOLUTE 6",           /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x002f0),             /* src_mask */
+         0x002F0,                       /* dst_mask */
+         TRUE),                         /* pcrel_offset? */
 };
 
 /* A mapping from BFD reloc types to PIC30 ELF reloc types.  */
@@ -1820,6 +1834,7 @@ static const struct elf_reloc_map pic30_reloc_map[] =
   { BFD_RELOC_PIC30_P_ADDR_HI,              R_PIC30_P_ADDR_HI },
   { BFD_RELOC_PIC30_WORD_ADDR_LO,           R_PIC30_WORD_ADDR_LO },
   { BFD_RELOC_PIC30_WORD_ADDR_HI,           R_PIC30_WORD_ADDR_HI },
+  { BFD_RELOC_PIC30_BRANCH_ABSOLUTE6,       R_PIC30_BRANCH_ABSOLUTE6 },
 };
 
 /* Given a BFD reloc type, return a howto structure.  */
@@ -2245,6 +2260,7 @@ pic30_adjustable_against_section (type)
    case R_PIC30_32:
    case R_PIC30_PBYTE:
    case R_PIC30_PWORD:
+   case R_PIC30_BRANCH_ABSOLUTE6:
    case R_PIC30_BRANCH_ABSOLUTE:
    case R_PIC30_DO_ABSOLUTE:
    case R_PIC30_PCREL_BRANCH_SLIT6:
@@ -3506,6 +3522,7 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
         if ((relocation > 0xFFFFFF) && ~(relocation | 0x7FFFFF))
           rc = bfd_reloc_overflow;
         break;
+      case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_PCREL_BRANCH_SLIT6:
         /* valid range is [-32..31] */
         if ((relocation > 0x1F) && ~(relocation | 0xC000001F))
@@ -3781,7 +3798,8 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
       /*
       ** only certain relocation types support CODE targets
       */
-      if (PIC30_IS_CODE_ATTR(symbol->section) || PIC30_IS_AUXFLASH_ATTR(symbol->section) )
+      if (PIC30_IS_CODE_ATTR(symbol->section) || 
+          PIC30_IS_AUXFLASH_ATTR(symbol->section) )
       {
         switch (howto->type)
         {
@@ -3792,6 +3810,7 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
         case R_PIC30_PGM_ADDR_LSB:
         case R_PIC30_PGM_ADDR_MSB:
         case R_PIC30_DO_ABSOLUTE:
+        case R_PIC30_BRANCH_ABSOLUTE6:
         case R_PIC30_BRANCH_ABSOLUTE:
         case R_PIC30_CALL_ACCESS:
         case R_PIC30_PCREL_ACCESS:
@@ -3816,8 +3835,9 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
         default:
             {
               *error_msg = (char *) malloc(BUFSIZ);
-              sprintf(*error_msg, "Cannot use relocation type %s on a symbol (%s)"
-                      " that is located in an executable section.",
+              sprintf(*error_msg, 
+                        "Cannot use relocation type %s on a symbol (%s)"
+                        " that is located in an executable section.",
                       howto->name, symbol->name);
               return bfd_reloc_dangerous;
             }
@@ -5277,7 +5297,8 @@ pic30_elf32_perform_pc_relative (abfd, reloc_entry, symbol, data,
         short offset = pic30_elf32_extract_bytes (abfd, data, 2, octets,
                                                  TRUE, TRUE);
 
-        if (howto->type == R_PIC30_PCREL_BRANCH_SLIT6) {
+        if ((howto->type == R_PIC30_PCREL_BRANCH_SLIT6) ||
+            (howto->type == R_PIC30_BRANCH_ABSOLUTE6)) {
           offset = (offset >> 4) & 0x3f;
           if (offset){
             unsigned char *byte_data = data;
@@ -5287,7 +5308,8 @@ pic30_elf32_perform_pc_relative (abfd, reloc_entry, symbol, data,
             reloc_entry->addend = offset * 2;
             /* zero out 6 bits starting at bit 4 */
             byte_data[octets+0] = byte_data[octets+0] & 0x0F;
-            byte_data[octets+1] = byte_data[octets+1] & 0xFC;}
+            byte_data[octets+1] = byte_data[octets+1] & 0xFC; 
+          }
         }
         else if (offset) /* store as addend, clear instruction offset */
           {

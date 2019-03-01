@@ -828,7 +828,7 @@ gld${EMULATION_NAME}_before_allocation ()
 	  is->header.next = NULL;
 	  lang_statement_append (&os->children,
 				 (lang_statement_union_type *) is,
-				 &is->header.next);
+				 &is->header.next,1);
 	}
     }
 }

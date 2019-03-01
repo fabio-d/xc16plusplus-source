@@ -3271,10 +3271,24 @@ pointer_diff (location_t loc, tree op0, tree op1)
      then drop through to build the divide operator.
      Do not do default conversions on the minus operator
      in case restype is a short type.  */
-
+#ifdef _BUILD_C30_
+  {
+    tree target_inttype = inttype;
+    extern tree eds_ptr_type;
+    if (!ADDR_SPACE_GENERIC_P(as0)) {
+      target_inttype = pic30_extended_pointer_integer_type(
+                         TYPE_MODE(TREE_TYPE(op0)));
+    }
+    op0 = build_binary_op (loc, MINUS_EXPR, 
+                           convert (target_inttype, op0),
+			   convert (target_inttype, op1), 0);
+    if (target_inttype != inttype) op0 = convert(inttype, op0);
+  }
+#else
   op0 = build_binary_op (loc,
 			 MINUS_EXPR, convert (inttype, op0),
 			 convert (inttype, op1), 0);
+#endif
   /* This generates an error if op1 is pointer to incomplete type.  */
   if (!COMPLETE_OR_VOID_TYPE_P (TREE_TYPE (TREE_TYPE (orig_op1))))
     error_at (loc, "arithmetic on pointer to an incomplete type");

@@ -141,6 +141,15 @@
                                  "support" DIR_SEPARATOR_STR \
                                  "generic" DIR_SEPARATOR_STR \
                                  "inc"
+#define MPLABC30_PIC33C_INC_PATH ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "dsPIC33C" DIR_SEPARATOR_STR \
+                                 "inc" \
+                                 PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "generic" DIR_SEPARATOR_STR \
+                                 "inc"
 #define MPLABC30_PIC33E_INC_PATH ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC33E" DIR_SEPARATOR_STR \
@@ -257,6 +266,13 @@
                                      ".." DIR_SEPARATOR_STR \
                                      "support" DIR_SEPARATOR_STR \
                                      "peripheral_30F_24H_33F"
+#define MPLABC30_PIC33C_INCLUDE_PATH ".." DIR_SEPARATOR_STR \
+                                     "support" DIR_SEPARATOR_STR \
+                                     "dsPIC33C" DIR_SEPARATOR_STR \
+                                     "h" PATH_SEPARATOR_STR \
+                                     ".." DIR_SEPARATOR_STR \
+                                     "support" DIR_SEPARATOR_STR \
+                                     "peripheral_30F_24H_33F"
 #define MPLABC30_PIC33E_INCLUDE_PATH ".." DIR_SEPARATOR_STR \
                                      "support" DIR_SEPARATOR_STR \
                                      "dsPIC33E" DIR_SEPARATOR_STR \
@@ -328,6 +344,16 @@
                                  ".." DIR_SEPARATOR_STR \
                                  "support" DIR_SEPARATOR_STR \
                                  "dsPIC33F" DIR_SEPARATOR_STR \
+                                 "gld" PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "lib" DIR_SEPARATOR_STR \
+                                 "peripheral_30F_24H_33F"
+#define MPLABC30_PIC33C_LIB_PATH ".." DIR_SEPARATOR_STR \
+                                 "lib" DIR_SEPARATOR_STR \
+                                 "dsPIC33C" PATH_SEPARATOR_STR \
+                                 ".." DIR_SEPARATOR_STR \
+                                 "support" DIR_SEPARATOR_STR \
+                                 "dsPIC33C" DIR_SEPARATOR_STR \
                                  "gld" PATH_SEPARATOR_STR \
                                  ".." DIR_SEPARATOR_STR \
                                  "lib" DIR_SEPARATOR_STR \

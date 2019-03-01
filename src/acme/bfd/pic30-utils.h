@@ -1,7 +1,7 @@
 /*
 ** pic30-utils.h
 **
-** Copyright (c) 2004 Microchip Technology, Inc.
+** Copyright (c) 2017 Microchip Technology, Inc.
 **
 ** This file contains utility macros and structures
 ** that are common to mulitple OMF formats.
@@ -399,6 +399,46 @@ extern bfd_boolean aivt_enabled;
 extern bfd_boolean pic30_has_floating_aivt;
 extern bfd_boolean pic30_has_fixed_aivt;
 extern asymbol **bfd_pic30_load_symbol_table(bfd *abfd, long *num);
+
+/* macros and functions to improve select_objects process 
+ * 
+ *  Here we attempt to pick the object that adds the least amount of
+ *  extra requirements, unless there is an exact match we defer the choice
+ *  until we have seen all.
+ */
+
+/*
+ * ELF uses carsyms when looking at archives
+ * COFF uses asymbols
+ *
+ * accept one for each function since ELF also uses the COFF model,
+ *   at different times
+ *
+ */
+
+struct pic30_deferred_archive_members {
+  carsym *symdef;
+  asymbol *sym;
+  bfd *abfd;
+  struct bfd_link_info *info;
+  unsigned int new_mask_bits;
+  unsigned int new_set_bits;
+  symindex aye;                         /* aptly? named as 'i' in elflink.h */
+  struct pic30_deferred_archive_members *next;
+};
+
+extern void pic30_defer_archive(carsym *symdef,
+                                asymbol *sym,
+                                bfd *abfd, 
+                                struct bfd_link_info *info, 
+                                unsigned int new_mask_bits, 
+                                unsigned int new_set_bits,
+                                symindex aye);
+extern void pic30_remove_archive(carsym *symdef,asymbol *sym);
+extern struct pic30_deferred_archive_members *pic30_pop_tail_archive();
+extern void pic30_clear_deferred(void);
+extern int pic30_count_ones(unsigned int a);
+
 
 /*****************************************************************************/
 

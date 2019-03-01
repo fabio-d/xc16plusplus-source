@@ -451,7 +451,7 @@ extern void lang_abs_symbol_at_beginning_of
   PARAMS ((const char *, const char *));
 extern void lang_statement_append
   PARAMS ((struct statement_list *, union lang_statement_union *,
-	   union lang_statement_union **));
+	   union lang_statement_union **, int));
 extern void lang_for_each_input_file
   PARAMS ((void (*dothis) (lang_input_statement_type *)));
 extern void lang_for_each_file

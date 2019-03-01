@@ -344,9 +344,11 @@ write_image_file(char *name, bfd *abfd) {
     printf("Error: could not open file %s for writing!\n", filename);
     return 0;
   }
+#if 0
   fprintf(fp,"/* %s.h - interface for image */\n", name);
   fprintf(fp,"/* Generated: %s */",ctime(&current_time));
   fprintf(fp,"\n");
+#endif
   fprintf(fp,"extern unsigned char %s[] __attribute__((space(psv)));\n", 
           subordinate_image);
   fclose(fp);
@@ -359,14 +361,17 @@ write_image_file(char *name, bfd *abfd) {
     return 0;
   }
 
+#if 0
   fprintf(fp,";\n");
   fprintf(fp,"; %s generated on %s\n", name, ctime(&current_time));
   fprintf(fp,";\n");
+#endif
+
   if (image_address) {
-    fprintf(fp,"\t.section %s_image,code,page,address(0x%x)\n",
+    fprintf(fp,"\t.section %s_image,code,address(0x%x)\n",
             subordinate_image,image_address);
   } else {
-    fprintf(fp,"\t.section %s_image,code,page\n",subordinate_image);
+    fprintf(fp,"\t.section %s_image,code\n",subordinate_image);
   }
   fprintf(fp,"\t.global _%s\n",subordinate_image);
   fprintf(fp,"_%s:\n\n",subordinate_image);

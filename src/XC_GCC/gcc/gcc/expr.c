@@ -7490,6 +7490,14 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	op0 = convert_to_mode (mode, op0,
 			       TYPE_UNSIGNED (TREE_TYPE
 					      (treeop0)));
+#if defined(_BUILD_C30_) && 1
+      /* Fix for xc16-1017. SI and P32PEDS have same size but the structure is 
+       * different. So a conversion is needed instead of a regular move */
+      else if ((modifier == EXPAND_NORMAL) &&
+               (mode == SImode) && 
+               (TYPE_MODE(TREE_TYPE(treeop0))== P32EDSmode))
+	op0 = convert_to_mode (mode, op0, TYPE_UNSIGNED (TREE_TYPE (treeop0)));
+#endif
       else
 	{
 	  convert_move (target, op0,

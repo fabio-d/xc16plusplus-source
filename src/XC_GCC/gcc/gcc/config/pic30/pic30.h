@@ -298,6 +298,7 @@ enum pic30_builtins
                                MPLABC30_PIC24F_INCLUDE_PATH ":" \
                                MPLABC30_PIC24H_INCLUDE_PATH ":" \
                                MPLABC30_PIC30F_INCLUDE_PATH ":" \
+                               MPLABC30_PIC33C_INCLUDE_PATH ":" \
                                MPLABC30_PIC33E_INCLUDE_PATH ":" \
                                MPLABC30_PIC33F_INCLUDE_PATH )
 #endif
@@ -331,6 +332,7 @@ extern void pic30_system_include_paths(const char *root, const char *system,
          MPLABC30_PIC24F_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC24H_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC30F_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC33C_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC33E_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC33F_LIB_PATH
         
@@ -340,6 +342,7 @@ extern void pic30_system_include_paths(const char *root, const char *system,
          MPLABC30_PIC24F_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC24H_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC30F_LIB_PATH PATH_SEPARATOR_STR \
+         MPLABC30_PIC33C_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC33E_LIB_PATH PATH_SEPARATOR_STR \
          MPLABC30_PIC33F_LIB_PATH
         
@@ -3049,4 +3052,11 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #endif
 
 #define CLEAR_RATIO(speed) 2
+
+/* LOAD/STORE preinc/dec are inefficient for large modes */
+
+#define USE_LOAD_PRE_INCREMENT(mode)  (((mode) == QImode) || ((mode) == HImode))
+#define USE_LOAD_PRE_DECREMENT(mode)  (((mode) == QImode) || ((mode) == HImode))
+#define USE_STORE_PRE_INCREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
+#define USE_STORE_PRE_DECREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
 

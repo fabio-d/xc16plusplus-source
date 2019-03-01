@@ -84,7 +84,7 @@ static bfd_boolean elf_section_ignore_discarded_relocs
 #if PIC30
 #include "pic30-utils.h"
 bfd_boolean (*pic30_elf_link_check_archive_element)
-  PARAMS ((char *, bfd *, struct bfd_link_info *));
+  PARAMS ((char *, bfd *, struct bfd_link_info *, unsigned int *, unsigned int *));
 void (*pic30_update_object_compatibility)
   PARAMS ((const char *, bfd *, unsigned int *, unsigned int *));
 bfd_boolean (*pic30_bfd_has_signature)
@@ -251,6 +251,7 @@ elf_link_is_defined_archive_symbol (abfd, symdef)
 
 unsigned int (*pic30_force_keep_symbol)(char *, char *);
 void (*pic30_smartio_symbols)(struct bfd_link_info*);
+
 #endif
 
 /* Add symbols from an ELF archive file to the linker hash table.  We
@@ -445,10 +446,33 @@ elf_link_add_archive_symbols (abfd, info)
 	    }
 
 #if PIC30
-          if (pic30_elf_link_check_archive_element &&
-              !pic30_elf_link_check_archive_element (symdef->name, element, 
-                                                     info))
-            continue;
+          if (pic30_elf_link_check_archive_element) {
+            bfd_boolean valid;
+            /* quiet warnings */
+            unsigned int new_mask_bits = 0;
+            unsigned int new_set_bits = 0;
+
+            valid = pic30_elf_link_check_archive_element (
+                         symdef->name, element, 
+                         info, &new_mask_bits, &new_set_bits);
+            if (valid) {
+              if (new_mask_bits == 0) {
+                if (pic30_debug) {
+                  printf("...perfect match\n");
+                }
+                pic30_remove_archive(symdef, NULL);
+              } else {
+                pic30_defer_archive(symdef, NULL, element, info, 
+                                    new_mask_bits, new_set_bits, i);
+                continue;
+              }
+            } else {
+              if (pic30_debug) {
+                  printf("...No match\n");
+              }
+              continue;
+            }
+          }
 #endif
 
 	  element->archive_pass = 1;
@@ -487,6 +511,53 @@ elf_link_add_archive_symbols (abfd, info)
 	     on through the loop.  */
 	  last = symdef->file_offset;
       }
+#ifdef PIC30
+      while (loop == 0) {
+        /* fill in deferred objects, last first... */
+        struct pic30_deferred_archive_members *m;
+	struct bfd_link_hash_entry *undefs_tail;
+        symindex mark;
+
+        m = pic30_pop_tail_archive();
+        if (m) {
+          m->abfd->archive_pass = 1;
+  
+          undefs_tail = m->info->hash->undefs_tail;
+  
+          if (! (*m->info->callbacks->add_archive_element) (m->info, m->abfd,
+                                                         m->symdef->name))
+            goto error_return;
+          if (! elf_link_add_object_symbols (m->abfd, m->info))
+            goto error_return;
+    
+          /* If there are any new undefined symbols, we need to make
+             another pass through the archive in order to see whether
+             they can be defined.  FIXME: This isn't perfect, because
+             common symbols wind up on undefs_tail and because an
+             undefined symbol which is defined later on in this pass
+             does not require another pass.  This isn't a bug, but it
+             does make the code less efficient than it could be.  */
+          if (undefs_tail != m->info->hash->undefs_tail) 
+            loop = TRUE;
+
+          /* Look backward to mark all symbols from this object file
+             which we have already seen in this pass.  */
+          mark = m->aye;
+          do
+            {
+              included[mark] = TRUE;
+              if (mark == 0)
+                break;
+              --mark;
+            } 
+          while (symdefs[mark].file_offset == m->symdef->file_offset);
+            
+          /* We mark subsequent symbols from this object file as we go
+             on through the loop.  */
+          last = m->symdef->file_offset;
+        } else break;
+      }
+#endif
     }
   while (loop);
 
@@ -496,10 +567,14 @@ elf_link_add_archive_symbols (abfd, info)
   return TRUE;
 
  error_return:
-  if (defined != (bfd_boolean *) NULL)
+  if (defined != (bfd_boolean *) NULL) 
     free (defined);
-  if (included != (bfd_boolean *) NULL)
+  if (included != (bfd_boolean *) NULL) 
     free (included);
+#ifdef PIC30
+  pic30_clear_deferred();
+#endif
+  
   return FALSE;
 }
 

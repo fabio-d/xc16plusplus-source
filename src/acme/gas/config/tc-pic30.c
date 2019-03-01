@@ -707,7 +707,11 @@ pic30_init(int argc __attribute__ ((__unused__)), char **argv)
         include_path = strdup(MPLABC30_PIC30F_INC_PATH);
         break;
       case P33E:
-        include_path = strdup(MPLABC30_PIC33E_INC_PATH);
+        if (pic30_is_isav4_machine(global_PROCESSOR)) {
+          include_path = strdup(MPLABC30_PIC33C_INC_PATH);
+        } else {
+          include_path = strdup(MPLABC30_PIC33E_INC_PATH);
+        }
         break;
       case P33F:
         include_path = strdup(MPLABC30_PIC33F_INC_PATH);
@@ -4511,7 +4515,11 @@ md_begin (void)
           sprintf (family, "__PIC24E" );
           break;
         case P33E:
-          sprintf (family, "__dsPIC33E" );
+          if (pic30_is_isav4_machine(global_PROCESSOR)) {
+            sprintf (family, "__dsPIC33C" );
+          } else {
+            sprintf (family, "__dsPIC33E" );
+          }
           break;
         default:
           sprintf (family, "__MCHP16" );
@@ -8066,15 +8074,15 @@ pic30_create_insn (opcode, operands, operand_count)
    unsigned char have_bra_insn = ((insn == BRA_INSN) ||
                                   (insn == RCALL_INSN) ||
                                   (insn == BRA_CC_INSN) ||
-                                  (insn == CPWBEQ_W_INSN) ||
-                                  (insn == CPWBEQ_B_INSN) ||
-                                  (insn == CPWBGT_W_INSN) ||
-                                  (insn == CPWBGT_B_INSN) ||
-                                  (insn == CPWBLT_W_INSN) ||
-                                  (insn == CPWBLT_B_INSN) ||
-                                  (insn == CPWBNE_W_INSN) ||
-                                  (insn == CPWBNE_B_INSN) ||
                                   (insn == BRA_DSP_INSN));
+   unsigned char have_bra6_insn = ((insn == CPWBEQ_W_INSN) ||
+                                   (insn == CPWBEQ_B_INSN) ||
+                                   (insn == CPWBGT_W_INSN) ||
+                                   (insn == CPWBGT_B_INSN) ||
+                                   (insn == CPWBLT_W_INSN) ||
+                                   (insn == CPWBLT_B_INSN) ||
+                                   (insn == CPWBNE_W_INSN) ||
+                                   (insn == CPWBNE_B_INSN));
    short i;
    char * output_frag = frag_more (PIC30_SIZE_OF_PROGRAM_WORD);
 
@@ -8096,7 +8104,8 @@ pic30_create_insn (opcode, operands, operand_count)
       {
 
          case O_constant:
-            if ((have_bra_insn) && (!operands[i].X_md.immediate))
+            if (((have_bra_insn) || (have_bra6_insn)) && 
+                (!operands[i].X_md.immediate))
             {
                symbolS *symbolp;
                expressionS expr;
@@ -8128,7 +8137,9 @@ pic30_create_insn (opcode, operands, operand_count)
  
                fix = fix_new_exp (frag_now, output_frag - frag_now->fr_literal,
                                   reloc.fix_size, &(expr), reloc.pc_relative,
-                                  BFD_RELOC_PIC30_BRANCH_ABSOLUTE);
+                                  have_bra_insn ? 
+                                    BFD_RELOC_PIC30_BRANCH_ABSOLUTE :
+                                    BFD_RELOC_PIC30_BRANCH_ABSOLUTE6);
 
                fix->tc_fix_data.operand = opcode->operands[i];
 

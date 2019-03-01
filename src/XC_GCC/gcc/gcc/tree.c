@@ -3684,15 +3684,29 @@ build2_stat (enum tree_code code, tree tt, tree arg0, tree arg1 MEM_STAT_DECL)
     gcc_assert (TREE_CODE (arg0) == INTEGER_CST
 		&& TREE_CODE (arg1) == INTEGER_CST);
 
-  if (code == POINTER_PLUS_EXPR && arg0 && arg1 && tt)
+  if (code == POINTER_PLUS_EXPR && arg0 && arg1 && tt) {
 #if _BUILD_C30_
-    gcc_assert (POINTER_TYPE_P (tt) && POINTER_TYPE_P (TREE_TYPE (arg0))
-		&& INTEGRAL_TYPE_P (TREE_TYPE (arg1)));
+    /* arg1 will be an integer represented in an extended type if our result
+     *  and arg0 is a extended pointer type:
+     *
+     *  __prog__ *foo = &bar + 2 --- the 2 might be cast to the right type
+     *      for this pointer arithemtic (not an int!)
+     */
+    /* tt and arg0 should be pointer types */
+    gcc_assert(POINTER_TYPE_P(tt) && POINTER_TYPE_P(TREE_TYPE(arg0)));
+    if (TYPE_MODE(tt) == HImode) {
+       /* arg1 should be integral if tt = HImode */  
+       gcc_assert(INTEGRAL_TYPE_P (TREE_TYPE (arg1)));
+    } else {
+       gcc_assert(INTEGRAL_TYPE_P (TREE_TYPE (arg1)) ||
+                  POINTER_TYPE_P (TREE_TYPE (arg1)));
+    }
 #else
     gcc_assert (POINTER_TYPE_P (tt) && POINTER_TYPE_P (TREE_TYPE (arg0))
 		&& INTEGRAL_TYPE_P (TREE_TYPE (arg1))
 		&& useless_type_conversion_p (sizetype, TREE_TYPE (arg1)));
 #endif
+  }
 
   t = make_node_stat (code PASS_MEM_STAT);
   TREE_TYPE (t) = tt;

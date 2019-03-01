@@ -373,7 +373,13 @@ pic30_print_insn (memaddr, info)
    int i,j;
    int is_ecore= pic30_is_ecore_machine(bfd_lookup_arch(info->arch,info->mach));
    int is_isav4= pic30_is_isav4_machine(bfd_lookup_arch(info->arch,info->mach));
+   struct pic30_private_data *private_data;
 
+   private_data = info->private_data;
+   if (private_data) {
+      private_data->opcode = 0;
+      private_data->opnd_no = 0;
+   }
    pic30_disassembly_address = memaddr; /* make insn address visible */
 
    if (info->disassembler_options)
@@ -413,13 +419,6 @@ pic30_print_insn (memaddr, info)
    else if (PIC30_DISPLAY_AS_PROGRAM_MEMORY(info->section))
    {
       unsigned char found_insn = FALSE;
-      struct pic30_private_data *private_data;
-
-      private_data = info->private_data;
-      if (private_data) {
-        private_data->opcode = 0;
-        private_data->opnd_no = 0;
-      }
 
       status = (*info->read_memory_func) (memaddr, bytes_read,
                                           PIC30_SIZE_OF_PROGRAM_WORD, info);
@@ -434,7 +433,7 @@ pic30_print_insn (memaddr, info)
          insn = insn | ((unsigned long)bytes_read[i] << (8 * i));
 
       for (i = 0; i < pic30_num_opcodes; i++)
-      {  
+      {
 #if 1
          int valid_insn = 1;
 
@@ -449,8 +448,8 @@ pic30_print_insn (memaddr, info)
          }
          if (valid_insn == 0) continue;
 #else
-	 if ((pic30_opcodes[i].flags & F_ISAV4) && !is_isav4) continue;
-	 if ((pic30_opcodes[i].flags & F_ECORE) && !is_ecore) continue;
+         if ((pic30_opcodes[i].flags & F_ISAV4) && !is_isav4) continue;
+         if ((pic30_opcodes[i].flags & F_ECORE) && !is_ecore) continue;
          if ((pic30_opcodes[i].flags & F_FCORE) && is_ecore) continue;
 #endif
          if ((pic30_opcodes[i].number_of_words != 0) &&

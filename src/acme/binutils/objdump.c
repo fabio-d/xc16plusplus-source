@@ -2085,6 +2085,10 @@ disassemble_bytes (info, disassemble_fn, insns, data,
   aux = (struct objdump_disasm_info *) info->application_data;
   section = aux->sec;
 
+  if (strcmp(section->name,".prog") == 0) {
+    fprintf(stderr,"hit\n");
+  }
+
   if (insns)
     octets_per_line = 4;
   else
@@ -2122,6 +2126,11 @@ disassemble_bytes (info, disassemble_fn, insns, data,
       bfd_vma z;
       int octets = 0;
       bfd_boolean need_nl = FALSE;
+
+#ifdef PIC30
+      private_data.opcode = 0;
+      private_data.opnd_no = 0;
+#endif
 
       /* If we see more than SKIP_ZEROES octets of zeroes, we just
          print `...'.  */
@@ -2436,7 +2445,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	(*info->fprintf_func)(info->stream,"\n");
 
 #ifdef PIC30
-      if (back_to_back_psv != psrd_psrd_off) {
+      if ((insns) && (back_to_back_psv != psrd_psrd_off)) {
           pic30_detect_back_to_back_psv(section->vma + addr_offset, info, 0);
       }
 #endif
