@@ -611,10 +611,9 @@ mchp_handle_configuration_setting (const char *name,
                                    const unsigned char *value_name)
 {
   struct mchp_config_specification *spec;
-  char *endptr;
+  char *endptr=NULL;
   long long numeric_value = 0;
 
-  numeric_value = strtoll(value_name,&endptr,0);
 
   /* Look up setting in the definitions for the configuration words */
   for (spec = mchp_configuration_values ; spec ; spec = spec->next)
@@ -639,28 +638,29 @@ mchp_handle_configuration_setting (const char *name,
                   return;
                 }
 
-              if ((*value_name) && (*endptr == 0)) {
+              if (*value_name) {
+                numeric_value = strtoll(value_name,&endptr,0);
+              }
+              if ((*value_name) && (*endptr==0)) {
                 /* we have been given a value to match */
-                if ((*value_name) && (*endptr == 0)) {
-                  int zeros,width,max=0;
-                  /* entire string is a number, 
-                   * don't look for setting but see if the numeric_value can fit
-                   */
+                int zeros,width,max=0;
+                /* entire string is a number, 
+                 * don't look for setting but see if the numeric_value can fit
+                 */
               
-                  width = bitsSet(setting->mask);
-                  max = (1 << width) - 1;
-                  if ((numeric_value < 0) || (numeric_value > max)) {
-                    error("Cannot squeeze value 0x%llx into setting '%s' "
-                          "which is only %d bits wide\n", 
-                          numeric_value, setting->name, width);
-                    return;
-                  }
-                  zeros = zeroBits(setting->mask);
-                  spec->referenced_bits |= setting->mask;
-                  spec->value = (spec->value & ~setting->mask) | 
-                                (numeric_value << zeros);
+                width = bitsSet(setting->mask);
+                max = (1 << width) - 1;
+                if ((numeric_value < 0) || (numeric_value > max)) {
+                  error("Cannot squeeze value 0x%llx into setting '%s' "
+                        "which is only %d bits wide\n", 
+                        numeric_value, setting->name, width);
                   return;
                 }
+                zeros = zeroBits(setting->mask);
+                spec->referenced_bits |= setting->mask;
+                spec->value = (spec->value & ~setting->mask) | 
+                              (numeric_value << zeros);
+                return;
               } else {
                 /* look up the value */
                 for (value = setting->values ; value ; value = value->next)

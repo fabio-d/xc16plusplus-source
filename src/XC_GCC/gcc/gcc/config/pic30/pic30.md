@@ -760,6 +760,12 @@
   (and (match_operand 0 "immediate_operand")
        (match_test "INTVAL(op) == 8")))
 
+(define_special_predicate "pic30_reg_or_lit8"
+  (ior (match_operand 0 "pic30_register_operand")
+       (and (match_operand 0 "immediate_operand")
+            (match_test "INTVAL(op) >= 0")
+            (match_test "INTVAL(op) < 256"))))
+
 ;;  { "pic30_imm16plus_operand", { CONST_INT }}, 
 
 (define_special_predicate "pic30_imm16plus_operand"
@@ -4904,12 +4910,14 @@
 )
 
 (define_insn "zero_extendsip32eds2"
-  [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r")
+  [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r,r")
         (zero_extend:P32EDS
-          (match_operand:SI 1 "pic30_register_operand"      "r")))
+          (match_operand:SI 1 "pic30_register_operand"      "r,0")))
   ]
   ""
-  "sl %1,%0\;sl %d1,%d0\;asr %0,%0\;btss SR,#1\;bset %0,#15"
+  "@
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4922,7 +4930,7 @@
           (match_operand:SI 1 "pic30_register_operand"     "r")))
   ]
   ""
-  "sl %1,%0\;sl %d1,%d0\;asr %0,%0\;btss SR,#1\;bset %0,#15"
+  "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4935,7 +4943,9 @@
           (match_operand:SI 1 "pic30_register_operand"    "r,0")))
   ]
   ""
-  "sl %1,%0\;sl %d1,%d0\;asr %0,%0\;btss SR,#1\;bset %0,#15"
+  "@
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4948,7 +4958,7 @@
           (match_operand:SI 1 "pic30_register_operand"     "r")))
   ]
   ""
-  "sl %1,%0\;sl %d1,%d0\;asr %0,%0\;btss SR,#1\;bset %0,#15"
+  "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -26290,7 +26300,7 @@
   [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
         (ior:DI
            (zero_extend:DI
-              (match_operand:HI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+              (match_operand:HI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r"))
            (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
         )
    )
@@ -28365,7 +28375,7 @@
   char *noerrata_patterns[] = {
      /* r,r,r */          \"xor %1,%2,%0\;mov %d2,%d0\;mov.d %t2,%t0\",
 
-     /* >,r,r */          \"xor %1,%2,%s0\;mov %d2,%0\;mov.d %t2,%0\",
+     /* >,r,r */          \"xor %1,%2,%0\;mov %d2,%0\;mov.d %t2,%0\",
 
      /* >,r,0 */          \"xor %1,%s2,%s0\;add #8,%r0\",
 
@@ -28385,7 +28395,7 @@
   char *psv_psv_patterns[] = {
      /* r,r,r */          \"xor %1,%2,%0\;mov %d2,%d0\;mov.d %t2,%t0\",
 
-     /* >,r,r */          \"xor %1,%2,%s0\;mov %d2,%0\;mov.d %t2,%0\",
+     /* >,r,r */          \"xor %1,%2,%0\;mov %d2,%0\;mov.d %t2,%0\",
 
      /* >,r,0 */          \"xor %1,%s2,%s0\;add #8,%r0\",
 
@@ -28425,7 +28435,7 @@
   char *psv_psv_movd_patterns[] = {
      /* r,r,r */          \"xor %1,%2,%0\;mov %d2,%d0\;mov.d %t2,%t0\",
 
-     /* >,r,r */          \"xor %1,%2,%s0\;mov %d2,%0\;mov.d %t2,%0\",
+     /* >,r,r */          \"xor %1,%2,%0\;mov %d2,%0\;mov.d %t2,%0\",
 
      /* >,r,0 */          \"xor %1,%s2,%s0\;add #8,%r0\",
 
@@ -29060,7 +29070,7 @@
 
      /* >,0,r */          \"xor %2,%s1,%s0\;add #8,%r0\",
 
-     /* >,>,r */          \"xor %2,%s1,%s0\;mov %1,%0\;mov %1,%0\;mov %1,%0\",
+     /* >,>,r */          \"xor %2,%1,%0\;mov %1,%0\;mov %1,%0\;mov %1,%0\",
 
      /* r,>,r */          \"xor %2,%1,%0\;mov %1,%d0\;mov.d %1,%t0\",
 
@@ -29080,7 +29090,7 @@
 
      /* >,0,r */          \"xor %2,%s1,%s0\;add #8,%r0\",
 
-     /* >,>,r */          \"xor %2,%s1,%s0\;\"
+     /* >,>,r */          \"xor %2,%1,%0\;\"
                           \"nop\;\"
                           \"mov %1,%0\;\"
                           \"nop\;\"
@@ -29122,7 +29132,7 @@
 
      /* >,0,r */          \"xor %2,%s1,%s0\;add #8,%r0\",
 
-     /* >,>,r */          \"xor %2,%s1,%s0\;\"
+     /* >,>,r */          \"xor %2,%1,%0\;\"
                           \"mov %1,%0\;\"
                           \"mov %1,%0\;\"
                           \"mov %1,%0\",
@@ -32725,9 +32735,73 @@
 ;; "o,d" constraint causes a nonoffsettable memref to match the "o"
 ;; so that its address is reloaded.
 
+(define_insn "bfins"
+  [(set (zero_extract:HI    
+          (match_operand    0 "pic30_mode2_or_near_operand" "+Rr,Rr,U")
+          (match_operand:HI 1 "immediate_operand"           " i, i, i")
+          (match_operand:HI 2 "immediate_operand"           " i, i, i"))
+        (match_operand:HI 3 "pic30_reg_or_lit8"             " r, i, r"))]
+  "(pic30_isav4_target())"
+  "*
+{
+  switch (which_alternative) 
+  {
+    case 0: return \"bfins #%2,#%1,%3,%0\";
+    case 1: return \"bfins #%2,#%1,#%3,%0\";
+    case 2:  { /* U, i, i, r */
+      /* Check to see if it is near+offset */
+      if (GET_CODE(XEXP(operands[0],0)) == CONST) {
+        if(GET_CODE(XEXP(XEXP(operands[0],0),0)) == PLUS) {
+          int offset;
+          offset = INTVAL(XEXP(XEXP(XEXP(operands[0],0),0),1));
+          if (offset & 1) {
+            return \"bfins #%2+8,#%1,%3,%0-1\";
+          }
+        } 
+      } else {
+        return \"bfins #%2,#%1,%3,%0\";
+      }
+    }
+    default:
+      gcc_assert(0);
+  }
+}"
+)
+
 ;; (define_insn "extv" ...
 
 ;; (define_insn "extzv" ...
+(define_insn "extzv"
+  [(set (match_operand:HI   0 "pic30_register_operand"      "=r,r")
+        (zero_extract:HI  
+          (match_operand    1 "pic30_mode2_or_near_operand" "Rr,U")
+          (match_operand:HI 2 "immediate_operand"           " i,i")
+          (match_operand:HI 3 "immediate_operand"           " i,i")))]
+  "(pic30_isav4_target())"
+  "*
+{
+  switch(which_alternative)
+  {
+    case 0:  return \"bfext #%3,#%2,%1,%0\";
+    case 1:  {
+      /* Check to see if the near operand has an offset */
+      if (GET_CODE(XEXP(operands[1],0)) == CONST) {
+        if(GET_CODE(XEXP(XEXP(operands[1],0),0)) == PLUS) {
+          int offset;
+          offset = INTVAL(XEXP(XEXP(XEXP(operands[1],0),0),1));
+          if (offset & 1) {
+            return \"bfext #%3+8,#%2,%1-1,%0\";
+          }
+        }
+      } else {
+        return \"bfext #%3,#%2,%1,%0\";
+      }
+    }
+    default:
+      gcc_assert(0);
+  }
+}"
+)
 
 ;; (define_insn "insv" ...
 
@@ -32741,6 +32815,15 @@
   "
 { int n;
   int mode;
+  if (pic30_isav4_target()) {
+    /* It is better to use bfins for insert of more than 1 bits.*/
+    if (INTVAL(operands[1]) > 1) {
+      emit(
+        gen_bfins(operands[0],operands[1],operands[2],operands[3])
+      );
+      DONE;
+    }
+  }
 
   n = 4;
   mode = GET_MODE(operands[0]);
@@ -33876,7 +33959,7 @@
     ] UNSPECV_WRITENVM)
   ]
   ""
-  "mov %0,_NVMKEY\;mov %1,_NVMKEY\;bset _NVMCON,#15\;clr %0\;clr %1"
+  ".set ___PA___,0\;mov %0,_NVMKEY\;nop\;mov %1,_NVMKEY\;bset _NVMCON,#15\;clr %0\;clr %1\;.set __PA___,1"
   [
     (set_attr "type" "etc")
   ]
@@ -33886,7 +33969,7 @@
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (unspec_volatile [ (const_int 0) ] UNSPECV_WRITENVM))]
   ""
-  "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bset _NVMCON,#15\;nop\;nop"
+  ".set ___PA___,0\;mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bset _NVMCON,#15\;nop\;nop\;.set ___PA___,1"
   [
     (set_attr "type" "etc")
   ]
@@ -33898,7 +33981,7 @@
            (match_operand:HI 1 "pic30_register_operand" "0")
          ] UNSPECV_WRITERTCWEN))]
   ""
-  "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bset _RCFGCAL,#13"
+  ".set ___PA___,0\;mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bset _RCFGCAL,#13\;.set ___PA___,1"
   [
     (set_attr "type" "etc")
   ]
@@ -33910,7 +33993,7 @@
            (match_operand:HI 1 "pic30_register_operand" "0")
          ] UNSPECV_WRITEWRLOCK))]
   ""
-  "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bclr _RTCCON1L,#11"
+  ".set ___PA___,0\;mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;bclr _RTCCON1L,#11\;.set ___PA___,1"
   [
     (set_attr "type" "etc")
   ]
@@ -33920,7 +34003,7 @@
   [(set (match_operand:HI 0 "pic30_register_operand" "=&r")
         (unspec_volatile [ (const_int 0) ] UNSPECV_WRITECRTOTP))]
   ""
-  "mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;nop\;bset _CRYOTP,#0"
+  ".set ___PA___,0\;mov #0x55,%0\;mov %0,_NVMKEY\;mov #0xAA,%0\;mov %0,_NVMKEY\;nop\;bset _CRYOTP,#0\;.set ___PA___,1"
   [
     (set_attr "type" "etc")
   ]
@@ -33933,7 +34016,7 @@
         (match_scratch:HI 1                          "=&r"))
   ]
   ""
-  "mov _DFCON,%1\;bset %1,#7\;mov #0xEDB7,%0\;mov %0,_DFKEY\;mov #0x1248,%0\;mov %0,_DFKEY\;mov %1,_DFCON"
+  ".set ___PA___,0\;mov _DFCON,%1\;bset %1,#7\;mov #0xEDB7,%0\;mov %0,_DFKEY\;mov #0x1248,%0\;mov %0,_DFKEY\;mov %1,_DFCON\;.set ___PA___,1"
 )
 
 (define_insn "write_dataflash_secure"
@@ -33946,7 +34029,7 @@
          (match_scratch:HI 2                          "=&r"))
   ]
   ""
-  "mov _DFCON,%2\;bset %2,#7\;mov %0,_DFKEY\;mov %1,_DFKEY\;mov %2,_DFCON\;clr %0\;clr %1"
+  ".set ___PA___,0\;mov _DFCON,%2\;bset %2,#7\;mov %0,_DFKEY\;mov %1,_DFKEY\;mov %2,_DFCON\;clr %0\;clr %1\;.set ___PA___,1"
 )
 
 

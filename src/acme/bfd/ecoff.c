@@ -313,6 +313,9 @@ ecoff_sec_to_styp_flags (name, flags)
     styp = STYP_DATA;
   else if (strcmp (name, _SDATA) == 0)
     styp = STYP_SDATA;
+  else if (strcmp (name, _BSS) == 0)
+    styp = STYP_BSS;
+#if !defined(PIC30)
   else if (strcmp (name, _RDATA) == 0)
     styp = STYP_RDATA;
   else if (strcmp (name, _LITA) == 0)
@@ -321,8 +324,6 @@ ecoff_sec_to_styp_flags (name, flags)
     styp = STYP_LIT8;
   else if (strcmp (name, _LIT4) == 0)
     styp = STYP_LIT4;
-  else if (strcmp (name, _BSS) == 0)
-    styp = STYP_BSS;
   else if (strcmp (name, _SBSS) == 0)
     styp = STYP_SBSS;
   else if (strcmp (name, _INIT) == 0)
@@ -358,6 +359,7 @@ ecoff_sec_to_styp_flags (name, flags)
     }
   else if (strcmp (name, _RCONST) == 0)
     styp = STYP_RCONST;
+#endif
   else if ((flags & SEC_CODE) || (sec->auxflash == 1))
     styp = STYP_TEXT;
   else if (flags & SEC_DATA)

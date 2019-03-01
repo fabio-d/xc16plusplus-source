@@ -108,6 +108,9 @@ extern unsigned int global_signature_set;
 
 extern bfd_boolean pic30_pagesize;
 extern unsigned int pagesize_arg;
+extern bfd_boolean pic30_psrd_psrd_check;
+extern char *pic30_add_data_flags;
+extern char *pic30_add_code_flags;
 
 /* SSR# 26079 */
 const char *icd2ram = "__ICD2RAM";
@@ -188,7 +191,11 @@ enum pic30_options {
   PRESERVE_ALL,
   NO_IVT_OPTION,
   IVT_OPTION,
-  PAGESIZE
+  PAGESIZE,
+  PSRD_PSRD_CHECK,
+  NO_PSRD_PSRD_CHECK,
+  ADD_CODE_FLAGS,
+  ADD_DATA_FLAGS,
 };
 
 static struct option longopts[] = 
@@ -242,5 +249,9 @@ static struct option longopts[] =
   { "preserved", required_argument, NULL, PRESERVED },
   { "preserve-all", no_argument, NULL, PRESERVE_ALL },
   { "pagesize", required_argument, NULL, PAGESIZE },
+  { "psrd-psrd-check", no_argument, NULL, PSRD_PSRD_CHECK },
+  { "no-psrd-psrd-check", no_argument, NULL, NO_PSRD_PSRD_CHECK },
+  { "add-flags-code", required_argument, NULL, ADD_CODE_FLAGS },
+  { "add-flags-data", required_argument, NULL, ADD_DATA_FLAGS },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

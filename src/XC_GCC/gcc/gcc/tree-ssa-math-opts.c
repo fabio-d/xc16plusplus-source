@@ -1298,13 +1298,32 @@ is_widening_mult_rhs_p (tree rhs, tree *type_out, tree *new_rhs_out)
 
       rhs1 = gimple_assign_rhs1 (stmt);
       type1 = TREE_TYPE (rhs1);
-      if (TREE_CODE (type1) != TREE_CODE (type)
-#ifdef _BUILD_C30_
-	  || TYPE_PRECISION (type1) * 2 > TYPE_PRECISION (type))
+#if defined(_BUILD_C30_) 
+      if (TREE_CODE (type1) != TREE_CODE (type))
+         return false;
+      if (TREE_CODE(type1) == FIXED_POINT_TYPE) {
+         /* fixed point types support widening to ACCUM_TYPE from many 
+          * precision types
+          */
+	 if (TYPE_PRECISION(type) == ACCUM_TYPE_SIZE) {
+            switch (TYPE_PRECISION(type1)) {
+              default: return false;
+              case FRACT_TYPE_SIZE:
+              case LONG_FRACT_TYPE_SIZE:
+                break;
+            }
+         }
+      }
+      if (TREE_CODE(type1) == INTEGER_TYPE) {
+        if (TREE_CODE (type1) != TREE_CODE (type)
+	    || TYPE_PRECISION (type1) * 2 != TYPE_PRECISION (type))
+	  return false;
+      }
 #else
+      if (TREE_CODE (type1) != TREE_CODE (type)
 	  || TYPE_PRECISION (type1) * 2 != TYPE_PRECISION (type))
-#endif
 	return false;
+#endif
 
       *new_rhs_out = rhs1;
       *type_out = type1;

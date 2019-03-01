@@ -89,6 +89,9 @@ pic30_list_options (file)
   fprintf (file, _("  --preserved=app        application from which to preserve data values\n"));
   fprintf (file, _("  --preserve-all         mark all data objects preserved, unless marked for update\n"));
 #endif
+  fprintf (file, _("  --no-psrd-psrd-check   Do not scan linked executable for psrd psrd violations\n"));
+  fprintf (file, _("  --add-flags-code       Add section flags to a code section on link\n"));
+  fprintf (file, _("  --add-flags-data       Add section flags to a data section on link\n"));
 
 } /* static void pic30_list_options () */
 
@@ -754,8 +757,33 @@ pic30_parse_args (argc, argv)
         }
       }
       break;
+    case PSRD_PSRD_CHECK:
+      pic30_psrd_psrd_check = TRUE;
+      break;
+    case NO_PSRD_PSRD_CHECK:
+      pic30_psrd_psrd_check = FALSE;
+      break;
+    case ADD_CODE_FLAGS:
+      if (pic30_add_code_flags) {
+        char *f = malloc(strlen(pic30_add_code_flags) + strlen(optarg) + 2);
+        sprintf(f, "%s,%s", pic30_add_code_flags, optarg);
+        free(pic30_add_code_flags);
+        pic30_add_code_flags = f;
+      } else {
+        pic30_add_code_flags = strdup(optarg);
+      }
+      break;
+    case ADD_DATA_FLAGS:
+      if (pic30_add_data_flags) {
+        char *f = malloc(strlen(pic30_add_data_flags) + strlen(optarg) + 2);
+        sprintf(f, "%s,%s", pic30_add_data_flags, optarg);
+        free(pic30_add_data_flags);
+        pic30_add_data_flags = f;
+      } else {
+        pic30_add_data_flags = strdup(optarg);
+      }
+      break;
     }
-    
   return 1; 
 } /* static int pic30_parse_args ()*/
 

@@ -349,7 +349,6 @@ main (argc, argv)
   command_line.warn_mismatch = TRUE;
   command_line.check_section_addresses = TRUE;
   command_line.accept_unknown_input_arch = FALSE;
-  //command_line.gc_sections = TRUE;
 
   /* We initialize DEMANGLING based on the environment variable
      COLLECT_NO_DEMANGLE.  The gcc collect2 program will demangle the
@@ -651,10 +650,12 @@ main (argc, argv)
     }
 
 #ifdef PIC30
-  /* CAW */
   extern const bfd_arch_info_type * global_PROCESSOR;
   extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
-  if (pic30_is_ecore_machine(global_PROCESSOR)) {
+  extern bfd_boolean pic30_psrd_psrd_check;
+
+  if ((pic30_is_ecore_machine(global_PROCESSOR)) && 
+      (pic30_psrd_psrd_check == 1)) {
 #define objdump_suffix "-objdump\""
 #define objdump_suffix_exe "-objdump.exe"
      char *real_objdump = malloc(1 + strlen(program_name) + 

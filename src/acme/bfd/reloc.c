@@ -615,6 +615,11 @@ bfd_perform_relocation (abfd, reloc_entry, data, input_section, output_bfd,
 /*     DUMP_CANON_RELOC(q->howto->name, q); */
 #endif
 
+  /* CAW reloc entry written as 'data' element, but this is really FLASH */
+  if (input_section->packedflash) {
+    reloc_entry->address = ((reloc_entry->address / 2) * 4) / 3;
+  }
+
   symbol = *(reloc_entry->sym_ptr_ptr);
   if (bfd_is_abs_section (symbol->section)
       && output_bfd != (bfd *) NULL)

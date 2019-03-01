@@ -4295,8 +4295,9 @@ output_addressed_constants (tree exp)
       if (TREE_CODE (tem) == CONST_DECL && DECL_INITIAL (tem))
 	tem = DECL_INITIAL (tem);
 
-      if (CONSTANT_CLASS_P (tem) || TREE_CODE (tem) == CONSTRUCTOR)
+      if (CONSTANT_CLASS_P (tem) || TREE_CODE (tem) == CONSTRUCTOR) {
 	output_constant_def (tem, 0);
+      }
       break;
 
     case PLUS_EXPR:
@@ -4313,6 +4314,9 @@ output_addressed_constants (tree exp)
     case CONSTRUCTOR:
       {
 	unsigned HOST_WIDE_INT idx;
+        if (TREE_CODE(TREE_TYPE(exp)) == RECORD_TYPE) {
+          pic30_set_constant_section(0,0,0);
+        }
 	FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (exp), idx, tem)
 	  if (tem != 0)
 	    output_addressed_constants (tem);

@@ -1652,6 +1652,8 @@ select_free_block(struct pic30_section *s, unsigned int len,
    * Loop through the free blocks list
    */
   for (b = free_blocks; b != NULL; b = b->next) {
+    int option1_base = b->addr;
+    int option2_base = b->addr;
 
     if ((b->addr == 0) && (b->size == 0))
       continue;
@@ -1895,6 +1897,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
       if (BOOT_IS_ACTIVE(alloc_region_index) && !PIC30_IS_BOOT_ATTR(s->sec) &&
           OVERLAPS_BOOT(option1, len)) {
         option1 = end_address[BOOTx][alloc_region_index];
+        option1_base = end_address[BOOTx][alloc_region_index]+2;
         if (pic30_debug)
           printf("    avoiding boot segment\n");
         continue;
@@ -1904,6 +1907,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
       if (SECURE_IS_ACTIVE(alloc_region_index) && !PIC30_IS_SECURE_ATTR(s->sec) &&
           OVERLAPS_SECURE(option1, len)) {
         option1 = end_address[SECUREx][alloc_region_index];
+        option1_base = end_address[SECUREx][alloc_region_index]+2;
         if (pic30_debug)
           printf("    avoiding secure segment\n");
         continue;
@@ -2072,6 +2076,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
             break;
           }
           option2 = boot_base - len + 2;  /* else skip back */
+          option2_base = boot_base;
           if (pic30_debug)
             printf("    avoiding boot segment\n");
           continue;
@@ -2088,6 +2093,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
             break;
           }
           option2 = secure_base - len + 2;
+          option2_base = secure_base;
           if (pic30_debug)
             printf("    avoiding secure segment\n");
           continue;
@@ -2117,7 +2123,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
       b->offset = option1 - b->addr;
     else {
       /* compare the two "outer" remainders */
-      bfd_vma rem1 = option1 - b->addr;
+      bfd_vma rem1 = option1 - option1_base;
       bfd_vma rem2 = (b->addr + b->size) - option2 - len;
 
       b->offset = (rem1 > rem2) ?

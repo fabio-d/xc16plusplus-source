@@ -754,8 +754,15 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 
   if (hdr->bfd_section != NULL)
     {
+#if defined(PIC30)
+      /* we might change the section name after it is created ... see
+       * --add-flags-* 
+       * not a common situation 
+       */
+#else
       BFD_ASSERT (strcmp (name,
 			  bfd_get_section_name (abfd, hdr->bfd_section)) == 0);
+#endif
       return TRUE;
     }
 
@@ -870,10 +877,20 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
   if (bed->elf_backend_section_flags)
     if (! bed->elf_backend_section_flags (&flags, hdr))
       return FALSE;
+  
 
+#if defined(PIC30)
 /*FS This check is necessary to keep .isr section against garbage collection*/
   if (strcmp(abfd->filename, "default_isr") == 0)
      flags |= SEC_LINKER_CREATED;
+
+  /* CAW - we lose this information, ABFD is created by us from a fake file; 
+   *       use the same hack as above and look for a internal ABFD file name 
+   *       ---- these ones are config words that should not be remapped 
+   */
+  if (strncmp(abfd->filename, "/CW/_", 5) == 0)
+    newsect->linker_generated = 1;
+#endif
 
   if (! bfd_set_section_flags (abfd, newsect, flags))
     return FALSE;
@@ -1008,9 +1025,13 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
     }
   }
 
-  
   if (hdr->sh_flags & SHF_NOLOAD)  /* do this last */
     PIC30_SET_NOLOAD_ATTR(newsect);
+
+  if (pic30_add_data_flags || pic30_add_code_flags) {
+    pic30_add_section_attributes(newsect, 
+                                 pic30_add_data_flags, pic30_add_code_flags);
+  }
 #endif
 
 
@@ -2705,7 +2726,7 @@ elf_fake_sections (abfd, asect, failedptrarg)
 
   this_hdr->bfd_section = asect;
   this_hdr->contents = NULL;
-
+#if !defined(PIC30)
   /* FIXME: This should not be based on section names.  */
   if (strcmp (asect->name, ".dynstr") == 0)
     this_hdr->sh_type = SHT_STRTAB;
@@ -2779,6 +2800,9 @@ elf_fake_sections (abfd, asect, failedptrarg)
 		    || this_hdr->sh_info == elf_tdata (abfd)->cverrefs);
     }
   else if ((asect->flags & SEC_GROUP) != 0)
+#else
+  if ((asect->flags & SEC_GROUP) != 0)
+#endif
     {
       this_hdr->sh_type = SHT_GROUP;
       this_hdr->sh_entsize = 4;

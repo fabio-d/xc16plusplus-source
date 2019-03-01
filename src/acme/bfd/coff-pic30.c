@@ -150,6 +150,9 @@ bfd_boolean pic30_has_ivt_option = 0;
 bfd_boolean pic30_ivt = TRUE;
 bfd_boolean pic30_pagesize = FALSE;
 unsigned int pagesize_arg = 0;
+bfd_boolean pic30_psrd_psrd_check = TRUE;
+char *pic30_add_data_flags = 0;
+char *pic30_add_code_flags = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -1952,7 +1955,7 @@ pic30_final_link (abfd, info)
     }
 
 
-#if 1
+#if 0
   if (packed_sections) {
     unsigned char *packed_data;
 
@@ -2022,26 +2025,29 @@ pic30_final_link (abfd, info)
         }
       /* scan sections and write ROM usage ranges */
       if (pic30_debug)
-          printf("\nWriting ROM sections uasage ranges:\n");
+          printf("\nWriting ROM sections usage ranges:\n");
 
       rom_dat = rom_usage_data;
+      if (pic30_debug) printf("Filling in rom_data template...\n");
       for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
         if ((REPORT_AS_PROGRAM(sec)) ||
             (pic30_is_auxflash_machine(global_PROCESSOR) &&
              REPORT_AS_AUXFLASH(sec)) &&
-            ((sec->flags & SEC_EXCLUDE) == 0)) {
-            b_addr = sec->lma;
-            e_addr = b_addr + (sec->_raw_size / 2);
-              *rom_dat++ = b_addr & 0xFF;
-              *rom_dat++ = (b_addr >> 8) & 0xFF;
-              *rom_dat++ = (b_addr >> 16) & 0xFF;
-              *rom_dat++ = 0;
+            ((sec->flags & SEC_EXCLUDE) == 0) &&
+            (sec->linker_generated == 0)) {
+          if (pic30_debug) printf("  %s size %d\n",sec->name, sec->_raw_size);
+          b_addr = sec->lma;
+          e_addr = b_addr + (sec->_raw_size / 2);
+          *rom_dat++ = b_addr & 0xFF;
+          *rom_dat++ = (b_addr >> 8) & 0xFF;
+          *rom_dat++ = (b_addr >> 16) & 0xFF;
+          *rom_dat++ = 0;
 
-              *rom_dat++ = e_addr & 0xFF;
-              *rom_dat++ = (e_addr >> 8) & 0xFF;
-              *rom_dat++ = (e_addr >> 16) & 0xFF;
-              *rom_dat++ = 0;
-         }
+          *rom_dat++ = e_addr & 0xFF;
+          *rom_dat++ = (e_addr >> 8) & 0xFF;
+          *rom_dat++ = (e_addr >> 16) & 0xFF;
+          *rom_dat++ = 0;
+        }
       /* write zero terminator */
       *rom_dat++ = 0; *rom_dat++ = 0;
       *rom_dat++ = 0; *rom_dat++ = 0;
@@ -2093,24 +2099,27 @@ pic30_final_link (abfd, info)
         }
       /* scan sections and write RAM usage ranges */
       if (pic30_debug)
-          printf("\nWriting RAM sections uasage ranges:\n");
+          printf("\nWriting RAM sections usage ranges:\n");
 
       ram_dat = ram_usage_data;
+      if (pic30_debug) printf("Filling in ram_data template...\n");
       for (sec = link_output_bfd->sections ; sec != NULL; sec = sec->next)
-         if (REPORT_AS_DATA(sec) && ((sec->flags & SEC_EXCLUDE) == 0))
-          {
-            b_addr = sec->lma;
-            e_addr = b_addr + (sec->_raw_size / 2);
-              *ram_dat++ = b_addr & 0xFF;
-              *ram_dat++ = (b_addr >> 8) & 0xFF;
-              *ram_dat++ = (b_addr >> 16) & 0xFF;
-              *ram_dat++ = 0;
+        if (REPORT_AS_DATA(sec) && ((sec->flags & SEC_EXCLUDE) == 0) &&
+            (sec->linker_generated == 0))
+        {
+          if (pic30_debug) printf("  %s size %d\n",sec->name, sec->_raw_size);
+          b_addr = sec->lma;
+          e_addr = b_addr + (sec->_raw_size / 2);
+          *ram_dat++ = b_addr & 0xFF;
+          *ram_dat++ = (b_addr >> 8) & 0xFF;
+          *ram_dat++ = (b_addr >> 16) & 0xFF;
+          *ram_dat++ = 0;
 
-              *ram_dat++ = e_addr & 0xFF;
-              *ram_dat++ = (e_addr >> 8) & 0xFF;
-              *ram_dat++ = (e_addr >> 16) & 0xFF;
-              *ram_dat++ = 0;
-         }
+          *ram_dat++ = e_addr & 0xFF;
+          *ram_dat++ = (e_addr >> 8) & 0xFF;
+          *ram_dat++ = (e_addr >> 16) & 0xFF;
+          *ram_dat++ = 0;
+        }
       /* write zero terminator */
       *ram_dat++ = 0; *ram_dat++ = 0;
       *ram_dat++ = 0; *ram_dat++ = 0;
@@ -3567,6 +3576,10 @@ pic30_coff_perform_data_directive (abfd, reloc_entry, symbol, data,
          /* Relocation site is program memory, skip upper & phantom bytes */
          offset = pic30_coff_extract_bytes (abfd, data, count, octets,
                                            TRUE, TRUE);
+      else if (PIC30_IS_PACKEDFLASH_ATTR(input_section->output_section))
+         /* Relocation site is packed flash, skip phantom bytes */
+         offset = pic30_coff_extract_bytes (abfd, data, count, octets,
+                                           FALSE, TRUE);
       else
          /* Relocation site is data memory */
          offset = pic30_coff_extract_bytes_data_mem (abfd, data, count, octets);
@@ -3595,6 +3608,10 @@ pic30_coff_perform_data_directive (abfd, reloc_entry, symbol, data,
          /* Relocation site is program memory, skip upper & phantom bytes */
          pic30_coff_insert_bytes (abfd, data, count, octets, relocation,
                                   TRUE, TRUE);
+      else if (PIC30_IS_PACKEDFLASH_ATTR(input_section->output_section))
+         /* Relocation site is packed flash, skip phantom bytes */
+         pic30_coff_insert_bytes (abfd, data, count, octets,
+                                   relocation, FALSE, TRUE);
       else
          /* Relocation site is data memory */
          pic30_coff_insert_bytes_data_mem (abfd, data, count, octets, relocation);
@@ -4379,7 +4396,11 @@ pic30_coff_perform_p_operators (abfd, reloc_entry, symbol, data,
       reloc_target_output_section = symbol->section->output_section;
 
       /* Convert input-section-relative symbol value to absolute.  */
-      output_base = reloc_target_output_section->lma;
+      if (PIC30_IS_PACKEDFLASH_ATTR(symbol->section))
+        output_base = (reloc_target_output_section->lma *3) / 2;
+      else
+        output_base = reloc_target_output_section->lma;
+
 
 #if 0
       /* DEBUG */

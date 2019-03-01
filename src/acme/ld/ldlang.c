@@ -555,6 +555,7 @@ lang_remove_input_file(lang_input_statement_type *entry)
       prev->next_real_file = (void *) next;
       return 0;
     }
+    prev = f;
   }
   return 1;
 }
@@ -1025,6 +1026,12 @@ lang_map ()
   print_statements ();
 }
 
+#if PIC30
+lang_memory_region_type *pic30_all_regions(void) {
+  return lang_memory_region_list;
+}
+#endif
+
 /* Initialize an output section.  */
 
 static void
@@ -1041,7 +1048,7 @@ init_os (s)
 
   /* Do not creat bfd section for this output sttatement */
   if (pic30_has_floating_aivt) {
-    if ((strcmp(s->name,".aivt") == 0) && !aivt_enabled)
+    if ((strncmp(s->name,".aivt",5) == 0) && !aivt_enabled)
       return;
   }
 
@@ -1362,6 +1369,16 @@ lang_add_section (ptr, section, output, file)
   if ((link_info.strip == strip_debugger || link_info.strip == strip_all)
       && (flags & SEC_DEBUGGING) != 0)
     discard = TRUE;
+
+#if PIC30
+  /* Discard aivt sections when aivt is disabled. Otherwise garbage values
+     get populated in the expected aivt section region */
+  if (pic30_has_floating_aivt) {
+    if ((strncmp(output->name, ".aivt", 5) == 0) && !aivt_enabled) {
+      discard = TRUE;
+    }
+  }
+#endif
 
   if (discard)
     {
@@ -3588,7 +3605,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 						   os->bfd_section));
 #if PIC30
                     /* use aivt_base to allocate floating aivt */
-                    if ((strcmp(os->name,".aivt") == 0) && aivt_enabled) {
+                    if ((strncmp(os->name,".aivt",5) == 0) && aivt_enabled) {
                       dot = aivt_base; 
                       bfd_set_user_set_vma(0, os->bfd_section, TRUE);
                       in_aivt_section = 1;
@@ -3947,7 +3964,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		output_section_statement->bfd_section->flags |=
 		  SEC_ALLOC | SEC_LOAD;
 	      }
-            if ((strcmp(output_section_statement->name,".aivt") == 0) &&
+            if ((strncmp(output_section_statement->name,".aivt",5) == 0) &&
                  aivt_enabled)
               output_section_statement->bfd_section->_raw_size = aivt_len * opb;
        
@@ -5157,10 +5174,12 @@ lang_process ()
 
   already_linked_table_init ();
 
-  if (global_PROCESSOR) {
+  if (global_PROCESSOR && !pic30_is_generic(global_PROCESSOR)) {
     pic30_load_codeguard_settings(global_PROCESSOR, pic30_debug);
-    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
+#if 0
     pic30_get_ivt(global_PROCESSOR, pic30_debug);
+    pic30_get_aivt_settings(global_PROCESSOR, pic30_debug);
+#endif
 
 #if 0
    /* cannot do this part yet... its not possible, the input langauge

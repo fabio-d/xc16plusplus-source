@@ -751,11 +751,6 @@ generic_link_read_symbols (abfd)
       if (symcount < 0)
 	return FALSE;
       bfd_get_symcount (abfd) = symcount;
-
-#if 0
-  /* PIC30 DEBUG */
-      printf("  symbols read from file %s\n", abfd->filename);
-#endif
     }
 
   return TRUE;
@@ -813,11 +808,6 @@ generic_link_add_symbols (abfd, info, collect)
 {
   bfd_boolean ret;
 
-#if 0
-  /* PIC30 DEBUG */
-  printf("generic_link_add_symbols: %s\n", abfd->filename);
-#endif
-
   switch (bfd_get_format (abfd))
     {
     case bfd_object:
@@ -848,11 +838,6 @@ generic_link_add_object_symbols (abfd, info, collect)
 {
   bfd_size_type symcount;
   struct symbol_cache_entry **outsyms;
-
-#if 0
-  /* PIC30 DEBUG */
-  printf("  generic_link_add_object_symbols: %s\n", abfd->filename);
-#endif
 
   if (! generic_link_read_symbols (abfd))
     return FALSE;
@@ -1001,10 +986,6 @@ _bfd_generic_link_add_archive_symbols (abfd, info, checkfn)
   unsigned int indx;
   struct bfd_link_hash_entry **pundef;
 
-#if 0
-  /* DEBUG */
-  printf("  _bfd_generic_link_add_archive_symbols:\n");
-#endif
 
 #if PIC30
   { static smartio_run=0;
@@ -1441,10 +1422,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
   *pneeded = FALSE;
 
    
-#if 0
-  /* DEBUG */
-  printf("    generic_link_check_archive_element:\n");
-#endif
 
   extern const bfd_arch_info_type *global_PROCESSOR;
     if (((global_PROCESSOR) &&
@@ -1517,10 +1494,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
                          new_set_bits;
 
             /* check this element against target-specific rules */
-#if 0
-            if (pic30_is_valid_archive_element(info,p,abfd) == FALSE)
-              continue;
-#endif
             valid = pic30_is_valid_archive_element (
                          info, p, abfd,
                          &new_mask_bits, &new_set_bits);
@@ -1568,11 +1541,6 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
         unsigned int valid;
         unsigned int new_mask_bits,
                      new_set_bits;
-#if 0
-        /* check this element against target-specific rules */
-        if (pic30_is_valid_archive_element(info,p,abfd) == FALSE)
-          continue;
-#endif
 
         valid = pic30_is_valid_archive_element (
                        info, p, abfd,
@@ -1712,7 +1680,7 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
 
 #ifdef PIC30
   if (pic30_debug)
-    printf("\nLoading symbols from %s ", abfd->filename);
+    printf("\nLoading symbols from %s\n", abfd->filename);
 
   /*
   ** If pic30_select_objects is enabled, look for a signature section.
@@ -1848,50 +1816,6 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
              and store it. Otherwise report an error. */
           if (pic30_select_objects &&
               bfd_is_und_section (bfd_get_section (p))) {
-#if 0
-            const char *err_str = "Link Error: reference to \'%s\' in \'%s\'"
-              " is not compatible with previous references\n";
-            struct pic30_undefsym_entry *usym;
-            unsigned int mask;
-
-            if (pic30_debug)
-              printf("  undefined: %s\n", p->name);
-
-            if (!undefsyms)  /* create the table, if necessary */
-              undefsyms = pic30_undefsym_init();
-
-            /* create or load a table entry for this symbol */
-            usym = pic30_undefsym_lookup(undefsyms, p->name, 1, 0);
-            
-            if (usym->most_recent_reference == 0) {
-              usym->most_recent_reference = abfd;
-              usym->external_options_mask = signature_mask;
-              usym->options_set = signature_set;
-            } else {
-              /* compare this reference to previous reference(s) */
-              if (pic30_debug) {
-                printf("    previous reference:  %s\n",
-                       usym->most_recent_reference->filename);
-                printf("    composite signature: %x %x\n",
-                       usym->external_options_mask, usym->options_set);
-              }
-              mask = signature_mask & usym->external_options_mask; 
-              if ((mask & signature_set) == (mask & usym->options_set)) {
-                /* references are compatible, update table entry */
-                usym->most_recent_reference = abfd;
-                usym->external_options_mask |= signature_mask;
-                usym->options_set |= signature_set;
-                if (pic30_debug)
-                  printf("    updated signature:   %x %x\n",
-                         usym->external_options_mask, usym->options_set);
-              } else {
-                /* report an error */
-                fprintf(stderr, err_str, p->name,
-                        bfd_asymbol_bfd(p)->filename);
-                abort();
-              }
-            }
-#endif
             pic30_update_object_compatibility(p->name, abfd,
                                               &signature_mask,
                                               &signature_set);
@@ -1901,7 +1825,6 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
 
 	}
 
-#if 1
         for (r = ivt_records_list; r != NULL; r = next) {
           next = r->next;
           if (r->name && (strcmp(r->name, p->name+1) == 0)) {
@@ -1911,21 +1834,15 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
             if (p->flags & BSF_DEBUGGING != 0) {
               break;
             }
-            r->flags |= ivt_seen;
             if (r->is_alternate_vector) {
-                if (pic30_has_floating_aivt) {
-                  break;
-                }
-                else 
-                {
-                  sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
-                  (void) sprintf(sec_name, ".aivt.%s", r->name);
-                }
+              sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+              (void) sprintf(sec_name, ".aivt.%s", r->name);
             }
             else {
               sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
               (void) sprintf(sec_name, ".ivt.%s", r->name);
             }
+            r->flags |= ivt_seen;
             r->sec_name = sec_name;
             ivt_sec = bfd_make_section(abfd, sec_name);
             ivt_sec->flags |= (SEC_HAS_CONTENTS | SEC_LOAD |
@@ -1951,7 +1868,6 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
             }
           }
         }
-#endif
 
     }
 
@@ -3187,10 +3103,6 @@ _bfd_generic_link_write_global_symbol (h, data)
   struct generic_write_global_symbol_info *wginfo =
     (struct generic_write_global_symbol_info *) data;
   asymbol *sym;
-#if 0
-  if (h->root.u.def.section && 
-      (h->root.u.def.section->output_section) != bfd_abs_section_ptr){  
-#endif
   if (h->root.type == bfd_link_hash_warning)
 #if defined(PIC30ELF)
     h = (struct elf_link_hash_entry *) h->root.u.i.link;

@@ -311,14 +311,11 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   struct pic30_section *s;
   int has_eedata = 0;
   char *program_regions[] = { "program", "ivt", "aivt", 0 };
-  int r;
   char *region_name;
   int header_printed=0;
 
   /* clear the counters */
-  actual_prog_memory_used = 0;
   actual_eedata_memory_used = 0;
-  data_memory_used = 0;
   actual_auxflash_memory_used = 0;
 
   /* build an ordered list of output sections */
@@ -327,19 +324,18 @@ bfd_pic30_report_memory_usage (FILE *fp) {
 
   fprintf(fp,"\n\nxc16-ld %s", pic30_resource_version); 
 
-  for (r = 0; program_regions[r]; r++) {
+  for (region = pic30_all_regions(); region; region=region=region->next) {
   
+    actual_prog_memory_used = 0;
     header_printed=0;
-    region_name = strdup(program_regions[r]);
-    region_name[0] = region_name[0] - 0x20;
+    region_name = strdup(region->name);
 
-    region = region_lookup(program_regions[r]);
     if ((region) && (region->length < 0xFFFFFFFFUL)) {
       bfd_boolean hidden;
-      if (strcmp(region->name, "program") == 0) {
-        program_origin = region->origin;
-        program_length = region->length;
-      }
+     
+      if ((region->flags & (SEC_CODE | SEC_READONLY)) == 0) continue;
+      program_origin = region->origin;
+      program_length = region->length;
 
       /* report code sections */
       for (s = pic30_section_list; s != NULL; s = s->next)
@@ -347,7 +343,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
 
           hidden = FALSE;
           /* CAW movable vector tables are in program space ... */
-          if (r >= 0) {
+          {
             /* for ivt or aivt sections, check to see if this has been
                  filled in with the defualt handler */
             ivt_record_type *l;
@@ -361,27 +357,30 @@ bfd_pic30_report_memory_usage (FILE *fp) {
               }
             }
           }
+
           if (!hidden) {
             if (header_printed == 0) {
               /* print code header */
-              fprintf(fp, "\n\n%s Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
+              fprintf(fp,
+                      "\n\n\"%s\" Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
                       region_name, region->origin, region->length);
-              fprintf(fp, "section                    address   length (PC units)"
+              fprintf(fp, 
+                      "section                    address   length (PC units)"
                       "   length (bytes) (dec)\n");
-              fprintf(fp, "-------                    -------   -----------------"
-                   "   --------------------\n");
+              fprintf(fp, 
+                      "-------                    -------   -----------------"
+                      "   --------------------\n");
               header_printed++;
             }
             bfd_pic30_report_program_sections (s->sec, fp);
           }
         }
     }
-
-    if (r == 0) {
+    if (header_printed) {
       /* print code summary */
-      fprintf(fp, "\n                 Total program memory used (bytes):"
+      fprintf(fp, "\n                 Total \"%s\" memory used (bytes):"
               "     %#10lx  (%ld) ",
-              actual_prog_memory_used, actual_prog_memory_used);
+              region->name,actual_prog_memory_used, actual_prog_memory_used);
       report_percent_used((actual_prog_memory_used * 2)/3,
                           region->length, fp);
       fprintf( fp, "\n");
@@ -448,26 +447,31 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   }
 
   /* print data header */
-  region = region_lookup("data");
-  fprintf( fp, "\n\nData Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
-           region->origin, region->length);
-  fprintf( fp, "section                    address      alignment gaps"
-           "    total length  (dec)\n");
-  fprintf( fp, "-------                    -------      --------------"
-           "    -------------------\n");
+  for (region = pic30_all_regions(); region; region=region=region->next) {
 
-  /* report data sections */
-  for (s = pic30_section_list; s != NULL; s = s->next)
-    if ((s->sec) && in_bounds(s->sec, region))
-      bfd_pic30_report_data_sections (s->sec, fp);
+    if ((region->flags & (SEC_CODE | SEC_READONLY)) != 0) continue;
+    if ((region->flags & (SEC_ALLOC)) == 0) continue;
+    data_memory_used = 0;
+    fprintf( fp, "\n\n\"%s\" Memory  [Origin = 0x%lx, Length = 0x%lx]\n\n",
+             region->name, region->origin, region->length);
+    fprintf( fp, "section                    address      alignment gaps"
+             "    total length  (dec)\n");
+    fprintf( fp, "-------                    -------      --------------"
+             "    -------------------\n");
 
-  /* print data summary */
-  fprintf( fp, "\n                 Total data memory used (bytes):"
-           "     %#10lx  (%ld) ",
-         data_memory_used, data_memory_used);
-  if (data_memory_used > 0)
-    report_percent_used(data_memory_used, region->length, fp);
-  fprintf( fp, "\n");
+    /* report data sections */
+    for (s = pic30_section_list; s != NULL; s = s->next)
+      if ((s->sec) && in_bounds(s->sec, region))
+        bfd_pic30_report_data_sections (s->sec, fp);
+
+    /* print data summary */
+    fprintf(fp, "\n                 Total \"%s\" memory used (bytes):"
+            "     %#10lx  (%ld) ",
+            region->name,data_memory_used, data_memory_used);
+    if (data_memory_used > 0)
+      report_percent_used(data_memory_used, region->length, fp);
+    fprintf( fp, "\n");
+  }
 
   /* print dynamic header */
   fprintf( fp, "\n\nDynamic Memory Usage\n\n");

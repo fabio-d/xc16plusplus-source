@@ -1454,7 +1454,7 @@ elf_link_add_object_symbols (abfd, info)
 
 #ifdef PIC30
   if (pic30_debug)
-    printf("\nLoading symbols from %s ", abfd->filename);
+    printf("\nLoading symbols from %s\n", abfd->filename);
 
   /*
   ** If pic30_select_objects is enabled, look for a signature section.

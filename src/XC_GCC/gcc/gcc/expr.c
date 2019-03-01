@@ -1435,8 +1435,16 @@ emit_block_move_via_libcall (rtx dst, rtx src, rtx size, bool tailcall)
      use them later.  */
 
 #ifdef _BUILD_C30_
-  dst_addr = copy_to_mode_reg (GET_MODE(XEXP(dst,0)), XEXP (dst, 0));
-  src_addr = copy_to_mode_reg (GET_MODE(XEXP(src,0)), XEXP (src, 0));
+{ enum machine_mode mode;
+
+    mode = GET_MODE(XEXP(dst,0));
+    if (!pic30_valid_pointer_mode(mode)) mode = Pmode;
+    dst_addr = copy_to_mode_reg (mode,XEXP (dst, 0));
+
+    mode = GET_MODE(XEXP(src,0));
+    if (!pic30_valid_pointer_mode(mode)) mode = Pmode;
+    src_addr = copy_to_mode_reg (mode, XEXP (src, 0));
+  }
 #else
   dst_addr = copy_to_mode_reg (Pmode, XEXP (dst, 0));
   src_addr = copy_to_mode_reg (Pmode, XEXP (src, 0));

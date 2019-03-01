@@ -6664,6 +6664,8 @@ grokfield (location_t loc,
 	   Otherwise this is a forward declaration of a structure tag.
 
 	 If this is something of the form "foo;" and foo is a TYPE_DECL, then
+	   If foo names a structure or union without a tag, then this
+	     is an anonymous struct (this is permitted by C1X).
 	   If MS extensions are enabled and foo names a structure, then
 	     again this is an anonymous struct.
 	   Otherwise this is an error.
@@ -6677,14 +6679,11 @@ grokfield (location_t loc,
 		      || TREE_CODE (type) == UNION_TYPE);
       bool ok = false;
 
-      if (type_ok
-	  && (flag_ms_extensions || !declspecs->typedef_p))
+      if (type_ok)
 	{
 	  if (flag_ms_extensions)
 	    ok = true;
-	  else if (flag_iso)
-	    ok = false;
-	  else if (TYPE_NAME (type) == NULL)
+	  else if (TYPE_NAME (TYPE_MAIN_VARIANT(type)) == NULL)
 	    ok = true;
 	  else
 	    ok = false;
@@ -6694,7 +6693,10 @@ grokfield (location_t loc,
 	  pedwarn (loc, 0, "declaration does not declare anything");
 	  return NULL_TREE;
 	}
-      pedwarn (loc, OPT_pedantic, "ISO C doesn%'t support unnamed structs/unions");
+#if !defined(_BUILD_C30_)
+      pedwarn (loc, OPT_pedantic, 
+               "ISO C doesn%'t support unnamed structs/unions");
+#endif
     }
 
   value = grokdeclarator (declarator, declspecs, FIELD, false,
@@ -6725,12 +6727,102 @@ grokfield (location_t loc,
 
   return value;
 }
-
-/* Generate an error for any duplicate field names in FIELDLIST.  Munge
-   the list such that this does not present a problem later.  */
+#if defined(_BUILD_C30_)
+/*  Emit the 'duplicate member' error only when the duplicate member is at a 
+    different location within the anonymous struct from the original member.
+ */
+static void
+match_duplicate_member(tree fieldlist, tree duplicate_member, int level)
+{
+  tree x;
+  
+  /* Find the original member that matches this duplicate */
+  for (x = fieldlist; x; x = TREE_CHAIN (x))
+  {
+    if ((DECL_NAME(x) != NULL) && (DECL_NAME(duplicate_member) != NULL) &&
+        strcmp(IDENTIFIER_POINTER(DECL_NAME(duplicate_member)),
+               IDENTIFIER_POINTER(DECL_NAME(x)))==0)
+      { 
+        /* Suppress the error when the other parts of the tree match */
+        if (TREE_CODE(x) == FIELD_DECL &&
+            TREE_CODE(duplicate_member) == FIELD_DECL &&
+            DECL_FIELD_OFFSET(x)!=NULL_TREE &&
+            DECL_FIELD_OFFSET(duplicate_member)!=NULL_TREE)
+        {
+          /* Emit the error when any of these fields are different. 
+             Or if the member is in nested struct.
+		  */
+          if ((level >1) ||
+              (tree_low_cst(DECL_FIELD_OFFSET (x),1) != 
+               tree_low_cst(DECL_FIELD_OFFSET (duplicate_member),1)) ||
+              (tree_low_cst(DECL_FIELD_BIT_OFFSET(x),1) != 
+               tree_low_cst(DECL_FIELD_BIT_OFFSET(duplicate_member),1)) ||
+              (TYPE_PRECISION(TREE_TYPE(x)) != 
+               TYPE_PRECISION(TREE_TYPE(duplicate_member)))
+             ) 
+          {
+            error ("duplicate member %q+D", duplicate_member);
+            DECL_NAME(duplicate_member) = NULL_TREE;
+          }
+        }
+        else
+        {
+          error ("duplicate member %q+D", duplicate_member);
+          DECL_NAME(duplicate_member) = NULL_TREE;
+        }
+      }
+    else if ((TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE ||
+              TREE_CODE (TREE_TYPE (x)) == UNION_TYPE) &&
+              (DECL_NAME(duplicate_member) != NULL))
+      { 
+          match_duplicate_member(TYPE_FIELDS (TREE_TYPE (x)), duplicate_member, 
+                                 ++level);
+          --level; 
+      }
+  }
+}
+
+/* Subroutine of detect_field_duplicates: add the fields of FIELDLIST
+   to HTAB, giving errors for any duplicates.  */
 
 static void
+detect_field_duplicates_hash (tree fieldlist, htab_t htab, 
+                              tree original_fieldlist, enum tree_code code)
+{
+  tree x, y;
+  void **slot;
+
+  for (x = fieldlist; x ; x = TREE_CHAIN (x))
+    if ((y = DECL_NAME (x)) != 0)
+      {
+	slot = htab_find_slot (htab, y, INSERT);
+	if (*slot)
+	  {
+            if (code == RECORD_TYPE)
+              error ("duplicate member %q+D", x);
+            else
+              match_duplicate_member(original_fieldlist, x, 0);
+
+	    DECL_NAME (x) = NULL_TREE;
+	  }
+	*slot = y;
+      }
+    else if (TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE
+	     || TREE_CODE (TREE_TYPE (x)) == UNION_TYPE)
+      detect_field_duplicates_hash (TYPE_FIELDS (TREE_TYPE (x)), htab, 
+                                    original_fieldlist, code);
+}
+#endif
+
+/* Generate an error for any duplicate field names in FIELDLIST.  Munge
+   the list such that this does not present a problem later.  */
+#if defined(_BUILD_C30_)
+static void
+detect_field_duplicates (tree fieldlist, enum tree_code code)
+#else
+static void
 detect_field_duplicates (tree fieldlist)
+#endif
 {
   tree x, y;
   int timeout = 10;
@@ -6744,6 +6836,12 @@ detect_field_duplicates (tree fieldlist)
     return;
   do {
     timeout--;
+#if defined(_BUILD_C30_)
+    if (DECL_NAME (x) == NULL_TREE
+	&& (TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE
+	    || TREE_CODE (TREE_TYPE (x)) == UNION_TYPE))
+      timeout = 0;
+#endif
     x = TREE_CHAIN (x);
   } while (timeout > 0 && x);
 
@@ -6765,6 +6863,9 @@ detect_field_duplicates (tree fieldlist)
   else
     {
       htab_t htab = htab_create (37, htab_hash_pointer, htab_eq_pointer, NULL);
+#if defined(_BUILD_C30_)
+      detect_field_duplicates_hash (fieldlist, htab, fieldlist, code);
+#else
       void **slot;
 
       for (x = fieldlist; x ; x = TREE_CHAIN (x))
@@ -6778,7 +6879,7 @@ detect_field_duplicates (tree fieldlist)
 	      }
 	    *slot = y;
 	  }
-
+#endif
       htab_delete (htab);
     }
 }
@@ -6869,8 +6970,13 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
   if (pedantic)
     {
       for (x = fieldlist; x; x = TREE_CHAIN (x))
+      {
 	if (DECL_NAME (x) != 0)
 	  break;
+	if (TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE
+            || TREE_CODE (TREE_TYPE (x)) == UNION_TYPE)
+	  break;
+      }
 
       if (x == 0)
 	{
@@ -6973,11 +7079,16 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	pedwarn (DECL_SOURCE_LOCATION (x), OPT_pedantic,
 		 "invalid use of structure with flexible array member");
 
-      if (DECL_NAME (x))
+      if (DECL_NAME (x)
+	  || TREE_CODE (TREE_TYPE (x)) == RECORD_TYPE
+	  || TREE_CODE (TREE_TYPE (x)) == UNION_TYPE)
 	saw_named_field = 1;
     }
-
+#if defined(_BUILD_C30_)
+  detect_field_duplicates (fieldlist, TREE_CODE (t));
+#else
   detect_field_duplicates (fieldlist);
+#endif
 
   /* Now we have the nearly final fieldlist.  Record it,
      then lay out the structure or union (including the fields).  */

@@ -184,6 +184,10 @@ static struct pic30_resource_info arch_flags_head[] = {
    { HAS_DSP | HAS_EDS | HAS_ISAV4, &generic_6, 0 }
 };
 
+
+/* Last index value of generic device in arch_flags_head */
+#define LAST_GENERIC_DEVICE 6
+
 static int pic30_tool_version;
 char *pic30_resource_version;
 
@@ -338,10 +342,11 @@ void pic30_update_resource(const char *resource) {
 static struct pic30_resource_info *selected_processor;
 
 static void process_resource_file(unsigned int mode, unsigned int procID, int debug) {
-  struct resource_introduction_block *rib;
   struct resource_data d;
   static int err_return = 0;
   int version;
+  static int record = 0;
+  static struct resource_introduction_block *rib = 0;
 
   if (err_return) return;
 
@@ -350,9 +355,11 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
     err_return = 1;
     return;
   }
-  rib = read_device_rib(pic30_resource_file,
-                        (global_PROCESSOR) ? global_PROCESSOR->printable_name :
+  if (rib == 0) {
+    rib = read_device_rib(pic30_resource_file,
+                          global_PROCESSOR ? global_PROCESSOR->printable_name :
                                              0);
+  }
   if (rib == 0) {
     fprintf(stderr,"Could not open resource file: %s\n", pic30_resource_file);
     err_return = 1;
@@ -389,8 +396,6 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
   if ((mode == ARCH_TABLE) && rib->field_count >= 3) {
     bfd_arch_info_type *last_generic = arch_flags_head[sizeof(arch_flags_head)/sizeof(struct pic30_resource_info)-1].arch_info;
     struct pic30_resource_info *last_arch_flags = &arch_flags_head[sizeof(arch_flags_head)/sizeof(struct pic30_resource_info)-1];
-    int record;
-
     for (record = 0; move_to_record(record); record++) {
       bfd_arch_info_type *next;
       struct pic30_resource_info *next_flags; 
@@ -412,13 +417,16 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         next_flags->arch_info = next;
         last_arch_flags->next = next_flags;
         last_arch_flags = next_flags;
-      } else free(d.v.s);
+      } else {
+        /* end of IS_DEVICE_ID records */
+        free(d.v.s);
+        break;
+      }
     }
     last_arch_flags->next = 0;
   }
 
-  if ((mode == CODEGUARD_SETTINGS) && rib->field_count >= 6) {
-    int record;
+  if ((mode != ARCH_TABLE) && (rib->field_count >= 6)) {
 
     if (CG_settings) free(CG_settings);
     CG_settings = xmalloc(sizeof(codeguard_setting_type));
@@ -429,11 +437,25 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
     fuse_settings = xmalloc(sizeof(fuse_setting_type));
     memset(fuse_settings, 0, sizeof(fuse_setting_type));
     last_fuse_setting = fuse_settings;
+    if (ivt_records_list) {
+       /* free entire list */
+       ivt_record_type *e,*n;
+
+       for (e = ivt_records_list; e; e = n) {
+          n = e->next;
+          free(e);
+       }
+       ivt_records_list = 0;
+       last_ivt_record = 0;
+    }
 
     if (debug)
       printf("  matching records (procID = %d) ", procID);
-    for (record = 0; move_to_record(record); record++) {
-      codeguard_setting_type *next;
+    /* continue where we left offffffffffff */
+    for (;move_to_record(record); record++) {
+      codeguard_setting_type *cg_next;
+      ivt_record_type *ivt_next;
+      fuse_setting_type *fuse_next;
       struct resource_data d2,d3,d4,d5,d6;
       
       read_value(rik_string, &d); // name
@@ -457,47 +479,34 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         read_value(rik_int, &d5);
         read_value(rik_int, &d6);
 
-        next = xmalloc(sizeof(codeguard_setting_type));
-        next->name    = d.v.s;
-        next->flags   = d2.v.i & CODEGUARD_MASK;
-        next->mask    = d4.v.i;
-        next->value   = d5.v.i;
-        next->address = d6.v.i;
-        next->next    = 0;
+        cg_next = xmalloc(sizeof(codeguard_setting_type));
+        cg_next->name    = d.v.s;
+        cg_next->flags   = d2.v.i & CODEGUARD_MASK;
+        cg_next->mask    = d4.v.i;
+        cg_next->value   = d5.v.i;
+        cg_next->address = d6.v.i;
+        cg_next->next    = 0;
 
-        last_CG_setting->next = next;
-        last_CG_setting = next;
+        last_CG_setting->next = cg_next;
+        last_CG_setting = cg_next;
         if (!pic30_has_CG_settings)
           pic30_has_CG_settings = TRUE;
       } 
       else if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
                (d2.v.i & MEM_CONFIG_WORD) &&
                (d3.v.i == procID)) {
-        fuse_setting_type *next;
 
         read_value(rik_int, &d4);
         
-        next = xmalloc(sizeof(fuse_setting_type));
-        next->name = d.v.s;
-        next->address = d4.v.i;
-        next->next = 0;
+        fuse_next = xmalloc(sizeof(fuse_setting_type));
+        fuse_next->name = d.v.s;
+        fuse_next->address = d4.v.i;
+        fuse_next->next = 0;
 
-        last_fuse_setting->next = next;
-        last_fuse_setting = next;        
-      } else free(d.v.s);
-    }
-  }
-
-  if ((mode == AIVT_SETTINGS) && rib->field_count >= 5) {
-    int record;
-    for (record = 0; move_to_record(record); record++) {
-      struct resource_data d2,d3,d4,d5;
-
-      read_value(rik_string, &d); 
-      read_value(rik_int, &d2);   // flags
-      read_value(rik_int, &d3);
-
-      if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
+        last_fuse_setting->next = fuse_next;
+        last_fuse_setting = fuse_next;        
+      } 
+      else if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
           (d3.v.i == procID)) {
         if (debug)
           printf(".");
@@ -520,93 +529,64 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         if (d2.v.i & MEM_PAGESIZE) {
           pagesize = d5.v.i;
         }
-      }  else free(d.v.s);
-    }
-  }
-
-  if ((mode == IVT) && rib->field_count >= 5) {
-    int record;
-    if (ivt_records_list) {
-       /* free entire list */
-       ivt_record_type *e,*n;
-
-       for (e = ivt_records_list; e; e = n) {
-          n = e->next;
-          free(e);
-       }
-       ivt_records_list = 0;
-       last_ivt_record = 0;
-    }
-
-    for (record = 0; move_to_record(record); record++) {
-      struct resource_data d2,d3,d4;
-      ivt_record_type *next;
-
-      read_value(rik_string, &d);
-      read_value(rik_int, &d2);   // flags
-      read_value(rik_int, &d3);
-
-      if (((d2.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID)  &&
-          (d3.v.i == procID)) {
-        if (debug)
-          printf(".");
-
-        next = xmalloc(sizeof(ivt_record_type));
-
-        /* unfilled fields */
-        next->sec_name = 0;
-        next->ivt_sec = 0;
-
-        next->name = d.v.s;
-        next->offset = ((d2.v.i >> VECTOR_IDX_SHIFT) & 
-                        ((1 << (VECTOR_IDX_WIDTH+1)) - 1)) * 2;
-        if (d2.v.i & VECTOR_ALT_VECTOR) 
-          next->is_alternate_vector = TRUE;
-        else
-          next->is_alternate_vector = FALSE;
-
-        if (debug) {
-          printf("vector: %s @ 0x%4.4x %s\n",
-                 next->name,
-                 next->offset,
-                 next->is_alternate_vector ? "alternate" : "");
-        }
-        next->flags = 0;
-        next->next = 0;
-#if 1
-        if ((next->offset == 0) && strcmp(next->name,"_DefaultInterrupt") == 0) {
-           /* can't do anything without an offset... */
-           free(next);
-           free(d.v.s);
-           continue;
-        }
-#endif
-
-        if (ivt_records_list == 0) {
-          ivt_records_list = next;
-          last_ivt_record = next;
-        } else {
-          last_ivt_record->next = next;        
-          last_ivt_record = next;
-        }
-      }
-      else if (((d2.v.i & RECORD_TYPE_MASK) == IS_MEM_ID)  &&
-          (d3.v.i == procID)) {
-        read_value(rik_int, &d4);
         if (d2.v.i & MEM_FIXED_IVT)
           ivt_base = d4.v.i;
         else if (d2.v.i & MEM_FIXED_AIVT) {
           pic30_has_fixed_aivt = TRUE;
           aivt_base = d4.v.i;
         }
+      }  
+      else if (((d2.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID)  &&
+          (d3.v.i == procID)) {
+        if (debug)
+          printf(".");
+
+        ivt_next = xmalloc(sizeof(ivt_record_type));
+
+        /* unfilled fields */
+        ivt_next->sec_name = 0;
+        ivt_next->ivt_sec = 0;
+
+        ivt_next->name = d.v.s;
+        ivt_next->offset = ((d2.v.i >> VECTOR_IDX_SHIFT) & 
+                        ((1 << (VECTOR_IDX_WIDTH+1)) - 1)) * 2;
+        if (d2.v.i & VECTOR_ALT_VECTOR) 
+          ivt_next->is_alternate_vector = TRUE;
+        else
+          ivt_next->is_alternate_vector = FALSE;
+
+        if (debug) {
+          printf("vector: %s @ 0x%4.4x %s\n",
+                 ivt_next->name,
+                 ivt_next->offset,
+                 ivt_next->is_alternate_vector ? "alternate" : "");
+        }
+        ivt_next->flags = 0;
+        ivt_next->next = 0;
+
+        if ((ivt_next->offset == 0) && 
+            strcmp(ivt_next->name,"_DefaultInterrupt") == 0) {
+           /* can't do anything without an offset... */
+           free(ivt_next);
+           //free(d.v.s);
+           continue;
+        }
+
+        if (ivt_records_list == 0) {
+          ivt_records_list = ivt_next;
+          last_ivt_record = ivt_next;
+        } else {
+          last_ivt_record->next = ivt_next;        
+          last_ivt_record = ivt_next;
+        }
       }  else free(d.v.s);
     }
+    close_rib();
+    rib = 0;
   }
-  close_rib();
   if (debug)
     printf("\n");
 }
-
 /*
 ** Load CodeGuard settings from a resource file
 ** for a particular processor.
@@ -968,6 +948,22 @@ pic30_get_machine (name)
    return p;
 }
 
+/*
+** Lookup if Generic device
+*/
+int
+pic30_is_generic(const bfd_arch_info_type *proc)
+{
+  int rc = 0;
+  struct pic30_resource_info *f;
+
+  for (f = arch_flags_head[0].next; f != NULL;rc++, f = f->next)
+    if (proc == f->arch_info) {
+      break;
+    }
+
+  return (rc <= LAST_GENERIC_DEVICE);
+}
 
 /*
 ** Lookup a processor family

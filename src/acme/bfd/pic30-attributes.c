@@ -526,4 +526,124 @@ char * pic30_section_size_string (asection *sec)
 }
 
 
+
+/* lookup attribute and attempt to add it to section, if it has an arg and
+   there is space, return the arg */
+
+void pic30_add_section_attributes(asection *sec, 
+                                  char *data_attrs, char *code_attrs) 
+{
+  char *c, save_c;
+  char *arg;
+  char *attr;
+  int attr_consumed;
+  char *attrs = 0;
+  char *option;
+  static int warned = 0;
+  int warning = 0;
+
+  if (pic30_debug)
+    printf("---> pic30_add_section_attributes(%s,\"%s\",\"%s\")\n",
+           sec->name, data_attrs, code_attrs);
+
+  if (sec->linker_generated) return;
+  if (sec->linked) return;
+  if (sec->flags & SEC_CODE) {
+    option = "--add-flags-code";
+    attrs = code_attrs;
+  } 
+  /* BSS is hard to tell, BSS is not one of these things below */
+  else if ((sec->flags & SEC_ALLOC) &&
+             (sec->psv == 0) &&
+             (sec->eedata == 0) &&
+             (sec->memory == 0) &&
+             (sec->stack == 0) &&
+             (sec->heap == 0) &&
+             (sec->auxpsv == 0) &&
+             (sec->auxflash == 0) &&
+             (sec->packedflash == 0))
+  {
+    option = "--add-flags-data";
+    attrs = data_attrs;
+  } else {
+    if (pic30_debug) printf("skipping section '%s'\n", sec->name);
+  }
+
+  if (attrs == 0) return;
+
+  for ( attr = attrs, c = attrs; ; c++) {
+
+    if ((*c == ',') || (*c == 0)) {
+      save_c = *c;
+      *c = 0;
+      arg = strchr(attr,'(');
+      if (arg) *arg = 0;
+      attr_consumed = 0;
+
+      if (strcmp(attr,"name") == 0) {
+        char *a,saved_a;
+        char *newname;
+
+        attr_consumed = 1;                                                     \
+        a = strchr(arg+1, ')');
+        if (a) {
+          saved_a = *a;
+          *a = 0;
+        }
+        newname = malloc(strlen(arg+1)+strlen(sec->name)+2);
+        sprintf(newname, "%s.%s", arg+1, sec->name);
+        sec->name = newname;
+        if (a) *a = saved_a;
+      } 
+  
+#undef ATTR
+#undef ATTR_IS
+#undef MASK1
+#undef MASK2
+#undef MASK3
+#undef MASK4
+#define NO_ARGS 1
+#define ATTR(_id, _has_arg, _set_it)                                           \
+      else if (strcmp(attr,#_id) == 0) {                                       \
+        attr_consumed = 1;                                                     \
+        if (_has_arg) {                                                        \
+          if (!warned) {                                                       \
+            fprintf(stderr,"%s: Cannot add attribute with argument: %s\n",     \
+                  option, attr);                                               \
+          }                                                                    \
+          warning=1;                                                           \
+        } else {                                                               \
+          int *to;                                                             \
+          PIC30_SAVE_FLAGS(sec,to);                                            \
+          _set_it;                                                             \
+          if (pic30_is_valid_attributes(pic30_attribute_map(sec),0) == 0) {    \
+            PIC30_RESTORE_FLAGS(sec,to);                                       \
+            fprintf(stderr,"Attribute %s cannot be added to section %s "       \
+                           "without invalidating flags; skipping\n",           \
+                    attr, sec->name);                                          \
+          }                                                                    \
+          if (pic30_debug) printf("%s added succesfully\n", attr);             \
+          free(to);                                                            \
+        }                                                                      \
+      }
+#include "pic30-attributes.h"
+#undef NO_ARGS
+
+      if (attr_consumed == 0) {
+        if (!warned)
+          fprintf(stderr, "%s: unrecognized attribute '%s'\n", option, attr);
+        warning = 1;
+      }
+      if (arg) *arg='(';
+      if (save_c == 0) break;
+      *c = save_c;
+      attr = c+1;
+    }
+  }
+  if (warning) warned = warning;
+  if (pic30_debug)
+    printf("<--- pic30_add_section_attributes\n");
+}
+
+
 /*****************************************************************************/

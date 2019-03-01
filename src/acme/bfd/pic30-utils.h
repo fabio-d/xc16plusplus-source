@@ -44,12 +44,75 @@ extern bfd_boolean pic30_debug;
   (sec)->auxflash = 0;            \
   (sec)->packedflash = 0;         \
   (sec)->shared = 0;              \
-  (sec)->keep = 0;                \
   (sec)->preserved = 0;           \
   (sec)->auxpsv = 0;              \
   (sec)->linker_generated = 0;    \
   (sec)->update = 0;              \
   (sec)->priority = 0; }
+
+#define PIC30_SAVE_FLAGS(sec,to)                         \
+  { to = malloc(28*sizeof(int));  /* modify as needed */ \
+    to[0] = (sec)->flags;                                \
+    to[1] = (sec)->near;                                 \
+    to[2] = (sec)->persistent;                           \
+    to[3] = (sec)->xmemory;                              \
+    to[4] = (sec)->ymemory;                              \
+    to[5] = (sec)->psv;                                  \
+    to[6] = (sec)->eedata;                               \
+    to[7] = (sec)->absolute;                             \
+    to[8] = (sec)->reverse;                              \
+    to[9] = (sec)->dma;                                  \
+    to[10] = (sec)->boot;                                \
+    to[11] = (sec)->secure;                              \
+    to[12] = (sec)->memory;                              \
+    to[13] = (sec)->heap;                                \
+    to[14] = (sec)->eds;                                 \
+    to[15] = (sec)->page;                                \
+    to[16] = (sec)->stack;                               \
+    to[17] = (sec)->vma;                                 \
+    to[18] = (sec)->lma;                                 \
+    to[19] = (sec)->entsize;                             \
+    to[20] = (sec)->auxflash;                            \
+    to[21] = (sec)->packedflash;                         \
+    to[22] = (sec)->shared;                              \
+    to[23] = (sec)->preserved;                           \
+    to[24] = (sec)->auxpsv;                              \
+    to[25] = (sec)->linker_generated;                    \
+    to[26] = (sec)->update;                              \
+    to[27] = (sec)->priority;                            \
+  }
+   
+#define PIC30_RESTORE_FLAGS(sec,to)                      \
+  {                                                      \
+    (sec)->flags = to[0];                                \
+    (sec)->near = to[1];                                 \
+    (sec)->persistent = to[2];                           \
+    (sec)->xmemory = to[3];                              \
+    (sec)->ymemory = to[4];                              \
+    (sec)->psv = to[5];                                  \
+    (sec)->eedata = to[6];                               \
+    (sec)->absolute = to[7];                             \
+    (sec)->reverse = to[8];                              \
+    (sec)->dma = to[9];                                  \
+    (sec)->boot = to[10];                                \
+    (sec)->secure = to[11];                              \
+    (sec)->memory = to[12];                              \
+    (sec)->heap = to[13];                                \
+    (sec)->eds = to[14];                                 \
+    (sec)->page = to[15];                                \
+    (sec)->stack = to[16];                               \
+    (sec)->vma = to[17];                                 \
+    (sec)->lma = to[18];                                 \
+    (sec)->entsize = to[19];                             \
+    (sec)->auxflash = to[20];                            \
+    (sec)->packedflash = to[21];                         \
+    (sec)->shared = to[22];                              \
+    (sec)->preserved = to[23];                           \
+    (sec)->auxpsv = to[24];                              \
+    (sec)->linker_generated = to[25];                    \
+    (sec)->update = to[26];                              \
+    (sec)->priority = to[27];                            \
+  }
 
 /*
 ** Macros used to set section attributes
@@ -367,6 +430,8 @@ typedef struct pic30_ivt_record {
   struct pic30_ivt_record *next;
 } ivt_record_type;
 
+extern char *pic30_add_data_flags;
+extern char *pic30_add_code_flags;
 extern bfd_boolean pic30_preserve_all;
 extern bfd_boolean pic30_has_fill_option;
 extern bfd_boolean pic30_partition_flash;

@@ -2556,6 +2556,7 @@ bfd_pic30_create_rom_usage_bfd (parent)
   flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
   align = 1; /* 2^1 */
   sec = bfd_pic30_create_section (abfd, ".rom_usage", flags, align);
+  sec->linker_generated = 1;
   size = 0; /* will update later */
   bfd_set_section_size (abfd, sec, size);
 
@@ -2617,6 +2618,7 @@ bfd_pic30_create_ram_usage_bfd (parent)
   flags = SEC_CODE | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP;
   align = 1; /* 2^1 */
   sec = bfd_pic30_create_section (abfd, ".ram_usage", flags, align);
+  sec->linker_generated = 1;
   size = 0; /* will update later */
   bfd_set_section_size (abfd, sec, size);
 
@@ -2798,8 +2800,8 @@ bfd_pic30_create_config_word_bfd  (char *name, unsigned short val)
   char *oname,*sec_name,*sec_data, *d;
 
   /* create a bare-bones bfd */
-  oname = (char *) bfd_alloc (output_bfd, strlen(name) + 1);
-  sprintf (oname, name);
+  oname = (char *) bfd_alloc (output_bfd, strlen(name) + 5);
+  sprintf (oname, "/CW/_%s", name);
   abfd = bfd_create (oname, output_bfd);
   bfd_find_target ("coff-pic30", abfd);
   bfd_make_writable (abfd);
@@ -2816,7 +2818,9 @@ bfd_pic30_create_config_word_bfd  (char *name, unsigned short val)
 
   sprintf(sec_name, "__%s.sec", name);
   sec = bfd_pic30_create_section (abfd, sec_name,
-                                  SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_CODE, 1);
+                                  SEC_HAS_CONTENTS | SEC_IN_MEMORY | 
+                                  SEC_CODE, 1);
+  sec->linker_generated = 1;
   size = (bfd_size_type) 4;
   bfd_set_section_size (abfd, sec, size);
 
@@ -6431,57 +6435,58 @@ void pic30_create_rom_usage_template(void) {
   int rom_usage_size= 0;
   asection *sec;
 
-      rom_usage_bfd = bfd_pic30_create_rom_usage_bfd (output_bfd);
-      bfd_pic30_add_bfd_to_link (rom_usage_bfd, rom_usage_bfd->filename);
-       /* Compute size of flash usage template */
+  rom_usage_bfd = bfd_pic30_create_rom_usage_bfd (output_bfd);
+  bfd_pic30_add_bfd_to_link (rom_usage_bfd, rom_usage_bfd->filename);
+  /* Compute size of flash usage template */
 
-      LANG_FOR_EACH_INPUT_STATEMENT (f)
-      {
-        for (sec = f->the_bfd->sections;
-             sec != (asection *) NULL;
-             sec = sec->next)
-          if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
-              (REPORT_AS_PROGRAM(sec) || REPORT_AS_AUXFLASH(sec))) {
-            if ((strcmp(sec->name, ".init") == 0) ||
-                (strcmp(sec->name, ".user_init") == 0) ||
-                (strcmp(sec->name, ".handle") == 0) ||
-                (strncmp(sec->name, ".isr", 4) == 0) ||
-                (strncmp(sec->name, ".lib", 4) == 0))
-              continue;
-            else
-              rom_usage_size += 8;
+  LANG_FOR_EACH_INPUT_STATEMENT (f)
+    {
+      for (sec = f->the_bfd->sections;
+           sec != (asection *) NULL;
+           sec = sec->next) {
+        if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
+            (REPORT_AS_PROGRAM(sec) || REPORT_AS_AUXFLASH(sec))) {
+          if ((strcmp(sec->name, ".init") == 0) ||
+              (strcmp(sec->name, ".user_init") == 0) ||
+              (strcmp(sec->name, ".handle") == 0) ||
+              (strncmp(sec->name, ".isr", 4) == 0) ||
+              (strncmp(sec->name, ".lib", 4) == 0))
+             continue;
+          else {
+            if (pic30_debug) 
+              printf("... allocating rom_usage_size for '%s'\n", sec->name);
+            rom_usage_size += 8;
           }
+        }
       }
-      rom_usage_size += 8; /* .text section in linker script */
-      rom_usage_size += 8; /* .reset section in linker script */
-      rom_usage_size += 16; /* count for .rom_usage and .ram_usage */
-      rom_usage_size += 8; /* zero terminated */
+    }
+  rom_usage_size += 8; /* .text section in linker script */
+  rom_usage_size += 8; /* .reset section in linker script */
+  rom_usage_size += 16; /* count for .rom_usage and .ram_usage */
+  rom_usage_size += 8; /* zero terminated */
 
 
-      /* allocate memory for the template */
-      rom_usage_data = (unsigned char *) bfd_alloc (output_bfd, rom_usage_size);
-      if (!rom_usage_data)
-        {
-          fprintf( stderr, "Link Error: not enough memory for rom usage template\n");
-          abort();
-        }
+  /* allocate memory for the template */
+  rom_usage_data = (unsigned char *) bfd_alloc (output_bfd, rom_usage_size);
+  if (!rom_usage_data) {
+    fprintf(stderr,"Link Error: not enough memory for rom usage template\n");
+    abort();
+  }
 
-      /* fill the template with a default value */
-      rom_usage_data = memset( rom_usage_data, 0x11, rom_usage_size);
-      /* attach it to the input section */
-      sec = bfd_get_section_by_name(rom_usage_bfd, ".rom_usage");
-      if (sec)
-        {
-          sec->_raw_size = rom_usage_size;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
-          sec->contents = rom_usage_data;
-          bfd_set_section_size (rom_usage_bfd, sec, rom_usage_size);
-          rom_usage_template = sec;  /* save a copy for later */
-        }
-      else
-        if (pic30_debug)
-          printf("after_open: section .rom_usage not found\n");
-
+  /* fill the template with a default value */
+  rom_usage_data = memset( rom_usage_data, 0x11, rom_usage_size);
+  /* attach it to the input section */
+  sec = bfd_get_section_by_name(rom_usage_bfd, ".rom_usage");
+  if (sec) {
+    sec->_raw_size = rom_usage_size;
+    sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | 
+                   SEC_KEEP);
+    sec->contents = rom_usage_data;
+    bfd_set_section_size (rom_usage_bfd, sec, rom_usage_size);
+    rom_usage_template = sec;  /* save a copy for later */
+  }
+  else if (pic30_debug)
+    printf("after_open: section .rom_usage not found\n");
 }
 
 void pic30_create_ram_usage_template(void) {
@@ -6489,49 +6494,48 @@ void pic30_create_ram_usage_template(void) {
   int ram_usage_size= 0;
   asection *sec;
 
-      ram_usage_bfd = bfd_pic30_create_ram_usage_bfd (output_bfd);
-      bfd_pic30_add_bfd_to_link (ram_usage_bfd, ram_usage_bfd->filename);
+  ram_usage_bfd = bfd_pic30_create_ram_usage_bfd (output_bfd);
+  bfd_pic30_add_bfd_to_link (ram_usage_bfd, ram_usage_bfd->filename);
 
-       /* Compute size of flash usage template */
+  /* Compute size of flash usage template */
 
-      LANG_FOR_EACH_INPUT_STATEMENT (f)
-      {
-        for (sec = f->the_bfd->sections;
-             sec != (asection *) NULL;
-             sec = sec->next)
-          if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
-              REPORT_AS_DATA(sec))
-            ram_usage_size += 8;
-      }
+  LANG_FOR_EACH_INPUT_STATEMENT (f)
+    {
+      for (sec = f->the_bfd->sections;
+           sec != (asection *) NULL;
+           sec = sec->next)
+        if ((sec->_raw_size > 0) && ((sec->flags & SEC_EXCLUDE) == 0) &&
+             REPORT_AS_DATA(sec))
+          if (pic30_debug)
+            printf("... allocating ram_usage_size for '%s'\n", sec->name);
+          ram_usage_size += 8;
+    }
 
-      ram_usage_size += 8; /* zero terminated */
+  ram_usage_size += 8; /* zero terminated */
 
 
-      /* allocate memory for the template */
-      ram_usage_data = (unsigned char *) bfd_alloc (output_bfd, ram_usage_size);
-      if (!ram_usage_data)
-        {
-          fprintf( stderr, "Link Error: not enough memory for ram usage template\n");
-          abort();
-        }
+  /* allocate memory for the template */
+  ram_usage_data = (unsigned char *) bfd_alloc (output_bfd, ram_usage_size);
+  if (!ram_usage_data) {
+    fprintf( stderr, "Link Error: not enough memory for ram usage template\n");
+    abort();
+  }
 
-      /* fill the template with a default value */
-      ram_usage_data = memset( ram_usage_data, 0x11, ram_usage_size);
+  /* fill the template with a default value */
+  ram_usage_data = memset( ram_usage_data, 0x11, ram_usage_size);
 
-      /* attach it to the input section */
-      sec = bfd_get_section_by_name(ram_usage_bfd, ".ram_usage");
-      if (sec)
-        {
-          sec->_raw_size = ram_usage_size;
-          sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | SEC_KEEP);
-          sec->contents = ram_usage_data;
-          bfd_set_section_size (ram_usage_bfd, sec, ram_usage_size);
-          ram_usage_template = sec;  /* save a copy for later */
-        }
-      else
-        if (pic30_debug)
-          printf("after_open: section .ram_usage not found\n");
-
+  /* attach it to the input section */
+  sec = bfd_get_section_by_name(ram_usage_bfd, ".ram_usage");
+  if (sec) {
+    sec->_raw_size = ram_usage_size;
+    sec->flags |= (SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LOAD | SEC_CODE | 
+                   SEC_KEEP);
+    sec->contents = ram_usage_data;
+    bfd_set_section_size (ram_usage_bfd, sec, ram_usage_size);
+    ram_usage_template = sec;  /* save a copy for later */
+  }
+  else if (pic30_debug)
+    printf("after_open: section .ram_usage not found\n");
 }
 
 /*

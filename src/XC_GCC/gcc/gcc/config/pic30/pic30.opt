@@ -42,7 +42,7 @@ Mask(ARCH_PIC33E)
 
 Mask(ARCH_PIC24E)
 
-Mask(ARCH_PIC33CH)
+Mask(ARCH_PIC33C)
 
 Mask(ARCH_GENERIC)
 
@@ -162,7 +162,7 @@ Target RejectNegative Mask(NO_OVERRIDE_INLINE) MaskExists
 Set compiler's override of 'inline' keyword and options for -O1 and -Os; by default the compiler will not inline at these levels
 
 mno-file
-Target Mask(SKIP_DOT_FILE) MaskExists
+Target RejectNegative Mask(SKIP_DOT_FILE) MaskExists
 Disable placing file directive in assembly output
 
 munified
@@ -200,6 +200,10 @@ mprint-builtins
 Target RejectNegative Var(TARGET_PRINT_BUILTINS)
 -mprint-builtins        Print a list of enabled builtin functions
 
+mprint-devices
+Target RejectNegtive Var(TARGET_PRINT_DEVICES)
+-mprint-devices         Print a list of devices supported with current support files
+
 mep
 Target Var(TARGET_FORCE_EP) VarExists Undocumented
 
@@ -221,7 +225,7 @@ Do not fall back to free licesnse when license not available
 mnew-model
 Target RejectNegative Var(pic30_newmodel) Undocumented
 
-print-mchp-search-dirs
+mprint-mchp-search-dirs
 Target RejectNegative Var(pic30_print_mchp_header_path)
 Display compiler and assembler search paths and exit
 
@@ -237,6 +241,7 @@ Target Var(mchp_skip_license_check) Undocumented
 
 mpsrd-psrd-check
 Target Var(pic30_psrd_psrd_check) Undocumented
+
 
 ;
 ; **************************** CAUTION
@@ -272,6 +277,10 @@ mresource=
 Target RejectNegtive Joined Var(pic30_resource_file) VarExists
 Identify compiler resource file
 
+msfr-warn=
+Target RejectNegative Joined Var(pic30_sfr_warning) VarExists
+Enable (default) warnings accessing SFRs on generic devices
+
 msmart-io
 Target RejectNegative JoinedOrMissing Var(pic30_io_size) VarExists
 Set smart IO library call forwarding level
@@ -283,10 +292,6 @@ Name the text section (default .text)
 msmart-io-format=
 Target RejectNegative Joined Var(pic30_io_fmt) VarExists
 Smart IO format string
-
-msfr-warn=
-Target Joined Var(pic30_io_fmt) VarExists
-Enable [on] or disable (off) sfr warnings
 
 mext=
 Target Joined Var(mchp_import)

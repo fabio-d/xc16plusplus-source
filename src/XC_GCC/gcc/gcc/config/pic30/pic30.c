@@ -100,7 +100,6 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 /*----------------------------------------------------------------------*/
 /*    G L O B A L    V A R I A B L E S                */
 /*----------------------------------------------------------------------*/
-const char *pic30_sfr_warning=NULL;
 enum machine_mode machine_Pmode = HImode;
 int pic30_compiler_version = 0;
 int pic30_resource_version = 0;
@@ -817,6 +816,8 @@ int TARGET_SMALL_AGG = 0;
 int TARGET_SMALL_DATA = 0;
 int TARGET_SMALL_SCALAR = 0;
 
+/* SFR warnings */
+const char *pic30_sfr_warning = NULL;
 
 /*----------------------------------------------------------------------*/
 
@@ -832,7 +833,7 @@ static cheap_rtx_list *pic30_adjust_frame_remap_insn = 0;
 static tree constant_string(rtx x);
 static const char *pic30_set_constant_section_helper(const char **name,
                                                      SECTION_FLAGS_INT *flags,
-                                                     tree *decl);
+                                                     tree *decl, int set);
 static void push_cheap_rtx(cheap_rtx_list **l, rtx x, tree t, int flag);
 static rtx pop_cheap_rtx(cheap_rtx_list **l, tree *t, int *flag);
 
@@ -1157,7 +1158,7 @@ static void pic30_init_sections(void) {
 unsigned int validate_target_id(char *id, char **matched_id);
 unsigned int validate_target_id(char *id, char **matched_id) {
   struct resource_introduction_block *rib;
-  struct resource_data d;
+  struct resource_data d,d1;
   int version;
   int mask;
   char *Microchip;
@@ -1165,40 +1166,52 @@ unsigned int validate_target_id(char *id, char **matched_id) {
   char *version_part1;
   char *version_part2;
   int mismatch=0;
+  int generic_device_matched = 0;
 
+  if (TARGET_PRINT_DEVICES) {
+    /* list all the devices that are supported, even if we are checking
+     *  for a specific device, this means we read the full resource file
+     */ 
+    printf("\nSupported devices:\n");
+  }
+
+  static struct {
+    const char *id;
+    int mask;
+  } generic_devices[] = {
+    { "GENERIC-16BIT",    MASK_ARCH_GENERIC },
+    { "GENERIC-16BIT-DA", MASK_ARCH_DA_GENERIC },
+    { "GENERIC-16BIT-EP", MASK_ARCH_EP_GENERIC },
+    { "GENERIC-16DSP",    MASK_ARCH_GENERIC },
+    { "GENERIC-16DSP-EP", MASK_ARCH_EP_GENERIC },
+    { "GENERIC-16DSP-CH", MASK_ARCH_CH_GENERIC },
+    { 0, 0 }
+  };
+  
   mask = 0;
-  if (id) {
-    if (strcmp(id, "GENERIC-16BIT") == 0) {
-      *matched_id = (char *)"GENERIC-16BIT";
-      return MASK_ARCH_GENERIC;
-    }
-    if (strcmp(id, "GENERIC-16BIT-DA") == 0) {
-      *matched_id = (char *)"GENERIC-DA-16BIT";
-      return MASK_ARCH_DA_GENERIC;
-    }
-    if (strcmp(id, "GENERIC-16BIT-EP") == 0) {
-      *matched_id = (char *)"GENERIC-EP-16BIT";
-      return MASK_ARCH_EP_GENERIC;
-    }
-    /* recognize the assembler versions to make pre-processing easiser */
-    if (strcmp(id, "GENERIC-16DSP") == 0) {
-      *matched_id = (char *)"GENERIC-16DSP";
-      return MASK_ARCH_GENERIC;
-    }
-    if (strcmp(id, "GENERIC-16DSP-EP") == 0) {
-      *matched_id = (char *)"GENERIC-16DSP-EP";
-      return MASK_ARCH_EP_GENERIC;
-    }
-    if (strcmp(id, "GENERIC-16DSP-CH") == 0) {
-      *matched_id = (char *)"GENERIC-16DSP-CH";
-      return MASK_ARCH_CH_GENERIC;
+  {
+    int j;
+
+    for (j = 0; generic_devices[j].id; j++) {
+      if (TARGET_PRINT_DEVICES) {
+        printf("  %s\n", generic_devices[j].id);
+      }
+      if (id && strcmp(id, generic_devices[j].id) == 0) {
+        if (matched_id) *matched_id = xstrdup(generic_devices[j].id);
+        mask = generic_devices[j].mask;
+        generic_device_matched = 1;
+        if (!TARGET_PRINT_DEVICES) {
+          return mask;
+        }
+      }
     }
   }
   if (pic30_resource_file == 0) {
     warning(0,"Provide a resource file");
     return 0;
   }
-  rib = read_device_rib(pic30_resource_file, pic30_target_cpu);
+  rib = read_device_rib(pic30_resource_file, 
+                        TARGET_PRINT_DEVICES ? 0 : pic30_target_cpu);
   if (rib == 0) {
     warning(0,"Could not open resource file: %s", pic30_resource_file);
     return 0;
@@ -1212,7 +1225,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
   pic30_resource_version = (rib->version.major * 1000 + rib->version.minor)*100+
                            rib->resource_version_increment;
   /* just loading the resource version */
-  if (id == 0) return 0;
+  if ((id == 0) && (TARGET_PRINT_DEVICES == 0)) return 0;
 
 #ifndef RESOURCE_MISMATCH_OK
   if (version != pic30_compiler_version) {
@@ -1254,6 +1267,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
     }
   }
   free(new_version);
+
   if (rib->field_count >= 3) {
     int record;
     int isr_names_max=0;
@@ -1261,29 +1275,33 @@ unsigned int validate_target_id(char *id, char **matched_id) {
 
     for (record = 0; move_to_record(record); record++) {
       read_value(rik_string, &d);
-      if (strcmp(d.v.s, id) == 0) {
+      read_value(rik_int, &d1);
+      if ((TARGET_PRINT_DEVICES) &&
+          ((d1.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID)) {
+        printf("  %s\n", d.v.s);
+      }
+      if (id && strcmp(d.v.s, id) == 0) {
         /* match */
         *matched_id = d.v.s;
-        read_value(rik_int, &d);
-        // if (d.v.i & IS_DEVICE_ID) {
-        if ((d.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
-          pic30_device_mask = (d.v.i & (~IS_DEVICE_ID));
-          if (d.v.i & P30F) mask = MASK_ARCH_PIC30F;
-          if (d.v.i & P33E) mask = MASK_ARCH_PIC33E;
-          if (d.v.i & P33F) mask = MASK_ARCH_PIC33F;
-          if (d.v.i & P30FSMPS) mask = MASK_ARCH_PIC30F202X;
-          if (d.v.i & P24F) mask = MASK_ARCH_PIC24F;
-          if (d.v.i & P24E) mask = MASK_ARCH_PIC24E;
-          if (d.v.i & P24H) mask = MASK_ARCH_PIC24H;
-          if (d.v.i & P24FK) mask = MASK_ARCH_PIC24FK;
-          if (d.v.i & HAS_ISAV4) mask = MASK_ARCH_PIC33CH;
+        if ((d1.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
+          pic30_device_mask = (d1.v.i & (~IS_DEVICE_ID));
+          if (d1.v.i & P30F) mask = MASK_ARCH_PIC30F;
+          if (d1.v.i & P33E) mask = MASK_ARCH_PIC33E;
+          if (d1.v.i & P33F) mask = MASK_ARCH_PIC33F;
+          if (d1.v.i & P30FSMPS) mask = MASK_ARCH_PIC30F202X;
+          if (d1.v.i & P24F) mask = MASK_ARCH_PIC24F;
+          if (d1.v.i & P24E) mask = MASK_ARCH_PIC24E;
+          if (d1.v.i & P24H) mask = MASK_ARCH_PIC24H;
+          if (d1.v.i & P24FK) mask = MASK_ARCH_PIC24FK;
+          if (d1.v.i & HAS_ISAV4) mask = MASK_ARCH_PIC33C;
           read_value(rik_int, &d);
           pic30_device_id = d.v.i;
-          break;
+          if (TARGET_PRINT_DEVICES == 0) break;
         }
-      }
-      free(d.v.s);
+      } else free(d.v.s);
     }
+
+    if (generic_device_matched) return mask;
 
     for (record = 0; move_to_record(record); record++) {
       read_value(rik_string, &d);
@@ -1294,7 +1312,6 @@ unsigned int validate_target_id(char *id, char **matched_id) {
 
         match = d.v.s;
         read_value(rik_int, &d);
-        // if (d.v.i & IS_VECTOR_ID) {
         if ((d.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID) {
           flags = d.v.i;
           read_value(rik_int,&d);
@@ -3283,7 +3300,7 @@ void pic30_override_options_after_change(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) == 0) {
+    if ((pic30_errata_mask & (psrd_psrd_errata | ecc_errata)) == 0) {
       NULLIFY(flag_schedule_insns) = 0;
       NULLIFY(flag_schedule_insns_after_reload) = 0;
     }
@@ -3316,7 +3333,7 @@ void pic30_override_options_after_change(void) {
   }
 
 #ifdef INSN_SCHEDULING
-  if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
+  if ((pic30_errata_mask & (psrd_psrd_errata | ecc_errata)) != 0) {
     flag_schedule_insns = 1;
     flag_schedule_insns_after_reload = 1;
   }
@@ -3397,7 +3414,7 @@ void pic30_override_options(void) {
 #endif
 
 #ifdef INSN_SCHEDULING
-  if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
+  if ((pic30_errata_mask & (psrd_psrd_errata | ecc_errata)) != 0) {
     flag_schedule_insns = 1;
     flag_schedule_insns_after_reload = 1;
   }
@@ -3440,19 +3457,46 @@ void pic30_override_options(void) {
         copy2 = (char *)"__dsPIC33F__";
       } else if (TARGET_ARCH(PIC33E)) {
         copy2 = (char *)"__dsPIC33E__";
-      } else if (TARGET_ARCH(PIC33CH)) {
-        copy2 = (char *)"__dsPIC33CH__";
+      } else if (TARGET_ARCH(PIC33C)) {
+        copy2 = (char *)"__dsPIC33C__";
       }
       pic30_target_family = copy2;
       if (TARGET_ARCH(EP_GENERIC) || TARGET_ARCH(PIC24E) || 
           TARGET_ARCH(PIC33E)) {
         pic30_errata_mask = psrd_psrd_errata_movd;
       }
+#if 0
       if (TARGET_ARCH(GENERIC) || TARGET_ARCH(DA_GENERIC) ||
           TARGET_ARCH(EP_GENERIC) || TARGET_ARCH(CH_GENERIC)) {
         pic30_target_cpu = 0;
         pic30_target_family = 0;
       }
+#else
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16BIT")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16BIT__";
+      }
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16BIT-DA")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16BIT_DA__";
+      }
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16BIT-EP")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16BIT_EP__";
+      }
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16DSP")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16DSP__";
+      }
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16DSP-EP")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16DSP_EP__";
+      }
+      if (strcmp(pic30_target_cpu_id, "GENERIC-16DSP-CH")==0) {
+        pic30_target_cpu = 0;
+        pic30_target_family = (char*)"__GENERIC_16DSP_CH__";
+      }
+#endif
     } else {
       error("Invalid -mcpu option.  CPU %s not recognized.\n",
             pic30_target_cpu);
@@ -3738,7 +3782,7 @@ void pic30_override_options(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
+    if ((pic30_errata_mask & (psrd_psrd_errata | ecc_errata)) != 0) {
       NULLIFY(flag_schedule_insns) = 0;
       NULLIFY(flag_schedule_insns_after_reload) = 0;
     }
@@ -3855,9 +3899,20 @@ static bool pic30_assemble_integer(rtx x, unsigned int size, int aligned_p) {
     if (pic30_obj_elf_p() && !aligned_p)
     {
         fprintf(asm_out_file, "\t.2byte\t");
-        output_addr_const(asm_out_file, x);
-        fprintf(asm_out_file, "\n");
-              return 1;
+        switch (GET_CODE(x)) {
+          case SYMBOL_REF:
+            if (PIC30_FCN_NAME_P(XSTR(x,0))) {
+              fprintf(asm_out_file, "handle(");
+              output_addr_const(asm_out_file, x);
+              fprintf(asm_out_file, ")\n");
+              break;
+            }
+          default:
+            output_addr_const(asm_out_file, x);
+            fprintf(asm_out_file, "\n");
+            break;
+        }
+        return 1;
     }
 #ifdef ASM_OUTPUT_SHORT
     ASM_OUTPUT_SHORT(asm_out_file, x);
@@ -10593,6 +10648,10 @@ int pic30_registerpairs_p(rtx op0,rtx op1,rtx op2,rtx op3) {
     return(fPair);
 }
 
+int pic30_isav4_target(void) {
+  return TARGET_ARCH(CH_GENERIC) || (pic30_device_mask & HAS_ISAV4);
+}
+
 int pic30_eds_target(void) {
   return TARGET_ARCH(DA_GENERIC) || TARGET_ARCH(EP_GENERIC) ||
          (pic30_device_mask & HAS_EDS);
@@ -14378,8 +14437,10 @@ static void pic30_check_type_attribute(tree attrib, tree decl, tree *attributes)
         attr = lookup_attribute(pszAttrName, type_attr_list);
         if (attr != NULL_TREE)
         {
+            tree attr_value = TREE_VALUE(attr);
+
             *attributes = chainon(*attributes,
-                 build_tree_list(attrib, NULL_TREE));
+                 build_tree_list(attrib, attr_value));
             DECL_ATTRIBUTES(decl) = *attributes;
         }
     }
@@ -15253,6 +15314,12 @@ static tree pic30_valid_machine_decl_attribute(tree *node, tree identifier,
     space = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
                              DECL_ATTRIBUTES(decl));
     if (space) {
+      tree v1;
+      tree v2;
+
+      v1 = TREE_VALUE(TREE_VALUE(space));
+      v2 = TREE_VALUE(args);
+      if (v1 == v2) return;
       warning(OPT_Wattributes,
             "ignoring previous space attribute");
     }
@@ -16142,7 +16209,7 @@ section *pic30_select_section (tree decl, int reloc,
     ident = XSTR(XEXP(rtl, 0), 0);
     flags = validate_identifier_flags(ident);
     if (DECL_SECTION_NAME(decl)) {
-#if 0
+#if 1
       /* Not sure we really need to put 'const's into the same section
          as the global object.   We have done this since C30 v1.30, but why?
 
@@ -16187,7 +16254,7 @@ section *pic30_select_section (tree decl, int reloc,
       SECTION_FLAGS_INT flags_ = 0;
       tree decl_ = 0;
  
-      if (pic30_set_constant_section_helper(&name_, &flags_, &decl_))
+      if (pic30_set_constant_section_helper(&name_, &flags_, &decl_, 0))
         return get_section(name_, flags_, decl_);
     }
     if (TREE_CODE (decl) == VAR_DECL) {
@@ -16209,7 +16276,7 @@ section *pic30_select_section (tree decl, int reloc,
         /*
         ** Constants
         */
-        if (pic30_set_constant_section_helper(&name_,&flags_,&decl_))
+        if (pic30_set_constant_section_helper(&name_,&flags_,&decl_,  0))
           return get_section(name_,flags_,decl_);
 
         if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
@@ -16403,7 +16470,7 @@ static char *pic30_section_with_flags(const char *pszSectionName,
 
 const char *pic30_set_constant_section_helper(const char **name,
                                               SECTION_FLAGS_INT *flags,
-                                              tree *decl) {
+                                              tree *decl, int set) {
   static const char *saved_name = 0;
   static SECTION_FLAGS_INT saved_flags;
   static tree saved_decl;
@@ -16414,16 +16481,21 @@ const char *pic30_set_constant_section_helper(const char **name,
     saved_name = xstrdup(*name);
     saved_flags = *flags;
     saved_decl = *decl;
-  } else if ((*decl == saved_decl) && (*name == 0)) {
+  } else if ((set) && (*name == 0)) {
     if (saved_name) free(saved_name);
-
     saved_name = 0;
-    saved_decl = 0;
-    saved_flags = 0;
+
+    if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
+      saved_name = xstrdup(".const");
+      saved_decl = 0;
+      saved_flags = SECTION_READ_ONLY | SECTION_PAGE;
+    }
+  } 
+  if (!set) {
+    if (name) *name = saved_name;
+    if (flags) *flags = saved_flags;
+    if (decl) *decl = saved_decl;
   }
-  if (name) *name = saved_name;
-  if (flags) *flags = saved_flags;
-  if (decl) *decl = saved_decl;
   return saved_name;
 }
 
@@ -16433,11 +16505,15 @@ const char *pic30_set_constant_section(const char *name,
    SECTION_FLAGS_INT flags_ = flags;
    tree decl_ = decl;
 
-   return pic30_set_constant_section_helper(&name_, &flags_, &decl_);
+   return pic30_set_constant_section_helper(&name_, &flags_, &decl_, 1);
 }
 
 const char *pic30_get_constant_section(void) {
-  return pic30_set_constant_section(0,0,0);
+  const char *name_ = 0;
+  SECTION_FLAGS_INT flags_ = 0;
+  tree decl_ = 0;
+
+  return pic30_set_constant_section_helper(&name_, &flags_, &decl_,0);
 }
 
 /************************************************************************/
@@ -18775,11 +18851,13 @@ pic30_unique_section (tree decl, int reloc)
   if ((TREE_CODE(decl) ==  FUNCTION_DECL) && (flag_function_sections == 0)) 
     return;
 
+  if (TARGET_CONST_IN_CODE && TREE_READONLY(decl)) return;
+
   if (DECL_SECTION_NAME (decl) != NULL)
     {
       const char *sname = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
           prefix = ACONCAT ((sname, NULL));
-}
+    }
   else if (DECL_RTL(decl)) {
     /* prefer to get the prefix from our default sections name -
        dsPIC has lots of different section types */
@@ -19309,7 +19387,7 @@ char *pic30_default_include_path(const char *prefix) {
                                  PATH_SEPARATOR_STR,
                                  MPLABC30_PIC33E_INCLUDE_PATH);
       inc_path = MPLABC30_PIC33E_INC_PATH;
-    } else if (target_flags & MASK_ARCH_PIC33CH) {
+    } else if (target_flags & MASK_ARCH_PIC33C) {
       my_space = (char*)xcalloc(extra+sizeof(PATH_SEPARATOR_STR
                                  MPLABC30_PIC33C_INCLUDE_PATH),1);
       sprintf(my_space,"%s%s%s", common,
@@ -19485,12 +19563,13 @@ int pic30_address_of_external(rtx op0, rtx op1) {
 
     offset_rtx = gen_reg_rtx(HImode);
     addr_part = gen_reg_rtx(HImode);
-    emit_move_insn(offset_rtx, offset);
+    emit_move_insn(offset_rtx, 
+                   GEN_INT(trunc_int_for_mode(INTVAL(offset),HImode)));
     emit_move_insn(addr_part,
                    gen_rtx_SYMBOL_REF(HImode,
                                       IDENTIFIER_POINTER(DECL_NAME(decl))));
     emit_insn(
-      gen_addhi3(offset_rtx, addr_part, offset_rtx)
+      gen_addhi3(offset_rtx, addr_part,  offset_rtx)
     );
     addr_part = gen_rtx_SUBREG(HImode, op0, 0);
     emit_move_insn(addr_part, offset_rtx);

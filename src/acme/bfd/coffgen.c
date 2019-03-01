@@ -163,12 +163,24 @@ make_a_section_from_file (abfd, hdr, target_index)
   if (hdr->s_nreloc != 0)
     return_section->flags |= SEC_RELOC;
 #if PIC30
+  /* RAV - we lose this information, ABFD is created by us from a fake file;
+   *       use the same hack as above and look for a internal ABFD file name
+   *       ---- these ones are config words that should not be remapped
+   */
+  if (strncmp(abfd->filename, "/CW/_", 5) == 0)
+    return_section->linker_generated = 1;
+
   /* For pic30, we require greater control over SEC_HAS_CONTENTS */
   /*  (see similar test in gas/write.c)                          */
   if ((hdr->s_size > 0) &&
       !PIC30_IS_BSS_ATTR(return_section) &&
       !PIC30_IS_PERSIST_ATTR(return_section))
     return_section->flags |= SEC_HAS_CONTENTS;
+
+  if (pic30_add_data_flags || pic30_add_code_flags) {
+    pic30_add_section_attributes(return_section,
+                                 pic30_add_data_flags, pic30_add_code_flags);
+  }
 #else
   /* FIXME: should this check 'hdr->s_size > 0' */
   if (hdr->s_scnptr != 0)

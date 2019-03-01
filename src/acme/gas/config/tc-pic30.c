@@ -4532,6 +4532,33 @@ md_begin (void)
       symbol_mark_resolved (symbolp);
       free (family);
 
+      /* Add symbols for generic devices */
+      if (strcmp(global_PROCESSOR->printable_name, "GENERIC-16BIT")==0)
+      {
+        processor=(char *)"__GENERIC_16BIT";
+      } else if (
+          strcmp(global_PROCESSOR->printable_name, "GENERIC-16BIT-DA")==0) {
+          processor=(char *)"__GENERIC_16BIT_DA";
+      } else if (
+          strcmp(global_PROCESSOR->printable_name, "GENERIC-16BIT-EP")==0) {
+          processor=(char *)"__GENERIC_16BIT_EP";
+      } else if (
+          strcmp(global_PROCESSOR->printable_name, "GENERIC-16DSP")==0) {
+          processor=(char *)"__GENERIC_16DSP";
+      } else if (
+          strcmp(global_PROCESSOR->printable_name, "GENERIC-16DSP-EP")==0) {
+          processor=(char *)"__GENERIC_16DSP_EP";
+      } else if (
+          strcmp(global_PROCESSOR->printable_name, "GENERIC-16DSP-CH")==0) {
+          processor=(char *)"__GENERIC_16DSP_CH";
+      }
+      symbolp = symbol_new(processor, absolute_section,
+                            (valueT) 1, &zero_address_frag);
+
+      symbol_table_insert (symbolp);
+      symbol_mark_resolved (symbolp);
+
+
       /* create other symbols we may need */
       if (pic30_is_dsp_machine(global_PROCESSOR))
         create_absolute_symbol("__HAS_DSP", 1);

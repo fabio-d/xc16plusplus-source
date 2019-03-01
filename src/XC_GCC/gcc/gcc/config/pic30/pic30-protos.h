@@ -105,6 +105,7 @@ extern rtx pic30_addr_space_convert(rtx, tree, tree);
 
 
 extern char *pic30_section_base(rtx x, int operand, rtx *);
+extern int pic30_isav4_target(void);
 extern int pic30_eds_target(void);
 extern int pic30_dsp_target(void);
 extern int pic30_ecore_target(void);

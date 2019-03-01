@@ -386,6 +386,7 @@ extern bfd_boolean entry_from_cmdline;
 extern lang_statement_list_type file_chain;
 
 #if PIC30
+extern lang_memory_region_type *pic30_all_regions(void);
 extern lang_output_section_statement_type *pic30_current_os;
 extern void lang_select_startup_file
   PARAMS ((const char *, int));

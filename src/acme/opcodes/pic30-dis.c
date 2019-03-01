@@ -45,7 +45,7 @@ void pic30_disassemble_call_goto_insn PARAMS
 (( const struct pic30_opcode * opcode, unsigned long insn_word1,
    unsigned long insn_word2, struct disassemble_info *info));
 
-void pic30_disassemble_bfins_insn PARAMS
+void pic30_disassemble_bf_insn PARAMS
 (( const struct pic30_opcode * opcode, unsigned long insn_word1,
    unsigned long insn_word2, struct disassemble_info *info));
 
@@ -239,8 +239,13 @@ pic30_disassemble_2word_insn (opcode, insn_word1, memaddr, info)
                                            insn_word2, info);
          break;
 
+      case BFEXTF_INSN:
+      case BFEXT_INSN:
+
+      case BFINSF_INSN:
+      case BFINSL_INSN:
       case BFINS_INSN:
-         pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info);
+         pic30_disassemble_bf_insn (opcode, insn_word1, insn_word2, info);
          break;
       default:
          rc = FALSE;
@@ -436,15 +441,17 @@ pic30_print_insn (memaddr, info)
       {
 #if 1
          int valid_insn = 1;
-
-         if (pic30_opcodes[i].flags & F_ISAV4) {
-           valid_insn = is_isav4;
-         }
-         if (pic30_opcodes[i].flags & F_ECORE) {
-           valid_insn = is_ecore;
-         }
-         if (pic30_opcodes[i].flags & F_FCORE) {
-           valid_insn = (!is_ecore) && (!is_isav4);
+  
+         if (is_isav4) {
+           /* must be marked for F_ISVA4 or not marked at all */
+           if (((pic30_opcodes[i].flags & F_ISAV4) == 0) &&
+               (pic30_opcodes[i].flags & (F_ECORE | F_FCORE))) valid_insn = 0;
+         } else if (is_ecore) {   
+           /* must be marked for F_ECORE or not marked at all */
+           if (((pic30_opcodes[i].flags & F_ECORE) == 0) &&
+               (pic30_opcodes[i].flags & (F_ISAV4 | F_FCORE))) valid_insn = 0;
+         } else {
+           if (pic30_opcodes[i].flags & (F_ISAV4 | F_ECORE)) valid_insn = 0;
          }
          if (valid_insn == 0) continue;
 #else
@@ -508,13 +515,14 @@ pic30_print_insn (memaddr, info)
 /******************************************************************************/
 
 void
-pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info)
+pic30_disassemble_bf_insn (opcode, insn_word1, insn_word2, info)
    const struct pic30_opcode * opcode;
    unsigned long insn_word1;
    unsigned long insn_word2;
    struct disassemble_info * info;
 {
    int i;
+   int start_offset = -1;
 
    (*info->fprintf_func) (info->stream, "%-10s", opcode->name);
 
@@ -524,9 +532,16 @@ pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info)
          &(pic30_operands[opcode->operands[i]]);
 
       char operand_string[BUFSIZ] = "";
-      unsigned long insn_word = (i == 0) ? insn_word1 : insn_word2;
+      unsigned long insn_word = insn_word1;
       long operand_value = 0;
       unsigned char print_symbol = FALSE;
+
+      if ((insn_word1 & opcode->mask) == BFINSL_INSN) {
+        if (i >= 2) insn_word = insn_word2;
+      } else if (((insn_word1 & opcode->mask) == BFEXTF_INSN) ||
+                 ((insn_word1 & opcode->mask) == BFEXT_INSN)) {
+        if (i == 2) insn_word = insn_word2;
+      } else if (i == 3) insn_word = insn_word2;
 
       if (opnd->extract)
       {
@@ -554,15 +569,18 @@ pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info)
                   print_symbol = TRUE;
                /* drop through */
             case OPND_VALUE:
-            {
+            {  int value;
+
+               value = operand_value;
+               if (i == 0) start_offset = operand_value;
+               if (i == 1) value = value - start_offset + 1;
                if (opnd->immediate)
                   strcpy (operand_string, "#0x");
                else
                   strcpy (operand_string, "0x");
 
                if (!PRINT_SYMBOL)
-                  sprintf (operand_string, "%s%lx", operand_string,
-                           operand_value);
+                  sprintf (operand_string, "%s%lx", operand_string, value);
             }
          } /* switch */
       } /* else */
