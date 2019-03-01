@@ -783,6 +783,9 @@ pic30_parse_args (argc, argv)
         pic30_add_data_flags = strdup(optarg);
       }
       break;
+    case PIC30_DFP:
+      pic30_dfp = strdup(optarg);
+      break;
     }
   return 1; 
 } /* static int pic30_parse_args ()*/

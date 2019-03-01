@@ -56,10 +56,16 @@ static char *subordinate_image_file = 0;
 static char *subordinate_image = 0;
 static long long int image_address = 0;
 
+/* from elsewhere */
+extern bfd_boolean pic30_partition_flash;
+extern int pic30_mem_info[2];
+
 #define MAX_ROW 16384
 static long subordinate_image_row = 0;
 
 char *program_name;
+
+extern char *pic30_dfp;
 
 void help(char **argv);
 void help(char **argv) {
@@ -71,11 +77,15 @@ void help(char **argv) {
   printf("    --image f         write a loadable subordinate image to f.s\n");
   printf("    --image-address x force the linker to allocate the image\n"
          "                      at a specific FLASH address\n");
-  printf("    --row   n         write n instructions per block in image\n");
+  printf("    --row n           write n instructions per block in image\n");
+  printf("    --partitioned     hex file should fit into partitioned "
+                                "memory map\n");
   printf("    -u                use upper-case hex digits\n");
   printf("    -v                print verbose messages\n");
   printf("\n");
-  printf("    --offset n  offset hex file addresses offset by n\n");
+  printf("    --offset n        offset hex file addresses offset by n\n");
+  printf("\n");
+  printf("    -mdfp=<path>      Path to Device Family Pack root directory\n");
   printf("\n");
 }
 
@@ -139,6 +149,8 @@ main (argc, argv)
               image_address = strtoll(argv[arg+1],0,0);
               arg++;
             }
+          } else if (strcmp(argv[arg],"--partitioned") == 0) {
+            pic30_partition_flash = 1;
           } else if (strcmp(argv[arg],"--row") == 0) {
             if (arg+1 >= argc) {
                fprintf(stderr,
@@ -172,6 +184,17 @@ main (argc, argv)
           break;
         case 'v':
           verbose++;
+          break;
+        case 'm':
+          if (strstr(argv[arg], "-mdfp=") != NULL) {
+            if (strlen(argv[arg]) > 6) {
+              pic30_dfp = xstrdup(argv[arg]+6);
+            } else {
+              fprintf(stderr,
+                      "*** Error: Required argument for %s is missing\n",
+                      argv[arg]);
+            }
+          }
           break;
         default:
           if (isprint (optopt))
@@ -224,7 +247,8 @@ main (argc, argv)
       }
     }
     if (valid_name == 0) {
-      fprintf(stderr,"Error: image name '%s' must end in a valid C identifier\n", 
+      fprintf(stderr,
+              "Error: image name '%s' must end in a valid C identifier\n", 
               subordinate_image_file);
       subordinate_image = 0;
     }
@@ -255,6 +279,10 @@ main (argc, argv)
 
   if (subordinate_image) {
      /* write a subordinate image along with hex file */
+     if (abfd->arch_info->mach) {
+       pic30_load_codeguard_settings(abfd->arch_info,0);
+     }
+
      write_image_file(subordinate_image_file, abfd);
   } else {
 
@@ -331,6 +359,7 @@ write_image_file(char *name, bfd *abfd) {
   char *filename;
   time_t current_time;
 
+// here
   time(&current_time);
 
   filename = xmalloc(strlen(name)+2);
@@ -635,6 +664,7 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
   bfd_size_type total, actual;
   unsigned int   num_rows,last_row,i,j;
   unsigned short low_addr;
+  unsigned short high_addr;
   int data_line_width = 0;
   asection *sect = first->sec;
   struct pic30_section *last = first;
@@ -661,13 +691,19 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
          next = next->next);
     if (next) {
       file_ptr last_end;
+      int pad_insn = 0;
 
       /* raw_size is in bytes, with the phantom byte
          dividing by 2 gets the number of address units */
       last_end = last->sec->lma + (last->sec->_raw_size / 2);
-      if (next->sec->lma != last_end) 
-        /* not contiguous, stop at last */
+      if (last_end & 2) {
+        /* we end on a complete ECC word boundary; might need to pad 2 insns */
+        pad_insn = 4;
+      }
+      if ((last_end + pad_insn) < next->sec->lma) {
+        /* including possible padd insn pair, not contiguous: stop at last */
         break;
+      }
       total += next->sec->_raw_size;
     } else break;
     last = next;
@@ -715,19 +751,22 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
     /* first write the full records */
     int write_row_size;
     int print_address = 8;
+    int pad_insns = 0;
   
     if (i < num_rows) {
-          write_row_size = row_size;
+      write_row_size = row_size;
     } else {
-          write_row_size = last_row;
+      write_row_size = last_row;
+      if (last_row & 1) pad_insns = 1;
+      else pad_insns = 2;
     }
     low_addr = (unsigned short) (start+(offset*2/3));
-  
+
     fprintf(imagefile,"\t; record start\n");
     fprintf(imagefile,"\t.word 0x%4.4x ; destination\n", 
             low_addr & 0x7FFF | ((low_addr >> 15) ? 0x8000 : 0x0000));
     /* for ldslav, must be an even number of instuctions */
-    fprintf(imagefile,"\t.word 0x%4.4x ; len\n", (write_row_size + 1) & -2);
+    fprintf(imagefile,"\t.word 0x%4.4x ; len\n", (write_row_size + pad_insns));
     fprintf(imagefile,"\t.word 0x%4.4x ; page | format\n",
             0x1F | ((low_addr >> 15) << 7));
     fprintf(imagefile,"\t; data start\n");
@@ -756,10 +795,16 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
         data_line_width = 0;
       }
     }
+    high_addr = low_addr+j*2;
   }
-  if (last_row & 1) {
+  if ((pic30_mem_info[0]) && (high_addr >= pic30_mem_info[0])) {
+     /* already beyond devices memory? */
+  } else if (last_row & 1) {
      /* pad */
-     fprintf(imagefile, "\t; padding\n\t.pword 0xFFFFFF\n");
+     fprintf(imagefile, "\t; padding\n\t.pbyte 0x00,0x0,0xfe\n");
+  } else if ((high_addr & 0x2) == 0) {
+     /* pad */
+     fprintf(imagefile,"\t; padding\n\t.pbyte 0x00,0x00,0xfe,0x00,0x00,0xfe\n");
   }
   return last;
 }

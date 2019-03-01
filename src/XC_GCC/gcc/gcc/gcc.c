@@ -3981,6 +3981,84 @@ process_command (int argc, const char **argv)
 
 #ifdef _BUILD_C30_
   {
+    char *base_path;
+    for (i = 1; i < argc; i++)
+    {
+      if (!strncmp(argv[i], "-mdfp=", sizeof("-mdfp=")-1)) 
+      {
+        /* Make the base path point to pic30_dfp/bin/. Add +6 i.e strlen(-mdfp) 
+         * since we will not use the string part '-mdfp='  */
+        base_path = (char *)xmalloc(strlen(argv[i])+1);
+        sprintf(base_path, "%s/bin/", argv[i]+6);
+      }
+    }
+  if (base_path) {
+    const char *library_paths[] = { LIBRARY_PATH_ENV, "LPATH",
+                                    (const char *)-1 };
+
+    int pathNo = 0;
+
+    while ((int) library_paths[pathNo] != -1)
+    {
+      GET_ENV_PATH_LIST (temp, library_paths[pathNo]);
+#ifdef DEFAULT_LIB_PATH
+      if ((temp == 0) && (pathNo == 0))
+        {
+          for (i = 1; i < argc; i++)
+            {
+              if (!strncmp(argv[i], "-merrata=", sizeof("-merrata=")-1))
+                {
+                   temp = DEFAULT_ERRATA_LIB_PATH;
+                }
+            }
+           if (temp == 0) temp = DEFAULT_LIB_PATH;
+        }
+#endif
+#if defined(DEFAULT_LIB_PATH) || defined(NON_DEFAULT_LIBRARY_PATH)
+      /* If the default LIBRARY_PATH environment variable has been modified */
+      /* for a particular target, use its value even if cross compiling */
+      /* or if cross compiling scan the DEFAULT_LIB_PATH iff set */
+      if (temp)
+#else
+      if (temp && *cross_compile == '0')
+#endif
+        {
+          const char *startp, *endp;
+          char *nstore = (char *) alloca (strlen (temp) + 3);
+
+          startp = endp = temp;
+          while (1)
+            {
+              if (*endp == PATH_SEPARATOR || *endp == 0)
+                {
+                  if (endp == startp)
+                    strcpy (nstore, concat (".", dir_separator_str, NULL));
+                  else if (IS_DIR_SEPARATOR(*startp)) {
+                    strncpy (nstore, startp, endp - startp);
+                  } else {
+                    nstore[0] = 0;
+                    strcat(nstore, base_path);
+                    strncat(nstore, startp, endp-startp);
+                  }
+                  if (!IS_DIR_SEPARATOR (endp[-1]))
+                  {
+                    strcat(nstore, dir_separator_str);
+                  }
+                  add_prefix (&startfile_prefixes, nstore, NULL,
+                              PREFIX_PRIORITY_LAST, 0, 1);
+                  if (*endp == 0)
+                    break;
+                  endp = startp = endp + 1;
+                  }
+            else
+                endp++;
+            }
+        }
+      pathNo++;
+    }
+  }
+  }
+  {
     const char *library_paths[] = { LIBRARY_PATH_ENV, "LPATH",
                                     (const char *)-1 };
     char *base_path;
@@ -3989,6 +4067,7 @@ process_command (int argc, const char **argv)
 
     base_path = make_relative_prefix(argv[0], standard_bindir_prefix,
                                               standard_exec_prefix);
+        
     while ((int) library_paths[pathNo] != -1)
     {
       GET_ENV_PATH_LIST (temp, library_paths[pathNo]);

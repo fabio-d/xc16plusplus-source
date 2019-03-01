@@ -1424,7 +1424,8 @@
            (ashiftrt:HI 
              (match_operand: HI 1 "pic30_mode3_operand"       " rRS<>")
              (match_operand: HI 2 "immediate_operand"         " Z"))
-           (match_operand:HI    3 "pic30_accumulator_operand" " 0")))]
+           (match_operand:HI    3 "pic30_accumulator_operand" " 0"))
+  )]
   "((INTVAL(operands[2]) >= 0) && (CONST_OK_FOR_LETTER_P(INTVAL(operands[2]),'Z')))"
   "add %1, #%2, %0"
   [
@@ -2535,48 +2536,37 @@
   [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
         (match_operand: HI 1 "pic30_mode3_operand" "RS<>r"))]
   ""
-  "*{
-     /* lac %1, %0 */
-     error(\"Automatic generation of DSP instructions not yet supported; \"
-           \"use __builtin_lac() instead\");
-     return \"cannot generate instruction\";
-   }
-  "
+  "lac %1, #0, %0"
 )  
 
 (define_insn "movhi_accumulator2"
   [(set (match_operand:HI 0 "general_operand" "")
         (match_operand:HI 1 "pic30_accumulator_operand" "w"))]
   ""
-  "*{
-     /* sac %1, %0 */
+  "*
+    /* sac %1, #0, %0 */
+    {
      error(\"Automatic generation of DSP instructions not yet supported; \"
            \"use __builtin_sac() instead\");
      return \"cannot generate instruction\";
-   }
+    }
   "
 )
 
-(define_insn "movhi_accumulator3"
-  [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
-        (match_operand:HI 1 "immediate_operand" "i"))]
-  ""
-  "*
-   {
-     if (INTVAL(operands[1]) == 0) {
-       /* clr %0 */
-       error(\"Automatic generation of DSP instructions not yet supported; \"
-             \"use __builtin_clr() instead\");
-       return \"cannot generate instruction\";
-     } else {
-       /* lac ... */
-       error(\"Automatic generation of DSP instructions not yet supported; \"
-             \"use __builtin_lac() instead\");
-       return \"cannot generate instruction\";
-     }
-   }
-  "
-)
+;(define_insn "movhi_accumulator3"
+;  [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
+;        (match_operand:HI 1 "immediate_operand" "i"))]
+;  ""
+;  "*
+;   {
+;     if (INTVAL(operands[1]) == 0) {
+;       return \"clr %0\";
+;     } else {
+;       return \"lac %1, #0, %0\";
+;     }
+;   }
+;  "
+;)
 
 (define_insn "addab_error"
   [(set (match_operand: HI          0 "pic30_accumulator_operand" "=w")
@@ -19019,9 +19009,9 @@
 (define_insn "*adddisi3_ze"
   [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
         (plus:DI
-           (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
+           (match_operand:DI 1 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")
            (zero_extend:DI
-              (match_operand:SI 1 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
+              (match_operand:SI 2 "pic30_register_operand" "r,r,r,r, r,r,r,r, r"))
         )
    )
   (clobber (match_scratch:HI 3                   "=X,X,&r,&r,&r,X,&r,&r,&r"))
@@ -32737,10 +32727,12 @@
 
 (define_insn "bfins"
   [(set (zero_extract:HI    
-          (match_operand    0 "pic30_mode2_or_near_operand" "+Rr,Rr,U")
-          (match_operand:HI 1 "immediate_operand"           " i, i, i")
-          (match_operand:HI 2 "immediate_operand"           " i, i, i"))
-        (match_operand:HI 3 "pic30_reg_or_lit8"             " r, i, r"))]
+          (match_operand    0 "pic30_mode2_or_near_operand" "+Rr,Rr,U,U")
+          (match_operand:HI 1 "immediate_operand"           " i, i, i,i")
+          (match_operand:HI 2 "immediate_operand"           " i, i, i,i"))
+        (match_operand:HI 3 "pic30_reg_or_lit8"             " r, i, r,???i"))
+   (clobber (match_scratch:HI 4                             "=X, X, X, r"))
+  ]
   "(pic30_isav4_target())"
   "*
 {
@@ -32756,12 +32748,16 @@
           offset = INTVAL(XEXP(XEXP(XEXP(operands[0],0),0),1));
           if (offset & 1) {
             return \"bfins #%2+8,#%1,%3,%0-1\";
+          } else {
+            return \"bfins #%2,#%1,%3,%0\";
           }
         } 
       } else {
         return \"bfins #%2,#%1,%3,%0\";
       }
     }
+    case 3: /* U,i,i,???i,r */
+      return \"mov #%3,%4\;bfins #%2,#%1,%4,%0\";
     default:
       gcc_assert(0);
   }
@@ -32771,7 +32767,7 @@
 ;; (define_insn "extv" ...
 
 ;; (define_insn "extzv" ...
-(define_insn "extzv"
+(define_insn "bfext"
   [(set (match_operand:HI   0 "pic30_register_operand"      "=r,r")
         (zero_extract:HI  
           (match_operand    1 "pic30_mode2_or_near_operand" "Rr,U")
@@ -32791,6 +32787,8 @@
           offset = INTVAL(XEXP(XEXP(XEXP(operands[1],0),0),1));
           if (offset & 1) {
             return \"bfext #%3+8,#%2,%1-1,%0\";
+          } else {
+            return \"bfext #%3,#%2,%1,%0\";
           }
         }
       } else {
@@ -32801,6 +32799,27 @@
       gcc_assert(0);
   }
 }"
+)
+(define_expand "extzv"
+  [(set (match_operand:HI      0 "pic30_register_operand"      "=r")
+        (zero_extract:HI  
+          (match_operand    1 "pic30_mode2_or_near_operand" "RrU")
+          (match_operand:HI 2 "immediate_operand"           " i")
+          (match_operand:HI 3 "immediate_operand"           " i")))]
+  ""
+  "
+  { 
+    if (pic30_isav4_target() &&
+        pic30_mode2_or_near_operand(operands[1],VOIDmode) &&
+        GET_MODE(operands[0]) == HImode) {
+      emit(
+        gen_bfext(operands[0], operands[1], operands[2], operands[3])
+      );
+      DONE;
+    } else {
+      FAIL;
+    }
+  }"
 )
 
 ;; (define_insn "insv" ...
@@ -32815,14 +32834,13 @@
   "
 { int n;
   int mode;
-  if (pic30_isav4_target()) {
-    /* It is better to use bfins for insert of more than 1 bits.*/
-    if (INTVAL(operands[1]) > 1) {
+  if (pic30_isav4_target() && 
+      pic30_mode2_or_near_operand(operands[0],VOIDmode) &&
+      (INTVAL(operands[1]) > 1)) {
       emit(
         gen_bfins(operands[0],operands[1],operands[2],operands[3])
       );
       DONE;
-    }
   }
 
   n = 4;

@@ -4538,26 +4538,6 @@ cheaper_cost_pair (struct cost_pair *a, struct cost_pair *b)
   if (!b)
     return true;
 
-#ifdef _BUILD_C30_
-  /* we can't possibly compare costs if the address spaces don't match...
-        that would be like saying a pointer is an int */
-  {
-    unsigned as_a,as_b;
-   
-    as_a = TYPE_ADDR_SPACE(TREE_TYPE(a->cand->iv->base));
-    if (POINTER_TYPE_P(TREE_TYPE(a->cand->iv->base)))
-      as_a = TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(a->cand->iv->base)));
-    as_b = TYPE_ADDR_SPACE(TREE_TYPE(b->cand->iv->base));
-    if (POINTER_TYPE_P(TREE_TYPE(b->cand->iv->base)))
-      as_b = TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(b->cand->iv->base)));
-
-    if (as_a != as_b) {
-      /* it appears that 'b' is always the old or current best */
-      return false;
-    }
-  }
-#endif
-
   cmp = compare_costs (a->cost, b->cost);
   if (cmp < 0)
     return true;

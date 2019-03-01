@@ -306,3 +306,5 @@ Target Joined Var(pic30_memorysummary) Undocumented
 mcvt=
 Target Joined Var(pic30_cvt) Undocumented
 
+mdfp=
+Target Joined Var(pic30_dfp) Undocumented

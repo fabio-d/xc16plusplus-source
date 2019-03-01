@@ -201,6 +201,8 @@ unsigned int aivtloc_mask = 0;
 bfd_boolean pic30_has_floating_aivt = FALSE;
 bfd_boolean pic30_has_fixed_aivt = FALSE;
 
+int pic30_mem_info[2];   // flash sizes
+
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
 
@@ -300,13 +302,21 @@ static void get_resource_path(const char *resource) {
     if (dosPATH) free(dosPATH);
     if (PATH) tool_name = command;
   }
-  pic30_resource_file = xmalloc(strlen(tool_name) +
-                                sizeof("/c30_device.info") + 1);
-  sprintf(pic30_resource_file,"%s", tool_name);
-  for (c = pic30_resource_file + strlen(pic30_resource_file);
-       !IS_DIR_SEPARATOR(*c); c--);
-  *c = 0;
-  strcat(pic30_resource_file,"/c30_device.info");
+  if (pic30_dfp) {
+    /* First allocate for PIC30_DFP and then for /bin/c30_device.info
+     * so that would be strlen(PIC30_DFP) and 21
+     */
+    pic30_resource_file = xmalloc(strlen(pic30_dfp) + 21);
+    sprintf(pic30_resource_file, "%s/bin/c30_device.info", pic30_dfp);
+  } else {
+    pic30_resource_file = xmalloc(strlen(tool_name) +
+                                  sizeof("/c30_device.info") + 1);
+    sprintf(pic30_resource_file,"%s", tool_name);
+    for (c = pic30_resource_file + strlen(pic30_resource_file);
+         !IS_DIR_SEPARATOR(*c); c--);
+    *c = 0;
+    strcat(pic30_resource_file,"/c30_device.info");
+  }
 }
 
 void pic30_update_resource(const char *resource) {
@@ -351,9 +361,17 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
   if (err_return) return;
 
   if (pic30_resource_file == 0) {
-    fprintf(stderr,"Provide a resource file");
-    err_return = 1;
-    return;
+    if (pic30_dfp) {
+     /* First allocate for PIC30_DFP and then for /bin/c30_device.info
+     * so that would be strlen(PIC30_DFP) and 21
+     */
+    pic30_resource_file = xmalloc(strlen(pic30_dfp) + 21);
+    sprintf(pic30_resource_file, "%s/bin/c30_device.info", pic30_dfp);
+ } else {
+      fprintf(stderr,"Provide a resource file");
+      err_return = 1;
+      return;
+    }
   }
   if (rib == 0) {
     rib = read_device_rib(pic30_resource_file,
@@ -523,17 +541,20 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
           if (d2.v.i & MEM_AIVT_LOCATION) {
             aivtloc_ptr = d4.v.i;
             aivtloc_mask = d5.v.i;
-          }
-        }
-
+          } 
+        } 
         if (d2.v.i & MEM_PAGESIZE) {
           pagesize = d5.v.i;
-        }
-        if (d2.v.i & MEM_FIXED_IVT)
+        } else if (d2.v.i & MEM_FIXED_IVT)
           ivt_base = d4.v.i;
         else if (d2.v.i & MEM_FIXED_AIVT) {
           pic30_has_fixed_aivt = TRUE;
           aivt_base = d4.v.i;
+       } else if (d2.v.i & MEM_FLASH) { 
+          if (((d2.v.i & MEM_PARTITIONED) != 0) == pic30_partition_flash) {
+            pic30_mem_info[0] = d4.v.i;
+            pic30_mem_info[1] = d5.v.i;
+          }
         }
       }  
       else if (((d2.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID)  &&

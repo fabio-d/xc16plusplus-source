@@ -158,7 +158,12 @@ enum pic30_builtins
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
 
-#define ASM_SPEC   "%{mpartition=*:--partition %*} %{!.s:%{!.S:--relax}} %{mcpu=*:-p%*} -omf=" OMF
+#define ASM_SPEC   " \
+  %{mpartition=*:--partition %*} \
+  %{!.s:%{!.S:--relax}} \
+  %{mcpu=*:-p%*} \
+  %{mdfp=*: -mdfp=%*} \
+  -omf=" OMF
 
 #ifndef MCHP_CCI_CC1_SPEC
 #error MCHP_CCI_CC1_SPEC not defined
@@ -166,9 +171,15 @@ enum pic30_builtins
 
 #define CC1_SPEC  " \
   %(mchp_cci_cc1_spec) \
-  -mresource=%I-../../c30_device.info -omf=" OMF
+  %{!mresource=: %{!mdfp=*: -mresource=%I-../../c30_device.info}} \
+  -omf=" OMF
 
-#define LINK_SPEC   "%{mmemorysummary=*:--memorysummary %*} %{mpartition=*:--partition %*} %{mcpu=*:-p%*} -omf=" OMF
+#define LINK_SPEC   " \
+  %{mmemorysummary=*:--memorysummary %*} \
+  %{mpartition=*:--partition %*} \
+  %{mcpu=*:-p%*} \
+  %{mdfp=*: --mdfp=%*} \
+  -omf=" OMF
 
 /*
 ** A C string constant that tells the GNU CC driver program how to run any

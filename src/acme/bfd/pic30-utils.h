@@ -432,6 +432,7 @@ typedef struct pic30_ivt_record {
 
 extern char *pic30_add_data_flags;
 extern char *pic30_add_code_flags;
+extern char *pic30_dfp;
 extern bfd_boolean pic30_preserve_all;
 extern bfd_boolean pic30_has_fill_option;
 extern bfd_boolean pic30_partition_flash;

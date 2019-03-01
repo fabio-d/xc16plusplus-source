@@ -100,7 +100,8 @@ void execute(char *cmd, char **argv) {
 
 extern int pic30_global_warning;
 extern const char *pic30_resource_version;
-#endif
+extern char *pic30_dfp;
+#endif  /* #if PIC30 */
 
 #if defined(PIC30ELF)
 extern bfd_boolean pic30_linking;
@@ -243,6 +244,7 @@ main (argc, argv)
      char **argv;
 {
   char *emulation;
+  int iter;
   long start_time = get_run_time ();
   
 #if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
@@ -264,6 +266,15 @@ main (argc, argv)
   START_PROGRESS (program_name, 0);
 
   expandargv (&argc, &argv);
+
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strncmp(argv[iter], "--mdfp=", 7) == 0) {
+      pic30_dfp = xstrdup(argv[iter]+7);
+    } else if (strncmp(argv[iter], "-mdfp=", 6) == 0) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+    }
+  }
 
   bfd_init ();
 
@@ -763,7 +774,12 @@ get_emulation (argc, argv)
 		 some Linux systems.  Hope that nobody creates an
 		 emulation named 486.  */
 	    }
-	  else
+	  else if (strncmp (argv[i], "-mdfp", 5) == 0)
+            {
+              /* Do nothing. mdfp is not an emulation mode but an option for 
+                 dfp in the XC compilers */
+            }
+          else
 	    {
 	      /* -mEMUL */
 	      emulation = &argv[i][2];

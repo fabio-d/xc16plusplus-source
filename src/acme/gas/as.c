@@ -131,6 +131,11 @@ static const int n_emulations = sizeof (emulations) / sizeof (emulations[0]);
 
 static void select_emulation_mode PARAMS ((int, char **));
 
+/* This is where the path to dfp is stored for use in pic30_update_resource
+ * and other similar function during bfd_init()
+ */
+extern char *pic30_dfp;
+
 static void
 select_emulation_mode (argc, argv)
      int argc;
@@ -449,7 +454,9 @@ parse_args (pargc, pargv)
 #define OPTION_TARGET_HELP (OPTION_STD_BASE + 19)
     {"target-help", no_argument, NULL, OPTION_TARGET_HELP},
 #define OPTION_WARN_FATAL (OPTION_STD_BASE + 20)
-    {"fatal-warnings", no_argument, NULL, OPTION_WARN_FATAL}
+    {"fatal-warnings", no_argument, NULL, OPTION_WARN_FATAL},
+#define OPTION_PIC30_DFP (OPTION_STD_BASE + 21)
+    {"mdfp", required_argument, NULL, OPTION_PIC30_DFP}
     /* When you add options here, check that they do not collide with
        OPTION_MD_BASE.  See as.h.  */
   };
@@ -811,6 +818,10 @@ the GNU General Public License.  This program has absolutely no warranty.\n"));
 	case 'X':
 	  /* -X means treat warnings as errors.  */
 	  break;
+
+        case OPTION_PIC30_DFP:
+          pic30_dfp = optarg;
+          break;
 	}
     }
 
@@ -838,6 +849,7 @@ main (argc, argv)
   int macro_alternate;
   int macro_strip_at;
   int keep_it;
+  int iter = 0;
 
   start_time = get_run_time ();
 
@@ -864,6 +876,13 @@ main (argc, argv)
 #endif
 
   out_file_name = OBJ_DEFAULT_OUTPUT_FILE_NAME;
+
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strstr(argv[iter], "-mdfp=") != NULL) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+    }
+  }
 
   hex_init ();
 #ifdef BFD_ASSEMBLER

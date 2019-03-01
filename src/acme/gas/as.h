@@ -223,6 +223,7 @@ extern char **environ;
 
 #ifdef BFD_ASSEMBLER
 extern bfd *stdoutput;
+extern char *pic30_dfp;
 typedef bfd_vma addressT;
 typedef bfd_signed_vma offsetT;
 #else

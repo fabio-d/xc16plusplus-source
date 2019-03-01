@@ -129,6 +129,8 @@ static enum pic30_fp_support_modes pic30_fp_round;
 const char * mchp_config_data_dir = NULL;
 struct mchp_config_specification *mchp_configuration_values;
 
+const char * pic30_dfp = NULL;
+
 /*----------------------------------------------------------------------*/
 /*    L O C A L    V A R I A B L E S                    */
 /*----------------------------------------------------------------------*/
@@ -1207,8 +1209,16 @@ unsigned int validate_target_id(char *id, char **matched_id) {
     }
   }
   if (pic30_resource_file == 0) {
-    warning(0,"Provide a resource file");
-    return 0;
+    if (pic30_dfp) {
+      /* First allocate space for pic30_dfp/bin/c30_device.info i.e.
+       * strlen(pic30_dfp) + 21 
+       */
+      pic30_resource_file = (char *)xmalloc(strlen(pic30_dfp) + 21);
+      sprintf(pic30_resource_file, "%s/bin/c30_device.info", pic30_dfp);
+    } else {
+      warning(0,"Provide a resource file");
+      return 0;
+    }
   }
   rib = read_device_rib(pic30_resource_file, 
                         TARGET_PRINT_DEVICES ? 0 : pic30_target_cpu);
@@ -5083,6 +5093,9 @@ static int pic30_builtin_dma_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
   if (GET_CODE(r0) == MEM) {
     sym = XEXP(r0,0);
   }
+  if (TREE_CODE(arg0) != ADDR_EXPR) {
+    return p;
+  }
   if (pic30_device_mask &  HAS_DMAV2) {
     flag_mask = SECTION_DMA | SECTION_WRITE;
     p = pic30_data_space_operand_p(GET_MODE(r0), sym, 0);
@@ -5563,9 +5576,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_dma_arg_p(arg0, r0))
       {
-        error("Argument to __builtin_dmaoffset()  is not the address\n"
+        error("Argument to __builtin_dmapage()  is not the address\n"
               "of an object in a dma section;\n"
               "the object must not be qualified with any form of index");
+        return NULL_RTX;
       }
       if (!target || !register_operand(target, HImode))
       {
@@ -5586,6 +5600,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         error("Argument to __builtin_dmaoffset()  is not the address\n"
               "of an object in a dma section;\n"
               "the object must not be qualified with any form of index");
+        return NULL_RTX;
       }
       if (!target || !register_operand(target, HImode))
       {
@@ -6531,7 +6546,11 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
            emit_insn(
              gen_movhi(p_xreg, r3)
            );
-        } else gcc_assert(0);
+        } else  {
+          error("Pointer to pointer to X prefetch should be an integer pointer.");
+          error("Pointers to Extended Address spaces are not supported.");
+          return NULL_RTX;
+        }
         if (TREE_CODE(arg4) == ADDR_EXPR) {
            /* we really care about the symbol we are taking the address of */
            r4 = expand_expr(TREE_OPERAND(arg4,0), NULL_RTX, HImode,
@@ -6590,7 +6609,11 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
            emit_insn(
              gen_movhi(p_yreg, r6)
            );
-        } else gcc_assert(0);
+        } else {
+          error("Pointer to pointer to Y prefetch should be an integer pointer.");
+          error("Pointer to Extended Address spaces are not supported.");
+          return NULL_RTX;
+        }
         if (TREE_CODE(arg7) == ADDR_EXPR) {
            /* we really care about the symbol we are taking the address of */
            r7 = expand_expr(TREE_OPERAND(arg7,0), NULL_RTX, HImode,
@@ -6987,7 +7010,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 #else
            p_xreg = r2;
 #endif
-        } else gcc_assert(0);
+        } else {
+          error("Pointer to pointer to X prefetch should be an integer pointer");
+          return NULL_RTX;
+        }
         if (TREE_CODE(arg3) == ADDR_EXPR) {
            /* we really care about the symbol we are taking the address of */
            r3 = expand_expr(TREE_OPERAND(arg3,0), NULL_RTX, HImode, 
@@ -7051,7 +7077,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 #else
            p_yreg = r5;
 #endif
-        } else gcc_assert(0);
+        } else {
+          error("Pointer to pointer to Y prefetch should be an integer pointer");
+          return NULL_RTX;
+        }
         if (TREE_CODE(arg6) == ADDR_EXPR) {
            /* we really care about the symbol we are taking the address of */
            r6 = expand_expr(TREE_OPERAND(arg6,0), NULL_RTX, HImode,
@@ -19092,6 +19121,37 @@ void pic30_system_include_paths(const char *root ATTRIBUTE_UNUSED,
 
   if (prefix == 0) return;
   if (stdinc == 0) return;
+  if (pic30_dfp) {
+    max_len=80 + strlen(pic30_dfp);
+    my_prefix = (char *)xmalloc(max_len);
+    my_prefix[0] = 0;
+    sprintf(my_prefix, "%s/bin/", pic30_dfp);
+    penpenultimate = &my_prefix[strlen(my_prefix)-1];
+    penpenultimate[1] = 0;
+    
+    base_len = strlen(my_prefix);
+    for (c = (char*) pic30_default_include_path(my_prefix); *c;) {
+      len = 0;
+      for (; *c && (*c != ':') && (*c != ';'); c++) {
+        penpenultimate[1+len++] = *c;
+        if (len+base_len > max_len) {
+          char *new_prefix = (char *)xmalloc(max_len+256);
+  
+          strcat(new_prefix, my_prefix);
+          penpenultimate = new_prefix + (penpenultimate-my_prefix);
+          free(my_prefix);
+          my_prefix = new_prefix;
+          max_len = max_len+256;
+        }
+      }
+      if (*c) c++;
+      penpenultimate[1+len++] = 0;
+      if (len) {
+        add_path(xstrdup(my_prefix), SYSTEM, 0, 0);
+      }
+    }
+  free(my_prefix);
+  }
   max_len=80 + strlen(prefix);
   my_prefix = (char *)xmalloc(max_len);
   my_prefix[0] = 0;
@@ -19105,7 +19165,9 @@ void pic30_system_include_paths(const char *root ATTRIBUTE_UNUSED,
       ultimate = c;
     }
   }
+
   penpenultimate[1] = 0;
+  
   base_len = strlen(my_prefix);
   for (c = (char*) pic30_default_include_path(my_prefix); *c;) {
     len = 0;

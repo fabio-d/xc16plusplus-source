@@ -153,6 +153,7 @@ unsigned int pagesize_arg = 0;
 bfd_boolean pic30_psrd_psrd_check = TRUE;
 char *pic30_add_data_flags = 0;
 char *pic30_add_code_flags = 0;
+char *pic30_dfp = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;

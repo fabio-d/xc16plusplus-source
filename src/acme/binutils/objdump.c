@@ -40,6 +40,8 @@
 
 extern void pic30_set_extended_attributes
   PARAMS ((asection *, unsigned int, unsigned char ));
+
+extern char *pic30_dfp;
 #endif
 
 
@@ -3824,6 +3826,7 @@ main (argc, argv)
   int c;
   char *target = default_target;
   bfd_boolean seenflag = FALSE;
+  int iter;
 
 #if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
   setlocale (LC_MESSAGES, "");
@@ -3838,6 +3841,14 @@ main (argc, argv)
   xmalloc_set_program_name (program_name);
 
   START_PROGRESS (program_name, 0);
+
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strstr(argv[iter], "-mdfp=") != NULL) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+    }
+  }
+
 
   bfd_init ();
   set_default_bfd_target ();
