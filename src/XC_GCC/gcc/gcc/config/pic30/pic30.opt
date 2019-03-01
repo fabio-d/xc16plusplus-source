@@ -210,6 +210,10 @@ menable-fixed
 Target RejectNegative JoinedOrMissing Var(pic30_fp_support) VarExists
 Enable fixed point support
 
+menable-integer-mac
+Target RejectNegative Var(pic30_integer_mac_support) VarExists
+Enable integer DSP generation (alpha)
+
 fnofallback
 Target RejectNegative Var(pic30_nofallback)
 Do not fall back to free licesnse when license not available
@@ -231,6 +235,8 @@ Apply __attribute__((preserved)) to all appropriate definitions
 mskip-license-check
 Target Var(mchp_skip_license_check) Undocumented
 
+mpsrd-psrd-check
+Target Var(pic30_psrd_psrd_check) Undocumented
 
 ;
 ; **************************** CAUTION
@@ -245,6 +251,10 @@ Select target CPU
 merrata=
 Target RejectNegative Joined Var(pic30_errata) VarExists
 Enable compiler generated work-arounds for specific errata
+
+mno-errata=
+Target RejectNegative Joined Var(pic30_no_errata) VarExists
+Disable compiler generated work-arounds for specific errata
 
 mfillupper=
 Target RejectNegative Joined Var(pic30_fillupper) VarExists

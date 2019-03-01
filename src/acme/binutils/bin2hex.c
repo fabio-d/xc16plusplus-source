@@ -54,6 +54,7 @@ static int upper_case = 0;
 static struct pic30_section *outputs;
 static char *subordinate_image_file = 0;
 static char *subordinate_image = 0;
+static long long int image_address = 0;
 
 #define MAX_ROW 16384
 static long subordinate_image_row = 0;
@@ -66,11 +67,13 @@ void help(char **argv) {
   printf ("  %s", strstr (version, "- ") + 2);
   printf("\n  usage: %s file [options]\n\n", argv[0]);
   printf("  options:\n");
-  printf("    -a          sort sections by address\n");
-  printf("    --image f   write a loadable subordinate image to f.s\n");
-  printf("    --row   n   write n instructions per block in image\n");
-  printf("    -u          use upper-case hex digits\n");
-  printf("    -v          print verbose messages\n");
+  printf("    -a                sort sections by address\n");
+  printf("    --image f         write a loadable subordinate image to f.s\n");
+  printf("    --image-address x force the linker to allocate the image\n"
+         "                      at a specific FLASH address\n");
+  printf("    --row   n         write n instructions per block in image\n");
+  printf("    -u                use upper-case hex digits\n");
+  printf("    -v                print verbose messages\n");
   printf("\n");
   printf("    --offset n  offset hex file addresses offset by n\n");
   printf("\n");
@@ -104,22 +107,59 @@ main (argc, argv)
         case '-':
           // extended option
           if (strcmp(argv[arg],"--offset") == 0) {
-            offset_address_by = strtoll(argv[arg+1],0,0);
-            arg++;
-          } else if (strcmp(argv[arg],"--image") == 0) {
-            subordinate_image_file = strdup(argv[arg+1]);
-            arg++;
-          } else if (strcmp(argv[arg],"--row") == 0) {
-            subordinate_image_row = strtol(argv[arg+1],0,0);
-            if ((subordinate_image_row <= 0) || 
-                (subordinate_image_row > MAX_ROW)) {
-               fprintf(stderr,"illegal row size: min %d, max %d\n", 1, MAX_ROW);
+            if (arg+1 >= argc) {
+               fprintf(stderr,
+                       "*** Error: Required argument for %s is missing\n", 
+                       argv[arg]);
                help(argv);
                return 1;
+            } else {
+              offset_address_by = strtoll(argv[arg+1],0,0);
+              arg++;
             }
-            arg++;
+          } else if (strcmp(argv[arg],"--image") == 0) {
+            if (arg+1 >= argc) {
+               fprintf(stderr,
+                       "*** Error: Required argument for %s is missing\n", 
+                       argv[arg]);
+               help(argv);
+               return 1;
+            } else {
+              subordinate_image_file = strdup(argv[arg+1]);
+              arg++;
+            }
+          } else if (strcmp(argv[arg],"--image-address") == 0) {
+            if (arg+1 >= argc) {
+               fprintf(stderr,
+                       "*** Error: Required argument for %s is missing\n", 
+                       argv[arg]);
+               help(argv);
+               return 1;
+            } else {
+              image_address = strtoll(argv[arg+1],0,0);
+              arg++;
+            }
+          } else if (strcmp(argv[arg],"--row") == 0) {
+            if (arg+1 >= argc) {
+               fprintf(stderr,
+                       "*** Error: Required argument for %s is missing\n", 
+                       argv[arg]);
+               help(argv);
+               return 1;
+            } else {
+              subordinate_image_row = strtol(argv[arg+1],0,0);
+              if ((subordinate_image_row <= 0) || 
+                  (subordinate_image_row > MAX_ROW)) {
+                 fprintf(stderr,
+                         "*** Error: illegal row size: min %d, max %d\n",
+                         1,MAX_ROW);
+                 help(argv);
+                 return 1;
+              }
+              arg++;
+            }
           } else {
-            fprintf(stderr,"Unknown option `%s'.\n", argv[arg]);
+            fprintf(stderr,"*** Error: Unknown option `%s'.\n", argv[arg]);
             help(argv);
             return 1;
           }
@@ -322,7 +362,12 @@ write_image_file(char *name, bfd *abfd) {
   fprintf(fp,";\n");
   fprintf(fp,"; %s generated on %s\n", name, ctime(&current_time));
   fprintf(fp,";\n");
-  fprintf(fp,"\t.section %s_image,code,page\n",subordinate_image);
+  if (image_address) {
+    fprintf(fp,"\t.section %s_image,code,page,address(0x%x)\n",
+            subordinate_image,image_address);
+  } else {
+    fprintf(fp,"\t.section %s_image,code,page\n",subordinate_image);
+  }
   fprintf(fp,"\t.global _%s\n",subordinate_image);
   fprintf(fp,"_%s:\n\n",subordinate_image);
   

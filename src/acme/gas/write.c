@@ -2053,11 +2053,22 @@ write_object_file ()
 	      /* Note that S_IS_EXTERN and S_IS_LOCAL are not always
 		 opposites.  Sometimes the former checks flags and the
 		 latter examines the name...  */
+#ifdef TC_PIC30
+              /* below (ahem) change will prevent stripping of S_IS_LOCAL 
+                  symbols outside of an absolute_section; we don't want that.
+                  make sure we strip non absolute_section S_IS_LOCAL symbols
+                  regardless of whether or not we are strippnig locals  */
+	      || (!S_IS_EXTERN (symp)
+		  && (punt || S_IS_LOCAL (symp))
+                  && (S_GET_SEGMENT (symp) != absolute_section
+		      && ! symbol_used_in_reloc_p (symp)))
+#endif
 	      || (!S_IS_EXTERN (symp)
 		  && (punt || S_IS_LOCAL (symp))
 #ifdef TC_PIC30
-                  && ( S_GET_SEGMENT (symp) == absolute_section
-                  && flag_strip_local_absolute)
+                  /* ahem */
+                  && (S_GET_SEGMENT (symp) == absolute_section
+                      && flag_strip_local_absolute)
 #endif
 		  && ! symbol_used_in_reloc_p (symp)))
 	    {

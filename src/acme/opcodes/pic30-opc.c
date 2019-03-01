@@ -698,7 +698,7 @@ const struct pic30_operand pic30_operands[] =
 	FALSE,				/* immediate operand ? */
 	PIC30_RELOC_INFO_FILE_REG_BYTE,	/* default relocation type */
 	0,				/* is_match() */
-    0, 				/* info_string */
+        0, 				/* info_string */
 	0,                       	/* insert() */
 	0				/* extract() */
    },
@@ -1156,679 +1156,1383 @@ const int pic30_num_operands =
 /* REV_A enables support for dsPIC Rev. A silicon */
 #define REV_A 1
 
+/* Common semantic macros */
+#define S_OPWFF(OP) S_MOV "1" OP "1W00"
+#define S_OPWFW(OP) S_MOV "W00" OP "1W00"
+#define S_OPLW(OP)  S_MOV "2" OP "12"
+#define S_OPLS(OP)  S_MOV "3" OP "12"
+#define S_OP3(OP)   S_MOV "3" OP "12"
+
+#define S_OPFF(OP)  S_MOV "1" OP "1"
+#define S_OPFW(OP)  S_MOV "W00" OP "1"
+#define S_OP2(OP)   S_MOV "2" OP "1"
+
+#define S_OP1(OP)   OP "1"
+
+#define S_OP2CC(OP) OP "2" "1"
+#define S_OP1CC(OP) OP "1"
+
+#define S_OPCPB(CC) S_TST "1" "2" S_BRAC CC "3"
+#define S_OPCPS(CC) S_TST "1" "2" S_SKPS 
+
 const struct pic30_opcode pic30_opcodes[] =
 {
    /***************************************************************************
     * ADD.b
     ***************************************************************************/
-   { "add.b",     ADDWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "add.b",     ADDWFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "add.b",     ADDLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "add.b",     ADDWFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADD)
+   },
+   { "add.b",     ADDWFW_B,   2, { FILE_REG_BYTE, W_REG },
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADD)
+   },
+   { "add.b",     ADDLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_ADD)
+   },
    { "add.b",     ADDLS_B,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_ADD)
+   },
    { "add.b",     ADD_B,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_ADD)
+   },
 
    /***************************************************************************
     * ADD.w
     ***************************************************************************/
-   { "add.w",     ADDWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "add.w",     ADDWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "add.w",     ADDLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "add.w",     ADDWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADD)
+   },
+   { "add.w",     ADDWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADD)
+   },
+   { "add.w",     ADDLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_ADD)
+   },
    { "add.w",     ADDLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_ADD)
+   },
    { "add.w",     ADD_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ADD)
+   },
 
    /***************************************************************************
     * ADD
     ***************************************************************************/
-   { "add",       DUMMY,      0, { 0 /* for flags */ }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG |
-                                                      F_IS_DSP_INSN },
-   { "add",       ADDWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "add",       ADDWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "add",       ADDLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "add",       DUMMY,      0, { 0 /* for flags */ }, 
+                  F_WORD | F_HAS_IMPLIED_WREG | F_IS_DSP_INSN,
+                  S_NOP
+   },
+   { "add",       ADDWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADD)
+   },
+   { "add",       ADDWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADD)
+   },
+   { "add",       ADDLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_ADD)
+   },
    { "add",       ADDLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_ADD)
+   },
    { "add",       ADD_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
-   { "add",       ADDAB,      1, { DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                             F_IS_DSP_INSN },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ADD)
+   },
+   { "add",       ADDAB,      1, { DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  "40" S_MOV "1" S_ADD "1!!"
+   },
    { "add",       ADDAC_PS,   3, { G_REG,
                                    DSP_PRESHIFT,
-                                   DSP_ACCUMULATOR_SELECT}, F_WORD |
-                                                            F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT}, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" S_ADD "31"                  /* model shift? */
+   },
    { "add",       ADDAC,      2, { G_REG,
-                                   DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                             F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "2" S_ADD "21"
+   },
 
    /***************************************************************************
     * ADDC.b
     ***************************************************************************/
-   { "addc.b",    ADDCWFF_B,  1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "addc.b",    ADDCWFW_B,  2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "addc.b",    ADDCLW_B,   2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "addc.b",    ADDCWFF_B,  1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADDC)
+   },
+   { "addc.b",    ADDCWFW_B,  2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADDC)
+   },
+   { "addc.b",    ADDCLW_B,   2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_ADDC)
+   },
    { "addc.b",    ADDCLS_B,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_ADDC)
+   },
    { "addc.b",    ADDC_B,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_ADDC)
+   },
 
    /***************************************************************************
     * ADDC.w
     ***************************************************************************/
-   { "addc.w",    ADDCWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "addc.w",    ADDCWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "addc.w",    ADDCLW_W,   2, { LITERAL_10BIT, REG }, F_WORD },
+   { "addc.w",    ADDCWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADDC)
+   },
+   { "addc.w",    ADDCWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADDC)
+   },
+   { "addc.w",    ADDCLW_W,   2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_ADDC)
+   },
    { "addc.w",    ADDCLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_ADDC)
+   },
    { "addc.w",    ADDC_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ADDC)
+   },
 
    /***************************************************************************
     * ADDC
     ***************************************************************************/
-   { "addc",      ADDCWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "addc",      ADDCWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "addc",      ADDCLW_W,   2, { LITERAL_10BIT, REG }, F_WORD },
+   { "addc",      ADDCWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_ADDC)
+   },
+   { "addc",      ADDCWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_ADDC)
+   },
+   { "addc",      ADDCLW_W,   2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_ADDC)
+   },
    { "addc",      ADDCLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_ADDC)
+   },
    { "addc",      ADDC_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ADDC)
+   },
 
    /***************************************************************************
     * AND.b
     ***************************************************************************/
-   { "and.b",     ANDWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "and.b",     ANDWFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "and.b",     ANDLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "and.b",     ANDWFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_AND)
+   },
+   { "and.b",     ANDWFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_AND)
+   },
+   { "and.b",     ANDLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_AND)
+   },
    { "and.b",     ANDLS_B,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_AND)
+   },
    { "and.b",     AND_B,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_AND)
+   },
 
    /***************************************************************************
     * AND.w
     ***************************************************************************/
-   { "and.w",     ANDWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "and.w",     ANDWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "and.w",     ANDLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "and.w",     ANDWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_AND)
+   },
+   { "and.w",     ANDWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_AND)
+   },
+   { "and.w",     ANDLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_AND)
+   },
    { "and.w",     ANDLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_AND)
+   },
    { "and.w",     AND_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_AND)
+   },
 
    /***************************************************************************
     * AND
     ***************************************************************************/
-   { "and",       ANDWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "and",       ANDWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "and",       ANDLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "and",       ANDWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_AND)
+   },
+   { "and",       ANDWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_AND)
+   },
+   { "and",       ANDLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_AND)
+   },
    { "and",       ANDLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_AND)
+   },
    { "and",       AND_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_AND)
+   },
 
    /***************************************************************************
     * ASR.b
     ***************************************************************************/
-   { "asr.b",     ASRFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "asr.b",     ASRFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "asr.b",     ASR_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "asr.b",     ASRFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ASR) "#1#"
+   },
+   { "asr.b",     ASRFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ASR) "#1#"
+   },
+   { "asr.b",     ASR_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_ASR) "#1#"
+   },
 
    /***************************************************************************
     * ASR.w
     ***************************************************************************/
-   { "asr.w",     ASRFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "asr.w",     ASRFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "asr.w",     ASR_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "asr.w",     ASRW_W,     3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "asr.w",     ASRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "asr.w",     ASRFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ASR) "#1#"
+   },
+   { "asr.w",     ASRFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ASR) "#1#"
+   },
+   { "asr.w",     ASR_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ASR) "#1#"
+   },
+   { "asr.w",     ASRW_W,     3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ASR)
+   },
+   { "asr.w",     ASRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ASR)
+   },
 
    /***************************************************************************
     * ASR
     ***************************************************************************/
-   { "asr",       ASRFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "asr",       ASRFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "asr",       ASR_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "asr",       ASRW_W,     3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "asr",       ASRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "asr",       ASRFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ASR) "#1#"
+   },
+   { "asr",       ASRFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ASR) "#1#"
+   },
+   { "asr",       ASR_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ASR) "#1#"
+   },
+   { "asr",       ASRW_W,     3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ASR)
+   },
+   { "asr",       ASRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_ASR)
+   },
 
    /***************************************************************************
     * BCLR
     ***************************************************************************/
-   { "bclr.w",    BCLR_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "bclr.w",    BCLRF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "bclr",      BCLR_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "bclr",      BCLRF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "bclr.b",    BCLRF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "bclr.w",    BCLR_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
+   { "bclr.w",    BCLRF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
+   { "bclr",      BCLR_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
+   { "bclr",      BCLRF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
+   { "bclr.b",    BCLRF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
    { "bclr.b",    BCLR_B,     2, { P_SRC_REG,
-                                   BYTE_BIT_SELECT_NIBBLE }, F_NONE },
-   { "bootswp" ,  BOOTSWP,    0, { 0 /* OPERANDS */ }, F_DUALPARTITION },
+                                   BYTE_BIT_SELECT_NIBBLE }, 
+                  F_NONE,
+                  S_MOV "1" S_BCLR "1" "2"
+   },
+
+   /***************************************************************************
+    * BOOTSWP
+    ***************************************************************************/
+   { "bootswp",   BOOTSWP,    0, { 0 /* OPERANDS */ }, 
+                  F_DUALPARTITION,
+                  S_NOP
+   },
 
    /***************************************************************************
     * BFEXT
     ***************************************************************************/
    { "bfext",     BFEXT,      4, { SHIFT_LITERAL, WID5, P_SRC_REG, SRC_REG }, 
-                                            F_IS_DSP_INSN | F_ISAV4 },
-   { "bfext",     BFEXTF,     4, { SHIFT_LITERAL, WID5, FILE_REG_WORD, SRC_REG },
-                                            F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },
+   { "bfext",     BFEXTF,     4, { SHIFT_LITERAL, WID5, FILE_REG_WORD, SRC_REG},
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },
 
    /***************************************************************************
     * BFINS
     ***************************************************************************/
    { "bfins",     BFINS,      4, { SHIFT_LITERAL, WID5, SRC_REG, P_SRC_REG },
-                                            F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },
    { "bfins",     BFINSF,     4, { SHIFT_LITERAL, WID5, SRC_REG,
-                                    FILE_REG_WORD }, F_IS_DSP_INSN | F_ISAV4 },
+                                    FILE_REG_WORD }, 
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },
    { "bfins",     BFINSL,     4, { SHIFT_LITERAL, WID5, LITERAL_8BIT,
-                                    P_SRC_REG }, F_IS_DSP_INSN | F_ISAV4 },   
+                                    P_SRC_REG }, 
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },   
 
    /***************************************************************************
     * BRA
     ***************************************************************************/
    { "bra",       BRA_DSP,    2, { BRANCH_ON_DSP_CONDITION_OPERAND,
-                                   BRANCH_LABEL }, F_HAS_BRANCH_FLAG |
-                                                   F_CANNOT_FOLLOW_REPEAT |
-                                                   F_IS_DSP_INSN },
-   { "bra",       BRA,        1, { BRANCH_LABEL }, F_CANNOT_FOLLOW_REPEAT },
+                                   BRANCH_LABEL }, 
+                  F_HAS_BRANCH_FLAG | F_CANNOT_FOLLOW_REPEAT | F_IS_DSP_INSN,
+                  S_BRAC "1" "2"
+   },
+   { "bra",       BRA,        1, { BRANCH_LABEL }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_BRA "1"
+   },
    { "bra",       BRA_CC,     2, { BRANCH_ON_CONDITION_OPERAND,
-                                   BRANCH_LABEL }, F_HAS_BRANCH_FLAG |
-                                                   F_CANNOT_FOLLOW_REPEAT },
-   { "bra",       BRAWE,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
-                                          F_ISAV4 },
-   { "bra",       BRAW,       1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
+                                   BRANCH_LABEL }, 
+                  F_HAS_BRANCH_FLAG | F_CANNOT_FOLLOW_REPEAT,
+                  S_BRAC "1" "2"
+   },
+   { "bra",       BRAWE,      1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ECORE | F_ISAV4,
+                  S_BRA "1"
+   },
+   { "bra",       BRAW,       1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_BRA "1"
+   },
   
-   /* BREAK */
-   { "break",     BREAK,      0, { 0 /* OPERANDS */ }, F_NONE },
+   /***************************************************************************
+    * BREAK
+    ***************************************************************************/
+   { "break",     BREAK,      0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_NOP
+   },
 
    /***************************************************************************
     * BSET
     ***************************************************************************/
-   { "bset.w",    BSET_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "bset.w",    BSETF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "bset",      BSET_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "bset",      BSETF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "bset.b",    BSETF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "bset.w",    BSET_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_BSET "1" "2"
+   },
+   { "bset.w",    BSETF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_BSET "1" "2"
+   },
+   { "bset",      BSET_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_BSET "1" "2"
+   },
+   { "bset",      BSETF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_BSET "1" "2"
+   },
+   { "bset.b",    BSETF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_MOV "1" S_BSET "1" "2"
+   },
    { "bset.b",    BSET_B,     2, { P_SRC_REG,
-                                   BYTE_BIT_SELECT_NIBBLE }, F_NONE },
+                                   BYTE_BIT_SELECT_NIBBLE }, 
+                  F_NONE,
+                  S_MOV "1" S_BSET "1" "2"
+   },
 
    /***************************************************************************
     * BSW
     ***************************************************************************/
-   { "bsw.z",     BSW_Z,      2, { P_SRC_REG, BASE_REG }, F_WORD },
-   { "bsw.c",     BSW_C,      2, { P_SRC_REG, BASE_REG }, F_WORD },
-   { "bsw",       BSW_Z,      2, { P_SRC_REG, BASE_REG }, F_WORD },
+   { "bsw.z",     BSW_Z,      2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "bsw.c",     BSW_C,      2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "bsw",       BSW_Z,      2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
 
    /***************************************************************************
     * BTG
     ***************************************************************************/
-   { "btg.w",     BTG_W,      2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btg.w",     BTGF_W,     2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btg",       BTG_W,      2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btg",       BTGF_W,     2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btg.b",     BTGF_B,     2, { FILE_REG_BYTE, BIT_SELECT_3 },  F_NONE },
+   { "btg.w",     BTG_W,      2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_TGL "1" "2"
+   },
+   { "btg.w",     BTGF_W,     2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_TGL "1" "2"
+   },
+   { "btg",       BTG_W,      2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_MOV "1" S_TGL "1" "2"
+   },
+   { "btg",       BTGF_W,     2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_MOV "1" S_TGL "1" "2"
+   },
+   { "btg.b",     BTGF_B,     2, { FILE_REG_BYTE, BIT_SELECT_3 },  
+                  F_NONE,
+                  S_MOV "1" S_TGL "1" "2"
+   },
    { "btg.b",     BTG_B,      2, { P_SRC_REG,
-                                   BYTE_BIT_SELECT_NIBBLE }, F_NONE },
+                                   BYTE_BIT_SELECT_NIBBLE }, 
+                  F_NONE,
+                  S_MOV "1" S_TGL "1" "2"
+   },
 
    /***************************************************************************
     * BTSC
     ***************************************************************************/
-   { "btsc.w",    BTSC_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btsc.w",    BTSCF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btsc",      BTSC_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btsc",      BTSCF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btsc.b",    BTSCF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "btsc.w",    BTSC_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_SKPC 
+   },
+   { "btsc.w",    BTSCF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPC 
+   },
+   { "btsc",      BTSC_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_SKPC 
+   },
+   { "btsc",      BTSCF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPC 
+   },
+   { "btsc.b",    BTSCF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPC 
+   },
+
    /***************************************************************************
     * BTSS
     ***************************************************************************/
-   { "btss.w",    BTSS_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btss.w",    BTSSF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btss",      BTSS_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btss",      BTSSF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btss.b",    BTSSF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "btss.w",    BTSS_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_SKPS 
+   },
+   { "btss.w",    BTSSF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPS 
+   },
+   { "btss",      BTSS_W,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_SKPS 
+   },
+   { "btss",      BTSSF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPS 
+   },
+   { "btss.b",    BTSSF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_SKPS 
+   },
+
    /***************************************************************************
     * BTST
     ***************************************************************************/
-   { "btst.z",    BTST_Z,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btst.z",    BTSTW_Z,    2, { P_SRC_REG, BASE_REG }, F_WORD },
-   { "btst.c",    BTST_C,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btst.c",    BTSTW_C,    2, { P_SRC_REG, BASE_REG }, F_WORD },
-   { "btst",      BTST_Z,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btst",      BTSTW_Z,    2, { P_SRC_REG, BASE_REG }, F_WORD },
-   { "btst",      BTSTF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btst.w",    BTSTF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btst.b",    BTSTF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "btst.z",    BTST_Z,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst.z",    BTSTW_Z,    2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst.c",    BTST_C,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst.c",    BTSTW_C,    2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst",      BTST_Z,     2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst",      BTSTW_Z,    2, { P_SRC_REG, BASE_REG }, 
+                  F_WORD,
+                  S_TST "1" "2"
+   },
+   { "btst",      BTSTF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2"
+   },
+   { "btst.w",    BTSTF_W,    2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2"
+   },
+   { "btst.b",    BTSTF_B,    2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_TST "1" "2"
+   },
+
    /***************************************************************************
     * BTSTS
     ***************************************************************************/
-   { "btsts.z",   BTSTS_Z,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btsts.c",   BTSTS_C,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btsts",     BTSTS_Z,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, F_WORD },
-   { "btsts",     BTSTSF_W,   2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btsts.w",   BTSTSF_W,   2, { FILE_REG_BYTE, BIT_SELECT_34 }, F_NONE },
-   { "btsts.b",   BTSTSF_B,   2, { FILE_REG_BYTE, BIT_SELECT_3 }, F_NONE },
+   { "btsts.z",   BTSTS_Z,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+   { "btsts.c",   BTSTS_C,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+   { "btsts",     BTSTS_Z,    2, { P_SRC_REG, BIT_SELECT_NIBBLE }, 
+                  F_WORD,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+   { "btsts",     BTSTSF_W,   2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+   { "btsts.w",   BTSTSF_W,   2, { FILE_REG_BYTE, BIT_SELECT_34 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+   { "btsts.b",   BTSTSF_B,   2, { FILE_REG_BYTE, BIT_SELECT_3 }, 
+                  F_NONE,
+                  S_TST "1" "2" S_BSET "1" "2"
+   },
+
    /***************************************************************************
     * CALL
     ***************************************************************************/
-   { "call",      CALLW,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_NONE },
-   { "call",      CALL,       1, { CALL_OPERAND }, F_CANNOT_FOLLOW_REPEAT },
-   { "call.l",    CALL_L,     1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | F_ECORE |
-                                         F_ISAV4 },
+   { "call",      CALLW,      1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_NONE,
+                  S_OP1(S_CALL)
+   },
+   { "call",      CALL,       1, { CALL_OPERAND }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_OP1(S_CALL)
+   },
+   { "call.l",    CALL_L,     1, { REG_L }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ECORE | F_ISAV4,
+                  S_OP1(S_CALL)
+   },
 
    /***************************************************************************
     * CLR.b
     ***************************************************************************/
-   { "clr.b",     CLRW_B,     1, { W_REG }, F_HAS_IMPLIED_WREG },
-   { "clr.b",     CLR_B,      1, { Q_DST_REG }, F_NONE },
-   { "clr.b",     CLRF_B,     1, { FILE_REG_BYTE }, F_NONE },
+   { "clr.b",     CLRW_B,     1, { W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "W00#0#"
+   },
+   { "clr.b",     CLR_B,      1, { Q_DST_REG }, 
+                  F_NONE,
+                  S_OP1(S_MOV) "#0#"
+   },
+   { "clr.b",     CLRF_B,     1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_OP1(S_MOV) "#0#"
+   },
 
    /***************************************************************************
     * CLR.w
     ***************************************************************************/
-   { "clr.w",     CLRW_W,     1, { W_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "clr.w",     CLR_W,      1, { Q_DST_REG }, F_WORD },
-   { "clr.w",     CLRF_W,     1, { FILE_REG }, F_WORD },
+   { "clr.w",     CLRW_W,     1, { W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "#0#"
+   },
+   { "clr.w",     CLR_W,      1, { Q_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#0#"
+                  
+   },
+   { "clr.w",     CLRF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#0#"
+   },
 
    /***************************************************************************
     * CLR
     ***************************************************************************/
-   { "clr",       DUMMY,      0, { 0 /* for flags */ }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG |
-                                                      F_IS_DSP_INSN },
-   { "clr",       CLRW_W,     1, { W_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "clr",       CLR_W,      1, { Q_DST_REG }, F_WORD },
-   { "clr",       CLRF_W,     1, { FILE_REG }, F_WORD },
-   { "clr",       CLRAC_A,    1, { DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+   { "clr",       DUMMY,      0, { 0 /* for flags */ }, 
+                  F_WORD | F_HAS_IMPLIED_WREG | F_IS_DSP_INSN,
+                  S_NOP
+   },
+   { "clr",       CLRW_W,     1, { W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00#0#"
+   },
+   { "clr",       CLR_W,      1, { Q_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#0#"
+   },
+   { "clr",       CLRF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#0#"
+   },
+   { "clr",       CLRAC_A,    1, { DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP1(S_MOV) "#0#"
+   },
    { "clr",       CLRAC_WB,   2, { DSP_ACCUMULATOR_SELECT,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
-   { "clr",      CLRAC_X,    3, { DSP_ACCUMULATOR_SELECT,
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP1(S_CLRAC) "1" S_MOV "2" S_OTHER "1"
+   },
+   { "clr",       CLRAC_X,    3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1"
+   },
    { "clr",       CLRAC_Y,    3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1"
+   },
    { "clr",       CLRAC_XWB,  4, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1" S_MOV "4" S_OTHER "1"
+   },
    { "clr",       CLRAC_YWB,  4, { DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1" S_MOV "4" S_OTHER "1"
+   },
    { "clr",       CLRAC_XY,   5, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1" S_PFTCH "4" "3" 
+   },
    { "clr",       CLRAC,      6, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_CLRAC "1" S_PFTCH "2" "1" S_PFTCH "4" "3" 
+                  S_MOV "5" S_OTHER "1"
+   },
 
    /***************************************************************************
     * CLRWDT
     ***************************************************************************/
-   { "clrwdt",    CLRWDT,     0, { 0 /* OPERANDS */ }, F_NONE },
+   { "clrwdt",    CLRWDT,     0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_NOP
+   },
 
    /***************************************************************************
     * COM.b
     ***************************************************************************/
-   { "com.b",     COMFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "com.b",     COMFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "com.b",     COM_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "com.b",     COMFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "1" S_XOR "1" "#0xFF#"
+   },
+   { "com.b",     COMFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" S_XOR "1" "#0xFF#"
+   },
+   { "com.b",     COM_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" S_XOR "1" "#0xFF#"
+   },
 
    /***************************************************************************
     * COM.w
     ***************************************************************************/
-   { "com.w",     COMFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "com.w",     COMFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "com.w",     COM_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "com.w",     COMFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "1" S_XOR "1" "#0xFFFF#"
+   },
+   { "com.w",     COMFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" S_XOR "1" "#0xFFFF#"
+   },
+   { "com.w",     COM_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" S_XOR "1" "#0xFFFF#"
+   },
 
    /***************************************************************************
     * COM
     ***************************************************************************/
-   { "com",       COMFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "com",       COMFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "com",       COM_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "com",       COMFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "1" S_XOR "1" "#0xFFFF#"
+   },
+   { "com",       COMFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" S_XOR "1" "#0xFFFF#"
+   },
+   { "com",       COM_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" S_XOR "1" "#0xFFFF#"
+   },
 
    /***************************************************************************
     * CP.b
     ***************************************************************************/
-   { "cp.b",      CPLS_B,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_FCORE }, 
-   { "cp.b",      CPLS8_B,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE |
-                                         F_ISAV4 },
-   { "cp.b",      CPF_B,      1, { FILE_REG_BYTE }, F_NONE },
-   { "cp.b",      CP_B,       2, { BASE_REG, P_SRC_REG }, F_NONE },
+   { "cp.b",      CPLS_B,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_FCORE,
+                  S_OP2CC(S_TST)
+   }, 
+   { "cp.b",      CPLS8_B,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, 
+                  F_ECORE | F_ISAV4,
+                  S_OP2CC(S_TST)
+   },
+   { "cp.b",      CPF_B,      1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_OP2CC(S_TST)
+   },
+   { "cp.b",      CP_B,       2, { BASE_REG, P_SRC_REG }, 
+                  F_NONE,
+                  S_OP2CC(S_TST)
+   },
 
    /***************************************************************************
     * CP.w
     ***************************************************************************/
-   { "cp.w",      CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },
-   { "cp.w",      CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD |
-                                         F_ISAV4 | F_ECORE },
-   { "cp.w",      CPF_W,      1, { FILE_REG }, F_WORD },
-   { "cp.w",      CP_W,       2, { BASE_REG, P_SRC_REG }, F_WORD },
+   { "cp.w",      CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_WORD | F_FCORE,
+                  S_OP2CC(S_TST)
+   },
+   { "cp.w",      CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, 
+                  F_WORD | F_ISAV4 | F_ECORE,
+                  S_OP2CC(S_TST)
+   },
+   { "cp.w",      CPF_W,      1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_TST)
+   },
+   { "cp.w",      CP_W,       2, { BASE_REG, P_SRC_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_TST)
+   },
 
    /***************************************************************************
     * CP
     ***************************************************************************/
-   { "cp",        CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },
-   { "cp",        CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_WORD |
-                                         F_ISAV4 | F_ECORE },
-   { "cp",        CPF_W,      1, { FILE_REG }, F_WORD },
-   { "cp",        CP_W,       2, { BASE_REG, P_SRC_REG }, F_WORD },
+   { "cp",        CPLS_W,     2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_WORD | F_FCORE,
+                  S_OP2CC(S_TST)
+   },
+   { "cp",        CPLS8_W,    2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, 
+                  F_WORD | F_ISAV4 | F_ECORE,
+                  S_OP2CC(S_TST)
+   },
+   { "cp",        CPF_W,      1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_TST)
+   },
+   { "cp",        CP_W,       2, { BASE_REG, P_SRC_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_TST)
+   },
    
    /***************************************************************************
     * CPB.b
-    ***************************************************************************/   { "cpb.b",     CPBLS8_B,   2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, F_ECORE |
-                                         F_ISAV4 },
-   { "cpb.b",     CPBLS_B,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_FCORE }, 
-   { "cpb.b",     CPBF_B,     1, { FILE_REG_BYTE }, F_NONE },
-   { "cpb.b",     CPB_B,      2, { BASE_REG, P_SRC_REG }, F_NONE },
+    ***************************************************************************/   { "cpb.b",     CPBLS8_B,   2, { BASE_REG, BYTE_LITERAL_CP_8BIT }, 
+                  F_ECORE | F_ISAV4,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb.b",     CPBLS_B,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_FCORE,
+                  S_OP2CC(S_CPB)
+   }, 
+   { "cpb.b",     CPBF_B,     1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb.b",     CPB_B,      2, { BASE_REG, P_SRC_REG }, 
+                  F_NONE,
+                  S_OP2CC(S_CPB)
+   },
 
    /***************************************************************************
     * CPB.w
     ***************************************************************************/
-   { "cpb.w",     CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },   
-   { "cpb.w",     CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD |
-                                         F_ISAV4 | F_ECORE },
-   { "cpb.w",     CPBF_W,     1, { FILE_REG }, F_WORD },
-   { "cpb.w",     CPB_W,      2, { BASE_REG, P_SRC_REG }, F_WORD },
+   { "cpb.w",     CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_WORD | F_FCORE,
+                  S_OP2CC(S_CPB)
+   },   
+   { "cpb.w",     CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, 
+                  F_WORD | F_ISAV4 | F_ECORE,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb.w",     CPBF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb.w",     CPB_W,      2, { BASE_REG, P_SRC_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_CPB)
+   },
 
    /***************************************************************************
     * CPB
     ***************************************************************************/
-   { "cpb",       CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, F_WORD | F_FCORE },   
-   { "cpb",       CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, F_WORD |
-                                         F_ISAV4 | F_ECORE },
-   { "cpb",       CPBF_W,     1, { FILE_REG }, F_WORD },
-   { "cpb",       CPB_W,      2, { BASE_REG, P_SRC_REG }, F_WORD },
+   { "cpb",       CPBLS_W,    2, { BASE_REG, UNSIGNED_SHORT_LITERAL }, 
+                  F_WORD | F_FCORE,
+                  S_OP2CC(S_CPB)
+   },   
+   { "cpb",       CPBLS8_W,   2, { BASE_REG,BYTE_LITERAL_CP_8BIT }, 
+                  F_WORD | F_ISAV4 | F_ECORE,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb",       CPBF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_CPB)
+   },
+   { "cpb",       CPB_W,      2, { BASE_REG, P_SRC_REG }, 
+                  F_WORD,
+                  S_OP2CC(S_CPB)
+   },
 
    /***************************************************************************
     * CP0.b
     ***************************************************************************/
-   { "cp0.b",     CP0F_B,     1, { FILE_REG_BYTE }, F_NONE },
-   { "cp0.b",     CP0_B,      1, { P_SRC_REG }, F_NONE },
+   { "cp0.b",     CP0F_B,     1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_OP1CC(S_CP0)
+   },
+   { "cp0.b",     CP0_B,      1, { P_SRC_REG }, 
+                  F_NONE,
+                  S_OP1CC(S_CP0)
+   },
 
    /***************************************************************************
     * CP0.w
     ***************************************************************************/
-   { "cp0.w",     CP0F_W,     1, { FILE_REG }, F_WORD },
-   { "cp0.w",     CP0_W,      1, { P_SRC_REG }, F_WORD },
+   { "cp0.w",     CP0F_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1CC(S_CP0)
+   },
+   { "cp0.w",     CP0_W,      1, { P_SRC_REG }, 
+                  F_WORD,
+                  S_OP1CC(S_CP0)
+   },
 
    /***************************************************************************
     * CP0
     ***************************************************************************/
-   { "cp0",       CP0F_W,     1, { FILE_REG }, F_WORD },
-   { "cp0",       CP0_W,      1, { P_SRC_REG }, F_WORD },
+   { "cp0",       CP0F_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1CC(S_CP0)
+   },
+   { "cp0",       CP0_W,      1, { P_SRC_REG }, 
+                  F_WORD,
+                  S_OP1CC(S_CP0)
+   },
 
    /***************************************************************************
     * CPBEQ
     ***************************************************************************/
    { "cpbeq.b",   CPWBEQ_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_CANNOT_FOLLOW_REPEAT |
-                                         F_ISAV4 },
+                  F_ECORE | F_CANNOT_FOLLOW_REPEAT | F_ISAV4,
+                  S_OPCPB(S_EQ)
+   },
    { "cpbeq.w",   CPWBEQ_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD | F_ISAV4 |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_WORD | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_EQ)
+   },
    { "cpbeq",     CPWBEQ_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_WORD | F_ISAV4 |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_WORD | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_EQ)
+   },
+
    /***************************************************************************
     * CPBGT
     ***************************************************************************/
    { "cpbgt.b",   CPWBGT_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_ISAV4 |
-                                             F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_GT)
+   },
    { "cpbgt.w",   CPWBGT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_GT)
+   },
    { "cpbgt",     CPWBGT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_GT)
+   },
+
    /***************************************************************************
     * CPBLT
     ***************************************************************************/
    { "cpblt.b",   CPWBLT_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_ISAV4 |
-                                             F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_LT)
+   },
    { "cpblt.w",   CPWBLT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_LT)
+   },
    { "cpblt",     CPWBLT_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_LT)
+   },
+
    /***************************************************************************
     * CPBNEQ
     ***************************************************************************/
    { "cpbne.b",   CPWBNE_B,   3, { BASE_REG, REG,  BRANCH_LABEL_SLIT6  },
-                                             F_ECORE | F_ISAV4 |
-                                             F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_NE)
+   },
    { "cpbne.w",   CPWBNE_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_NE)
+   },
    { "cpbne",     CPWBNE_W,   3, { BASE_REG, REG, BRANCH_LABEL_SLIT6  },
-                                               F_ECORE | F_ISAV4 | F_WORD |
-                                               F_CANNOT_FOLLOW_REPEAT },
+                  F_ECORE | F_ISAV4 | F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPB(S_NE)
+   },
 
    /***************************************************************************
     * CPSEQ
     ***************************************************************************/
-   { "cpseq.b",   CPWSEQ_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |                                                        F_FCORE },
-   { "cpseq.w",   CPWSEQ_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-   { "cpseq",     CPWSEQ_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-
-   { "cpseq.b",   CPWSEQ_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
-                                                      F_ECORE | F_ISAV4 },
-   { "cpseq.w",   CPWSEQ_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
-   { "cpseq",     CPWSEQ_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
+   { "cpseq.b",   CPWSEQ_B,   2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OPCPS(S_EQ)
+   },
+   { "cpseq.w",   CPWSEQ_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_EQ)
+   },
+   { "cpseq",     CPWSEQ_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_EQ)
+   },
+   { "cpseq.b",   CPWSEQ_E_B, 2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ECORE | F_ISAV4,
+                  S_OPCPS(S_EQ)
+   },
+   { "cpseq.w",   CPWSEQ_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_EQ)
+   },
+   { "cpseq",     CPWSEQ_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_EQ)
+   },
 
    /***************************************************************************
     * CPSGT
     ***************************************************************************/
-   { "cpsgt.b",   CPWSGT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
-                                                    F_FCORE },
-   { "cpsgt.w",   CPWSGT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-   { "cpsgt",     CPWSGT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-
-   { "cpsgt.b",   CPWSGT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
-                                                      F_ECORE | F_ISAV4 },
-   { "cpsgt.w",   CPWSGT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
-   { "cpsgt",     CPWSGT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
+   { "cpsgt.b",   CPWSGT_B,   2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OPCPS(S_GT)
+   },
+   { "cpsgt.w",   CPWSGT_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_GT)
+   },
+   { "cpsgt",     CPWSGT_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_GT)
+   },
+   { "cpsgt.b",   CPWSGT_E_B, 2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ECORE | F_ISAV4,
+                  S_OPCPS(S_GT)
+   },
+   { "cpsgt.w",   CPWSGT_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_GT)
+   },
+   { "cpsgt",     CPWSGT_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_GT)
+   },
 
    /***************************************************************************
     * CPSLT
     ***************************************************************************/
-   { "cpslt.b",   CPWSLT_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
-                                                    F_FCORE },
-   { "cpslt.w",   CPWSLT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-   { "cpslt",     CPWSLT_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-
-   { "cpslt.b",   CPWSLT_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT |
-                                                      F_ISAV4 | F_ECORE },
-   { "cpslt.w",   CPWSLT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
-   { "cpslt",     CPWSLT_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
+   { "cpslt.b",   CPWSLT_B,   2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OPCPS(S_LT)
+   },
+   { "cpslt.w",   CPWSLT_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_LT)
+   },
+   { "cpslt",     CPWSLT_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_LT)
+   },
+   { "cpslt.b",   CPWSLT_E_B, 2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_OPCPS(S_LT)
+   },
+   { "cpslt.w",   CPWSLT_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_LT)
+   },
+   { "cpslt",     CPWSLT_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_LT)
+   },
 
    /***************************************************************************
     * CPSNE
     ***************************************************************************/
-   { "cpsne.b",   CPWSNE_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
-                                                    F_FCORE },
-   { "cpsne.w",   CPWSNE_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
-   { "cpsne",     CPWSNE_W,   2, { BASE_REG, REG }, F_WORD | F_FCORE |
-                                               F_CANNOT_FOLLOW_REPEAT },
+   { "cpsne.b",   CPWSNE_B,   2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OPCPS(S_NE)
+   },
+   { "cpsne.w",   CPWSNE_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_NE)
+   },
+   { "cpsne",     CPWSNE_W,   2, { BASE_REG, REG }, 
+                  F_WORD | F_FCORE | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_NE)
+   },
+   { "cpsne.b",   CPWSNE_E_B, 2, { BASE_REG, REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_OPCPS(S_NE)
+   },
+   { "cpsne.w",   CPWSNE_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_NE)
+   },
+   { "cpsne",     CPWSNE_E_W, 2, { BASE_REG, REG }, 
+                  F_WORD | F_ECORE | F_ISAV4 | F_CANNOT_FOLLOW_REPEAT,
+                  S_OPCPS(S_NE)
+   },
 
-   { "cpsne.b",   CPWSNE_E_B,   2, { BASE_REG, REG }, F_CANNOT_FOLLOW_REPEAT | 
-                                                      F_ISAV4 | F_ECORE },
-   { "cpsne.w",   CPWSNE_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
-   { "cpsne",     CPWSNE_E_W,   2, { BASE_REG, REG }, F_WORD | F_ECORE |
-                                             F_ISAV4 | F_CANNOT_FOLLOW_REPEAT },
    /***************************************************************************
     * CTXTSWP
     ***************************************************************************/
-   { "ctxtswp", CTXTSWPL, 1, {LITERAL_3BIT}, F_CONTEXTS},
-   { "ctxtswp", CTXTSWPW, 1, {REG}, F_CONTEXTS},
+   { "ctxtswp",   CTXTSWPL,   1, {LITERAL_3BIT}, 
+                  F_CONTEXTS,
+                  S_NOP
+   },
+   { "ctxtswp",   CTXTSWPW,   1, {REG}, 
+                  F_CONTEXTS,
+                  S_NOP
+   },
 
    /***************************************************************************
     * DAW
     ***************************************************************************/
-   { "daw.b",     DAW_B,      1, { REG }, F_NONE },
+   { "daw.b",     DAW_B,      1, { REG }, 
+                  F_NONE,
+                  S_UNK
+   },
 
    /***************************************************************************
     * DEC.b
     ***************************************************************************/
-   { "dec.b",     DECFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "dec.b",     DECFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "dec.b",     DEC_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "dec.b",     DECFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC)
+   },
+   { "dec.b",     DECFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC)
+   },
+   { "dec.b",     DEC_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_DEC)
+   },
 
    /***************************************************************************
     * DEC.w
     ***************************************************************************/
-   { "dec.w",     DECFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "dec.w",     DECFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "dec.w",     DEC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "dec.w",     DECFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC)
+   },
+   { "dec.w",     DECFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC)
+   },
+   { "dec.w",     DEC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_DEC)
+   },
 
    /***************************************************************************
     * DEC
     ***************************************************************************/
-   { "dec",       DECFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "dec",       DECFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "dec",       DEC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "dec",       DECFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC)
+   },
+   { "dec",       DECFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC)
+   },
+   { "dec",       DEC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_DEC)
+   },
 
    /***************************************************************************
     * DEC2.b
     ***************************************************************************/
-   { "dec2.b",    DEC2FF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "dec2.b",    DEC2FW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "dec2.b",    DEC2_B,     2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "dec2.b",    DEC2FF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC2)
+   },
+   { "dec2.b",    DEC2FW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC2)
+   },
+   { "dec2.b",    DEC2_B,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_DEC2)
+   },
 
    /***************************************************************************
     * DEC2.w
     ***************************************************************************/
-   { "dec2.w",    DEC2FF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "dec2.w",    DEC2FW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "dec2.w",    DEC2_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "dec2.w",    DEC2FF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC2)
+   },
+   { "dec2.w",    DEC2FW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC2)
+   },
+   { "dec2.w",    DEC2_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_DEC2)
+   },
 
    /***************************************************************************
     * DEC2
     ***************************************************************************/
-   { "dec2",      DEC2FF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "dec2",      DEC2FW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "dec2",      DEC2_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "dec2",      DEC2FF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_DEC2)
+   },
+   { "dec2",      DEC2FW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_DEC2)
+   },
+   { "dec2",      DEC2_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_DEC2)
+   },
 
    /***************************************************************************
     * DISI
     ***************************************************************************/
-   { "disi",      DISI,       1, { LITERAL_14BIT }, F_CANNOT_FOLLOW_REPEAT },
+   { "disi",      DISI,       1, { LITERAL_14BIT }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_NOP
+   },
 
    /***************************************************************************
    ** DIVF Wm,Wn	Fractional divide: Wm/Wn -> W0, Rem -> W1
    ****************************************************************************/
-   { "divf",      DIVF,       2, { DIVIDENDFR_REG, DIVISOR_REG }, F_IS_DSP_INSN },
+   { "divf",      DIVF,       2, { DIVIDENDFR_REG, DIVISOR_REG }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
 
    /***************************************************************************
    ** DIVF2 Wm,Wn        Fractional divide: Wm:(Wm-1)/Wn -> W(m-1), Rem -> Wm
    ****************************************************************************/
-   { "divf2",      DIVF2,       2, { DIVIDEND_REG, REG },
-                                     F_IS_DSP_INSN | F_ISAV4 },
+   { "divf2",     DIVF2,       2, { DIVIDEND_REG, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "1" S_DIV "1" "2" S_MOV "1" S_MOD "1" "2"
+   },
 
    /***************************************************************************
     * DIVS Wm,Wn	Signed integer divide: Wm/Wn -> W0, Rem -> W1
     ***************************************************************************/
-   { "div.sd",    DIVS_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, F_NONE},
-   { "div.sw",    DIVS_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
-   { "div.s",     DIVS_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
+   { "div.sd",    DIVS_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div.sw",    DIVS_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div.s",     DIVS_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
 
    /***************************************************************************
     DIVS2 Wm,Wn      Signed integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
     ***************************************************************************/
-   { "div2.sd",    DIVSD2,     2, { DIVIDEND32_REG, REG },
-                                   F_IS_DSP_INSN | F_ISAV4 },
-   { "div2.sw",    DIVSW2,     2, { DIVIDEND16_REG_2, REG },
-                                   F_IS_DSP_INSN | F_ISAV4 },
-   { "div2.s",     DIVSW2,     2, { DIVIDEND16_REG_2, REG },
-                                   F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.sd",   DIVSD2,     2, { DIVIDEND32_REG, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div2.sw",   DIVSW2,     2, { DIVIDEND16_REG_2, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div2.s",    DIVSW2,     2, { DIVIDEND16_REG_2, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
 
    /***************************************************************************
     * DIVU Wm,Wn	Unsigned integer divide: Wm/Wn -> W0, Rem -> W1
     ***************************************************************************/
-   { "div.ud",    DIVU_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, F_NONE},
-   { "div.uw",    DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
-   { "div.u",     DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, F_NONE},
+   { "div.ud",    DIVU_D,     2, { DIVIDEND32_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div.uw",    DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div.u",     DIVU_W,     2, { DIVIDEND16_REG, DIVISOR_REG }, 
+                  F_NONE,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
 
    /***************************************************************************
     DIVU2 Wm,Wn     Unsigned integer divide: W(m+1):Wm/Wn -> Wm, Rem -> W(m+1)
     ***************************************************************************/
-   { "div2.ud",    DIVUD2,     2, { DIVIDEND32_REG, REG },
-                                    F_IS_DSP_INSN | F_ISAV4 },
-   { "div2.uw",    DIVUW2,     2, { DIVIDEND16_REG_2, REG },
-                                   F_IS_DSP_INSN | F_ISAV4 },
-   { "div2.u",     DIVUW2,     2, { DIVIDEND16_REG_2, REG },
-                                   F_IS_DSP_INSN | F_ISAV4 },
+   { "div2.ud",   DIVUD2,     2, { DIVIDEND32_REG, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div2.uw",   DIVUW2,     2, { DIVIDEND16_REG_2, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
+   { "div2.u",    DIVUW2,     2, { DIVIDEND16_REG_2, REG },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_MOV "W00" S_DIV "1" "2" S_MOV "W00" S_MOD "1" "2"
+   },
 
    /***************************************************************************
     * DO
     ***************************************************************************/
-   { "do",        DOW,        2, { REG, DO_LABEL }, F_CANNOT_FOLLOW_REPEAT |
-                                                    F_IS_DSP_INSN |
-                                                    F_IS_2_WORD_INSN },
-   { "do",        DO,         2, { LITERAL_14BIT,
-                                   DO_LABEL }, F_CANNOT_FOLLOW_REPEAT |
-                                               F_IS_DSP_INSN |
-                                               F_IS_2_WORD_INSN | F_FCORE },
-   { "do",        DOE,         2, { LITERAL_15BIT,
-                                   DO_LABEL }, F_CANNOT_FOLLOW_REPEAT |
-                                               F_IS_DSP_INSN | F_ISAV4 |
-                                               F_IS_2_WORD_INSN | F_ECORE },
+   { "do",        DOW,        2, { REG, DO_LABEL }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_IS_DSP_INSN | F_IS_2_WORD_INSN,
+                  S_OP2CC(S_DO)
+   },
+   { "do",        DO,         2, { LITERAL_14BIT, DO_LABEL }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_IS_DSP_INSN |
+                  F_IS_2_WORD_INSN | F_FCORE,
+                  S_OP2CC(S_DO)
+   },
+   { "do",        DOE,         2, { LITERAL_15BIT, DO_LABEL }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_IS_DSP_INSN | F_ISAV4 |
+                  F_IS_2_WORD_INSN | F_ECORE,
+                  S_OP2CC(S_DO)
+   },
 
    /***************************************************************************
     * ED
@@ -1837,7 +2541,10 @@ const struct pic30_opcode pic30_opcodes[] =
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_ED "2" "1" "5" "3" "4"
+   },
 
    /***************************************************************************
     * EDAC
@@ -1846,1160 +2553,2210 @@ const struct pic30_opcode pic30_opcodes[] =
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_EDAC "2" "1" "5" "3" "4"
+   },
 
    /***************************************************************************
     * EXCH
     ***************************************************************************/
-   { "exch",      EXCH,       2, { REG, DST_REG }, F_NONE },
+   { "exch",      EXCH,       2, { REG, DST_REG }, 
+                  F_NONE,
+                  S_EXCH "1" "2"
+   },
 
    /***************************************************************************
     * FBCL
     ***************************************************************************/
-   { "fbcl",      FBCL,       2, { P_SRC_REG, DST_REG }, F_WORD },
+   { "fbcl",      FBCL,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_FBCL)
+   },
 
    /***************************************************************************
     * FF1L
     ***************************************************************************/
-   { "ff1l",      FF1L,       2, { P_SRC_REG, DST_REG }, F_WORD },
+   { "ff1l",      FF1L,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_FF1L)
+   },
 
    /***************************************************************************
     * FF1R
     ***************************************************************************/
-   { "ff1r",      FF1R,       2, { P_SRC_REG, DST_REG }, F_WORD },
+   { "ff1r",      FF1R,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_FF1R)
+   },
 
    /***************************************************************************
     * FLIM
     ***************************************************************************/
    { "flim",      FLIM,       2, { BASE_REG_EVEN, P_SRC_REG }, 
-                                   F_ISAV4 | F_IS_DSP_INSN },
+                  F_ISAV4 | F_IS_DSP_INSN,
+                  S_UNK,
+   },
+                 
    /***************************************************************************
     * FLIMW
     ***************************************************************************/
    { "flim",      FLIMW,      3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
-                                   F_ISAV4 | F_IS_DSP_INSN },
+                  F_ISAV4 | F_IS_DSP_INSN,
+                  S_UNK,
+   },
 
    { "flim.v",    FLIMWV,     3, { BASE_REG_EVEN, P_SRC_REG, DST_REG },
-                                   F_ISAV4 | F_IS_DSP_INSN },
+                  F_ISAV4 | F_IS_DSP_INSN,
+                  S_UNK,
+   },
+
    /***************************************************************************
     * GOTO
     ***************************************************************************/
-   { "goto",      GOTOW,      1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
-   { "goto",      GOTOWE,     1, { REG }, F_CANNOT_FOLLOW_REPEAT | 
-                                           F_ISAV4 | F_ECORE },
-   { "goto",      GOTO,       1, { CALL_OPERAND }, F_CANNOT_FOLLOW_REPEAT },
-   { "goto.l",    GOTOW_L,    1, { REG_L }, F_CANNOT_FOLLOW_REPEAT | 
-                                              F_ISAV4 | F_ECORE },
+   { "goto",      GOTOW,      1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_BRA "1"
+   },
+   { "goto",      GOTOWE,     1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_BRA "1"
+   },
+   { "goto",      GOTO,       1, { CALL_OPERAND }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_BRA "1"
+   },
+   { "goto.l",    GOTOW_L,    1, { REG_L }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_BRA "1"
+   },
 
    /***************************************************************************
     * INC.b
     ***************************************************************************/
-   { "inc.b",     INCFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "inc.b",     INCFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "inc.b",     INC_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "inc.b",     INCFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC)
+   },
+   { "inc.b",     INCFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC)
+   },
+   { "inc.b",     INC_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_INC)
+   },
 
    /***************************************************************************
     * INC.w
     ***************************************************************************/
-   { "inc.w",     INCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "inc.w",     INCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "inc.w",     INC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "inc.w",     INCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC)
+   },
+   { "inc.w",     INCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC)
+   },
+   { "inc.w",     INC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_INC)
+   },
 
    /***************************************************************************
     * INC
     ***************************************************************************/
-   { "inc",       INCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "inc",       INCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "inc",       INC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "inc",       INCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC)
+   },
+   { "inc",       INCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC)
+   },
+   { "inc",       INC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_INC)
+   },
 
    /***************************************************************************
     * INC2.b
     ***************************************************************************/
-   { "inc2.b",    INC2FF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "inc2.b",    INC2FW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "inc2.b",    INC2_B,     2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "inc2.b",    INC2FF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC2)
+   },
+   { "inc2.b",    INC2FW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC2)
+   },
+   { "inc2.b",    INC2_B,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_INC2)
+   },
 
    /***************************************************************************
     * INC2.w
     ***************************************************************************/
-   { "inc2.w",    INC2FF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "inc2.w",    INC2FW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "inc2.w",    INC2_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "inc2.w",    INC2FF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC2)
+   },
+   { "inc2.w",    INC2FW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC2)
+   },
+   { "inc2.w",    INC2_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_INC2)
+   },
 
    /***************************************************************************
     * INC2
     ***************************************************************************/
-   { "inc2",      INC2FF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "inc2",      INC2FW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "inc2",      INC2_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "inc2",      INC2FF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_INC2)
+   },
+   { "inc2",      INC2FW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_INC2)
+   },
+   { "inc2",      INC2_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_INC2)
+   },
 
    /***************************************************************************
     * IOR.b
     ***************************************************************************/
-   { "ior.b",     IORWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "ior.b",     IORWFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "ior.b",     IORLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "ior.b",     IORWFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_IOR)
+   },
+   { "ior.b",     IORWFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_IOR)
+   },
+   { "ior.b",     IORLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_IOR)
+   },
    { "ior.b",     IORLS_B,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_IOR)
+   },
    { "ior.b",     IOR_B,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_IOR)
+   },
 
    /***************************************************************************
     * IOR.w
     ***************************************************************************/
-   { "ior.w",     IORWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "ior.w",     IORWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "ior.w",     IORLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "ior.w",     IORWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_IOR)
+   },
+   { "ior.w",     IORWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_IOR)
+   },
+   { "ior.w",     IORLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_IOR)
+   },
    { "ior.w",     IORLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_IOR)
+   },
    { "ior.w",     IOR_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_IOR)
+   },
 
    /***************************************************************************
     * IOR
     ***************************************************************************/
-   { "ior",       IORWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "ior",       IORWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "ior",       IORLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "ior",       IORWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_IOR)
+   },
+   { "ior",       IORWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_IOR)
+   },
+   { "ior",       IORLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_IOR)
+   },
    { "ior",       IORLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_IOR)
+   },
    { "ior",       IOR_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_IOR)
+   },
 
    /***************************************************************************
     * LAC
     ***************************************************************************/
    { "lac",       LAC_PS,     3, { G_REG,
                                    DSP_PRESHIFT,
-                                   DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                             F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" S_ASR "1" "2"
+   },
    { "lac",       LAC,        2, { G_REG,
-                                   DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                             F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "1" "2"
+   },
 
    /***************************************************************************
     * LAC.w
     ***************************************************************************/
-   { "lac.w",       LAC_PS,     3, { G_REG,
+   { "lac.w",     LAC_PS,     3, { G_REG,
                                      DSP_PRESHIFT,
-                                     DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                               F_IS_DSP_INSN },
-   { "lac.w",       LAC,        2, { G_REG,
-                                     DSP_ACCUMULATOR_SELECT }, F_WORD |
-                                                               F_IS_DSP_INSN },
+                                     DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" S_ASR "1" "2"
+   },
+   { "lac.w",     LAC,        2, { G_REG,
+                                     DSP_ACCUMULATOR_SELECT }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "1" "2"
+   },
 
    /***************************************************************************
     * LACD
     ***************************************************************************/
    { "lac.d",     LACD_PS,   3, { P_SRC_REG,
                                   DSP_PRESHIFT,
-                                  DSP_ACCUMULATOR_SELECT}, F_WORD | F_ISAV4 |
-                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+                                  DSP_ACCUMULATOR_SELECT}, 
+                  F_WORD | F_ISAV4 | F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "3" S_ASR "1" "2"
+   },
    { "lac.d",     LACD,   2, { P_SRC_REG,
-                               DSP_ACCUMULATOR_SELECT}, F_WORD | F_ISAV4 |
-                                     F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+                               DSP_ACCUMULATOR_SELECT}, 
+                  F_WORD | F_ISAV4 | F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "1" "2"
+   },
 
    /***************************************************************************
     * LDSLV
     ***************************************************************************/
-   { "ldslv",     LDSLV,      3, { P_SRC_REG, IND_DST_REG_POST_INC, LITERAL_2BIT},
-                                   F_WORD | F_ISAV4 },  
+   { "ldslv",     LDSLV,      3, { P_SRC_REG, 
+                                   IND_DST_REG_POST_INC,
+                                   LITERAL_2BIT},
+                  F_WORD | F_ISAV4,
+                  S_NOP
+   },  
+
    /***************************************************************************
     * LNK
     ***************************************************************************/
-   { "lnk",       LNK,        1, { FRAME_SIZE }, F_CANNOT_FOLLOW_REPEAT },
+   { "lnk",       LNK,        1, { FRAME_SIZE }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "W15" "W14" S_MOV "W15" S_ADD "W15" "1"
+   },
 
    /***************************************************************************
     * LSR.b
     ***************************************************************************/
-   { "lsr.b",     LSRFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "lsr.b",     LSRFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "lsr.b",     LSR_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "lsr.b",     LSRFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_LSR) "#1#"
+   },
+   { "lsr.b",     LSRFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_LSR) "#1#"
+   },
+   { "lsr.b",     LSR_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_LSR) "#1#"
+   },
 
    /***************************************************************************
     * LSR.w
     ***************************************************************************/
-   { "lsr.w",     LSRFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "lsr.w",     LSRFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "lsr.w",     LSR_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "lsr.w",     LSRW_W,     3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "lsr.w",     LSRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "lsr.w",     LSRFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_LSR) "#1#"
+   },
+   { "lsr.w",     LSRFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_LSR) "#1#"
+   },
+   { "lsr.w",     LSR_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_LSR) "#1#"
+   },
+   { "lsr.w",     LSRW_W,     3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_LSR)
+   },
+   { "lsr.w",     LSRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_LSR)
+   },
 
    /***************************************************************************
     * LSR
     ***************************************************************************/
-   { "lsr",       LSRFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "lsr",       LSRFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "lsr",       LSR_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "lsr",       LSRW_W,     3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "lsr",       LSRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "lsr",       LSRFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_LSR) "#1#"
+   },
+   { "lsr",       LSRFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_LSR) "#1#"
+   },
+   { "lsr",       LSR_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_LSR) "#1#"
+   },
+   { "lsr",       LSRW_W,     3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_LSR)
+   },
+   { "lsr",       LSRK_W,     3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_LSR)
+   },
 
    /***************************************************************************
     * MPY - Must be before MAC; otherwise, MAC is chosen during disassembly.
     ***************************************************************************/
    { "mpy",       MPY_A,      2, { DSP_MULTIPLICAND,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPY)
+   },
    { "mpy",       MPY_X,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPY) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy",       MPY_Y,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPY) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy",       MPY,        6, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPY) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
    { "mpy",       SQR_A,      2, { DSP_SQUARE,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR)
+   },
    { "mpy",       SQR_X,      4, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy",       SQR_Y,      4, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy",       SQR,        6, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
 
    /***************************************************************************
     * MPY.N
     ***************************************************************************/
    { "mpy.n",     MPYN_A,     2, { DSP_MULTIPLICAND,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPYN)
+   },
    { "mpy.n",     MPYN_X,     4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPYN) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy.n",     MPYN_Y,     4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPYN) S_MOV "4" S_PFTCH "3"
+   },
    { "mpy.n",     MPYN,       6, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MPYN) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
 
    /***************************************************************************
     * MOVSAC - Must be before MAC; otherwise, MAC is chosen during disasembly.
     ***************************************************************************/
-   { "movsac",    MOVSAC_A,   1, { DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+   { "movsac",    MOVSAC_A,   1, { DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_NOP
+   },
    { "movsac",    MOVSAC_WB,  2, { DSP_ACCUMULATOR_SELECT,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "2" S_OTHER "1"
+   },
    { "movsac",    MOVSAC_X,   3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2"
+   },
    { "movsac",    MOVSAC_Y,   3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2"
+   },
    { "movsac",    MOVSAC_XWB, 4, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2" S_MOV "4" S_OTHER "1"
+   },
    { "movsac",    MOVSAC_YWB, 4, { DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2" S_MOV "4" S_OTHER "1"
+   },
    { "movsac",    MOVSAC_XY,  5, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2" S_MOV "5" S_PFTCH "4"
+   },
    { "movsac",    MOVSAC,     6, { DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_MOV "3" S_PFTCH "2" S_MOV "5" S_PFTCH "4" 
+                  S_MOV "5" S_OTHER "1"
+   },
 
    /***************************************************************************
     * MAC
     ***************************************************************************/
    { "mac",       MAC_A,      2, { DSP_MULTIPLICAND,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC)
+   },
    { "mac",       MAC_WB,     3, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "3" S_OTHER "1"
+   },
    { "mac",       MAC_X,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3"
+   },
    { "mac",       MAC_Y,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3"
+   },
    { "mac",       MAC_XWB,    5, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3" S_MOV "5" S_OTHER "1"
+   },
    { "mac",       MAC_YWB,    5, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3" S_MOV "5" S_OTHER "1"
+   },
    { "mac",       MAC_XY,     6, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
    { "mac",       MAC,        7, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MAC) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+                  S_MOV "7" S_OTHER "1"
+   },
    { "mac",       SQRAC_A,    2, { DSP_SQUARE,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR)
+   },
    { "mac",       SQRAC_X,    4, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3"
+   },
    { "mac",       SQRAC_Y,    4, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3"
+   },
    { "mac",       SQRAC,      6, { DSP_SQUARE,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_SQR) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
 
    /***************************************************************************
     * MAXAB
     **************************************************************************/
    { "max",       MAXAB,      1, { DSP_ACCUMULATOR_SELECT },
-                                 F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
    /***************************************************************************
     * MAXABW
     **************************************************************************/
    { "max",       MAXABW,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                 F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
    { "max.v",     MAXABWV,    2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                 F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
    /***************************************************************************
     * MINAB
     **************************************************************************/
    { "min",       MINAB,      1, { DSP_ACCUMULATOR_SELECT },
-                                 F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
    /***************************************************************************
     * MINABW
     **************************************************************************/
    { "min",       MINABW,      2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
    { "min.v",     MINABWV,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
    /***************************************************************************
     * MINABZ
     **************************************************************************/
    { "minz",      MINABZ,      1, { DSP_ACCUMULATOR_SELECT },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
    /***************************************************************************
     * MINABWZ
     **************************************************************************/
    { "minz",      MINABWZ,     2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
    { "minz.v",    MINABWVZ,   2, { DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK,
+   },
 
 
    /***************************************************************************
     * MOV.b
     ***************************************************************************/
    { "mov.b",     MOVWF_B,    2, { W_REG,
-                                   FILE_REG_BYTE }, F_HAS_REQUIRED_WREG },
-   { "mov.b",     MOVLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
-   { "mov.b",     MOVFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "mov.b",     MOVFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "mov.b",     MOV_B,      2, { G_REG, H_DST_REG }, F_NONE },
-   { "mov.b",     LDWLO_B,    2, { LO_SRC_REG, DST_REG }, F_NONE },
-   { "mov.b",     STWLO_B,    2, { REG, LO_DST_REG }, F_NONE },
+                                   FILE_REG_BYTE }, 
+                  F_HAS_REQUIRED_WREG,
+                  S_MOV "1" "W00"
+   },
+   { "mov.b",     MOVLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "mov.b",     MOVFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "2" "1"
+   },
+   { "mov.b",     MOVFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "1"
+   },
+   { "mov.b",     MOV_B,      2, { G_REG, H_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "mov.b",     LDWLO_B,    2, { LO_SRC_REG, DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "mov.b",     STWLO_B,    2, { REG, LO_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * MOV.d
     ***************************************************************************/
-   { "mov.d",     LDDW,       2, { PIND_SRC_REG,DBL_DST_REG }, F_WORD |
-                                                       F_CANNOT_FOLLOW_REPEAT },
-   { "mov.d",     STDW,       2, { DBL_SRC_REG,	QIND_DST_REG }, F_WORD |
-                                                       F_CANNOT_FOLLOW_REPEAT },
-   { "mov.d",     LDDW,       2, { DBL_SRC_REG,	DBL_DST_REG }, F_WORD |
-                                                       F_CANNOT_FOLLOW_REPEAT },
+   { "mov.d",     LDDW,       2, { PIND_SRC_REG,DBL_DST_REG }, 
+                  F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1"
+   },
+   { "mov.d",     STDW,       2, { DBL_SRC_REG,	QIND_DST_REG }, 
+                  F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1"
+   },
+   { "mov.d",     LDDW,       2, { DBL_SRC_REG,	DBL_DST_REG }, 
+                  F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * MOV.w
     ***************************************************************************/
-   { "mov.w",     MOVWF_W,    2, { W_REG, FILE_REG }, F_WORD |
-                                                      F_HAS_REQUIRED_WREG },
-   { "mov.w",     MOVL_W,     2, { LITERAL_16BIT, REG }, F_WORD },
-   { "mov.w",     MOVLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
-   { "mov.w",     MOVFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "mov.w",     MOVFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "mov.w",     MOV_W,      2, { G_REG, H_DST_REG }, F_WORD },
-   { "mov.w",     LDWLO_W,    2, { LO_SRC_REG, DST_REG }, F_WORD },
-   { "mov.w",     STWLO_W,    2, { REG, LO_DST_REG }, F_WORD },
-   { "mov.w",     STW,        2, { REG, FILE_REG_WORD_WITH_DST }, F_WORD },
-   { "mov.w",     LDW,        2, { FILE_REG_WORD_WITH_DST, REG }, F_WORD },
+   { "mov.w",     MOVWF_W,    2, { W_REG, FILE_REG }, 
+                  F_WORD | F_HAS_REQUIRED_WREG,
+                  S_MOV "1" "W00"
+   },
+   { "mov.w",     MOVL_W,     2, { LITERAL_16BIT, REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     MOVLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     MOVFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     MOVFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "1"
+   },
+   { "mov.w",     MOV_W,      2, { G_REG, H_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     LDWLO_W,    2, { LO_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     STWLO_W,    2, { REG, LO_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     STW,        2, { REG, FILE_REG_WORD_WITH_DST }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov.w",     LDW,        2, { FILE_REG_WORD_WITH_DST, REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * MOV
     ***************************************************************************/
-   { "mov",       MOVWF_W,    2, { W_REG, FILE_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "mov",       MOVL_W,     2, { LITERAL_16BIT, REG }, F_WORD },
-   { "mov",       MOVFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "mov",       MOVFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "mov",       MOV_W,      2, { G_REG, H_DST_REG }, F_WORD },
-   { "mov",       LDWLO_W,    2, { LO_SRC_REG, DST_REG }, F_WORD },
-   { "mov",       STWLO_W,    2, { REG, LO_DST_REG }, F_WORD },
-   { "mov",       STW,        2, { REG, FILE_REG_WORD_WITH_DST }, F_WORD },
-   { "mov",       LDW,        2, { FILE_REG_WORD_WITH_DST, REG }, F_WORD },
-   { "movpag",   MOVPAG_W,   2, { REG, PAGE_REG}, F_ECORE | F_ISAV4 },
-   { "movpag",    MOVPAG,     2, { LITERAL_10BIT_NO_SHIFT, PAGE_REG}, F_ECORE |
-                                                                      F_ISAV4 },
+   { "mov",       MOVWF_W,    2, { W_REG, FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "1" "W00"
+   },
+   { "mov",       MOVL_W,     2, { LITERAL_16BIT, REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov",       MOVFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "2" "1"
+   },
+   { "mov",       MOVFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "1"
+   },
+   { "mov",       MOV_W,      2, { G_REG, H_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov",       LDWLO_W,    2, { LO_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov",       STWLO_W,    2, { REG, LO_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov",       STW,        2, { REG, FILE_REG_WORD_WITH_DST }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "mov",       LDW,        2, { FILE_REG_WORD_WITH_DST, REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "movpag",    MOVPAG_W,   2, { REG, PAGE_REG}, 
+                  F_ECORE | F_ISAV4,
+                  S_MOV "2" "1"
+   },
+   { "movpag",    MOVPAG,     2, { LITERAL_10BIT_NO_SHIFT, PAGE_REG}, 
+                  F_ECORE | F_ISAV4,
+                  S_MOV "2" "1"
+   },
   
 
    /***************************************************************************
     * MSC
     ***************************************************************************/
    { "msc",       MSC_A,      2, { DSP_MULTIPLICAND,
-                                   DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC)
+   },
    { "msc",       MSC_WB,     3, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "3" S_OTHER "1"
+   },
    { "msc",       MSC_X,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
-                                   DSP_X_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_X_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3"
+
+   },
    { "msc",       MSC_Y,      4, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3"
+   },
    { "msc",       MSC_XWB,    5, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3" S_MOV "5" S_OTHER "1"
+   },
    { "msc",       MSC_YWB,    5, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3" S_MOV "5" S_OTHER "1"
+   },
    { "msc",       MSC_XY,     6, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
-                                   DSP_Y_PREFETCH_DST }, F_IS_DSP_INSN },
+                                   DSP_Y_PREFETCH_DST }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+   },
    { "msc",       MSC,        7, { DSP_MULTIPLICAND,
                                    DSP_ACCUMULATOR_SELECT,
                                    DSP_X_PREFETCH_OPERATION,
                                    DSP_X_PREFETCH_DST,
                                    DSP_Y_PREFETCH_OPERATION,
                                    DSP_Y_PREFETCH_DST,
-                                   DSP_WRITEBACK }, F_IS_DSP_INSN },
+                                   DSP_WRITEBACK }, 
+                  F_IS_DSP_INSN,
+                  S_OP2(S_MSC) S_MOV "4" S_PFTCH "3" S_MOV "6" S_PFTCH "5"
+                  S_MOV "7" S_OTHER "1"
+   },
 
    /***************************************************************************
     * MUL
     ***************************************************************************/
-   { "mul.b",     MULWF_B,      1, { FILE_REG_BYTE }, F_NONE },
-   { "mul.w",     MULWF_W,      1, { FILE_REG }, F_WORD },
-   { "mul",       MULWF_W,      1, { FILE_REG }, F_WORD },
+   { "mul.b",     MULWF_B,      1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_MOV "W02" S_MUL "W00" "1"
+   },
+   { "mul.w",     MULWF_W,      1, { FILE_REG }, 
+                  F_WORD,
+                  S_MOV "W02" S_MUL "W00" "1"
+   },
+   { "mul",       MULWF_W,      1, { FILE_REG }, 
+                  F_WORD,
+                  S_MOV "W02" S_MUL "W00" "1"
+   },
 
 
    { "mul.ss",    MUL_SS_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
                                      ECORE_ACCUMULATOR_SELECT },
-                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN },
+                  F_ISAV4 | F_ECORE | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   },
 
    { "mul.ss",    MUL_SS,       3,  { BASE_REG,
                                       P_SRC_REG,
-                                      DBL_MUL_DST_REG }, F_WORD },
+                                      DBL_MUL_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_MUL)
+   },
  
    { "mulw.ss",   MULW_SS,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   },
   
    { "mul.su",    MULLS_SU_ACC, 3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ECORE | F_ISAV4 | 
-                                                      F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },
+                  F_ECORE | F_ISAV4 | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   },
 
    { "mul.su",    MUL_SU_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
                                      ECORE_ACCUMULATOR_SELECT },
-                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN },
+                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   },
 
    { "mul.su",    MULLS_SU,     3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     DBL_MUL_DST_REG }, F_WORD }, 
+                                     DBL_MUL_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_MUL)
+   }, 
 
    { "mul.su",    MUL_SU,       3, { BASE_REG,
                                      P_SRC_REG,
-                                     DBL_MUL_DST_REG }, F_WORD },
+                                     DBL_MUL_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_MUL)
+   },
  
 
    { "mulw.su",   MULLSW_SU,    3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE }, 
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   }, 
 
    { "mulw.su",   MULW_SU,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   },
   
   
    { "mul.uu",    MULLS_UU_ACC, 3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ISAV4 | F_ECORE | 
-                                                      F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },
+                  F_ISAV4 | F_ECORE | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   },
 
    { "mul.uu",    MUL_UU_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
-                                     ECORE_ACCUMULATOR_SELECT },                                                                      F_ISAV4 | F_ECORE | 
-                                                      F_IS_DSP_INSN },
+                                     ECORE_ACCUMULATOR_SELECT },
+                  F_ISAV4 | F_ECORE | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   },
    
    { "mul.uu",    MULLS_UU,     3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     DBL_MUL_DST_REG }, F_WORD },
+                                     DBL_MUL_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_MUL)
+   },
 
    { "mul.uu",    MUL_UU,       3, { BASE_REG,
                                      P_SRC_REG,
-                                     DBL_MUL_DST_REG },F_WORD },
+                                     DBL_MUL_DST_REG },
+                  F_WORD,
+                  S_OP3(S_MUL)
+   },
 
    { "mulw.uu",   MULLSW_UU,    3, { BASE_REG,
                                      UNSIGNED_SHORT_LITERAL,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   },
 
    { "mulw.uu",   MULW_UU,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   },
 
 
    { "mul.us",    MUL_US_ACC,   3, { BASE_REG,
                                      P_SRC_REG,
                                      ECORE_ACCUMULATOR_SELECT  },
-                                     F_ISAV4 | F_ECORE | F_IS_DSP_INSN }, 
+                  F_ISAV4 | F_ECORE | F_IS_DSP_INSN,
+                  S_OP3(S_MUL)
+   }, 
    { "mul.us",    MUL_US,       3, { BASE_REG,
                                      P_SRC_REG,
-                                     DBL_MUL_DST_REG }, F_WORD },
+                                     DBL_MUL_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_MUL)
+   },
 
    { "mulw.us",   MULW_US,      3, { BASE_REG,
                                      P_SRC_REG,
-                                     W_MUL_DST_REG }, F_ISAV4 | F_ECORE },
+                                     W_MUL_DST_REG }, 
+                  F_ISAV4 | F_ECORE,
+                  S_OP3(S_MUL)
+   },
 
    /***************************************************************************
     * NEG.b
     ***************************************************************************/
-   { "neg.b",     NEGFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "neg.b",     NEGFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "neg.b",     NEG_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "neg.b",     NEGFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_NEG)
+   },
+   { "neg.b",     NEGFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_NEG)
+   },
+   { "neg.b",     NEG_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_NEG)
+   },
 
    /***************************************************************************
     * NEG.w
     ***************************************************************************/
-   { "neg.w",     NEGFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "neg.w",     NEGFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "neg.w",     NEG_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "neg.w",     NEGFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_NEG)
+   },
+   { "neg.w",     NEGFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_NEG)
+   },
+   { "neg.w",     NEG_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_NEG)
+   },
 
    /***************************************************************************
     * NEG
     ***************************************************************************/
-   { "neg",       DUMMY,      0, { 0 /* for flags */ }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG |
-                                                      F_IS_DSP_INSN },
-   { "neg",       NEGFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "neg",       NEGFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "neg",       NEG_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "neg",       NEGAB,      1, { DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+   { "neg",       DUMMY,      0, { 0 /* for flags */ }, 
+                  F_WORD | F_HAS_IMPLIED_WREG | F_IS_DSP_INSN,
+                  S_NOP
+   },
+   { "neg",       NEGFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_NEG)
+   },
+   { "neg",       NEGFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_NEG)
+   },
+   { "neg",       NEG_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_NEG)
+   },
+   { "neg",       NEGAB,      1, { DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_UNK
+   },
 
    /***************************************************************************
     * NOP
     ***************************************************************************/
-   { "nop",       NOP,        0, { 0 /* OPERANDS */ }, F_NONE },
-   { "nopr",      NOPR,       0, { 0 /* OPERANDS */ }, F_NONE },
+   { "nop",       NOP,        0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_NOP
+   },
+   { "nopr",      NOPR,       0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_NOP
+   },
 
    /***************************************************************************
     * NORMACW
     ***************************************************************************/
    { "norm",      NORMACW,    2, {DSP_ACCUMULATOR_SELECT, P_SRC_REG  },
-                                  F_IS_DSP_INSN | F_ISAV4 },
+                  F_IS_DSP_INSN | F_ISAV4,
+                  S_UNK
+   },
 
    /***************************************************************************
     * POP
     ***************************************************************************/
-   { "pop.w",     POP_W,      1, { H_DST_REG }, F_WORD },
-   { "pop",       POP_W,      1, { H_DST_REG }, F_WORD },
-   { "pop",       POPF,       1, { FILE_REG_WORD }, F_NONE },
+   { "pop.w",     POP_W,      1, { H_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_POP)
+   },
+   { "pop",       POP_W,      1, { H_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_POP)
+   },
+   { "pop",       POPF,       1, { FILE_REG_WORD }, 
+                  F_NONE,
+                  S_OP1(S_POP)
+   },
 
    /***************************************************************************
     * POP.d
     ***************************************************************************/
-   { "pop.d",     POP_D,      1, { DBL_DST_REG }, F_NONE },
+   { "pop.d",     POP_D,      1, { DBL_DST_REG }, 
+                  F_NONE,
+                  S_OP1(S_POP)
+   },
 
    /***************************************************************************
     * POP.s
     ***************************************************************************/
-   { "pop.s",     ITCH,       0, { 0 /* OPERANDS */ }, F_NONE },
+   { "pop.s",     ITCH,       0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_CLBR "W00"
+                  S_CLBR "W01"
+                  S_CLBR "W02"
+                  S_CLBR "W03"
+   },
 
    /***************************************************************************
     * PWRSAV
     ***************************************************************************/
-   { "pwrsav",    PWRSAV,     1, { PWRSAV_MODE }, F_CANNOT_FOLLOW_REPEAT },
+   { "pwrsav",    PWRSAV,     1, { PWRSAV_MODE }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_NOP
+   },
 
    /***************************************************************************
     * PUSH
     ***************************************************************************/
-   { "push.w",    PUSH_W,     1, { G_REG }, F_WORD },
-   { "push",      PUSH_W,     1, { G_REG }, F_WORD },
-   { "push",      PUSHF,      1, { FILE_REG_WORD }, F_NONE },
+   { "push.w",    PUSH_W,     1, { G_REG }, 
+                  F_WORD,
+                  S_OP1(S_PUSH)
+   },
+   { "push",      PUSH_W,     1, { G_REG }, 
+                  F_WORD,
+                  S_OP1(S_PUSH)
+   },
+   { "push",      PUSHF,      1, { FILE_REG_WORD }, 
+                  F_NONE,
+                  S_OP1(S_PUSH)
+   },
 
    /***************************************************************************
     * PUSH.d
     ***************************************************************************/
-   { "push.d",    PUSH_D,     1, { DBL_SRC_REG }, F_NONE },
+   { "push.d",    PUSH_D,     1, { DBL_SRC_REG }, 
+                  F_NONE,
+                  S_OP1(S_PUSH)
+   },
 
    /***************************************************************************
     * PUSH.s
     ***************************************************************************/
-   { "push.s",    SCRATCH,    0, { 0 /* OPERANDS */ }, F_NONE },
+   { "push.s",    SCRATCH,    0, { 0 /* OPERANDS */ }, 
+                  F_NONE,
+                  S_NOP
+   },
 
    /***************************************************************************
     * RCALL
     ***************************************************************************/
-   { "rcall",     RCALLW,     1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_FCORE },
-   { "rcall",     RCALLWE,    1, { REG }, F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | 
-                                          F_ECORE },
-   { "rcall",     RCALL,      1, { BRANCH_LABEL }, F_CANNOT_FOLLOW_REPEAT },
+   { "rcall",     RCALLW,     1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OP1(S_CALL)
+   },
+   { "rcall",     RCALLWE,    1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_OP1(S_CALL)
+   },
+   { "rcall",     RCALL,      1, { BRANCH_LABEL }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_OP1(S_CALL)
+   },
 
    /***************************************************************************
     * REPEAT
     ***************************************************************************/
-   { "repeat",    REPEATW,    1, { REG }, F_CANNOT_FOLLOW_REPEAT },
-   { "repeat",    REPEAT,     1, { LITERAL_14BIT }, F_CANNOT_FOLLOW_REPEAT | 
-                                                    F_FCORE },
-   { "repeat",    REPEATE,     1, { LITERAL_15BIT }, F_CANNOT_FOLLOW_REPEAT | 
-                                                     F_ISAV4 | F_ECORE },
+   { "repeat",    REPEATW,    1, { REG }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_OP1(S_RPT)
+   },
+   { "repeat",    REPEAT,     1, { LITERAL_14BIT }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_FCORE,
+                  S_OP1(S_RPT)
+   },
+   { "repeat",    REPEATE,     1, { LITERAL_15BIT }, 
+                  F_CANNOT_FOLLOW_REPEAT | F_ISAV4 | F_ECORE,
+                  S_OP1(S_RPT)
+   },
 
    /***************************************************************************
     * RESET
     ***************************************************************************/
-   { "reset",     RESET,      0, { 0 /* OPERANDS */ }, F_CANNOT_FOLLOW_REPEAT },
+   { "reset",     RESET,      0, { 0 /* OPERANDS */ }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_OP1(S_RESET)
+   },
 
    /***************************************************************************
     * RETFIE
     ***************************************************************************/
-   { "retfie",    RETFIE,     0, { 0 /* OPERANDS */ }, F_CANNOT_FOLLOW_REPEAT },
+   { "retfie",    RETFIE,     0, { 0 /* OPERANDS */ }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_RET
+   },
 
    /***************************************************************************
     * RETLW
     ***************************************************************************/
    { "retlw.b",   RETLW_B,    2, { BYTE_LITERAL_10BIT,
-                                   REG }, F_CANNOT_FOLLOW_REPEAT },
+                                   REG }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1" S_RET
+   },
    { "retlw.w",   RETLW_W,    2, { LITERAL_10BIT,
-                                   REG }, F_WORD | F_CANNOT_FOLLOW_REPEAT },
+                                   REG }, 
+                  F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1" S_RET
+   },
    { "retlw",     RETLW_W,    2, { LITERAL_10BIT,
-                                   REG }, F_WORD | F_CANNOT_FOLLOW_REPEAT },
+                                   REG }, 
+                  F_WORD | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1" S_RET
+   },
 
    /***************************************************************************
     * RETURN
     ***************************************************************************/
-   { "return",    RETURN,     0, { 0 /* OPERANDS */ }, F_CANNOT_FOLLOW_REPEAT },
+   { "return",    RETURN,     0, { 0 /* OPERANDS */ }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_RET
+   },
 
    /***************************************************************************
     * RLC.b
     ***************************************************************************/
-   { "rlc.b",     RLCFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "rlc.b",     RLCFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "rlc.b",     RLC_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "rlc.b",     RLCFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLC)
+   },
+   { "rlc.b",     RLCFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLC)
+   },
+   { "rlc.b",     RLC_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_ROTLC)
+   },
 
    /***************************************************************************
     * RLC.w
     ***************************************************************************/
-   { "rlc.w",     RLCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rlc.w",     RLCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rlc.w",     RLC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rlc.w",     RLCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLC)
+   },
+   { "rlc.w",     RLCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLC)
+   },
+   { "rlc.w",     RLC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTLC)
+   },
 
    /***************************************************************************
     * RLC
     ***************************************************************************/
-   { "rlc",       RLCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rlc",       RLCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rlc",       RLC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rlc",       RLCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLC)
+   },
+   { "rlc",       RLCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLC)
+   },
+   { "rlc",       RLC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTLC)
+   },
 
    /***************************************************************************
     * RLNC.b
     ***************************************************************************/
-   { "rlnc.b",    RLNCFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "rlnc.b",    RLNCFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "rlnc.b",    RLNC_B,     2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "rlnc.b",    RLNCFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLN)
+   },
+   { "rlnc.b",    RLNCFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLN)
+   },
+   { "rlnc.b",    RLNC_B,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_ROTLN)
+   },
 
    /***************************************************************************
     * RLNC.w
     ***************************************************************************/
-   { "rlnc.w",    RLNCFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rlnc.w",    RLNCFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rlnc.w",    RLNC_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rlnc.w",    RLNCFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLN)
+   },
+   { "rlnc.w",    RLNCFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLN)
+   },
+   { "rlnc.w",    RLNC_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTLN)
+   },
 
    /***************************************************************************
     * RLNC
     ***************************************************************************/
-   { "rlnc",      RLNCFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rlnc",      RLNCFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rlnc",      RLNC_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rlnc",      RLNCFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTLN)
+   },
+   { "rlnc",      RLNCFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTLN)
+   },
+   { "rlnc",      RLNC_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTLN)
+   },
 
    /***************************************************************************
     * RRC.b
     ***************************************************************************/
-   { "rrc.b",     RRCFF_B,    1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "rrc.b",     RRCFW_B,    2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "rrc.b",     RRC_B,      2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "rrc.b",     RRCFF_B,    1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRC)
+   },
+   { "rrc.b",     RRCFW_B,    2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRC)
+   },
+   { "rrc.b",     RRC_B,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_ROTRC)
+   },
 
    /***************************************************************************
     * RRC.w
     ***************************************************************************/
-   { "rrc.w",     RRCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rrc.w",     RRCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rrc.w",     RRC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rrc.w",     RRCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRC)
+   },
+   { "rrc.w",     RRCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRC)
+   },
+   { "rrc.w",     RRC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTRC)
+   },
 
    /***************************************************************************
     * RRC
     ***************************************************************************/
-   { "rrc",       RRCFF_W,    1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rrc",       RRCFW_W,    2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rrc",       RRC_W,      2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rrc",       RRCFF_W,    1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRC)
+   },
+   { "rrc",       RRCFW_W,    2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRC)
+   },
+   { "rrc",       RRC_W,      2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTRC)
+   },
 
    /***************************************************************************
     * RRNC.b
     ***************************************************************************/
-   { "rrnc.b",    RRNCFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "rrnc.b",    RRNCFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "rrnc.b",    RRNC_B,     2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "rrnc.b",    RRNCFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRN)
+   },
+   { "rrnc.b",    RRNCFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRN)
+   },
+   { "rrnc.b",    RRNC_B,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_ROTRN)
+   },
 
    /***************************************************************************
     * RRNC.w
     ***************************************************************************/
-   { "rrnc.w",    RRNCFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rrnc.w",    RRNCFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rrnc.w",    RRNC_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rrnc.w",    RRNCFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRN)
+   },
+   { "rrnc.w",    RRNCFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRN)
+   },
+   { "rrnc.w",    RRNC_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTRN)
+   },
 
    /***************************************************************************
     * RRNC
     ***************************************************************************/
-   { "rrnc",      RRNCFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "rrnc",      RRNCFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "rrnc",      RRNC_W,     2, { P_SRC_REG, Q_DST_REG }, F_WORD },
+   { "rrnc",      RRNCFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_ROTRN)
+   },
+   { "rrnc",      RRNCFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_ROTRN)
+   },
+   { "rrnc",      RRNC_W,     2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ROTRN)
+   },
 
    /***************************************************************************
     * SAC
     ***************************************************************************/
    { "sac",       SAC_PS,     3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_PRESHIFT,
-                                   G_REG }, F_WORD | F_IS_DSP_INSN },
+                                   G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" "1"
+   },
    { "sac",       SAC,        2, { DSP_ACCUMULATOR_SELECT,
-                                   G_REG }, F_WORD | F_IS_DSP_INSN },
+                                   G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * SAC.w
     ***************************************************************************/
    { "sac.w",       SAC_PS,     3, { DSP_ACCUMULATOR_SELECT,
                                      DSP_PRESHIFT,
-                                     G_REG }, F_WORD | F_IS_DSP_INSN },
+                                     G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" "1"
+   },
    { "sac.w",       SAC,        2, { DSP_ACCUMULATOR_SELECT,
-                                     G_REG }, F_WORD | F_IS_DSP_INSN },
+                                     G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * SACD
     ***************************************************************************/
    { "sac.d",     SACD_PS,   3, { DSP_ACCUMULATOR_SELECT,
                                   DSP_PRESHIFT,
-                                  SACD_DST_REG }, F_WORD | F_ISAV4 |
-                                    F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+                                  SACD_DST_REG }, 
+                  F_WORD | F_ISAV4 | F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "3" "1"
+   },
    { "sac.d",     SACD,      2, { DSP_ACCUMULATOR_SELECT,
-                                  SACD_DST_REG }, F_WORD | F_ISAV4 |
-                                    F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT },
+                                  SACD_DST_REG }, 
+                  F_WORD | F_ISAV4 | F_IS_DSP_INSN | F_CANNOT_FOLLOW_REPEAT,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * SRAC
     ***************************************************************************/
    { "sac.r",     SAC_R_PS,   3, { DSP_ACCUMULATOR_SELECT,
                                    DSP_PRESHIFT,
-                                   G_REG }, F_WORD | F_IS_DSP_INSN },
+                                   G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "3" "1"
+   },
    { "sac.r",     SAC_R,      2, { DSP_ACCUMULATOR_SELECT,
-                                   G_REG }, F_WORD | F_IS_DSP_INSN },
+                                   G_REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * SE
     ***************************************************************************/
-   { "se",        SE_W,       2, { P_SRC_REG, DST_REG }, F_WORD },
-   { "se.w",      SE_W,       2, { P_SRC_REG, DST_REG }, F_WORD },
+   { "se",        SE_W,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_SE)
+   },
+   { "se.w",      SE_W,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_SE)
+   },
 
    /***************************************************************************
     * SETM.b
     ***************************************************************************/
-   { "setm.b",    SETW_B,     1, { W_REG }, F_HAS_IMPLIED_WREG },
-   { "setm.b",    SET_B,      1, { Q_DST_REG }, F_NONE },
-   { "setm.b",    SETF_B,     1, { FILE_REG_BYTE }, F_NONE },
+   { "setm.b",    SETW_B,     1, { W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "#-1#"
+   },
+   { "setm.b",    SET_B,      1, { Q_DST_REG }, 
+                  F_NONE,
+                  S_OP1(S_MOV) "#-1#"
+   },
+   { "setm.b",    SETF_B,     1, { FILE_REG_BYTE }, 
+                  F_NONE,
+                  S_OP1(S_MOV) "#-1#"
+   },
 
    /***************************************************************************
     * SET.w
     ***************************************************************************/
-   { "setm.w",    SETW_W,     1, { W_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "setm.w",    SET_W,      1, { Q_DST_REG }, F_WORD },
-   { "setm.w",    SETF_W,     1, { FILE_REG }, F_WORD },
+   { "setm.w",    SETW_W,     1, { W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "#-1#"
+   },
+   { "setm.w",    SET_W,      1, { Q_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#-1#"
+   },
+   { "setm.w",    SETF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#-1#"
+   },
 
    /***************************************************************************
     * SET
     ***************************************************************************/
-   { "setm",      SETW_W,     1, { W_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "setm",      SET_W,      1, { Q_DST_REG }, F_WORD },
-   { "setm",      SETF_W,     1, { FILE_REG }, F_WORD },
+   { "setm",      SETW_W,     1, { W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_MOV "W00" "#-1#"
+   },
+   { "setm",      SET_W,      1, { Q_DST_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#-1#"
+   },
+   { "setm",      SETF_W,     1, { FILE_REG }, 
+                  F_WORD,
+                  S_OP1(S_MOV) "#-1#"
+   },
 
    /***************************************************************************
     * SFTAC
     ***************************************************************************/
    { "sftac",     SFTACW,     2, { DSP_ACCUMULATOR_SELECT,
-                                   REG }, F_WORD | F_IS_DSP_INSN },
+                                   REG }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_NOP
+   },
    { "sftac",     SFTACK,     2, { DSP_ACCUMULATOR_SELECT,
-                                   DSP_SHORT_LITERAL }, F_WORD |
-                                                        F_IS_DSP_INSN },
+                                   DSP_SHORT_LITERAL }, 
+                  F_WORD | F_IS_DSP_INSN,
+                  S_NOP
+   },
 
    /***************************************************************************
     * SL.b
     ***************************************************************************/
-   { "sl.b",      SLFF_B,     1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "sl.b",      SLFW_B,     2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "sl.b",      SL_B,       2, { P_SRC_REG, Q_DST_REG }, F_NONE },
+   { "sl.b",      SLFF_B,     1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_SL) "#1#"
+   },
+   { "sl.b",      SLFW_B,     2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_SL) "#1#"
+   },
+   { "sl.b",      SL_B,       2, { P_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_OP2(S_SL) "#1#"
+   },
 
    /***************************************************************************
     * SL.w
     ***************************************************************************/
-   { "sl.w",      SLFF_W,     1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "sl.w",      SLFW_W,     2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "sl.w",      SL_W,       2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "sl.w",      SLW_W,      3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "sl.w",      SLK_W,      3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "sl.w",      SLFF_W,     1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_SL) "#1#"
+   },
+   { "sl.w",      SLFW_W,     2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_SL) "#1#"
+   },
+   { "sl.w",      SL_W,       2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_SL) "#1#"
+   },
+   { "sl.w",      SLW_W,      3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SL)
+   },
+   { "sl.w",      SLK_W,      3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SL)
+   },
 
    /***************************************************************************
     * SL
     ***************************************************************************/
-   { "sl",        SLFF_W,     1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "sl",        SLFW_W,     2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "sl",        SL_W,       2, { P_SRC_REG, Q_DST_REG }, F_WORD },
-   { "sl",        SLW_W,      3, { BASE_REG, REG, DST_REG }, F_WORD },
-   { "sl",        SLK_W,      3, { BASE_REG, SHIFT_LITERAL, DST_REG }, F_WORD },
+   { "sl",        SLFF_W,     1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFF(S_SL) "#1#"
+   },
+   { "sl",        SLFW_W,     2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPFW(S_SL) "#1#"
+   },
+   { "sl",        SL_W,       2, { P_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_SL) "#1#"
+   },
+   { "sl",        SLW_W,      3, { BASE_REG, REG, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SL)
+   },
+   { "sl",        SLK_W,      3, { BASE_REG, SHIFT_LITERAL, DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SL)
+   },
 
    /***************************************************************************
     * SUB.b
     ***************************************************************************/
-   { "sub.b",     SUBWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "sub.b",     SUBWFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "sub.b",     SUBLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "sub.b",     SUBWFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUB)
+   },
+   { "sub.b",     SUBWFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUB)
+   },
+   { "sub.b",     SUBLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_SUB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "sub.b",     SUBLW_B,    2, { REG, BYTE_LITERAL_10BIT }, F_NONE },
-   { "sub.b",     SUBLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "sub.b",     SUBLW_B,    2, { REG, BYTE_LITERAL_10BIT }, 
+                  F_NONE,
+                  S_OPLW(S_SUB)
+   },
+   { "sub.b",     SUBLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_SUB)
+   },
    { "sub.b",     SUBLS_B,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_SUB)
+   },
    { "sub.b",     SUB_B,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_SUB)
+   },
 
    /***************************************************************************
     * SUB.w
     ***************************************************************************/
-   { "sub.w",     SUBWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "sub.w",     SUBWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "sub.w",     SUBLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "sub.w",     SUBWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUB)
+   },
+   { "sub.w",     SUBWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUB)
+   },
+   { "sub.w",     SUBLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_SUB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "sub.w",     SUBLW_W,    2, { REG, LITERAL_10BIT }, F_WORD },
+   { "sub.w",     SUBLW_W,    2, { REG, LITERAL_10BIT }, 
+                  F_WORD,
+                  S_OPLW(S_SUB)
+   },
    { "sub.w",     SUBLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUB)
+   },
    { "sub.w",     SUB_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUB)
+   },
 
    /***************************************************************************
     * SUB
     ***************************************************************************/
-   { "sub",       DUMMY,      0, { 0 /* for flags */ }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG |
-                                                      F_IS_DSP_INSN },
-   { "sub",       SUBWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "sub",       SUBWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
+   { "sub",       DUMMY,      0, { 0 /* for flags */ }, 
+                  F_WORD | F_HAS_IMPLIED_WREG | F_IS_DSP_INSN,
+                  S_NOP
+   },
+   { "sub",       SUBWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUB)
+   },
+   { "sub",       SUBWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "sub",       SUBLW_W,    2, { REG, LITERAL_10BIT }, F_WORD },
-   { "sub",       SUBLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "sub",       SUBLW_W,    2, { REG, LITERAL_10BIT }, 
+                  F_WORD,
+                  S_OPLW(S_SUB)
+   },
+   { "sub",       SUBLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_SUB)
+   },
    { "sub",       SUBLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUB)
+   },
    { "sub",       SUB_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
-   { "sub",       SUBAB,      1, { DSP_ACCUMULATOR_SELECT }, F_IS_DSP_INSN },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUB)
+   },
+   { "sub",       SUBAB,      1, { DSP_ACCUMULATOR_SELECT }, 
+                  F_IS_DSP_INSN,
+                  S_NOP
+   },
 
    /***************************************************************************
     * SUBB.b
     ***************************************************************************/
-   { "subb.b",    SUBBWFF_B,  1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "subb.b",    SUBBWFW_B,  2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "subb.b",    SUBBLW_B,   2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "subb.b",    SUBBWFF_B,  1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBB)
+   },
+   { "subb.b",    SUBBWFW_B,  2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBB)
+   },
+   { "subb.b",    SUBBLW_B,   2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_SUBB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "subb.b",    SUBBLW_B,   2, { REG, BYTE_LITERAL_10BIT }, F_NONE },
+   { "subb.b",    SUBBLW_B,   2, { REG, BYTE_LITERAL_10BIT }, 
+                  F_NONE,
+                  S_OPLW(S_SUBB)
+   },
    { "subb.b",    SUBBLS_B,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_SUBB)
+   },
    { "subb.b",    SUBB_B,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_SUBB)
+   },
 
    /***************************************************************************
     * SUBB.w
     ***************************************************************************/
-   { "subb.w",    SUBBWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subb.w",    SUBBWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "subb.w",    SUBBLW_W,   2, { LITERAL_10BIT, REG }, F_WORD },
+   { "subb.w",    SUBBWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBB)
+   },
+   { "subb.w",    SUBBWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBB)
+   },
+   { "subb.w",    SUBBLW_W,   2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_SUBB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "subb.w",    SUBBLW_W,   2, { REG, LITERAL_10BIT }, F_WORD },
+   { "subb.w",    SUBBLW_W,   2, { REG, LITERAL_10BIT }, 
+                  F_WORD,
+                  S_OPLW(S_SUBB)
+   },
    { "subb.w",    SUBBLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBB)
+   },
    { "subb.w",    SUBB_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBB)
+   },
 
    /***************************************************************************
     * SUBB
     ***************************************************************************/
-   { "subb",      SUBBWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subb",      SUBBWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "subb",      SUBBLW_W,   2, { LITERAL_10BIT, REG }, F_WORD },
+   { "subb",      SUBBWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBB)
+   },
+   { "subb",      SUBBWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBB)
+   },
+   { "subb",      SUBBLW_W,   2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_SUBB)
+   },
    /* FIXME: The next instr is not valid in the current isa */
-   { "subb",      SUBBLW_W,   2, { REG, LITERAL_10BIT }, F_WORD },
+   { "subb",      SUBBLW_W,   2, { REG, LITERAL_10BIT }, 
+                  F_WORD,
+                  S_OPLW(S_SUBB)
+   },
    { "subb",      SUBBLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBB)
+   },
    { "subb",      SUBB_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBB)
+   },
 
    /***************************************************************************
     * SUBR.b
     ***************************************************************************/
-   { "subr.b",    SUBRWFF_B,  1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "subr.b",    SUBRWFW_B,  2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
+   { "subr.b",    SUBRWFF_B,  1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBR)
+   },
+   { "subr.b",    SUBRWFW_B,  2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBR)
+   },
    { "subr.b",    SUBRLS_B,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_SUBR)
+   },
    { "subr.b",    SUBR_B,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_SUBR)
+   },
 
    /***************************************************************************
     * SUBR.w
     ***************************************************************************/
-   { "subr.w",    SUBRWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subr.w",    SUBRWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
+   { "subr.w",    SUBRWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBR)
+   },
+   { "subr.w",    SUBRWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBR)
+   },
    { "subr.w",    SUBRLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBR)
+   },
    { "subr.w",    SUBR_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBR)
+   },
 
    /***************************************************************************
     * SUBR
     ***************************************************************************/
-   { "subr",      SUBRWFF_W,  1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subr",      SUBRWFW_W,  2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
+   { "subr",      SUBRWFF_W,  1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBR)
+   },
+   { "subr",      SUBRWFW_W,  2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBR)
+   },
    { "subr",      SUBRLS_W,   3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBR)
+   },
    { "subr",      SUBR_W,     3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBR)
+   },
 
    /***************************************************************************
     * SUBBR.b
     ***************************************************************************/
-   { "subbr.b",   SUBBRWFF_B, 1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "subbr.b",   SUBBRWFW_B, 2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
+   { "subbr.b",   SUBBRWFF_B, 1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBBR)
+   },
+   { "subbr.b",   SUBBRWFW_B, 2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBBR)
+   },
    { "subbr.b",   SUBBRLS_B,  3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_SUBBR)
+   },
    { "subbr.b",   SUBBR_B,    3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_SUBBR)
+   },
 
    /***************************************************************************
     * SUBBR.w
     ***************************************************************************/
-   { "subbr.w",   SUBBRWFF_W, 1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subbr.w",   SUBBRWFW_W, 2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
+   { "subbr.w",   SUBBRWFF_W, 1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBBR)
+   },
+   { "subbr.w",   SUBBRWFW_W, 2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBBR)
+   },
    { "subbr.w",   SUBBRLS_W,  3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBBR)
+   },
    { "subbr.w",   SUBBR_W,    3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBBR)
+   },
 
    /***************************************************************************
     * SUBBR
     ***************************************************************************/
-   { "subbr",     SUBBRWFF_W, 1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "subbr",     SUBBRWFW_W, 2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
+   { "subbr",     SUBBRWFF_W, 1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_SUBBR)
+   },
+   { "subbr",     SUBBRWFW_W, 2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_SUBBR)
+   },
    { "subbr",     SUBBRLS_W,  3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_SUBBR)
+   },
    { "subbr",     SUBBR_W,    3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_SUBBR)
+   },
 
    /***************************************************************************
     * SWAP
     ***************************************************************************/
-   { "swap.b",    SWAP_B,     1, { REG }, F_NONE },
-   { "swap.w",    SWAP_W,     1, { REG }, F_WORD },
-   { "swap",      SWAP_W,     1, { REG }, F_WORD },
+   { "swap.b",    SWAP_B,     1, { REG }, 
+                  F_NONE,
+                  S_OP1(S_SWAP)
+   },
+   { "swap.w",    SWAP_W,     1, { REG }, 
+                  F_WORD,
+                  S_OP1(S_SWAP)
+   },
+   { "swap",      SWAP_W,     1, { REG }, 
+                  F_WORD,
+                  S_OP1(S_SWAP)
+   },
 
    /***************************************************************************
     * TBLRDH
     ***************************************************************************/
-   { "tblrdh.b",  TBLRDH_B,   2, { PIND_SRC_REG, Q_DST_REG }, F_NONE },
-   { "tblrdh.w",  TBLRDH_W,   2, { PIND_SRC_REG, Q_DST_REG }, F_WORD },
-   { "tblrdh",    TBLRDH_W,   2, { PIND_SRC_REG, Q_DST_REG }, F_WORD },
+   { "tblrdh.b",  TBLRDH_B,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "tblrdh.w",  TBLRDH_W,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "tblrdh",    TBLRDH_W,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * TBLRDL
     ***************************************************************************/
-   { "tblrdl.b",  TBLRDL_B,   2, { PIND_SRC_REG, Q_DST_REG }, F_NONE },
-   { "tblrdl.w",  TBLRDL_W,   2, { PIND_SRC_REG, Q_DST_REG }, F_WORD },
-   { "tblrdl",    TBLRDL_W,   2, { PIND_SRC_REG, Q_DST_REG }, F_WORD },
+   { "tblrdl.b",  TBLRDL_B,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "tblrdl.w",  TBLRDL_W,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "tblrdl",    TBLRDL_W,   2, { PIND_SRC_REG, Q_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * TBLWTH
     ***************************************************************************/
-   { "tblwth.b",  TBLWTH_B,   2, { P_SRC_REG, QIND_DST_REG }, F_NONE },
-   { "tblwth.w",  TBLWTH_W,   2, { P_SRC_REG, QIND_DST_REG }, F_WORD },
-   { "tblwth",    TBLWTH_W,   2, { P_SRC_REG, QIND_DST_REG }, F_WORD },
+   { "tblwth.b",  TBLWTH_B,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "tblwth.w",  TBLWTH_W,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "tblwth",    TBLWTH_W,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * TBLWTL
     ***************************************************************************/
-   { "tblwtl.b",  TBLWTL_B,   2, { P_SRC_REG, QIND_DST_REG }, F_NONE },
-   { "tblwtl.w",  TBLWTL_W,   2, { P_SRC_REG, QIND_DST_REG }, F_WORD },
-   { "tblwtl",    TBLWTL_W,   2, { P_SRC_REG, QIND_DST_REG }, F_WORD },
+   { "tblwtl.b",  TBLWTL_B,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_NONE,
+                  S_MOV "2" "1"
+   },
+   { "tblwtl.w",  TBLWTL_W,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
+   { "tblwtl",    TBLWTL_W,   2, { P_SRC_REG, QIND_DST_REG }, 
+                  F_WORD,
+                  S_MOV "2" "1"
+   },
 
    /***************************************************************************
     * ULNK
     ***************************************************************************/
-   { "ulnk",      ULNK,       0, { 0 /* OPERANDS */ }, F_CANNOT_FOLLOW_REPEAT },
+   { "ulnk",      ULNK,       0, { 0 /* OPERANDS */ }, 
+                  F_CANNOT_FOLLOW_REPEAT,
+                  S_ULNK
+   },
 
    /***************************************************************************
     * VFSLV
     ***************************************************************************/
-   { "vfslv",     VFSLV,      3, { P_SRC_REG, IND_DST_REG_POST_INC, LITERAL_2BIT},
-                                   F_WORD | F_IS_DSP_INSN | F_ISAV4 },
+   { "vfslv",     VFSLV,      3, { P_SRC_REG, 
+                                   IND_DST_REG_POST_INC, 
+                                   LITERAL_2BIT},
+                  F_WORD | F_IS_DSP_INSN | F_ISAV4,
+                  S_NOP
+   },
 
    /***************************************************************************
     * XOR.b
     ***************************************************************************/
-   { "xor.b",     XORWFF_B,   1, { FILE_REG_BYTE }, F_HAS_IMPLIED_WREG },
-   { "xor.b",     XORWFW_B,   2, { FILE_REG_BYTE, W_REG }, F_HAS_IMPLIED_WREG },
-   { "xor.b",     XORLW_B,    2, { BYTE_LITERAL_10BIT, REG }, F_NONE },
+   { "xor.b",     XORWFF_B,   1, { FILE_REG_BYTE }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_XOR)
+   },
+   { "xor.b",     XORWFW_B,   2, { FILE_REG_BYTE, W_REG }, 
+                  F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_XOR)
+   },
+   { "xor.b",     XORLW_B,    2, { BYTE_LITERAL_10BIT, REG }, 
+                  F_NONE,
+                  S_OPLW(S_XOR)
+   },
    { "xor.b",     XORLS_B,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OPLS(S_XOR)
+   },
    { "xor.b",     XOR_B,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_NONE },
+                                   Q_DST_REG }, 
+                  F_NONE,
+                  S_OP3(S_XOR)
+   },
 
    /***************************************************************************
     * XOR.w
     ***************************************************************************/
-   { "xor.w",     XORWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "xor.w",     XORWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "xor.w",     XORLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "xor.w",     XORWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_XOR)
+   },
+   { "xor.w",     XORWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_XOR)
+   },
+   { "xor.w",     XORLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_XOR)
+   },
    { "xor.w",     XORLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_XOR)
+   },
    { "xor.w",     XOR_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_XOR)
+   },
 
    /***************************************************************************
     * XOR
     ***************************************************************************/
-   { "xor",       XORWFF_W,   1, { FILE_REG }, F_WORD | F_HAS_IMPLIED_WREG },
-   { "xor",       XORWFW_W,   2, { FILE_REG, W_REG }, F_WORD |
-                                                      F_HAS_IMPLIED_WREG },
-   { "xor",       XORLW_W,    2, { LITERAL_10BIT, REG }, F_WORD },
+   { "xor",       XORWFF_W,   1, { FILE_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFF(S_XOR)
+   },
+   { "xor",       XORWFW_W,   2, { FILE_REG, W_REG }, 
+                  F_WORD | F_HAS_IMPLIED_WREG,
+                  S_OPWFW(S_XOR)
+   },
+   { "xor",       XORLW_W,    2, { LITERAL_10BIT, REG }, 
+                  F_WORD,
+                  S_OPLW(S_XOR)
+   },
    { "xor",       XORLS_W,    3, { MATH_BASE_REG,
                                    UNSIGNED_SHORT_LITERAL,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OPLS(S_XOR)
+   },
    { "xor",       XOR_W,      3, { MATH_BASE_REG,
                                    P_SRC_REG,
-                                   Q_DST_REG }, F_WORD },
+                                   Q_DST_REG }, 
+                  F_WORD,
+                  S_OP3(S_XOR)
+   },
 
    /***************************************************************************
     * ZE
     ***************************************************************************/
-   { "ze",        ZE_W,       2, { P_SRC_REG, DST_REG }, F_WORD },
-   { "ze.w",      ZE_W,       2, { P_SRC_REG, DST_REG }, F_WORD },
+   { "ze",        ZE_W,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ZE)
+   },
+   { "ze.w",      ZE_W,       2, { P_SRC_REG, DST_REG }, 
+                  F_WORD,
+                  S_OP2(S_ZE)
+   },
 
 };
 const int pic30_num_opcodes =
@@ -3103,6 +4860,24 @@ pic30_insert_file_reg_word_with_dst (insn, flags, opnd,
 
 /******************************************************************************/
 
+void record_private_data(info, reg, mode) 
+   struct disassemble_info * info;
+   long reg;
+   int mode;
+{
+  if (info->private_data) {
+    struct pic30_private_data *private_data = info->private_data;
+    if (private_data->opcode) {
+      if (private_data->opnd_no >= MAX_OPERANDS) {
+        fprintf(stderr,"*** error recording operands\n");
+      } else {
+        private_data->reg[private_data->opnd_no] = reg;
+        private_data->mode[private_data->opnd_no++] = mode;
+      }
+    }
+  }
+}
+
 char * pic30_extract_file_reg_word_with_dst (insn, info, flags, opnd, err)
    unsigned long insn;
    struct disassemble_info * info __attribute__ ((__unused__));
@@ -3128,6 +4903,7 @@ char * pic30_extract_file_reg_word_with_dst (insn, info, flags, opnd, err)
 
    sprintf (rc, "0x%lx", file_reg_word);
 
+   record_private_data(info, file_reg_word, -1*OPND_UNKNOWN);
    return rc;
 } /* char * pic30_extract_file_reg_word_with_dst(...) */
    
@@ -3358,6 +5134,7 @@ pic30_extract_g_reg (insn, info, flags, opnd, err)
    long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
                                       PIC30_SRC_MODE_SHIFT);
 
+   record_private_data(info, reg_num, mode);
    return pic30_generate_g_or_h_operand (insn, reg_num, mode, flags, err);
 } /* char * pic30_extract_g_reg(...) */
 
@@ -3414,6 +5191,7 @@ pic30_extract_h_dst_reg (insn, info, flags, opnd, err)
    long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
                                       PIC30_DST_MODE_SHIFT);
 
+   record_private_data(info, reg_num, mode);
    return pic30_generate_g_or_h_operand (insn, reg_num, mode, flags, err);
 } /* char * pic30_extract_h_dst_reg(...) */
 
@@ -3606,6 +5384,7 @@ pic30_extract_p_src_reg (insn, info, flags, opnd, err)
    long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
                                       PIC30_SRC_MODE_SHIFT);
 
+   record_private_data(info, reg_num, mode);
    return pic30_generate_p_or_q_operand (reg_num, mode, err);
 } /* char * pic30_extract_p_src_reg(...) */
 
@@ -3658,6 +5437,7 @@ pic30_extract_q_dst_reg (insn, info, flags, opnd, err)
    long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
                                       PIC30_DST_MODE_SHIFT);
 
+   record_private_data(info, reg_num, mode);
    return pic30_generate_p_or_q_operand (reg_num, mode, err);
 } /* char * pic30_extract_q_dst_reg(...) */
 
@@ -3710,6 +5490,7 @@ pic30_extract_sacd_dst_reg (insn, info, flags, opnd, err)
    long mode = PIC30_EXTRACT_OPERAND (insn, PIC30_ADDRESSING_MODE_BITS,
                                       PIC30_DST_MODE_SHIFT);
 
+   record_private_data(info, reg_num, mode);
    return pic30_generate_p_or_q_operand (reg_num, mode, err);
 } /* char * pic30_extract_q_dst_reg(...) */
 
@@ -3822,6 +5603,7 @@ pic30_extract_lo_reg (insn, info, flags, opnd, err)
                             ((literal_offset >= 0) ? "+" : ""),
                             literal_offset);
 
+   record_private_data(info, reg_num, G_OR_H_REGISTER_WITH_DISPLACEMENT);
    return rc;
 }
 
@@ -4021,6 +5803,7 @@ pic30_extract_byte_10bit_lit (insn, info, flags, opnd, err)
    rc = (char *) malloc (1 + BASE_10_STRING_LENGTH + 1);
    sprintf (rc, "#0x%lx", lit);
 
+   record_private_data(info, lit, -1*OPND_CONSTANT);
    return rc;
 } /* char * pic30_extract_byte_10bit_lit(...) */
 
@@ -4045,6 +5828,7 @@ pic30_extract_byte_cp_8bit_lit (insn, info, flags, opnd, err)
    rc = (char *) malloc (1 + BASE_10_STRING_LENGTH + 1);
    sprintf (rc, "#0x%lx", lit);
 
+   record_private_data(info, lit, -1*OPND_CONSTANT);
    return rc;
 }
 /******************************************************************************/char *
@@ -4062,6 +5846,7 @@ pic30_extract_page_reg (insn, info, flags, opnd, err)
    rc = (char *) malloc (1 + strlen(pic30_page_registers[lit]) + 1);
    sprintf (rc, "%s", pic30_page_registers[lit]);
 
+   record_private_data(info, lit, -1*OPND_PAGE_SYMBOL);
    return rc;
 }
 
@@ -4079,7 +5864,8 @@ pic30_extract_wmul_dst_reg (insn, info, flags, opnd, err)
 
    rc = (char *) malloc (1 + strlen(pic30_registers[lit*2]) + 1);
    sprintf (rc, "%s",  pic30_registers[lit*2]);
-
+  
+   record_private_data(info, lit *2, P_OR_Q_REGISTER_DIRECT);
    return rc;
 }
 
@@ -4115,13 +5901,14 @@ pic30_extract_w_reg (insn, info, flags, opnd, err)
  ******************************************************************************/
 
 {
+   long w_reg_flag = 1;
    char * rc = malloc (strlen (PIC30_W_REGISTER_STRING) + 1);
 
    if (flags & F_HAS_REQUIRED_WREG)
       strcpy (rc, PIC30_W_REGISTER_STRING);
    else
    {
-      long w_reg_flag =
+      w_reg_flag =
          PIC30_EXTRACT_OPERAND (insn, opnd->bits, opnd->shift);
 
       if (!w_reg_flag)
@@ -4130,6 +5917,7 @@ pic30_extract_w_reg (insn, info, flags, opnd, err)
          strcpy (rc, "");
    } /* else */
 
+   if (w_reg_flag) record_private_data(info, 0, -1*OPND_W_REGISTER_DIRECT);
    return rc;
 } /* char * pic30_extract_w_reg(...) */
 
@@ -4341,11 +6129,7 @@ pic30_extract_offset (insn, info, flags, opnd, err)
      asymbol *sym = 0;
      bfd_vma try;     
      int i;
-#if 0 
-     int i;
-     for (i = 0; i < info->num_symbols; i++)
-        fprintf(stderr, "%s\t%d\n", info->symbols[i]->name, bfd_asymbol_value(info->symbols[i]));
-#endif
+
      /* Perform a binary search of the range (min, max).  */
      if (info->num_symbols > 0) {
        for (i = 0; i < info->num_symbols; i++) {
@@ -4371,44 +6155,11 @@ pic30_extract_offset (insn, info, flags, opnd, err)
            }
         }
       }
-
-#if 0
-       while (min + 1 < max) {
-
-         thisplace = (max + min) / 2;
-         //thisplace = min + 1;
-         sym = info->symbols[thisplace];
-         try = bfd_asymbol_value (sym);
-
-         if (try > info->target)
-           max = thisplace;
-         else if (try < info->target)
-           min = thisplace;
-         else {
-           if ((try == info->target) && 
-               PIC30_DISPLAY_AS_PROGRAM_MEMORY(sym->section))
-             sym_found = thisplace;
-           break;
-         }
-       }
-     sprintf(rc, "0x%lx", info->target);
-     if (sym_found) {
-       while (sym_found >= min) {
-         sym = info->symbols[sym_found];
-         try = bfd_asymbol_value (sym);
-         if ((try == info->target) && sym->section != bfd_abs_section_ptr) {
-           strcat(rc, " <");
-           strcat(rc, bfd_asymbol_name(sym));
-           strcat(rc, ">");
-         }
-         sym_found--;
-       }
-     } 
-#endif
    }
    else
      sprintf(rc, ".");
 
+   record_private_data(info, offset, -1*OPND_CONSTANT);
    return rc;
 } /* char * pic30_extract_offset(...) */
 
@@ -4456,6 +6207,7 @@ pic30_extract_branch_on_dsp_condition_operand (insn, info, flags, opnd, err)
          break;
    } /* switch (condition_code) */
 
+   record_private_data(info, condition_code, -1*OPND_BRANCH_ON_DSP_CONDITION);
    return rc;
 } /* char * pic30_extract_branch_on_dsp_condition_operand(...) */
 
@@ -4543,6 +6295,7 @@ pic30_extract_branch_on_condition_operand (insn, info, flags, opnd, err)
          break;
    } /* switch (condition_code) */
 
+   record_private_data(info, condition_code, -1*OPND_BRANCH_ON_CONDITION);
    return rc;
 } /* char * pic30_extract_branch_on_condition_operand(...) */
 
@@ -4678,6 +6431,7 @@ pic30_extract_dsp_accumulator_select (insn, info, flags, opnd, err)
    else
       strcpy (rc, "");
 
+   record_private_data(info, dsp_accumulator, -1*OPND_DSP_ACCUMULATOR_SELECT);
    return rc;
 } /* char * pic30_extract_dsp_accumulator_select(...) */
 
@@ -4867,6 +6621,7 @@ pic30_extract_dsp_writeback (insn, info, flags, opnd, err)
          break;
    } /* switch (writeback) */
 
+   record_private_data(info, writeback, -1*OPND_UNKNOWN);
    return rc;
 } /* char * pic30_extract_dsp_writeback(...) */
 
@@ -5227,6 +6982,7 @@ pic30_extract_dsp_x_prefetch_operation (insn, info, flags, opnd, err)
          break;
    } /* switch (operation) */
 
+   record_private_data(info, operation, -1*OPND_UNKNOWN);
    return rc;
 } /* char * pic30_extract_dsp_x_prefetch_operation(...) */
 
@@ -5288,6 +7044,7 @@ pic30_extract_dsp_prefetch_dst (insn, info, flags, opnd, err)
 
    strcpy(rc, pic30_registers[which_register]);
 
+   record_private_data(info, which_register, -1*OPND_REGISTER_DIRECT);
    return rc;
 } /* char * pic30_extract_dsp_x_prefetch_operation(...) */
 
@@ -5605,6 +7362,7 @@ pic30_extract_dsp_y_prefetch_operation (insn, info, flags, opnd, err)
          break;
    } /* switch (operation) */
 
+   record_private_data(info, operation, -1*OPND_UNKNOWN);
    return rc;
 } /* char * pic30_extract_dsp_y_prefetch_operation(...) */
 
@@ -5659,6 +7417,7 @@ pic30_extract_dsp_multiplicand (insn, info, flags, opnd, err)
          strcpy (rc, "???");
          break;
    }
+   record_private_data(info, multiplicand, -1*OPND_DSP_MULTIPLICAND);
    return rc;
 } /* char * pic30_extract_dsp_multiplicand(...) */
 
@@ -5690,6 +7449,7 @@ pic30_extract_dsp_square(insn, info, flags, opnd, err)
 
    sprintf(rc, "w%ld * w%ld", register_number, register_number);
 
+   record_private_data(info, register_number, -1*OPND_DSP_SQUARE);
    return rc;
 } /* char * pic30_extract_dsp_square(...) */
 

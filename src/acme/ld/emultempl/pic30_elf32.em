@@ -3468,6 +3468,7 @@ get_aivt_base ()
     unsigned int aivtdis_bit = 0;
     unsigned char *contents;
     lang_memory_region_type *region;
+    unsigned int opb;
 
     if (pic30_debug) {
       printf("\nget_aivt_base: aivt disable bit location 0x%6.6x\n", 
@@ -3482,9 +3483,10 @@ get_aivt_base ()
       {
         if (PIC30_IS_ABSOLUTE_ATTR(sec))
         {
+          opb = bfd_octets_per_byte(f->the_bfd);
           len = bfd_section_size (f->the_bfd, sec);
           if ((aivtdis_bit_ptr >= sec->vma) &&
-              (aivtdis_bit_ptr < sec->vma + len))
+              (aivtdis_bit_ptr < sec->vma + len/opb))
           {
             contents = xmalloc (len);
             if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
@@ -3501,7 +3503,7 @@ get_aivt_base ()
             free(contents);
           }
           if ((aivtloc_ptr >= sec->vma) &&
-              (aivtloc_ptr < sec->vma + len))
+              (aivtloc_ptr < sec->vma + len/opb))
           {
             contents = xmalloc (len);
             if (!bfd_get_section_contents (f->the_bfd, sec, contents, 0, len))
@@ -3521,11 +3523,23 @@ get_aivt_base ()
                 einfo(_("%P%X: Error: Cannot determine AIVT base address.\n"));
               }
               fbslim_address = aivt_base * pagesize;
+#ifdef FIX_XC16_1027
+/* do we want to move cheese for v1.32? */
+#define OFF_BY 2
+#else
+#define OFF_BY 0
+#endif
               if (((fbslim_address < program_base_address()) ||
-                   (fbslim_address >= program_end_address())) &&
-                  (fbslim_address != 0)) /* If BSLIM[12:0] is set to all 1s
-                                            Active Boot Segment size is zero.*/ 
-                einfo(_("%P: Warning: Invalid FBSLIM setting.\n"));
+                   (fbslim_address > OFF_BY+program_end_address())) &&
+                   (fbslim_address != 0)) {
+                /* If BSLIM[12:0] is set to all 1s
+                   Active Boot Segment size is zero.*/
+                einfo(_("%P: Warning: Invalid FBSLIM setting.\n"
+                      "  calculated end address of 0x%V is not within bounds:\n"
+                      "  0x%V to 0x%V for 'program' region\n"),
+                      fbslim_address, program_base_address(),
+                      program_end_address());
+              }    
               aivt_base -= 1;
               aivt_base *= pagesize;
               /* CAW - this should be recorded in the resource information? */
@@ -3546,7 +3560,7 @@ get_aivt_base ()
 
 
     if ((fbslim_address < program_base_address()) ||
-        (fbslim_address >= program_end_address()))
+        (fbslim_address > OFF_BY+program_end_address()))
       { 
         pic30_has_user_boot = FALSE;
         pic30_boot_flash_size = 0;

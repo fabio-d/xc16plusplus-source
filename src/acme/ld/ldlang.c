@@ -3549,24 +3549,20 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		      einfo (_("%P: warning: no memory region specified for section `%s'\n"),
 			     bfd_get_section_name (output_bfd,
 						   os->bfd_section));
+#if PIC30
                     /* use aivt_base to allocate floating aivt */
                     if ((strcmp(os->name,".aivt") == 0) && aivt_enabled) {
                       dot = aivt_base; 
                       bfd_set_user_set_vma(0, os->bfd_section, TRUE);
                       in_aivt_section = 1;
                     } else 
+#endif
 		      dot = os->region->current;
 
 		    if (os->section_alignment == -1)
 		      {
 			bfd_vma olddot;
 
-#if 0
-			/* DEBUG */
-			printf("seq alloc %s, region = %s, trial dot = %lx\n",
-						bfd_get_section_name (output_bfd, os->bfd_section),
-						(os->region ? os->region->name: "none"), dot);
-#endif
 			olddot = dot;
 			dot = align_power (dot,
 					   os->bfd_section->alignment_power);
@@ -3700,11 +3696,15 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
    | PIC30_IS_STACK_ATTR(s) | PIC30_IS_HEAP_ATTR(s))
 
         pic30_set_output_section_flags(os);
-#if 0
-        if (pic30_debug)
-          printf("\n  sequential section %s, os_map = %x\n",
-                  os->bfd_section->name, os_map);
-#endif
+        if (pic30_debug) {
+          if (os->region) {
+            printf("\n  sequential section %s in region %s"
+                   "\n    [orgin = %x, dot = %x, length = %x]\n",
+                    os->bfd_section->name, os->region->name, 
+                    os->region->origin, dot, 
+                    os->region->origin + os->region->length);
+          }
+        }
         if (os->bfd_section->_raw_size > 0) {
           for (s = unassigned_sections; s != NULL; s = next) {
             next = s->next;
@@ -3834,12 +3834,16 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 						(os->region ? os->region->name : "none"), dot);
 #endif
 
-#ifndef PIC30
+#ifdef PIC30
+                /* do not check sections if we have requested an address */
+                if (os->bfd_section->user_set_vma)
+                  (void)(0);
+                else
+#endif
 		if (check_regions)
 		  /* Make sure the new address is within the region.  */
 		  os_region_check (os, os->region, os->addr_tree,
 				   os->bfd_section->vma);
-#endif
 
 		/* If there's no load address specified, use the run
 		   region as the load region.  */

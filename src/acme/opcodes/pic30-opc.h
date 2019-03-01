@@ -383,8 +383,6 @@
 #define PIC30_EXTRACT_OPERAND(insn, bits, shift) \
   (((insn) >> (shift)) & ((1 << (bits)) - 1))
 
-
-
 #define PIC30_BASE_OPERAND (0)
 
 #define BASE_10_STRING_LENGTH 10

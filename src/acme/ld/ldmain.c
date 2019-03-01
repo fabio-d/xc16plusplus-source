@@ -43,6 +43,61 @@
 #include "ldctor.h"
 
 #if PIC30
+#include <stdlib.h>
+#ifdef __MINGW32__
+#include <process.h>
+#endif
+
+#ifdef __MINGW32__
+void execute(char *cmd, char **argv) {
+  int rc;
+
+  fflush(0);
+  argv[0] = malloc(strlen(cmd) + 3);
+  if (argv[0] == 0) {
+    bfd_set_error (bfd_error_system_call);
+    einfo (_("%P%F: cannot spawn process\n"));
+    return;
+  }
+  sprintf(argv[0],"\"%s\"", cmd);
+  rc = _spawnv(_P_WAIT, cmd, argv);
+  free(argv[0]);
+  argv[0] = 0;
+}
+
+#else
+void execute(char *cmd, char **argv) {
+  int rc;
+
+  char *full_cmd = 0;
+  unsigned int size;
+
+  fflush(0);
+  size = strlen(cmd);
+  for (rc = 1; argv[rc]; rc++) {
+    size++;
+    size += strlen(argv[rc]);
+  }
+  size++;
+
+  full_cmd = malloc(size);
+  if (full_cmd == 0) {
+    bfd_set_error (bfd_error_system_call);
+    einfo (_("%P%F: cannot spawn process\n"));
+    return;
+  }
+
+  full_cmd[0]=0;
+  strcat(full_cmd,cmd);
+  for (rc = 1; argv[rc]; rc++) {
+    strcat(full_cmd," ");
+    strcat(full_cmd,argv[rc]);
+  }
+  system(full_cmd);
+}
+#endif
+
+
 extern int pic30_global_warning;
 extern const char *pic30_resource_version;
 #endif
@@ -594,6 +649,58 @@ main (argc, argv)
 	       (long) (lim - (char *) &environ));
 #endif
     }
+
+#ifdef PIC30
+  /* CAW */
+  extern const bfd_arch_info_type * global_PROCESSOR;
+  extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+  if (pic30_is_ecore_machine(global_PROCESSOR)) {
+#define objdump_suffix "-objdump\""
+#define objdump_suffix_exe "-objdump.exe"
+     char *real_objdump = malloc(1 + strlen(program_name) + 
+                            sizeof(objdump_suffix_exe) + 1);
+     char **objdump_args;
+     int x;
+     int found = 0;
+     char *objdump = real_objdump;
+  
+     if (objdump) {
+       /* opening quote; closing quote in objdump_suffix define */
+       objdump[0] = '"';
+       strcpy(objdump+1,program_name);
+       for (x = strlen(objdump); x > 0; x--) {
+         if (strcmp(objdump+x,"-ld") == 0) {
+           sprintf(objdump+x,"%s", objdump_suffix);
+           found = 1;
+           break;
+         }
+         if (strcmp(objdump+x,"-ld.exe") == 0) {
+           sprintf(objdump+x,"%s", objdump_suffix_exe);
+           objdump++;
+           found = 1;
+           break;
+         }
+       }
+       if (found) {
+         objdump_args = malloc(4*sizeof(char*));
+         if (objdump_args) {
+           objdump_args[0] = 0;                        /* will be filled in if
+                                                        needed by execute() */
+           objdump_args[1] = strdup("--psrd-psrd-check");
+  
+           objdump_args[2] = malloc(strlen(output_filename)+3);
+           if (objdump_args[2]) {
+             sprintf(objdump_args[2],"\"%s\"", output_filename);
+	     objdump_args[3] = 0;
+
+             execute(objdump,objdump_args);
+           }
+         }
+       }
+       free(real_objdump);
+     }
+  }
+#endif
 
   /* Prevent remove_output from doing anything, after a successful link.  */
   output_filename = NULL;

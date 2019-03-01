@@ -1062,6 +1062,7 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_peephole2);
 #if defined(_BUILD_C30_)
           NEXT_PASS (pass_RAW_count);
+          NEXT_PASS (pass_PSV_PSV_count);
 #endif
 	  NEXT_PASS (pass_stack_regs);
 	    {

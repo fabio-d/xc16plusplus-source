@@ -613,6 +613,119 @@ enum pic30_baseop
   OP_ZE_W,
 };
 
+/* for semantic informtion; fmt is: (width)opt [op [opnd]*]*
+ *  currently we only use the direction information
+ *
+ *       16=3 +12           (add.w src, src, dest)
+ *
+ *                               1   2    3    4    5    6
+ *       16 01=3[]2=5[]4=61 (clr A, [Wx], Wxd [Wy], Wyd, W13
+ */
+
+/*
+ * width is optional; none of these can start with !0 numeral
+ */
+
+#define S_FIXED_REG "W"  // followed by 2-digi register number
+#define S_LITERAL   "#"  // followed by value#
+
+/* operations are 2 letter combos; first letter cannot be 1..9 */
+#define S_ADD   " +"
+#define S_ADDC  "C+"
+#define S_AND   " &"
+#define S_ASR   ">>"
+#define S_ASRN  "N>"
+
+#define S_BCLR  "B1"
+#define S_BRA   ">-"
+#define S_BRAC  ">C"
+#define S_BSET  "B1"
+
+#define S_CALL  ">c"
+#define S_CLR   " 0"
+#define S_CLRAC "00"     /* clrac encodes its operands... */
+#define S_CLBR  "XX"
+#define S_CP0   "0?"
+#define S_CPB   "b?"
+
+#define S_DEREF "[]"
+#define S_DEC   "- "
+#define S_DEC2  "-2"
+#define S_DIV   " /"
+#define S_DO    "DO"
+
+#define S_ED    "ED"
+#define S_EDAC  "EA"
+#define S_EXCH  "><"
+#define S_EQ    "EQ"
+
+#define S_FBCL  "CL"
+#define S_FF1L  "L1"
+#define S_FF1R  "R1"
+
+#define S_GT    "GT"
+
+#define S_INC   "+ "
+#define S_INC2  "+2"
+#define S_IOR   " |"
+
+#define S_LNK   "LN"
+#define S_LSR   "0>"
+#define S_LSRN  "n>"
+#define S_LT    "LT"
+
+#define S_MAC   "*+"
+#define S_MOD   " %"
+#define S_MOV   " ="
+#define S_MPY   "**"     /* MPY encodes its operands... */
+#define S_MPYN  "-*"     /* MPYN encodes its operands... */
+#define S_MSC   "*-"     /* MSC encodes its operands... */
+#define S_MUL   " *"
+
+#define S_NE    "NE"
+#define S_NEG   "!2"
+#define S_NOP   "  "     /* nop means no measurable operation, not just nop */
+
+#define S_OTHER "!!"     /* used only for writebacks */
+
+#define S_POP   "-["
+#define S_PFTCH "P["     /* prefetch addresses are encoded */
+#define S_PUSH  "+["
+
+#define S_RET   "<-"
+#define S_RESET "00"
+#define S_ROTLC "C<"
+#define S_ROTRC "C>"
+#define S_ROTLN "c<"
+#define S_ROTRN "c>"
+
+#define S_RPT   "()"
+
+#define S_SE    "SE"
+#define S_SET   " 1"
+#define S_SKPC  ">0"
+#define S_SKPS  ">1"
+#define S_SL    "0<"
+#define S_SLN   "n<"
+#define S_SQR   "^2"     /* MPY/SQR encodes its operands... */
+#define S_SUB   " -"
+#define S_SUBB  "C-"
+#define S_SUBR  "-c"
+#define S_SUBBR "-C"
+#define S_SWAP  "<>"
+
+#define S_TGL   "!1"
+#define S_TST   " ?"
+
+#define S_ULNK  "UL"
+
+#define S_XOR   " ^"
+
+#define S_ZE    "ZE"
+
+#define S_UNK   "??"
+
+
 #define MAX_OPERANDS 8
 #define MAX_WORDS_PER_INSN 2
 
@@ -644,8 +757,59 @@ struct pic30_opcode
   unsigned long operands[MAX_OPERANDS];
   /* Different flags needed for this opcode */
   unsigned long flags;
+  /* extra information for this instruction */
+  const char *semantics;
 };
 /******************************************************************************/
 extern const struct pic30_opcode pic30_opcodes[];
 extern const int pic30_num_opcodes;
+
+/* private_data
+ *
+ * extract_insn will now store some useful information about the extracted
+ *   value instead of simply returning a string
+ *
+*/
+void record_private_data(struct disassemble_info *, long, int);
+
+struct pic30_private_data {
+  const struct pic30_opcode *opcode;
+  int opnd_no;
+  long reg[MAX_OPERANDS];
+  int mode[MAX_OPERANDS];
+};
+
+enum opkind {
+  ok_error = 0,
+  ok_unused,
+  ok_operand_number,
+  ok_register_number,
+  ok_subexpr,
+  ok_literal,
+};
+
+enum opflags {
+  of_none = 0,
+  of_input = 1,
+  of_output = 2,
+};
+
+struct pic30_semantic_operand {
+  enum opkind kind;
+  enum opflags flags;
+  union {
+    int number;
+    struct pic30_semantic_expr *e;
+  } value;
+};
+
+struct pic30_semantic_expr {
+  int operation;
+  struct pic30_semantic_operand operands[MAX_OPERANDS];
+  struct pic30_semantic_expr *next;
+};
+
+struct pic30_semantic_operand *
+pic30_semantic_operand_n(struct pic30_semantic_expr *, int);
+
 #endif /* __OPCODE_PIC30_H__ */

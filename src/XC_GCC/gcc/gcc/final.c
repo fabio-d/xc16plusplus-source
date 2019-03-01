@@ -4298,6 +4298,23 @@ rest_of_handle_final (void)
   final (get_insns (), asm_out_file, optimize);
   final_end_function ();
 
+#ifdef _BUILD_C30_
+  if (pic30_psrd_psrd_check) {
+    extern int pic30_inserted_nops;
+    extern int pic30_rtx_nops;
+
+    if (pic30_inserted_nops + pic30_rtx_nops) {
+      char *name = IDENTIFIER_POINTER(DECL_NAME(current_function_decl));
+
+      fprintf(stderr,"function %s:\n  psrd_psrd inserted %d nops, "
+                     "pattern nops %d\n", 
+                     name, pic30_inserted_nops, pic30_rtx_nops);
+    }
+    pic30_inserted_nops = 0;
+    pic30_rtx_nops = 0;
+  }
+#endif
+
 #ifdef TARGET_UNWIND_INFO
   /* ??? The IA-64 ".handlerdata" directive must be issued before
      the ".endp" directive that closes the procedure descriptor.  */

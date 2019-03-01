@@ -998,7 +998,8 @@ group_section_alignment(struct pic30_section *g)
   }
 
   /* validate boot segment */
-  if (PIC30_IS_BOOT_ATTR(s->sec) && !BOOT_IS_ACTIVE(alloc_region_index)) {
+  if (PIC30_IS_BOOT_ATTR(s->sec) && !BOOT_IS_ACTIVE(alloc_region_index) &&
+      (s->sec->linked ==0)) {
     einfo(_("%X Link Error: Could not allocate section \'%s\'"
             " because boot segment has not been defined\n"),s->sec->name);
     pic30_remove_group_from_section_list(alloc_section_list,s);
@@ -1006,7 +1007,8 @@ group_section_alignment(struct pic30_section *g)
   }
 
   /* validate secure segment */
-  if (PIC30_IS_SECURE_ATTR(s->sec) && !SECURE_IS_ACTIVE(alloc_region_index)) {
+  if (PIC30_IS_SECURE_ATTR(s->sec) && !SECURE_IS_ACTIVE(alloc_region_index) &&
+      (s->sec->linked ==0)) {
     einfo(_("%X Link Error: Could not allocate section \'%s\'"
             " because secure segment has not been defined\n"),s->sec->name);
     pic30_remove_group_from_section_list(alloc_section_list,s);
@@ -2579,7 +2581,17 @@ build_free_block_list(struct memory_region_struct *region,
         if (pic30_debug)
           printf("  block %d, addr = %lx, len = %lx\n",
                  ++cnt, dot, len);
-        if ((dot >= max_aivt_addr) && (dot < aivt_base + aivt_len)) {
+#if 0
+        if ((dot > max_aivt_addr) && (dot < aivt_base + aivt_len)) 
+#else
+        /* we are supposed to be ommitting the space between the end of the
+           vector table and the ... end of the vector page, but if there is
+           no vector table then max_aivt_addr == 0 and we can't allocate any
+           boot */
+        if ((dot > (max_aivt_addr ? max_aivt_addr : aivt_base)) && 
+            (dot < aivt_base + aivt_len)) 
+#endif
+        {
           (void) 0;
         } else {
           pic30_add_to_memory_list(free_blocks, dot, len);  /* add free block */

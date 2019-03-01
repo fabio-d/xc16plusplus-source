@@ -63,6 +63,7 @@ extern unsigned int mchp_pragma_keep;
 extern unsigned int mchp_pragma_printf_args;
 extern unsigned int mchp_pragma_scanf_args;
 extern unsigned int mchp_pragma_inline;
+extern int pic30_rtx_nops;
 
 void pic30_optimization_options(int level, int size);
 unsigned int pic30_validate_dsp_instructions(void);
@@ -415,6 +416,14 @@ extern enum machine_mode pic30_unified_mode(tree);
 
 void pic30_adjust_reg_alloc_order();
 
+int pic30_psrd_psrd_errata(rtx op1, rtx op2);
+int pic30_psrd_psrd_errata_movd(rtx op1, rtx op2);
+
+int pic30_legitimize_reload_address(rtx X, enum machine_mode MODE, 
+                                    unsigned int OPNUM, 
+                                    int TYPE,
+                                    unsigned int IND_LEVELS,
+                                    rtx insn);
 #ifdef GCC_C_PRAGMA_H
 #endif
 

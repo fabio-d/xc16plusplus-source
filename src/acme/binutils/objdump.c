@@ -35,10 +35,13 @@
 #if PIC30
 #include <ctype.h>
 #include "../bfd/coff-pic30.h"
+#include "opcode/pic30.h"
+#include "../opcodes/pic30-opc.h"
 
 extern void pic30_set_extended_attributes
   PARAMS ((asection *, unsigned int, unsigned char ));
 #endif
+
 
 /* Internal headers for the ELF .stab-dump code - sorry.  */
 #define	BYTES_IN_WORD	32
@@ -126,6 +129,28 @@ static long dynsymcount = 0;
 #endif
 static long bit_count;
 static long bit_total;
+
+enum psrd_psrd_mode {
+  psrd_psrd_off = 0,
+  psrd_psrd_executable_mode = 1,
+  psrd_psrd_library_mode = 2
+};
+
+enum debug_trace_status {
+  dbg_nothing = 0,
+  dbg_parsing = 1,
+  dbg_invalid = 2,
+  dbg_xfactor = 4,
+  dbg_insitu =  8,
+  dbg_annulled = 16,
+  dbg_all = 0xFFFF
+};
+
+static int debug_trace = 0;
+static enum psrd_psrd_mode back_to_back_psv = 0;
+static int back_to_back_psrd_count = 0;
+static int back_to_back_psrd_xfactor = 0;
+const char *pic30_filename = 0;
 #endif
 
 static bfd_byte *stabs;
@@ -229,6 +254,8 @@ usage (stream, status)
   -h, --[section-]headers  Display the contents of the section headers\n\
   -x, --all-headers        Display the contents of all headers\n\
   -d, --disassemble        Display assembler contents of executable sections\n\
+      --psrd-psrd-check    While disassembling, flag potential conflicts due\n\
+                             to back to back Flash accesses\n\
   -D, --disassemble-all    Display assembler contents of all sections\n\
   -S, --source             Intermix source code with disassembly\n\
   -s, --full-contents      Display the full contents of all sections requested\n\
@@ -284,6 +311,8 @@ usage (stream, status)
 #define OPTION_START_ADDRESS (OPTION_ENDIAN + 1)
 #define OPTION_STOP_ADDRESS (OPTION_START_ADDRESS + 1)
 #define OPTION_ADJUST_VMA (OPTION_STOP_ADDRESS + 1)
+#define OPTION_PSRD_PSRD_CHECK (OPTION_ADJUST_VMA +1)
+#define OPTION_999 (OPTION_PSRD_PSRD_CHECK+1)
 
 static struct option long_options[]=
 {
@@ -322,6 +351,11 @@ static struct option long_options[]=
   {"target", required_argument, NULL, 'b'},
   {"version", no_argument, NULL, 'V'},
   {"wide", no_argument, NULL, 'w'},
+#if PIC30
+  {"psrd-psrd-check", optional_argument, NULL, OPTION_PSRD_PSRD_CHECK },
+  {"psv-psv-check", optional_argument, NULL, OPTION_PSRD_PSRD_CHECK },
+  {"999", optional_argument, NULL, OPTION_999},
+#endif
   {0, no_argument, 0, 0}
 };
 
@@ -1420,6 +1454,591 @@ objdump_sprintf VPARAMS ((SFILE *f, const char *format, ...))
   return n;
 }
 
+/* 7 is the indirect hardware modes */
+
+#define OPND_ANY_REGISTER_INDIRECT       \
+   (                                     \
+     7                                 | \
+     OPND_REGISTER_INDIRECT            | \
+     OPND_REGISTER_POST_DECREMENT      | \
+     OPND_REGISTER_POST_INCREMENT      | \
+     OPND_REGISTER_PRE_DECREMENT       | \
+     OPND_REGISTER_PRE_INCREMENT       | \
+     OPND_REGISTER_WITH_DISPLACEMENT   | \
+     OPND_REGISTER_PLUS_LITERAL        | \
+     OPND_REGISTER_MINUS_LITERAL       | \
+     OPND_REGISTER_POST_INCREMENT_BY_N | \
+     OPND_REGISTER_POST_DECREMENT_BY_N   \
+   )
+
+/* omit [Wm+Wn] */
+#define OPND_ALMOST_ANY_REGISTER_INDIRECT       \
+   (                                     \
+     7                                 | \  
+     OPND_REGISTER_INDIRECT            | \
+     OPND_REGISTER_POST_DECREMENT      | \
+     OPND_REGISTER_POST_INCREMENT      | \
+     OPND_REGISTER_PRE_DECREMENT       | \
+     OPND_REGISTER_PRE_INCREMENT       | \
+     OPND_REGISTER_PLUS_LITERAL        | \
+     OPND_REGISTER_MINUS_LITERAL       | \
+     OPND_REGISTER_POST_INCREMENT_BY_N | \
+     OPND_REGISTER_POST_DECREMENT_BY_N   \
+   )
+
+enum register_state {
+   rs_unknown,
+   rs_stack_offset,
+   rs_output_pointer,
+   rs_small_literal,
+   rs_literal,
+   rs_xfactor
+};
+
+struct psrd_psrd_facts {
+  struct {
+    bfd_vma memaddr;
+    int opnd[MAX_OPERANDS];
+  } last_hit;
+  struct {
+    unsigned int fSFA:1;                  /* current state of SFA */
+    unsigned int fSFA_for_fn:1;           /* SFA state for current fn */
+    unsigned int fREPEAT:1;               /* REPEAT n > 0 */
+    unsigned int fREPEATED:1;             /* REPEATed insn */
+    unsigned int precon_lddw:1;           /* during connecting code check
+                                              we have seen a mov.d PSV */
+    asymbol *current_fn;
+    bfd_vma current_fn_addr;
+    asymbol *last_sym;
+    bfd_vma last_sym_addr;
+    bfd_vma precon_addr;                  /* precondition found */
+    bfd_vma precon_single_psv_insn;       /* single PSV insn found here */
+  } state;
+  struct {
+    enum register_state register_state;
+    unsigned value;
+  } register_info[16];
+};
+
+struct psrd_psrd_matches {
+  bfd_vma memaddr;
+  bfd_vma precon_addr;
+  struct psrd_psrd_matches *next;
+} *possible_psrd_psrd_matches = NULL;
+
+static void
+pic30_psv_clear_register_facts_helper(struct psrd_psrd_facts *facts,
+                                      int from,int to) {
+  unsigned int j;
+
+  int max = sizeof(facts->register_info)/sizeof(facts->register_info[0]);
+  if (to < max) max = to;
+
+  for (j = 0; j < max; j++) {
+    facts->register_info[j].register_state = rs_unknown;
+  }
+  if (facts->state.fSFA_for_fn) 
+    facts->register_info[14].register_state = rs_stack_offset;
+  facts->register_info[15].register_state = rs_stack_offset;
+}
+
+static void
+pic30_psv_clear_register_facts(struct psrd_psrd_facts *facts) {
+  pic30_psv_clear_register_facts_helper(facts, 0, 15);
+}
+
+static void
+pic30_psv_clear_register_facts_abi(struct psrd_psrd_facts *facts) {
+  pic30_psv_clear_register_facts_helper(facts, 0, 7);
+}
+
+static enum register_state 
+pic30_psv_get_register_state(struct psrd_psrd_facts *facts, int reg) {
+  if (reg == 15) return rs_stack_offset;
+  if ((reg >= 0) && (reg < 15)) {
+    return facts->register_info[reg].register_state;
+  }
+  return rs_unknown;
+}
+
+static int
+pic30_register_mode_is(int mode, int is) 
+{
+  if (mode < 0) mode = -mode;
+  return (mode & is);
+}
+
+static int
+pic30_register_direct_mode(int mode)
+{
+  /* 
+   . modes >= 0 are hardware register mode encodings
+   . modes < are OPND_* modes 
+   . mode == 0 is REGISTER_DIRECT
+   . various negative modes means the same thing
+   .
+  */
+  if (mode <= 0) {
+    mode = -mode;
+    if ((mode == 0) || 
+        ((mode & (OPND_REGISTER_DIRECT | OPND_W_REG |
+                  OPND_W_REGISTER_DIRECT)) != 0)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int
+pic30_unconditional_branch(unsigned int op) {
+  switch (op) {
+    /* unconditional branch */
+    case OP_BRA:
+    case OP_BRAW:
+    case OP_BRAWE:
+
+    /* call */
+    case OP_CALLW:
+    case OP_CALL:
+    case OP_RCALLW:
+    case OP_RCALL:
+
+    /* goto */
+    case OP_GOTOW:
+    case OP_GOTO:
+
+    /* reset */
+    case OP_RESET:
+
+    /* return */
+    case OP_RETURN:
+    case OP_RETFIE:
+    case OP_RETLW_B:
+    case OP_RETLW_W:
+      return 1;
+  }
+  return 0;
+}
+
+static void
+pic30_annul_precondition(facts, info, memaddr, private_data, e) 
+  struct psrd_psrd_facts *facts;
+  struct disassemble_info *info;
+  bfd_vma memaddr;
+  struct pic30_private_data *private_data;
+  struct pic30_semantic_expr *e;
+{
+  /* The connecting code cannot contain a SINGLE psv insn ending on an even
+     address */
+  int opnd;
+
+  if (facts->state.precon_addr == 0) {
+    facts->state.precon_single_psv_insn = 0;
+    return;
+  }
+
+  switch (private_data->opcode->baseop) {
+    default:  /* more checking needed */
+              break;
+    case OP_TBLRDL_B:
+    case OP_TBLRDL_W:
+    case OP_TBLRDH_B:
+    case OP_TBLRDH_W:
+      /* definately PSV */
+      if (facts->state.precon_single_psv_insn == 0) {
+        if ((debug_trace & dbg_annulled) &&
+            (debug_trace & dbg_insitu)) {
+          (*info->fprintf_func)(info->stream,
+               "%8x:\t*** single? psv insn\n", memaddr);
+        }
+        facts->state.precon_single_psv_insn = memaddr;
+      }
+      return;
+  }
+
+  /* is it provably another kind of PSV? */
+  for (opnd = 0; opnd < private_data->opcode->number_of_operands; opnd++) {
+    struct pic30_semantic_operand *operand;
+
+    if (pic30_operands[private_data->opcode->operands[opnd]].type & OPND_W_REG){
+      /* we won't actually find this operand in the private data */
+    } else if ((opnd < private_data->opnd_no) && e) {
+      operand = pic30_semantic_operand_n(e,opnd+1);
+      if (operand && (operand->kind != ok_error)) {
+        int regno =  private_data->reg[opnd];
+        if ((private_data->opcode->baseop == OP_LDW) && (opnd == 0)) {
+          if (private_data->reg[0] >= 0x8000) {
+            if (facts->state.precon_single_psv_insn == 0) {
+              facts->state.precon_single_psv_insn = memaddr;
+              if ((debug_trace & dbg_annulled) &&
+                  (debug_trace & dbg_insitu)) {
+                (*info->fprintf_func)(info->stream,
+                     "%8x:\t*** single? psv insn\n", memaddr);
+              }
+            }
+            return;
+          }
+        } else if ((operand->flags == of_input) && 
+                   (private_data->mode[opnd] > 0)) {
+          enum register_state reg_info;
+   
+          reg_info = pic30_psv_get_register_state(facts, regno);
+          if ((reg_info == rs_literal) || (reg_info == rs_xfactor)) {
+            /* rs_literal means a value > 0x8000 (PSV address)
+               rs_xfactor means it is the same registers as the xfactor insn,
+                 either they are both PSV or neither PSV --- in which case
+                 the precon might be cleared */
+            if (private_data->opcode->baseop == OP_LDDW) {
+              /* single PSV cannot be a lddw, track we've seen it */
+              facts->state.precon_lddw = 1;
+            }
+            if (facts->state.precon_single_psv_insn == 0) {
+              facts->state.precon_single_psv_insn = memaddr;
+              if ((debug_trace & dbg_annulled) &&
+                  (debug_trace & dbg_insitu)) {
+                (*info->fprintf_func)(info->stream,
+                     "%8x:\t*** single? psv insn\n", memaddr);
+              }
+            }
+            return;
+          } else if ((reg_info == rs_stack_offset) ||
+                     (reg_info == rs_small_literal) ||
+                     (reg_info == rs_output_pointer)) {
+            /* definately not PSV; keep looking */
+          } else {
+            /* an indirect read that we cannot identify, assume it does not
+               affect the precondition */
+            return;
+          }
+        }
+      }
+    }
+  }
+  
+  /* if we get here:
+   * 1) not a tblrd insn
+  
+   * 3) not an insn with a provable PSV access
+   *
+   */
+
+  if (((facts->state.precon_single_psv_insn & 0x02) == 0) &&
+      (facts->state.precon_lddw == 0) &&
+      (facts->state.precon_single_psv_insn + 2 == memaddr)) {
+    if ((debug_trace & dbg_annulled) &&
+        (debug_trace & dbg_insitu)) {
+      (*info->fprintf_func)(info->stream,
+           "%8x:\t*** annulled precondition (single psv)\n", 
+           facts->state.precon_single_psv_insn);
+    }
+    facts->state.precon_addr = 0;
+  }
+  facts->state.precon_lddw = 0;
+  facts->state.precon_single_psv_insn = 0;
+}
+
+static void
+pic30_detect_back_to_back_psv (memaddr, info, sym) 
+  bfd_vma memaddr;
+  struct disassemble_info *info;
+  asymbol *sym;
+{
+  /* currently we search for back to back psv reads with the first read
+   . being on an odd address 
+   */
+
+  /* notes on SFA ----
+   .    we track the current state of the SFA and the current functions
+   .    general state of the SFA.  If we have a function with multiple return
+   .    points, we need to reset the SFA to the functions SFA when we hit
+   .    a label:
+   .
+   .    if (1) return 8;
+   .    else return 9;
+   .
+   .    The true and false branches may both ulnk (unlikely) so we need to
+   .    reset the current SFA status for the else branch 
+   */
+  static struct psrd_psrd_facts facts = { -1 };
+
+  struct pic30_private_data *private_data;
+  int opnd;
+  struct pic30_semantic_expr *e;
+  int insn_references_stack_ptr = 0;
+  int check_address;
+  int literal = 0;
+
+  if (!info->private_data) return;
+  private_data = info->private_data;
+
+  if (sym) {
+    /* we note symbols separately */
+    if (sym->flags & BSF_FUNCTION) {
+      /* a new function */
+      facts.state.current_fn = sym;
+      facts.state.current_fn_addr = memaddr;
+      facts.state.fSFA_for_fn = 0;
+      facts.state.precon_addr = 0;
+    }
+    facts.state.precon_single_psv_insn = 0;
+    facts.state.last_sym = sym;
+    facts.state.last_sym_addr = memaddr;
+    facts.state.fSFA = facts.state.fSFA_for_fn;
+    pic30_psv_clear_register_facts(&facts);
+    return;
+  }
+
+  if (private_data->opcode == 0) return;
+
+  /* note some facts */
+  if (private_data->opcode->baseop == OP_LNK) {
+    facts.state.fSFA = 1;
+    if (facts.state.last_sym == facts.state.current_fn) {
+      facts.state.fSFA_for_fn = 1;
+    }
+    /* often? or for COFF the symbol flags are not properly set
+     . if the lnk instruction has the same address as the label, assume
+     .   that the label marks the beginning of a function
+     */
+    if (facts.state.last_sym_addr == memaddr) {
+      facts.state.fSFA_for_fn = 1;
+      facts.state.current_fn = sym;
+      facts.state.current_fn_addr = memaddr;
+    }
+    facts.register_info[14].register_state = rs_stack_offset;
+  }
+  if (private_data->opcode->baseop == OP_ULNK) {
+    facts.state.fSFA = 0;
+  }
+  if ((facts.state.precon_addr != 0) && 
+      pic30_unconditional_branch(private_data->opcode->baseop)) {
+    facts.state.precon_addr = 0;
+    if ((debug_trace & dbg_annulled) &&
+        (debug_trace & dbg_insitu)) {
+      (*info->fprintf_func)(info->stream,
+         "%8x:\t*** annulled precondition (branch taken)\n", memaddr);
+    }
+  }
+
+  e = pic30_analyse_semantics(info);
+
+  if (private_data->opcode->baseop == OP_REPEAT) {
+    struct pic30_semantic_operand *operand;
+    operand = pic30_semantic_operand_n(e,1);
+    if (pic30_register_mode_is(private_data->mode[0],OPND_CONSTANT)) {
+      if (private_data->reg[0] > 0) facts.state.fREPEAT = 1;
+    } 
+  } else if (facts.state.fREPEAT) {
+    facts.state.fREPEATED = 1;
+    facts.state.fREPEAT = 0;
+  }
+  if ((private_data->opcode->baseop == OP_CALL) ||
+      (private_data->opcode->baseop == OP_CALLW) ||
+      (private_data->opcode->baseop == OP_RCALLW) ||
+      (private_data->opcode->baseop == OP_RCALL)) {
+    /* this will clobber w0-w7 */
+    pic30_psv_clear_register_facts_abi(&facts);
+  }
+
+  /* 
+   * check this before we note the output register affects of the instruction.
+   */
+  pic30_annul_precondition(&facts, info, memaddr, private_data, e);
+
+  /* note some reigster facts */
+  for (opnd = 0; opnd < private_data->opcode->number_of_operands; opnd++) {
+    struct pic30_semantic_operand *operand;
+
+    if (pic30_operands[private_data->opcode->operands[opnd]].type & OPND_W_REG){
+      /* we won't actually find this operand in the private data */
+    } else if ((opnd < private_data->opnd_no) && e) {
+      operand = pic30_semantic_operand_n(e,opnd+1);
+      if (operand && (operand->kind != ok_error)) {
+        int regno =  private_data->reg[opnd];
+        if (pic30_register_mode_is(private_data->mode[opnd],OPND_CONSTANT)) {
+          literal = regno;
+        } else if (pic30_register_direct_mode(private_data->mode[opnd])) {
+          if (operand->flags == of_input) {
+            if (pic30_psv_get_register_state(&facts,regno) == rs_stack_offset) {
+              insn_references_stack_ptr = 1;
+            }
+          } else if (operand->flags == of_output) {
+            /* we have just written to this register; clear its state  --
+                 and then maybe learn something new */
+            facts.register_info[regno].register_state = rs_unknown;
+            if (insn_references_stack_ptr || 
+                // this may be an over-simplification; but if SFA then W14
+                //   will always be stack related
+                ((regno == 14) && facts.state.fSFA)) {
+              facts.register_info[regno].register_state = rs_stack_offset;
+            } else if (private_data->opcode->baseop == OP_MOVL_W) {
+              if (literal < 0x8000) {
+                facts.register_info[regno].register_state = rs_small_literal;
+              } else facts.register_info[regno].register_state = rs_literal;
+            }
+          }
+        } else if (operand->flags == of_output) {
+          if (pic30_register_mode_is(private_data->mode[opnd],
+                                     OPND_ALMOST_ANY_REGISTER_INDIRECT)) {
+            /* indirect access (with a single register) unless we know better */
+            facts.register_info[regno].register_state = rs_output_pointer;
+          }
+        } else if ((operand->flags == of_input) &&
+                   (private_data->mode[opnd] > 0)) {
+          if ((private_data->opcode->baseop == OP_LDDW) && 
+              (((memaddr & 0x02) == 0) || 
+               (back_to_back_psv == psrd_psrd_library_mode))) {
+            int reg = private_data->reg[opnd];
+            /* even: mov.d [Wx], ... */
+            if (pic30_psv_get_register_state(&facts, reg) == rs_stack_offset) {
+              if (debug_trace & dbg_invalid) {
+                 fprintf(stdout,"%8x:\t*** ignoring opnd %d (stack)\n",
+                         memaddr, opnd);
+              }
+            } else if (pic30_psv_get_register_state(&facts,reg) == 
+                         rs_output_pointer) {
+              if (debug_trace & dbg_invalid) {
+                 fprintf(stdout,"%8x:\t*** ignoring opnd %d (not psv)\n",
+                         memaddr, opnd);
+              }
+            } else {
+              back_to_back_psrd_xfactor = 1;
+              if (facts.state.precon_addr == 0) {
+                facts.state.precon_addr = memaddr;
+                facts.register_info[reg].register_state = rs_xfactor;
+                if (debug_trace & dbg_xfactor) {
+                   fprintf(stdout,"%8x:\t*** xfactor insn [w%d]\n", 
+                           memaddr, reg);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* 
+   * reasons 
+   */
+
+  if (facts.state.fREPEATED) {
+    if (debug_trace & dbg_invalid)
+      fprintf(stdout,"%8x:\t*** skipped: repeat target\n", memaddr);
+    facts.state.fREPEATED = 0;
+    return;
+  }
+
+  if (back_to_back_psv == psrd_psrd_library_mode) {
+    check_address = 1;
+  } else {
+    check_address = (memaddr & 0x02);
+  }
+
+  if ((check_address==0) && (facts.last_hit.memaddr +2 != memaddr)) {
+    if (debug_trace & dbg_invalid)
+      fprintf(stdout,"%8x:\t*** skipped: even address\n", memaddr);
+    return;
+  }
+
+  if (private_data->opcode->number_of_operands == 0) {
+    if (debug_trace & dbg_invalid)
+      fprintf(stdout,"%8x:\t*** skipped: no operands\n", memaddr);
+    return;
+  }
+
+  if ((check_address) || (facts.last_hit.memaddr + 2 == memaddr)) {
+    for (opnd = 0; opnd < private_data->opcode->number_of_operands; opnd++) {
+      struct pic30_semantic_operand *operand;
+
+      if (check_address == 0) {
+        facts.last_hit.opnd[opnd] = 0;
+      }
+      if (pic30_operands[private_data->opcode->operands[opnd]].type 
+            & OPND_W_REG) {
+        /* we won't actually find this operand in the private data */
+      } else if ((opnd < private_data->opnd_no) && e) {
+        /* semantic operands are 1 based */
+        operand = pic30_semantic_operand_n(e,opnd+1);
+        if (operand && (operand->kind != ok_error)) {
+          if (operand->flags == of_input) {
+            int psrd_possible = 0;
+            if ((private_data->opcode->baseop == OP_LDW)  && (opnd == 0)) {
+              if (private_data->reg[0] >= 0x8000) psrd_possible = 1;
+            } else if (private_data->mode[opnd] > 0) {
+              if (pic30_psv_get_register_state(
+                    &facts, private_data->reg[opnd]) == rs_small_literal) {
+          
+                if (debug_trace & dbg_invalid) {
+                   fprintf(stdout,"%8x:\t*** ignoring opnd %d (data addr)\n",
+                           memaddr, opnd);
+                }
+                continue;
+              } else if (pic30_psv_get_register_state(
+                    &facts, private_data->reg[opnd]) == rs_stack_offset) {
+                if (debug_trace & dbg_invalid) {
+                   fprintf(stdout,"%8x:\t*** ignoring opnd %d (stack ptr)\n",
+                           memaddr, opnd);
+                }
+                continue;
+              } else if (pic30_psv_get_register_state(
+                           &facts,private_data->reg[opnd])==rs_output_pointer) {
+                if (debug_trace & dbg_invalid) {
+                   fprintf(stdout,"%8x:\t*** ignoring opnd %d (not psv)\n",
+                           memaddr, opnd);
+                }
+                continue;
+              } else psrd_possible = 1;
+            }
+            if (psrd_possible) {
+              if (facts.last_hit.memaddr + 2 == memaddr) {
+                if ((facts.state.precon_addr) && 
+                    (facts.state.precon_addr < memaddr)) {
+                  if (facts.state.precon_addr + 4 < memaddr) {
+                    int i;
+                    struct psrd_psrd_matches *match_info;
+
+                    back_to_back_psrd_count++;
+                
+                    match_info = malloc(sizeof(struct psrd_psrd_matches));
+                    if ((match_info == 0) || (debug_trace & dbg_insitu)) {
+                      (*info->fprintf_func)(info->stream, 
+                        "%8x:\t*** possible psrd_psrd match; "
+                        "last precondition @ %6x\n", 
+                              facts.last_hit.memaddr, facts.state.precon_addr);
+                    } 
+                    if (match_info) {
+                      match_info->memaddr = facts.last_hit.memaddr;
+                      match_info->precon_addr = facts.state.precon_addr;
+                      match_info->next = possible_psrd_psrd_matches;
+                      possible_psrd_psrd_matches = match_info;
+                    }
+                  } else {
+                    if ((debug_trace & dbg_annulled) &&
+                        (debug_trace & dbg_insitu)) {
+                      (*info->fprintf_func)(info->stream, 
+                        "%8x:\t*** annulled psrd_psrd match (too soon)\n", 
+                              facts.last_hit.memaddr);
+                    }
+                  }
+                }
+              } else if (check_address) {
+                facts.last_hit.memaddr = memaddr;
+                facts.last_hit.opnd[opnd] = 1;
+              } else {
+                facts.last_hit.memaddr = -2;
+              }
+            }
+          }
+        }
+      } else if (debug_trace & dbg_parsing) {
+        fprintf(stdout, "  %02x --- missing operand info? (%d,%d)\n",
+                memaddr, private_data->opnd_no, opnd);
+      }
+    }
+  }
+}
+
 /* The number of zeroes we want to see before we start skipping them.
    The number is arbitrarily chosen.  */
 
@@ -1460,6 +2079,8 @@ disassemble_bytes (info, disassemble_fn, insns, data,
   int skip_addr_chars;
   bfd_vma addr_offset;
   int opb = info->octets_per_byte;
+
+  struct pic30_private_data private_data;
 
   aux = (struct objdump_disasm_info *) info->application_data;
   section = aux->sec;
@@ -1507,14 +2128,14 @@ disassemble_bytes (info, disassemble_fn, insns, data,
       for (z = addr_offset * opb; z < stop_offset * opb; z++)
 	if (data[z] != 0)
 	  break;
-      if (! disassemble_zeroes
+      if (! disassemble_zeroes && (back_to_back_psv == psrd_psrd_off)
 	  && (info->insn_info_valid == 0
 	      || info->branch_delay_insns == 0)
 	  && (z - addr_offset * opb >= SKIP_ZEROES
 	      || (z == stop_offset * opb &&
 		  z - addr_offset * opb < SKIP_ZEROES_AT_END)))
 	{
-	  printf ("\t...\n");
+	  (*info->fprintf_func)(info->stream,"\t...\n");
 
 	  /* If there are more nonzero octets to follow, we only skip
              zeroes in multiples of 4, to try to avoid running over
@@ -1549,14 +2170,14 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		*s = ' ';
 	      if (*s == '\0')
 		*--s = '0';
-	      printf ("%s:\t", buf + skip_addr_chars);
+	      (*info->fprintf_func)(info->stream,"%s:\t", buf + skip_addr_chars);
 	    }
 	  else
 	    {
 	      aux->require_sec = TRUE;
 	      objdump_print_address (section->vma + addr_offset, info);
 	      aux->require_sec = FALSE;
-	      putchar (' ');
+	       (*info->fprintf_func)(info->stream," ");
 	    }
 
 	  if (insns)
@@ -1564,6 +2185,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	      sfile.size = 120;
 	      sfile.buffer = xmalloc (sfile.size);
 	      sfile.current = sfile.buffer;
+              if (disassemble)
 	      info->fprintf_func = (fprintf_ftype) objdump_sprintf;
 	      info->stream = (FILE *) &sfile;
 	      info->bytes_per_line = 0;
@@ -1580,15 +2202,19 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 #endif
 		info->flags = 0;
 
+              info->private_data = &private_data;
+
 	      octets = (*disassemble_fn) (section->vma + addr_offset, info);
-	      info->fprintf_func = (fprintf_ftype) fprintf;
+
+              if (disassemble) 
+	        info->fprintf_func = (fprintf_ftype) fprintf;
 	      info->stream = stdout;
 	      if (info->bytes_per_line != 0)
 		octets_per_line = info->bytes_per_line;
 	      if (octets < 0)
 		{
 		  if (sfile.current != sfile.buffer)
-		    printf ("%s\n", sfile.buffer);
+		     (*info->fprintf_func)(info->stream,"%s\n", sfile.buffer);
 		  free (sfile.buffer);
 		  break;
 		}
@@ -1645,14 +2271,14 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		  if (bpc > 1 && info->display_endian == BFD_ENDIAN_LITTLE)
 		    {
 		      for (k = bpc - 1; k >= 0; k--)
-			printf ("%02x", (unsigned) data[j + k]);
-		      putchar (' ');
+			 (*info->fprintf_func)(info->stream,"%02x", (unsigned) data[j + k]);
+		       (*info->fprintf_func)(info->stream," ");
 		    }
 		  else
 		    {
 		      for (k = 0; k < bpc; k++)
-			printf ("%02x", (unsigned) data[j + k]);
-		      putchar (' ');
+			 (*info->fprintf_func)(info->stream,"%02x", (unsigned) data[j + k]);
+		       (*info->fprintf_func)(info->stream," ");
 		    }
 		}
 
@@ -1661,22 +2287,22 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		  int k;
 
 		  for (k = 0; k < bpc; k++)
-		    printf ("  ");
-		  putchar (' ');
+		    (*info->fprintf_func)(info->stream,"  ");
+		   (*info->fprintf_func)(info->stream," ");
 		}
 
 	      /* Separate raw data from instruction by extra space.  */
 	      if (insns)
-		putchar ('\t');
+		(*info->fprintf_func)(info->stream,"\t");
 	      else
-		printf ("    ");
+		(*info->fprintf_func)(info->stream,"    ");
 	    }
 
 	  if (! insns)
-	    printf ("%s", buf);
+	    (*info->fprintf_func)(info->stream,"%s", buf);
 	  else
 	    {
-	      printf ("%s", sfile.buffer);
+	      (*info->fprintf_func)(info->stream,"%s", sfile.buffer);
 	      free (sfile.buffer);
 	    }
 
@@ -1689,7 +2315,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		  bfd_vma j;
 		  char *s;
 
-		  putchar ('\n');
+		  (*info->fprintf_func)(info->stream,"\n");
 		  j = addr_offset * opb + pb;
 
 		  bfd_sprintf_vma (aux->abfd, buf, section->vma + j / opb);
@@ -1697,7 +2323,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		    *s = ' ';
 		  if (*s == '\0')
 		    *--s = '0';
-		  printf ("%s:\t", buf + skip_addr_chars);
+		  (*info->fprintf_func)(info->stream,"%s:\t", buf + skip_addr_chars);
 
 		  pb += octets_per_line;
 		  if (pb > octets)
@@ -1721,14 +2347,14 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		      if (bpc > 1 && info->display_endian == BFD_ENDIAN_LITTLE)
 			{
 			  for (k = bpc - 1; k >= 0; k--)
-			    printf ("%02x", (unsigned) data[j + k]);
-			  putchar (' ');
+			    (*info->fprintf_func)(info->stream,"%02x", (unsigned) data[j + k]);
+			  (*info->fprintf_func)(info->stream," ");
 			}
 		      else
 			{
 			  for (k = 0; k < bpc; k++)
-			    printf ("%02x", (unsigned) data[j + k]);
-			  putchar (' ');
+			    (*info->fprintf_func)(info->stream,"%02x", (unsigned) data[j + k]);
+			  (*info->fprintf_func)(info->stream," ");
 			}
 		    }
 #ifdef PIC30
@@ -1740,7 +2366,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	    }
 
 	  if (!wide_output)
-	    putchar ('\n');
+	    (*info->fprintf_func)(info->stream,"\n");
 	  else
 	    need_nl = TRUE;
 	}
@@ -1765,16 +2391,16 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	      q = **relppp;
 
 	      if (wide_output)
-		putchar ('\t');
+		(*info->fprintf_func)(info->stream,"\t");
 	      else
-		printf ("\t\t\t");
+		(*info->fprintf_func)(info->stream,"\t\t\t");
 
 	      objdump_print_value (section->vma + q->address, info, TRUE);
 
-	      printf (": %s\t", q->howto->name);
+	      (*info->fprintf_func)(info->stream,": %s\t", q->howto->name);
 
 	      if (q->sym_ptr_ptr == NULL || *q->sym_ptr_ptr == NULL)
-		printf ("*unknown*");
+		(*info->fprintf_func)(info->stream,"*unknown*");
 	      else
 		{
 		  const char *sym_name;
@@ -1790,27 +2416,37 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 		      sym_name = bfd_get_section_name (aux->abfd, sym_sec);
 		      if (sym_name == NULL || *sym_name == '\0')
 			sym_name = "*unknown*";
-		      printf ("%s", sym_name);
+		      (*info->fprintf_func)(info->stream,"%s", sym_name);
 		    }
 		}
 
 	      if (q->addend)
 		{
-		  printf ("+0x");
+		  (*info->fprintf_func)(info->stream,"+0x");
 		  objdump_print_value (q->addend, info, TRUE);
 		}
 
-	      printf ("\n");
+	      (*info->fprintf_func)(info->stream,"\n");
 	      need_nl = FALSE;
 	      ++(*relppp);
 	    }
 	}
 
       if (need_nl)
-	printf ("\n");
+	(*info->fprintf_func)(info->stream,"\n");
+
+#ifdef PIC30
+      if (back_to_back_psv != psrd_psrd_off) {
+          pic30_detect_back_to_back_psv(section->vma + addr_offset, info, 0);
+      }
+#endif
 
       addr_offset += octets / opb;
     }
+}
+
+static int noprintf(FILE *out,const char *fmt,...) {
+  return 0;
 }
 
 /* Disassemble the contents of an object file.  */
@@ -1825,6 +2461,10 @@ disassemble_data (abfd)
   struct objdump_disasm_info aux;
   asection *section;
   unsigned int opb;
+
+#ifdef PIC30
+  enum psrd_psrd_mode save_back_to_back_psv = back_to_back_psv;
+#endif
 
   print_files = NULL;
   prev_functionname = NULL;
@@ -1846,7 +2486,10 @@ disassemble_data (abfd)
   qsort (sorted_syms_by_type, sorted_symcount, sizeof (asymbol *), 
          compare_symbols_by_type);
 
-  INIT_DISASSEMBLE_INFO (disasm_info, stdout, fprintf);
+  if (!disassemble) {
+    INIT_DISASSEMBLE_INFO (disasm_info, stdout, noprintf);
+  } else 
+    INIT_DISASSEMBLE_INFO (disasm_info, stdout, fprintf);
 
   disasm_info.application_data = (PTR) &aux;
   memset(&aux, 0, sizeof(aux));
@@ -1914,6 +2557,10 @@ disassemble_data (abfd)
       asymbol *sym = NULL;
       long place = 0;
 
+#ifdef PIC30
+      back_to_back_psv = save_back_to_back_psv;
+#endif
+
       if ((section->flags & SEC_LOAD) == 0
 	  || (! disassemble_all
 	      && only == NULL
@@ -1973,7 +2620,21 @@ disassemble_data (abfd)
 	    }
 	}
 
-      printf (_("Disassembly of section %s:\n"), section->name);
+      if (disassemble)
+        printf (_("Disassembly of section %s:\n"), section->name);
+
+#ifdef PIC30
+      /* can rule out back_to_back checking for a few sections.
+       . unfortuantely there are no flags; but we have names from them...
+       */
+      if (strncmp(section->name,".dinit",6) == 0) {
+        back_to_back_psv = psrd_psrd_off;
+      } else if (strncmp(section->name,".ivt.",5) == 0) {
+        back_to_back_psv = psrd_psrd_off;
+      } else if (strncmp(section->name,".config",7) == 0) {
+        back_to_back_psv = psrd_psrd_off;
+      }
+#endif
 
       datasize = bfd_get_section_size_before_reloc (section);
       if (datasize == 0)
@@ -2043,7 +2704,7 @@ disassemble_data (abfd)
 	    disasm_info.symbols = NULL;
 #endif
 
-	  if (! prefix_addresses)
+	  if ((! prefix_addresses) && (disassemble))
 	    {
 	      (* disasm_info.fprintf_func) (disasm_info.stream, "\n");
 	      objdump_print_addr_with_sym (abfd, section, sym,
@@ -2105,6 +2766,12 @@ disassemble_data (abfd)
 	  else
 	    insns = FALSE;
 
+#ifdef PIC30
+          /* note the symbol */
+          if (sym != NULL && (back_to_back_psv != psrd_psrd_off))
+            pic30_detect_back_to_back_psv(section->vma + addr_offset, 
+                                          &disasm_info, sym);
+#endif
 	  disassemble_bytes (&disasm_info, disassemble_fn, insns, data,
 			     addr_offset, nextstop_offset, &relpp, relppend);
 
@@ -2117,6 +2784,48 @@ disassemble_data (abfd)
       if (relbuf != NULL)
 	free (relbuf);
     }
+#ifdef PIC30
+  back_to_back_psv = save_back_to_back_psv;
+#endif
+
+  if (back_to_back_psv != psrd_psrd_off) {
+    if (back_to_back_psv == psrd_psrd_library_mode) {
+       back_to_back_psrd_xfactor = 1;
+    }
+    if (back_to_back_psrd_xfactor == 0) {
+      // invalidate the ones we found
+      back_to_back_psrd_count = 0;
+    }
+    if (disassemble || 
+        ((back_to_back_psrd_count != 0) && (back_to_back_psrd_xfactor))) {
+      FILE *where = stdout;
+
+      if (!disassemble) {
+        where = stderr;
+      } else if (back_to_back_psrd_count) {
+        struct psrd_psrd_matches *match;
+        for (match = possible_psrd_psrd_matches; match; match = match->next) {
+          fprintf(where, "\npossible psrd_psrd match @ %02x;\n"
+                         "   with last preconditon match @ %02x" , 
+                  match->memaddr, match->precon_addr);
+        }
+      } 
+      fprintf(where,"\n\npsrd_psrd check summary: found %d possible match%s\n", 
+                back_to_back_psrd_count, 
+                back_to_back_psrd_count != 1 ? "es" :"");
+      if (!disassemble) {
+        fprintf(where,"To review the possible matches in context; use:\n\t");
+        fprintf(where,"\"%s\" -d --psrd-psrd-check %s\n", 
+                 program_name, pic30_filename);
+      }
+      if (back_to_back_psrd_count) {
+        fprintf(where,
+                "\nFor more information, "
+                "please review http://www.microchip.com/erratum_psrd_psrd\n");
+      }
+      fprintf(where,"\n");
+    }
+  }
   free (sorted_syms);
 }
 
@@ -2355,6 +3064,8 @@ bfd *abfd;
 
 /* Dump selected contents of ABFD.  */
 
+#define PIC30_QUIET if ((back_to_back_psv == psrd_psrd_off) || (disassemble))
+
 static void
 dump_bfd (abfd)
      bfd *abfd;
@@ -2373,8 +3084,10 @@ dump_bfd (abfd)
 	}
     }
 
-  printf (_("\n%s:     file format %s\n"), bfd_get_filename (abfd),
-	  abfd->xvec->name);
+  PIC30_QUIET {
+    printf (_("\n%s:     file format %s\n"), bfd_get_filename (abfd),
+	    abfd->xvec->name);
+  }
 #if PIC30
   /* load symbols now */
   syms = slurp_symtab (abfd);
@@ -2422,12 +3135,16 @@ dump_bfd (abfd)
     dump_bfd_header (abfd);
   if (dump_private_headers)
     dump_bfd_private_header (abfd);
+#if PIC30
+  if (disassemble)
+#endif
   putchar ('\n');
   if (dump_section_headers)
     dump_headers (abfd);
 
 #if !PIC30
-  if (dump_symtab || dump_reloc_info || disassemble || dump_debugging)
+  if (dump_symtab || dump_reloc_info || disassemble || dump_debugging ||
+      back_to_back_psv)
     syms = slurp_symtab (abfd);
 #endif
   if (dump_dynamic_symtab || dump_dynamic_reloc_info)
@@ -2445,7 +3162,7 @@ dump_bfd (abfd)
     dump_dynamic_relocs (abfd);
   if (dump_section_contents)
     dump_data (abfd);
-  if (disassemble)
+  if (disassemble || back_to_back_psv)
     disassemble_data (abfd);
   if (dump_debugging)
     {
@@ -2531,11 +3248,16 @@ display_file (filename, target)
       return;
     }
 
+#ifdef PIC30
+  pic30_filename = strdup(filename);
+#endif
   if (bfd_check_format (file, bfd_archive))
     {
       bfd *last_arfile = NULL;
 
-      printf (_("In archive %s:\n"), bfd_get_filename (file));
+      PIC30_QUIET {
+        printf (_("In archive %s:\n"), bfd_get_filename (file));
+      }
       for (;;)
 	{
 	  bfd_set_error (bfd_error_no_error);
@@ -2562,6 +3284,12 @@ display_file (filename, target)
     display_bfd (file);
 
   bfd_close (file);
+#ifdef PIC30
+  if (pic30_filename) {
+    free(pic30_filename);
+    pic30_filename = 0;
+  }
+#endif
 }
 
 /* Actually display the various requested regions */
@@ -3145,6 +3873,35 @@ main (argc, argv)
 	case 'w':
 	  wide_output = TRUE;
 	  break;
+        case OPTION_999:
+          if (optarg) {
+            if (strstr(optarg,"all")) {
+              debug_trace = dbg_all;
+            } else {
+              if (strstr(optarg,"pars")) {
+                debug_trace |= dbg_parsing;
+              }
+              if (strstr(optarg,"invalid")) {
+                debug_trace |= dbg_invalid;
+              }
+              if (strstr(optarg,"xfactor")) {
+                debug_trace |= dbg_xfactor;
+              }
+              if (strstr(optarg,"insitu")) {
+                debug_trace |= dbg_insitu;
+              }
+              if (strstr(optarg,"annulled")) {
+                debug_trace |= dbg_annulled;
+              }
+            }
+          }
+          break;
+        case OPTION_PSRD_PSRD_CHECK:
+	  seenflag = TRUE;
+          back_to_back_psv = psrd_psrd_executable_mode;
+          if (optarg && strcasecmp(optarg,"library") == 0) 
+            back_to_back_psv = psrd_psrd_library_mode;
+          break;
 	case OPTION_ADJUST_VMA:
 	  adjust_section_vma = parse_vma (optarg, "--adjust-vma");
 	  break;
@@ -3208,6 +3965,7 @@ main (argc, argv)
 	  break;
 	case 'd':
 	  disassemble = TRUE;
+          debug_trace |= dbg_insitu;
 	  seenflag = TRUE;
 	  break;
 	case 'z':

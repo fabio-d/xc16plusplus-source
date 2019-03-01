@@ -210,6 +210,9 @@ pic30_disassemble_2word_insn (opcode, insn_word1, memaddr, info)
    bfd_byte bytes_read[PIC30_SIZE_OF_PROGRAM_WORD + 1];
    int i;
    unsigned long insn_word2 = 0;
+   struct pic30_private_data *private_data;
+
+   private_data = info->private_data;
 
    status = (*info->read_memory_func) (memaddr + 2,
                                        bytes_read, PIC30_SIZE_OF_PROGRAM_WORD,
@@ -220,6 +223,8 @@ pic30_disassemble_2word_insn (opcode, insn_word1, memaddr, info)
 
    for (i = 0; i < PIC30_SIZE_OF_PROGRAM_WORD; i++)
       insn_word2 = insn_word2 | ((unsigned long)bytes_read[i] << (8 * i));
+
+   if (private_data) private_data->opcode = opcode;
 
    switch (insn_word1 & opcode->mask)
    {
@@ -255,6 +260,9 @@ pic30_disassemble_1word_insn (opcode, insn, info)
 {
    unsigned char rc = TRUE;
    int j;
+   struct pic30_private_data *private_data;
+
+   private_data = info->private_data;
 
    for (j = 0; j < opcode->number_of_operands; j++)
    {
@@ -278,6 +286,8 @@ pic30_disassemble_1word_insn (opcode, insn, info)
          } /* if (error_found) */
       } /* if (opnd->extract) */
    } /* for j */
+
+   if (private_data) private_data->opcode = opcode;
 
    if (rc)
    {
@@ -309,6 +319,7 @@ pic30_disassemble_1word_insn (opcode, insn, info)
             switch (opnd->type)
             {
                case OPND_REGISTER_DIRECT:
+                  record_private_data(info, operand_value, -1*opnd->type);
                   strcpy (operand_string, pic30_registers[operand_value]);
                   break;
 
@@ -318,6 +329,7 @@ pic30_disassemble_1word_insn (opcode, insn, info)
                   /* drop through */
                case OPND_VALUE:
                {
+                  record_private_data(info, operand_value, -1*opnd->type);
                   if (opnd->immediate)
                      strcpy (operand_string, "#0x");
                   else
@@ -401,6 +413,13 @@ pic30_print_insn (memaddr, info)
    else if (PIC30_DISPLAY_AS_PROGRAM_MEMORY(info->section))
    {
       unsigned char found_insn = FALSE;
+      struct pic30_private_data *private_data;
+
+      private_data = info->private_data;
+      if (private_data) {
+        private_data->opcode = 0;
+        private_data->opnd_no = 0;
+      }
 
       status = (*info->read_memory_func) (memaddr, bytes_read,
                                           PIC30_SIZE_OF_PROGRAM_WORD, info);
@@ -415,12 +434,25 @@ pic30_print_insn (memaddr, info)
          insn = insn | ((unsigned long)bytes_read[i] << (8 * i));
 
       for (i = 0; i < pic30_num_opcodes; i++)
-      {
-	
+      {  
+#if 1
+         int valid_insn = 1;
+
+         if (pic30_opcodes[i].flags & F_ISAV4) {
+           valid_insn = is_isav4;
+         }
+         if (pic30_opcodes[i].flags & F_ECORE) {
+           valid_insn = is_ecore;
+         }
+         if (pic30_opcodes[i].flags & F_FCORE) {
+           valid_insn = (!is_ecore) && (!is_isav4);
+         }
+         if (valid_insn == 0) continue;
+#else
 	 if ((pic30_opcodes[i].flags & F_ISAV4) && !is_isav4) continue;
 	 if ((pic30_opcodes[i].flags & F_ECORE) && !is_ecore) continue;
          if ((pic30_opcodes[i].flags & F_FCORE) && is_ecore) continue;
-
+#endif
          if ((pic30_opcodes[i].number_of_words != 0) &&
              ((pic30_opcodes[i].mask & insn) == pic30_opcodes[i].opcode[0]))
          {
@@ -546,5 +578,272 @@ pic30_disassemble_bfins_insn (opcode, insn_word1, insn_word2, info)
          (*info->fprintf_func) (info->stream, ", ");
    }
 }
+
+/*** instruction semantics ***/
+
+void
+pic30_debug_semantics(opcode, buffer, n)
+  const struct pic30_opcode *opcode;
+  char *buffer;
+  int n;
+{
+  /* debug and store description in buffer - might want to do some pretty 
+        printing, but not now */
+  *buffer = 0;
+  if (opcode->semantics) strncpy(buffer, opcode->semantics, n);
+}
+
+struct expr_info {
+  const char *op;
+  int number_of_operands;
+};
+
+struct expr_info expr_table[] = {
+ { S_ADD,   2 },
+ { S_ADDC,  2 },
+ { S_AND,   2 },
+ { S_ASR,   2 },
+ { S_BCLR,  2 },
+ { S_BRA,   1 },
+ { S_BRAC,  2 },
+ { S_BSET,  2 },
+ { S_CALL,  1 },
+ { S_CLR,   1 },
+ { S_CLRAC, 1 },
+ { S_CLBR,  1 },
+ { S_CP0,   1 },
+ { S_CPB,   1 },
+ { S_DEREF, 1 },
+ { S_DEC,   1 },
+ { S_DEC2,  1 },
+ { S_DIV,   2 },
+ { S_DO,    2 },
+ { S_ED,    5 },
+ { S_EDAC,  5 },
+ { S_EXCH,  2 },
+ { S_EQ,    0 },
+ { S_FBCL,  1 },
+ { S_FF1L,  1 },
+ { S_FF1R,  1 },
+ { S_GT,    0 },
+ { S_INC,   1 },
+ { S_INC2,  1 },
+ { S_IOR,   2 },
+ { S_LNK,   1 },
+ { S_LSR,   2 },
+ { S_LT,    0 },
+ { S_MAC,   2 },
+ { S_MOD,   2 },
+ { S_MOV,   2 },
+ { S_MPY,   2 },
+ { S_MPYN,  2 },
+ { S_MSC,   2 },
+ { S_MUL,   2 },
+ { S_NE,    0 },
+ { S_NEG,   1 },
+ { S_NOP,   0 },
+ { S_OTHER, 1 },
+ { S_POP,   1 },
+ { S_PFTCH, 2 },
+ { S_PUSH,  1 },
+ { S_RET,   0 },
+ { S_RESET, 0 },
+ { S_ROTLC, 1 },
+ { S_ROTLN, 1 },
+ { S_ROTRC, 1 },
+ { S_ROTRN, 1 },
+ { S_RPT,   1 },
+ { S_SE,    1 },
+ { S_SET,   1 },
+ { S_SKPC,  0 },
+ { S_SKPS,  0 },
+ { S_SL,    2 },
+ { S_SQR,   2 },
+ { S_SUB,   2 },
+ { S_SUBB,  2 },
+ { S_SUBR,  2 },
+ { S_SUBBR, 2 },
+ { S_SWAP,  1 },
+ { S_TGL,   2 },
+ { S_TST,   2 },
+ { S_ULNK,  0 },
+ { S_XOR,   2 },
+ { S_ZE,    1 },
+ { S_UNK,   0 },
+ { 0, 0 }
+};
+
+#define DEBUG 0
+
+struct pic30_semantic_operand *
+pic30_semantic_operand_n(e,n)
+  struct pic30_semantic_expr *e;
+  int n;
+{
+  struct pic30_semantic_operand *res;
+
+  int j;
+  for (j = 0; j < MAX_OPERANDS; j++) {
+    if ((e->operands[j].kind == ok_operand_number) && 
+        (e->operands[j].value.number == n)) return &e->operands[j];
+    if (e->operands[j].kind == ok_subexpr) {
+       res = pic30_semantic_operand_n(e->operands[j].value.e, n);
+       if (res) return res;
+    } 
+  }
+  return 0;
+}
+
+static struct pic30_semantic_expr *
+build_expr(struct disassemble_info *, struct pic30_private_data *, int *);
+
+static int build_expr_operands(info, private_data, index, e)
+  struct disassemble_info *info;
+  struct pic30_private_data *private_data;
+  int index;
+  struct pic30_semantic_expr *e;
+{
+  int opnd = 0;
+  int subexp = 0;
+  enum opflags flags;
+
+  if (DEBUG) {
+    fprintf(stdout,"*** trying to find opnd: %s\n",private_data->opcode->name);
+    fprintf(stdout,"    %s\n",private_data->opcode->semantics);
+    fprintf(stdout,"    %s^\n",&"                              "[30-index]);
+  }
+  /* an operand can be: simple integer (operand number)
+   *                    W<int> (a fixed register)
+   *                    sub-expression 
+   */
+  if (expr_table[e->operation].number_of_operands == 0) return index;
+  for (opnd = 0; opnd < expr_table[e->operation].number_of_operands; opnd++) {
+    if (DEBUG) {
+      fprintf(stdout,"*** opnd %d: %s\n",opnd, private_data->opcode->name);
+      fprintf(stdout,"    %s\n",private_data->opcode->semantics);
+      fprintf(stdout,"    %s^\n",&"                              "[30-index]);
+    }
+    if ((opnd == 0) && (strcmp(expr_table[e->operation].op,S_MOV) == 0)) {
+      flags = of_output;
+    } else {
+      flags = of_input;
+    }
+    if ((private_data->opcode->semantics[index] > '0') &&
+        (private_data->opcode->semantics[index] <= '9')) {
+      e->operands[opnd].kind = ok_operand_number;
+      e->operands[opnd].value.number = 
+        private_data->opcode->semantics[index++] - '0';
+    } else if (private_data->opcode->semantics[index] == '#') {
+      int j;
+
+      for (j = index+1; 
+           ((private_data->opcode->semantics[j]) &&
+            (private_data->opcode->semantics[j] != '#')); j++);
+      if ((j!=index) && (private_data->opcode->semantics[j] == '#')) {
+        e->operands[opnd].kind = ok_literal;
+        e->operands[opnd].value.number = 
+          strtol(&private_data->opcode->semantics[index], 0, 0);
+        index = j+1;
+      } else {
+        index++;
+      }
+    } else if (private_data->opcode->semantics[index] == 'W') {
+      e->operands[opnd].kind = ok_register_number;
+      index++;
+      e->operands[opnd].value.number = 
+        (private_data->opcode->semantics[index++] - '0')*10;
+      e->operands[opnd].value.number += 
+        private_data->opcode->semantics[index++] - '0';
+    } else {
+      /* subexpression ? */
+      struct pic30_semantic_expr *sub_exp;
+
+      sub_exp = build_expr(info, private_data, &index);
+      if (sub_exp) {
+        e->operands[opnd].kind = ok_subexpr;
+        e->operands[opnd].value.e = sub_exp;
+      } else {
+        if (DEBUG) {
+          fprintf(stdout,"*** cannot find opnd %d: %s\n",
+                         opnd, private_data->opcode->name);
+          fprintf(stdout,"    %s\n",private_data->opcode->semantics);
+          fprintf(stdout,"    %s^\n", 
+                         &"                              "[30-index]);
+        }
+        e->operands[opnd].kind = ok_error;
+        index = strlen(private_data->opcode->semantics);
+      }
+    }
+    e->operands[opnd].flags = flags;
+  }
+  return index;
+}
+  
+
+static struct pic30_semantic_expr *
+build_expr(info, private_data, p_index)
+  struct disassemble_info *info;
+  struct pic30_private_data *private_data;
+  int *p_index;
+{
+  int op;
+  struct pic30_semantic_expr *e;
+  int index;
+  int j;
+
+  index = *p_index;
+  if (DEBUG) {
+    fprintf(stdout,"*** trying to find op: %s\n",private_data->opcode->name);
+    fprintf(stdout,"    %s\n",private_data->opcode->semantics);
+    fprintf(stdout,"    %s^\n", &"                              "[30-index]);
+  }
+  for (op = 0; expr_table[op].op; op++) {
+    if (strncmp(expr_table[op].op,&private_data->opcode->semantics[index],
+                strlen(expr_table[op].op)) == 0) {
+      break;
+    }
+  }
+  if (expr_table[op].op == 0) {
+    if (DEBUG) {
+      fprintf(stdout,"*** cannot find op: %s\n",private_data->opcode->name);
+      fprintf(stdout,"    %s\n",private_data->opcode->semantics);
+      fprintf(stdout,"    %s^\n", &"                              "[30-index]);
+    }
+    return 0;
+  }
+  e = malloc(sizeof(struct pic30_semantic_expr));
+  e->operation = op;
+  e->next = 0;
+  for (j = 0; j < MAX_OPERANDS; j++) e->operands[j].kind = ok_unused;
+
+  index = build_expr_operands(info, private_data, 
+                              index + strlen(expr_table[op].op), e);
+  if (private_data->opcode->semantics[index] != 0) {
+    /* another expression... */
+    struct pic30_semantic_expr *next;
+
+    next = build_expr(info, private_data, &index);
+    if (next) {
+      e->next = next;
+    }
+  }
+  return e;
+}
+
+struct pic30_semantic_expr *
+pic30_analyse_semantics(info) 
+  struct disassemble_info *info;
+{
+  struct pic30_private_data *private_data = 0;
+  int index = 0;
+
+  if (info == 0) return 0;
+  private_data = info->private_data;
+  if ((private_data == 0) || (private_data->opcode == 0)) return 0;
+
+  return build_expr(info, private_data, &index);
+}
+
+   
 
 /******************************************************************************/

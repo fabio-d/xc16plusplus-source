@@ -3435,7 +3435,7 @@ eliminate_regs_in_insn (rtx insn, int replace)
 	    /* This can't have an effect on elimination offsets, so skip right
 	       to the end.  */
 
-#if defined(_BUILD_C30_) 
+#if defined(_BUILD_C30_)   && 1
             /* but it can turn a legal instruction into an illegal one,
                so lets re-recognize the instruction */
             {
@@ -7245,6 +7245,7 @@ static int update_pseudos_in(rtx *x, int offset_stack_by, int mem_level) {
         i = REGNO(*x);
         if ((i >= FIRST_PSEUDO_REGISTER) && 
             (mem_level <= spill_indirect_levels)){
+          changes++;
           was_a_pseudo = 1;
           if (reg_equiv_mem[i])
             addr = XEXP (reg_equiv_mem[i], 0);
@@ -7921,7 +7922,7 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
 		  rl->when_needed);
     }
 
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) && 1
     /* Look at all insns we emitted, just to be safe.  */
     { rtx p;
    
@@ -7938,7 +7939,7 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
                  work, fix it up here by re-checking elimination effects 
                  (which is what make_memloc did) */
             changes = update_pseudos_in(&new_pat, 0, 0);
-            if (changes) PATTERN(p) = new_pat;
+            if (changes) validate_change(p,&PATTERN(p),new_pat,false);
           }
       }
 #endif
@@ -8106,7 +8107,7 @@ emit_output_reload_insns (struct insn_chain *chain, struct reload *rl,
       {
 	rtx pat = PATTERN (p);
 
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) && 1
         // if (insn_modifies_stack_by) 
         /* we should update pseudos_in anyway... just in case the pseudo is
            on the stack and we have accumulated some stack adjustments */

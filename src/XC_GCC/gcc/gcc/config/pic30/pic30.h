@@ -404,13 +404,15 @@ extern const char *pic30_fillupper;
 extern const char *pic30_resource_file;
 extern const char *pic30_sfr_warning;
 enum errata_mask {
-  retfie_errata =      1,
-  retfie_errata_disi = 2,
-  psv_errata =         4,
-  exch_errata =        8,
-  psv_address_errata = 16,
-  ecc_errata =         32,
-  busmaster_errata =   64
+  retfie_errata =           1,
+  retfie_errata_disi =      2,
+  psv_errata =              4,
+  exch_errata =             8,
+  psv_address_errata =      16,
+  ecc_errata =              32,
+  busmaster_errata =        64,
+  psrd_psrd_errata =        128,
+  psrd_psrd_errata_movd =   256
 };
 extern int pic30_errata_mask;
 
@@ -2937,6 +2939,7 @@ extern const char *mchp_config_data_dir;
 
 #define TARGET_BUILD_VARIANT_TYPE_COPY pic30_build_variant_type_copy
 
+#if 0
 #define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)       \
 do {                                                                      \
   if ((GET_CODE(X) == PLUS) && (GET_CODE(XEXP(X,1)) == PLUS)) {           \
@@ -2946,7 +2949,23 @@ do {                                                                      \
                 GET_MODE(X), VOIDmode, 0, 0, OPNUM, TYPE, insn);          \
     goto WIN;                                                             \
   }                                                                       \
+  if (((GET_CODE(X) == PRE_INC) || (GET_CODE(X) == PRE_DEC) ||            \
+       (GET_CODE(X) == POST_INC) || (GET_CODE(X) == POST_DEC)) &&         \
+      ((!REG_P(XEXP(X,0))) ||                                             \
+       (REGNO(XEXP(X,0)) >= FIRST_PSEUDO_REGISTER))) {                    \
+    push_reload(XEXP(X,0),NULL_RTX,&XEXP(X,0), NULL, W_REGS,              \
+                GET_MODE(X), VOIDmode, 0,0, OPNUM, TYPE, insn);           \
+    goto WIN;                                                             \
+  }                                                                       \
 } while(0)
+#endif
+
+#define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)            \
+  do {                                                                         \
+    if (pic30_legitimize_reload_address(X,MODE,OPNUM,TYPE,IND_LEVELS,insn)) {  \
+      goto WIN;                                                                \
+    }                                                                          \
+  } while(0)
 
 #define TARGET_WARN_ADDRESS pic30_warn_address
 

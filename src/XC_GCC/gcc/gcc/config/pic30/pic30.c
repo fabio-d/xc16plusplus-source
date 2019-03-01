@@ -112,6 +112,7 @@ const char * pic30_target_cpu = NULL;
 const char * pic30_io_size = NULL;
 const char * pic30_io_fmt = NULL;
 const char * pic30_errata = NULL;
+const char * pic30_no_errata = NULL;
 const char * pic30_resource_file = NULL;
 int pic30_io_size_val = 0;
 int pic30_profile_option = 0;
@@ -123,6 +124,7 @@ rtx    rtxCmpOperands[2] = { NULL_RTX, NULL_RTX };
 int pic30_managed_psv = 0;               /* this is set iff a managed psv
                                             operation is used */
 const char *pic30_fp_support;
+int pic30_integer_mac_support;
 static enum pic30_fp_support_modes pic30_fp_round;
 
 const char * mchp_config_data_dir = NULL;
@@ -717,7 +719,7 @@ pic30_errata_map errata_map[] = {
     0, 0
   },
   { "psv_trap",    psv_address_errata,
-                        "\tUse of certain access modes can cause an\n"
+                        "Use of certain access modes can cause an\n"
                         "\t\t_AddressError.\n",
     0, 0
   },
@@ -727,10 +729,30 @@ pic30_errata_map errata_map[] = {
     0, 0
   },
   { "busmaster",   busmaster_errata,
-                        "\tNon-zero values in MSTRPR register can cause a\n"
-                        "\tStackError trap if executing an ULNK instruction.\n",
+                        "Non-zero values in MSTRPR register can cause a\n"
+                        "\t\tStackError trap if executing an ULNK instruction.\n",
     0, 0
   },
+#if 0
+  { "psrd_psrd",     psrd_psrd_errata,
+                        "Given a specific set of pre-conditions, when two or\n"
+                        "\t\tmore data flash read instructions (via Program\n"
+                        "\t\tSpace Visibility (PSV) read or table read) are\n"
+                        "\t\texecuted back to back, one or more subsequent\n"
+                        "\t\tinstructions will be mis-executed. For more\n"
+                        "\t\tinformation, please review\n"
+                        "\t\thttp://www.microchip.com/erratum_psrd_psrd.\n",
+    0, 0 },
+#endif
+  { "psrd_psrd",     psrd_psrd_errata_movd,
+                        "Given a specific set of pre-conditions, when two or\n"
+                        "\t\tmore data flash read instructions (via Program\n"
+                        "\t\tSpace Visibility (PSV) read or table read) are\n"
+                        "\t\texecuted back to back, one or more subsequent\n"
+                        "\t\tinstructions will be mis-executed. For more\n"
+                        "\t\tinformation, please review\n"
+                        "\t\thttp://www.microchip.com/erratum_psrd_psrd.\n",
+    0, 0 },
   { 0, 0, 0, 0, 0 }
 };
 
@@ -802,6 +824,7 @@ int TARGET_SMALL_SCALAR = 0;
 /*    L O C A L    F U N C T I O N    P R O T O T Y P E S        */
 /*----------------------------------------------------------------------*/
 
+static int pic30_scan_reg_sets(unsigned int regno);
 static int pic30_const_in_code_tree_p(tree exp);
 
 static unsigned int pic30_case_values_threshold(void);
@@ -3234,7 +3257,7 @@ void pic30_override_options_after_change(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    if ((pic30_errata_mask & ecc_errata) == 0) {
+    if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) == 0) {
       NULLIFY(flag_schedule_insns) = 0;
       NULLIFY(flag_schedule_insns_after_reload) = 0;
     }
@@ -3267,7 +3290,7 @@ void pic30_override_options_after_change(void) {
   }
 
 #ifdef INSN_SCHEDULING
-  if (pic30_errata_mask & ecc_errata) {
+  if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
     flag_schedule_insns = 1;
     flag_schedule_insns_after_reload = 1;
   }
@@ -3331,6 +3354,7 @@ void pic30_optimization_options(int level, int size) {
 void pic30_override_options(void) {
   static int override_options = 0;
   int pic30_license_valid = 1;
+  int pic30_clr_errata_mask = 0;
 
   /*
    *  On systems where we have a license manager, call it
@@ -3347,7 +3371,7 @@ void pic30_override_options(void) {
 #endif
 
 #ifdef INSN_SCHEDULING
-  if (pic30_errata_mask & ecc_errata) {
+  if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
     flag_schedule_insns = 1;
     flag_schedule_insns_after_reload = 1;
   }
@@ -3394,6 +3418,10 @@ void pic30_override_options(void) {
         copy2 = (char *)"__dsPIC33CH__";
       }
       pic30_target_family = copy2;
+      if (TARGET_ARCH(EP_GENERIC) || TARGET_ARCH(PIC24E) || 
+          TARGET_ARCH(PIC33E)) {
+        pic30_errata_mask = psrd_psrd_errata_movd;
+      }
       if (TARGET_ARCH(GENERIC) || TARGET_ARCH(DA_GENERIC) ||
           TARGET_ARCH(EP_GENERIC) || TARGET_ARCH(CH_GENERIC)) {
         pic30_target_cpu = 0;
@@ -3531,6 +3559,35 @@ void pic30_override_options(void) {
     /* set the default smartness level */
     pic30_io_size_val = 1;
   }
+  if (pic30_no_errata) {
+    const char *errata = pic30_no_errata;
+    char save;
+    char *c;
+    int errata_num;
+
+    while (*errata) {
+      for (c = (char *) errata; *c && *c != ' ' && *c != ','; c++);
+      save = *c;
+      *c = 0;
+      {
+        for (errata_num = 0; errata_map[errata_num].name; errata_num++) {
+          if (strcmp(errata_map[errata_num].name, errata) == 0) {
+            pic30_clr_errata_mask |= errata_map[errata_num].mask;
+            break;
+          }
+        }
+        if (errata_map[errata_num].name == 0) {
+          warning_at(0,0,
+                     "-merrata=%s invalid; unrecognized errata name - ignoring",
+                     errata);
+        }
+      }
+      *c = save;
+      errata = c;
+      for (; *errata && (*errata == ' ' || *errata == ','); errata++);
+    }
+  }
+  /* set errata */
   if (pic30_errata) {
     const char *errata = pic30_errata;
     char save;
@@ -3549,7 +3606,8 @@ void pic30_override_options(void) {
         }
       } else if (strcmp(errata, "all") == 0) {
         for (errata_num = 0; errata_map[errata_num].name; errata_num++) {
-          if (errata_map[errata_num].conflicts_with & pic30_errata_mask) {
+          if (errata_map[errata_num].conflicts_with & 
+                (pic30_errata_mask & ~pic30_clr_errata_mask)) {
             int i;
             int conflicts = errata_map[errata_num].conflicts_with;
 
@@ -3588,6 +3646,12 @@ void pic30_override_options(void) {
       for (; *errata && (*errata == ' ' || *errata == ','); errata++);
     }
   }
+  /* clear errata */
+  if (pic30_no_errata) {
+     pic30_errata_mask &= ~pic30_clr_errata_mask;
+  }
+
+
 
 #ifdef LICENSE_MANAGER
   if (pic30_license_valid < 0) {
@@ -3648,7 +3712,7 @@ void pic30_override_options(void) {
     NULLIFY(flag_caller_saves) = 0;
     NULLIFY(flag_peephole2) = 0;
   #ifdef INSN_SCHEDULING
-    if ((pic30_errata_mask & ecc_errata) == 0) {
+    if ((pic30_errata_mask & (psrd_psrd_errata || ecc_errata)) != 0) {
       NULLIFY(flag_schedule_insns) = 0;
       NULLIFY(flag_schedule_insns_after_reload) = 0;
     }
@@ -4907,6 +4971,25 @@ int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
   return p;
 }
 
+int pic30_builtin_eds_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
+  if (pic30_builtin_tblpsv_arg_p(arg0, r0)) {
+    return 1;
+  }
+  if (pic30_has_space_operand_p(r0, (char *)PIC30_BSS_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_X_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_Y_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_EDS_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_NEAR_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_DMA_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_BOOT_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_SECURE_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_AUXFLASH_FLAG) ||
+      pic30_has_space_operand_p(r0, (char *)PIC30_AUXPSV_FLAG)) {
+     return 1;
+  }
+  return 0;
+}
+
 /*
 ** Determine if a parameter is suitable as an argument to
 ** the builtin dma instrucitons
@@ -5285,7 +5368,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     case PIC30_BUILTIN_EDSPAGE:  {
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
-      if (!pic30_eds_space_operand_p(r0))
+      if (!pic30_builtin_eds_arg_p(arg0,r0))
       {
         error("Argument to __builtin_edspage() is not the address\n"
               "of an object in a code, psv, eedata, data, or PMP section;\n"
@@ -5302,7 +5385,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     case PIC30_BUILTIN_EDSOFFSET: {
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
-      if (!pic30_eds_space_operand_p(r0))
+      if (!pic30_builtin_eds_arg_p(arg0,r0))
       {
         error("Argument to __builtin_edsoffset() is not the address\n"
               "of an object in a code, psv, eedata, data, or PMP section;\n"
@@ -7844,15 +7927,35 @@ int pic30_hard_regno_mode_ok(int regno, enum machine_mode mode) {
 
   switch (mode)
   {
-    case P32DFmode:
+
+    case P32DFmode:     /* Integer (32 bits) */
     case P32PEDSmode:
     case P32EDSmode:
     case P32EXTmode:
     case P24PROGmode:
     case P24PSVmode:
-    case SImode:        /* Integer (32 bits) */
     case SFmode:        /* Float (32 bits) */
       fOkay = (regno < SP_REGNO) && IS_EVEN_REG(regno);
+      break;
+
+    case HImode:        /* if we want to generate macs for ints... */
+      if (pic30_dsp_target() && pic30_integer_mac_support) {
+        fOkay = ((regno == A_REGNO) || (regno == B_REGNO));
+      }
+      if (!pic30_fixed_point_supported_p()) {
+        /* if fixed point is supported, then normal modes cannot be A or B
+           reg - this means that the builtins will not work with fixed point
+           enabled */
+        fOkay = (regno <= SP_REGNO) || (regno >= A_REGNO && regno <= B_REGNO);
+      }
+      fOkay |= (regno < SP_REGNO);
+      break;
+
+    case SImode:        
+      if (pic30_dsp_target() && pic30_integer_mac_support) {
+        fOkay = ((regno == A_REGNO) || (regno == B_REGNO));
+      }
+      fOkay |= (regno < SP_REGNO) && IS_EVEN_REG(regno);
       break;
 
     case HAmode:        /* 40-bit fixed point */
@@ -7907,12 +8010,23 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
   /* Accumulators are always 1 for the right kinds of things, otherwise too
      many to handle */
   if ((regno == A_REGNO) || (regno == B_REGNO)) {
+#if 0
     /* try and allocate A and B for the right mode of thing 
          if fixed point is not enabled, allow the old way
          otherwise only allow A and B for accumulator modes */
+#else
+    /* still allow integer modes so that we can do integer macs */
+#endif
     if (pic30_fp_round_p() != pic30_none) {
       switch (mode) {
         default: break;
+        case QImode:        /* integer modes */
+        case HImode:
+        case SImode:
+          if (pic30_dsp_target() && pic30_integer_mac_support) {
+             return 1;
+          }
+          break;
         case HAmode:        /* 40-bit fixed point */
         case UHAmode:
         case SAmode:
@@ -7930,6 +8044,7 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
           if (pic30_dsp_target()) {
             return 1;
           }
+          break;
       } 
       return 126;
     } else {
@@ -7943,9 +8058,7 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
 }
 
 int pic30_class_max_nregs(int regclass, enum machine_mode mode) {
-  if ((pic30_dsp_target()) && (pic30_fixed_point_mode(mode))) {
-    if (regclass == ACCUM_REGS) return 1;
-  }
+  if (regclass == ACCUM_REGS) return 1;
   return ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD);
 }
 
@@ -8793,6 +8906,44 @@ static int pic30_reg_dereferenced_p(rtx reg, rtx in) {
   return 0;
 }
 
+static int count_non_reg15_uses(rtx x) {
+  /* MEM has been removed, so this is a dereference */
+  int count = 0;
+
+  switch (GET_CODE(x)) {
+    default:  return count;
+    case SYMBOL_REF:
+      if  (pic30_has_space_operand_p(x, (char *)PIC30_AUXFLASH_FLAG) ||
+           pic30_has_space_operand_p(x, (char *)PIC30_APSV_FLAG) ||
+           pic30_has_space_operand_p(x, (char *)PIC30_PSV_FLAG) ||
+           pic30_has_space_operand_p(x, (char *)PIC30_AUXPSV_FLAG)) {
+        count++;
+      }
+      break;
+
+    case REG:  
+      if (REGNO(x) == SP_REGNO) break;
+      if ((REGNO(x) == FP_REGNO) && 
+          pic30_frame_pointer_needed_p(get_frame_size()) &&
+          (!pic30_scan_reg_sets(FP_REGNO))) break;
+      count++;
+      break;
+
+    case POST_INC:
+    case POST_DEC:
+    case PRE_INC:
+    case PRE_DEC:
+      count += count_non_reg15_uses(XEXP(x,0));
+      break;
+
+    case PLUS: 
+      count += count_non_reg15_uses(XEXP(x,0));
+      count += count_non_reg15_uses(XEXP(x,1));
+      break;
+  }
+  return count;
+}
+
 /*
 ** This function corrects the value of COST based on the relationship between
 ** INSN and DEP_INSN through the dependence LINK. It should return the new
@@ -8805,8 +8956,9 @@ static int pic30_reg_dereferenced_p(rtx reg, rtx in) {
 ** the first and the second insns. If these values are not acceptable,
 ** you could use the hook to modify them too.
 */
-#define    DEF_USE_COST    2
-#define    DEBUG_SCHED    0
+#define USE_USE_COST 3
+#define DEF_USE_COST 2
+#define DEBUG_SCHED  0
 
 static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
     enum attr_type tyd;
@@ -8874,12 +9026,52 @@ static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
         }
         printf("\n");
 #endif
-        if ((tyi != TYPE_USE) && (tyi != TYPE_DEFUSE))
-        {
-            return(cost);
-        }
         pati = PATTERN(insn);
         patd = PATTERN(dep_insn);
+        if ((pic30_errata_mask & psrd_psrd_errata) &&
+            ((tyi == TYPE_USE) || (tyi == TYPE_DEFUSE)) &&
+            ((tyd == TYPE_USE) || (tyd == TYPE_DEFUSE))) {
+            int count = 1;
+            int icode = recog_memoized (insn);
+            
+            if (icode >= 0) {
+               int op;
+
+               count = 0;
+               for (op = 0; op < insn_data[icode].n_operands; op++) {
+                 if (insn_data[icode].operand[op].constraint &&
+                     (insn_data[icode].operand[op].constraint[0] == '=')) {
+                   // output, skip it
+                   continue;
+                 }
+                 if (GET_CODE(recog_data.operand[op]) == MEM)
+                   count+= count_non_reg15_uses(XEXP(recog_data.operand[op],0));
+               }
+            }
+            if (count) {
+              icode = recog_memoized(dep_insn);
+              count = 1;
+              if (icode >= 0) {
+                int op;
+
+                count = 0;
+                for (op = 0; op < insn_data[icode].n_operands; op++) {
+                  if (insn_data[icode].operand[op].constraint &&
+                      (insn_data[icode].operand[op].constraint[0] == '=')) {
+                    // output, skip it
+                    continue;
+                  }
+                  if (GET_CODE(recog_data.operand[op]) == MEM)
+                    count+=count_non_reg15_uses(XEXP(recog_data.operand[op],0));
+                }
+              }
+            }
+            if ((count) && (cost < USE_USE_COST)) cost = USE_USE_COST;
+        }
+        if ((tyi != TYPE_USE) && (tyi != TYPE_DEFUSE))
+        {
+            return cost;
+        }
 
         if ((GET_CODE(pati) != SET) || (GET_CODE(patd) != SET))
         {
@@ -8889,11 +9081,11 @@ static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
 #if (DEBUG_SCHED)
             printf("early exit (1)\n");
 #endif
-            return(cost);
+            return cost;
         }
         if (SET_DEST(patd) == 0)
         {
-            return(cost);
+            return cost;
         }
         patd = SET_DEST(patd);
         code = GET_CODE(patd);
@@ -8939,7 +9131,7 @@ static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
 #if (DEBUG_SCHED)
             printf("early exit (2)\n");
 #endif
-            return(cost);
+            return cost;
         }
         if (pic30_reg_dereferenced_p(regd, SET_SRC(pati)))
         {
@@ -8948,7 +9140,7 @@ static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
                     mode_name[GET_MODE(regd)],
                     REGNO(regd));
 #endif
-            cost = DEF_USE_COST;
+            if (cost < DEF_USE_COST) cost = DEF_USE_COST;
         }
 #if (DEBUG_SCHED)
         else
@@ -8977,7 +9169,7 @@ static int pic30_sched_adjust_cost(rtx insn, rtx link, rtx dep_insn, int cost) {
         */
         cost = 0;
     }
-    return(cost);
+    return cost;
 }
 
 /*
@@ -9081,6 +9273,11 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
     if (in_p) {
       switch (mode) {
         default:      break;
+        case SImode:  if (pic30_dsp_target() && pic30_integer_mac_support) {
+                        sri->icode = CODE_FOR_TUreload_insi;
+                        return NO_REGS;
+                      }
+                      break;
         /* 40-bit */
         case HAmode:  sri->icode = CODE_FOR_TUreload_inha;
                       return NO_REGS;
@@ -9102,6 +9299,16 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
     } else {
       switch (mode) {
         default:      break;
+        case HImode:  if (pic30_dsp_target() && pic30_integer_mac_support) {
+                        sri->icode = CODE_FOR_TUreload_outhi;
+                        return NO_REGS;
+                      }
+                      break;
+        case SImode:  if (pic30_dsp_target() && pic30_integer_mac_support) {
+                        sri->icode = CODE_FOR_TUreload_outsi;
+                        return NO_REGS;
+                      }
+                      break;
         /* 40-bit */
         case HAmode:  sri->icode = CODE_FOR_TUreload_outha;
                       return NO_REGS;
@@ -9125,22 +9332,27 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
   if (immediate_operand(x,VOIDmode) && (rclass == ACCUM_REGS)) {
     switch (mode) {
       default:      break;
+      case SImode:  if (pic30_dsp_target() && pic30_integer_mac_support) {
+                      sri->icode = CODE_FOR_reloadsi_imm;
+                      return NO_REGS;
+                    }
+                    break;
       /* 40-bit */
-      case HAmode:  sri->icode = CODE_FOR_reloadha_imm;;
+      case HAmode:  sri->icode = CODE_FOR_reloadha_imm;
                     return NO_REGS;
-      case UHAmode: sri->icode = CODE_FOR_reloaduha_imm;;
+      case UHAmode: sri->icode = CODE_FOR_reloaduha_imm;
                     return NO_REGS;
-      case SAmode:  sri->icode = CODE_FOR_reloadsa_imm;;
+      case SAmode:  sri->icode = CODE_FOR_reloadsa_imm;
                     return NO_REGS;
-      case USAmode: sri->icode = CODE_FOR_reloadusa_imm;;
+      case USAmode: sri->icode = CODE_FOR_reloadusa_imm;
                     return NO_REGS;
-      case DAmode:  sri->icode = CODE_FOR_reloadda_imm;;
+      case DAmode:  sri->icode = CODE_FOR_reloadda_imm;
                     return NO_REGS;
-      case UDAmode: sri->icode = CODE_FOR_reloaduda_imm;;
+      case UDAmode: sri->icode = CODE_FOR_reloaduda_imm;
                     return NO_REGS;
-      case TAmode:  sri->icode = CODE_FOR_reloadta_imm;;
+      case TAmode:  sri->icode = CODE_FOR_reloadta_imm;
                     return NO_REGS;
-      case UTAmode: sri->icode = CODE_FOR_reloaduta_imm;;
+      case UTAmode: sri->icode = CODE_FOR_reloaduta_imm;
                     return NO_REGS;
     }
   }
@@ -9236,7 +9448,8 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
                       return NO_REGS;
       }
     }
-  } else if (disp != INT_MAX) {
+  } 
+  else if (disp != INT_MAX) {
     if (dump_file) {
       /* Q constraint failed because of invalid displacement */
       fprintf(dump_file,"pic30_secondary_reload: should fail %d\n", disp);
@@ -9349,6 +9562,30 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
       }
     }
   }
+#if 0
+  if (MEM_P(x)) {
+    /* look for other odd (mem ) expressions that will require extra
+       registers */
+    rtx inner = XEXP(x,0);
+
+    switch (GET_CODE(inner)) {
+      default: break;
+      case POST_INC:
+      case PRE_INC:
+      case POST_DEC:
+      case PRE_DEC: { 
+        rtx inner2;
+          
+        inner2 = XEXP(inner,0);
+        if (!REG_P(inner2)) { 
+          gcc_assert(GET_MODE(inner2) == Pmode);
+          sri->icode = in_p ? CODE_FOR_PPinc_inhi : CODE_FOR_PPinc_outhi;
+          return NO_REGS;
+        }
+        break;
+    }
+  }
+#endif
   return NO_REGS;
 }
 
@@ -9510,12 +9747,6 @@ int pic30_modek_APSV_possible_operand(rtx op, enum machine_mode mode) {
   }
   return 0;
 }
-
-#if 0
-int pic30_mode2_or_near_operand(rtx op, enum machine_mode mode) {
-   return (pic30_mode2_operand(op,mode) || pic30_near_operand(op,mode));
-}
-#endif
 
 /************************************************************************/
 /* pic30_modek_operand(): predicate for the modek addressing modes      */
@@ -10126,7 +10357,13 @@ int pic30_register_operand_helper(rtx op, enum machine_mode mode,
          reg went on the stack.)  */
       /* though subreg (mem (post_inc  X)) n)  where n != 0 is not okay,
          as reload cannot load this into a proper mem instruction */
-      if (! reload_completed && GET_CODE (sub) == MEM) {
+#if 0
+      if (! reload_completed && GET_CODE (sub) == MEM)
+#else
+      if ((reload_completed == 0) && (reload_in_progress == 0) &&
+          (GET_CODE (sub) == MEM))
+#endif
+      {
         rtx sub_sub = XEXP(sub,0);
         switch (GET_CODE(sub_sub)) {
           default:
@@ -10390,31 +10627,31 @@ pic30_valid_call_address_operand(rtx op, enum machine_mode mode) {
                        fn = JOIN4(gen_,access,rdwt,_qi); \
                        break;\
           case HImode:\
-                       fn = JOIN4(gen_,access,rdwt,_HI);\
+                       fn = JOIN4(gen_,access,rdwt,_hi);\
                        break;\
           case P16APSVmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P16APSV);\
+                       fn = JOIN4(gen_,access,rdwt,_p16apsv);\
                        break;\
           case P16PMPmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P16PMP);\
+                       fn = JOIN4(gen_,access,rdwt,_p16pmp);\
                        break;\
           case P24PROGmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P24PROG);\
+                       fn = JOIN4(gen_,access,rdwt,_p24prog);\
                        break;\
           case P24PSVmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P24PSV);\
+                       fn = JOIN4(gen_,access,rdwt,_p24psv);\
                        break;\
           case SImode: \
                        fn = JOIN4(gen_,access,rdwt,_si);\
                        break;\
           case P32EXTmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P32EXT);\
+                       fn = JOIN4(gen_,access,rdwt,_p32ext);\
                        break;\
           case P32EDSmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P32EDS);\
+                       fn = JOIN4(gen_,access,rdwt,_p32eds);\
                        break;\
           case P32PEDSmode: \
-                       fn = JOIN4(gen_,access,rdwt,_P32PEDS);\
+                       fn = JOIN4(gen_,access,rdwt,_p32peds);\
                        break;\
           case SFmode: \
                        fn = JOIN4(gen_,access,rdwt,_sf);\
@@ -10841,25 +11078,25 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
     rtx (*fn)(rtx,rtx) = 0;
     switch (mode) {
       case P24PROGmode:
-        fn = gen_movP24PROG_address;
+        fn = gen_movp24prog_address;
         break;
       case P24PSVmode:
-        fn = gen_movP24PSV_address;
+        fn = gen_movp24psv_address;
         break;
       case P32EDSmode:
-        fn = gen_movP32EDS_address;
+        fn = gen_movp32eds_address;
         break;
       case P32PEDSmode:
-        fn = gen_movP32PEDS_address;
+        fn = gen_movp32peds_address;
         break;
       case P16PMPmode:
-        fn = gen_movP16PMP_address;
+        fn = gen_movp16pmp_address;
         break;
       case P32EXTmode:
-        fn = gen_movP32EXT_address;
+        fn = gen_movp32ext_address;
         break;
       case P32DFmode:
-        fn = gen_movP32DF_address;
+        fn = gen_movp32df_address;
         break;
       default: break;
     }
@@ -11235,6 +11472,7 @@ int pic30_U_constraint(rtx op, enum machine_mode mode) {
 ** 'c' is used
 ** 'd' for the second register in a pair
 ** 'D' for forcing post-decrement on [R]
+** 'i' index, 'i' from [Wn+i]
 ** 'I' for forcing post-increment on [R]
 ** 'J' for the negative of a constant
 ** 'j' for 65536-the constant
@@ -11338,6 +11576,19 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
 #endif
       switch (letter)
       {
+        case 'i': /* index */
+          switch (GET_CODE(inner)) {
+            int sign = 1;
+
+            case MINUS:
+              sign = -1;
+              /* FALLSTHROUGH */
+            case PLUS:
+              fprintf(file, "%d", INTVAL(XEXP(inner,1))*sign);
+              break;
+            default: gcc_assert(0);
+          }
+          break;
         case 'I': /* post-increment */
         case 'D': /* post-decrement */
           switch (GET_CODE(inner))
@@ -11435,6 +11686,14 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
           {
             fprintf(file, "[%s%+ld]", reg_names[REGNO(x)], INTVAL(y) + nDelta);
           }
+          else if (((GET_CODE(inner) == POST_INC) ||
+                    (GET_CODE(inner) == POST_DEC) ||
+                    (GET_CODE(inner) == PRE_DEC) ||
+                    (GET_CODE(inner) == PRE_INC)) &&
+                   (GET_CODE(x) == REG)) {
+            /* strip pre/post inc/dec and add offset */
+            fprintf(file, "[%s%+ld]", reg_names[REGNO(x)], nDelta);
+          }
           else
           {
             output_address(inner);
@@ -11444,6 +11703,8 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
         break;
         case 'r':
           switch (GET_CODE(inner)) {
+            case PLUS:
+            case MINUS:
             case POST_INC:
             case PRE_INC:
             case POST_DEC:
@@ -13713,6 +13974,10 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
             {
                 fLegit = FALSE;
             }
+            if (reload_in_progress) {
+              if (true_regnum(base) >= FIRST_PSEUDO_REGISTER) 
+                fLegit = FALSE;
+            }
             break;
         default:
             fLegit = FALSE;
@@ -15848,8 +16113,15 @@ section *pic30_select_section (tree decl, int reloc,
 #endif
     } else if (TREE_CODE(decl) == VAR_DECL) {
       s = force_section_name(decl);
-    }
-    if (flags) {
+    } 
+    if (pic30_interrupt_function_p(decl)) {
+      /* don't remember interrupt functions */
+      section *sect = (section*)GGC_NEW (section);
+      sect->named.common.flags = flags | SECTION_NAMED | SECTION_KEEP;
+      sect->named.name = ggc_strdup(default_section_name(decl, 0, flags));
+      sect->named.decl = decl;
+      return sect;
+    } else if (flags) {
       sect = get_section(s?s : default_section_name(decl, 0, flags),flags,decl);
       if (s) {
         /* This was either a named section or a forced named section */
@@ -15907,6 +16179,7 @@ section *pic30_select_section (tree decl, int reloc,
       }
     }
   }
+  return NULL;
 }
 
 /************************************************************************/
@@ -15972,6 +16245,12 @@ static void pic30_asm_named_section(const char *pszSectionName,
    /* pic30_push_constant_section(pszSectionName, flags, decl); */
 
    section_name = default_section_name(decl, pszSectionName, flags);
+
+   /* if we are picking a different name than we passed, forget the
+        current section so that we can properly re-assert the right section */
+   if (strcmp(section_name,pszSectionName) != 0)
+     in_section = NULL;
+
    fprintf(asm_out_file, "\t.section\t%s\n",
            pic30_section_with_flags(section_name,flags));
 
@@ -17861,6 +18140,34 @@ rtx pic30_addr_space_legitimize_address(rtx x, rtx oldx,
   return x;
 }
 
+int pic30_legitimize_reload_address(rtx X, enum machine_mode MODE, 
+                                    unsigned int OPNUM,
+                                    int TYPE,
+                                    unsigned int IND_LEVELS,
+                                    rtx insn) {
+  if ((GET_CODE(X) == PLUS) && (GET_CODE(XEXP(X,1)) == PLUS)) {
+    /* looks like an address of the form (plus (x) (plus (y) (z))), which
+       we can't handle without reloading - reload the inner plus */
+    push_reload(XEXP(X,1), NULL_RTX, &XEXP(X,1), NULL, W_REGS,
+                GET_MODE(X), VOIDmode, 0, 0, OPNUM, TYPE, insn);
+    return 1;
+  }
+#if 0
+  /* This seems to be done in reload.c : ~6081 which was previously commented
+     out.   This causes XC16-1046, so if we need to put this back in we would
+     need to understand how to force the relaod of the input/output register */
+  if (((GET_CODE(X) == PRE_INC) || (GET_CODE(X) == PRE_DEC) ||
+       (GET_CODE(X) == POST_INC) || (GET_CODE(X) == POST_DEC)) &&
+      ((!REG_P(XEXP(X,0))) ||
+       (REGNO(XEXP(X,0)) >= FIRST_PSEUDO_REGISTER))) {
+    push_reload(XEXP(X,0),NULL_RTX,&XEXP(X,0), NULL, W_REGS,
+                GET_MODE(X), VOIDmode, 0,0, OPNUM, TYPE, insn);
+    return 1;
+  }
+#endif
+  return 0;
+}
+
 int pic30_psv_reg_operand(rtx x, enum machine_mode mode) {
   rtx inner;
 
@@ -18217,6 +18524,8 @@ static tree pic30_addr_space_convert_valid_tree(tree exp, tree *field) {
     case ARRAY_REF:
       return pic30_addr_space_convert_valid_tree(TREE_OPERAND(exp,0), field); 
     case FIELD_DECL:
+      /* FALLSTHROUGH */
+    case PARM_DECL:
       /* FALLSTHROUGH */
     case VAR_DECL:  
       return exp;
@@ -18603,43 +18912,43 @@ bool pic30_convert_pointer(rtx to, rtx from, int unsignedp) {
         switch GET_MODE(to) {
           case P16PMPmode:
              emit_insn(
-               gen_movP16PMP_address(to,
+               gen_movp16pmp_address(to,
                                    gen_rtx_SYMBOL_REF(P16PMPmode,XSTR(from,0)))
              );
              return 1;
           case P24PROGmode:
              emit_insn(
-               gen_movP24PROG_address(to,
+               gen_movp24prog_address(to,
                                    gen_rtx_SYMBOL_REF(P24PROGmode,XSTR(from,0)))
              );
              return 1;
           case P24PSVmode:
              emit_insn(
-               gen_movP24PSV_address(to,
+               gen_movp24psv_address(to,
                                     gen_rtx_SYMBOL_REF(P24PSVmode,XSTR(from,0)))
              );
              return 1;
           case P32PEDSmode:
              emit_insn(
-               gen_movP32PEDS_address(to,
+               gen_movp32peds_address(to,
                                    gen_rtx_SYMBOL_REF(P32PEDSmode,XSTR(from,0)))
              );
              return 1;
           case P32EDSmode:
              emit_insn(
-               gen_movP32EDS_address(to,
+               gen_movp32eds_address(to,
                                     gen_rtx_SYMBOL_REF(P32EDSmode,XSTR(from,0)))
              );
              return 1;
           case P32EXTmode:
              emit_insn(
-               gen_movP32EXT_address(to,
+               gen_movp32ext_address(to,
                                     gen_rtx_SYMBOL_REF(P32EXTmode,XSTR(from,0)))
              );
              return 1;
           case P32DFmode:
              emit_insn(
-               gen_movP32DF_address(to,
+               gen_movp32df_address(to,
                                     gen_rtx_SYMBOL_REF(P32DFmode,XSTR(from,0)))
              );
              return 1;
@@ -18726,19 +19035,31 @@ static bool pic30_rtx_costs(rtx RTX, int CODE, int OUTER_CODE ATTRIBUTE_UNUSED,
     case CONST_DOUBLE:
       result = (RTX == CONST0_RTX(GET_MODE(RTX))) ? 2 : 4;
       break;
-    case DIV :
-    case UDIV :
     case MOD :
     case UMOD :
-      if (GET_MODE(RTX) == HImode)
-        result = (COSTS_N_INSNS(1));
+      /* mod/umod will take an extra instruction, for HImode - typically */
+      if (GET_MODE(RTX) == HImode) {
+        result = 1;
+      }
+      /* FALLSTHROUGH */
+    case DIV :
+    case UDIV :
+      if (GET_MODE(RTX) == HImode) {
+        if (optimize_size) {
+          /* if optimizing for size, usually this would be 2 instruction
+             words */
+          result += 2;
+        } else {
+          /* but 5 cycles (min) if calculating run-time */
+          result += 5;
+        }
+      }
       else
-        result = (COSTS_N_INSNS(10));
+        result = 10;
+      result = COSTS_N_INSNS(result);
       break;
     case MULT : {
-      int required_insns=1;
-
-      result = COSTS_N_INSNS(required_insns);
+      result = COSTS_N_INSNS(1);
       break;
     }
     case ASHIFT:
@@ -18749,16 +19070,17 @@ static bool pic30_rtx_costs(rtx RTX, int CODE, int OUTER_CODE ATTRIBUTE_UNUSED,
       {
         if (GET_CODE(XEXP(RTX, 1)) == CONST_INT)
         {
-          result = (COSTS_N_INSNS(1));
+          result = 1;
         }
         else
         {
-          result = (COSTS_N_INSNS(2));
+          result = 2;
         }
       }
+      result = COSTS_N_INSNS(result);
       break;
     case COMPARE:
-      result = (COSTS_N_INSNS(1));
+      result = COSTS_N_INSNS(1);
       break;
   }
   if (result) *total = result;
@@ -20042,6 +20364,126 @@ unsigned int pic30_RAW_count(void) {
   return 0;
 }
 
+static unsigned int pic30_PSV_PSV_count_helper(rtx x) {
+  if (GET_CODE(x) == MEM) {
+    x = XEXP(x,0);
+    while (x) {
+      switch (GET_CODE(x)) {
+        default:
+          return 0;
+
+        case CONST:
+          x = XEXP(x,0);
+          continue;
+
+        case SYMBOL_REF:
+          if (pic30_has_space_operand_p(x, (char *)PIC30_AUXFLASH_FLAG) ||
+              pic30_has_space_operand_p(x, (char *)PIC30_APSV_FLAG) ||
+              pic30_has_space_operand_p(x, (char *)PIC30_PSV_FLAG) ||
+              pic30_has_space_operand_p(x, (char *)PIC30_AUXPSV_FLAG)) {
+            return 1;
+          }
+          return 0;
+
+        case SUBREG:
+          /* FALLSTHROUGH */
+        case REG:
+          /* FALLSTHROUGH */
+          if ((REGNO(x) == FP_REGNO) &&
+              (pic30_frame_pointer_needed_p(get_frame_size()))) return 0;
+          if (REGNO(x) == SP_REGNO) return 0;
+          return 1;
+
+        case POST_INC:
+          /* FALLSTHROUGH */
+        case POST_DEC:
+          /* FALLSTHROUGH */
+        case PRE_INC:
+          /* FALLSTHROUGH */
+        case PRE_DEC:
+          /* FALLSTHROUGH */
+        case PLUS:
+          x = XEXP(x,0);
+          continue;
+      }
+    }
+  } else {
+    const char *fmt;
+    enum rtx_code code;
+    int i;
+
+    code = GET_CODE(x);
+    fmt = GET_RTX_FORMAT(code);
+
+    for (i = GET_RTX_LENGTH(code) - 1; i >= 0; i--) {
+      int j;
+
+      switch (fmt[i]) {
+        case 'E':
+          /*
+          ** A vector of expressions.
+          */
+          for (j = XVECLEN(x, i) - 1; j >= 0; j--) {
+            rtx inv = XVECEXP(x, i, j);
+            if (pic30_PSV_PSV_count_helper(inv)) return 1;
+          }
+          break;
+        case 'e':
+          /*
+          ** An expression (actually a pointer to an expression).
+          */
+          if (pic30_PSV_PSV_count_helper(XEXP(x, i))) return 1;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  return 0;
+}
+
+int pic30_inserted_nops = 0;
+int pic30_rtx_nops = 0;
+
+unsigned int pic30_PSV_PSV_count(void) {
+  rtx x;
+  rtx insn;
+  rtx p;
+  int indirect_reg_mem = 0;
+  int last_indirect_reg_mem = 0;
+
+  pic30_inserted_nops = 0;
+  if ((pic30_errata_mask & psrd_psrd_errata) == 0) return 0;
+
+  for (insn = get_insns(); insn; insn = NEXT_INSN(insn)) {
+    if (INSN_P(insn)) {
+      enum attr_type insn_attr;
+
+      indirect_reg_mem = 0;
+      p = PATTERN(insn);
+      if (GET_CODE(p) != SET) continue;
+
+      x = SET_SRC(p);
+      indirect_reg_mem = pic30_PSV_PSV_count_helper(x);
+
+      if (last_indirect_reg_mem && indirect_reg_mem) {
+#if 0
+         fprintf(stderr,
+                 "This instruction looks like it could be "
+                 "subject to psrd_psrd\n");
+         debug_rtx(insn);
+#endif
+         pic30_inserted_nops++;
+         // insert a nop before this instruction
+         rtx new_insn = gen_bifnop();
+         emit_insn_before(new_insn, insn);
+      }
+      last_indirect_reg_mem = indirect_reg_mem;
+    }
+  }
+  return 0;
+}
+
 unsigned int pic30_merge_accumulators(void) {
   rtx insn;
   rtx prev_insn = 0;
@@ -20747,6 +21189,8 @@ bool pic30_can_eliminate(const int from_reg, const int to_reg) {
   if ((pic30_ecore_target() && (TARGET_FORCE_EP)) || (TARGET_FORCE_EP == 1)) {
     if ((from_reg == FP_REGNO) && (to_reg != SP_REGNO)) return 0; 
   }
+  if ((from_reg == FP_REGNO) && (pic30_errata_mask & psrd_psrd_errata))
+    return 0;
   return 1;
 }
 
@@ -20895,7 +21339,9 @@ void pic30_adjust_reg_alloc_order() {
   int i;
   int stride = 0;
 
-  if (pic30_fixed_point_supported_p()) return;
+  if ((pic30_integer_mac_support) && pic30_dsp_target()) return;
+
+  if (pic30_fixed_point_supported_p() && pic30_dsp_target()) return;
 
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++) {
     while ((reg_alloc_order[i+stride] == A_REGNO) || 
@@ -21075,6 +21521,36 @@ void pic30_output_extended_relocs(void) {
   }
 }
 
+int pic30_psrd_psrd_errata(rtx op1, rtx op2) {
+  int count = 0;
+  if ((reload_completed) && (pic30_errata_mask & psrd_psrd_errata)) {
+    if (op1) {
+      if (GET_CODE(op1) == MEM)
+        count += count_non_reg15_uses(XEXP(op1,0));
+    }
+    if (op2) {
+      if (GET_CODE(op2) == MEM)
+        count += count_non_reg15_uses(XEXP(op2,0));
+    }
+  }
+  return count;
+}
+
+int pic30_psrd_psrd_errata_movd(rtx op1, rtx op2) {
+  int count = 0;
+  if ((reload_completed) && (pic30_errata_mask & psrd_psrd_errata_movd)) {
+    if (op1) {
+      if (GET_CODE(op1) == MEM)
+        count += count_non_reg15_uses(XEXP(op1,0));
+    }
+    if (op2) {
+      if (GET_CODE(op2) == MEM)
+        count += count_non_reg15_uses(XEXP(op2,0));
+    }
+  }
+  return count;
+}
+
 extern struct rtl_opt_pass pass_validate_dsp_instructions;
 extern struct rtl_opt_pass pass_merge_accumulators;
 extern struct rtl_opt_pass pass_pass_track_sfrs;
@@ -21143,6 +21619,25 @@ struct rtl_opt_pass pass_RAW_count =
   "pic30_RAW_count",                    /* name */
   NULL,                                 /* gate */
   pic30_RAW_count,                      /* execute */
+  NULL,                                 /* sub */
+  NULL,                                 /* next */
+  0,                                    /* static_pass_number */
+  0,                                    /* tv_id */
+  0,                                    /* properties_required */
+  0,                                    /* properties_provided */
+  0,                                    /* properties_destroyed */
+  TODO_ggc_collect,                     /* todo_flags_start */
+  TODO_verify_flow,                     /* todo_flags_finish */
+ }
+};
+
+struct rtl_opt_pass pass_PSV_PSV_count =
+{
+ {
+  RTL_PASS,
+  "pic30_PSV_PSV_count",                /* name */
+  NULL,                                 /* gate */
+  pic30_PSV_PSV_count,                  /* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */

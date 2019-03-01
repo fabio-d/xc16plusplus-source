@@ -375,26 +375,80 @@ push_secondary_reload (int in_p, rtx x, int opnum, int optional,
   */ 
 #endif
 
-  if (REG_P (x) && REGNO (x) >= FIRST_PSEUDO_REGISTER
-      && reg_equiv_mem[REGNO (x)] != 0)
+  if (REG_P (x) && REGNO (x) >= FIRST_PSEUDO_REGISTER 
+      && reg_equiv_mem[REGNO (x)] != 0) {
     x = reg_equiv_mem[REGNO (x)];
-
-#ifdef _BUILD_C30_
-  else if (REG_P(x) && REGNO(x) >= FIRST_PSEUDO_REGISTER
-     && reg_equiv_address[REGNO (x)] != 0) {
-     rtx addr = reg_equiv_address[REGNO(x)];
-     rtx new_x;
-   
-     new_x = gen_rtx_MEM(GET_MODE(x), addr);
-     reg_equiv_mem[REGNO(x)] = new_x;
-     x = new_x;
   }
-#endif
 
+#if defined(_BUILD_C30_) && 1
   sri.icode = CODE_FOR_nothing;
   sri.prev_sri = prev_sri;
   rclass = targetm.secondary_reload (in_p, x, reload_class, reload_mode, &sri);
   icode = (enum insn_code) sri.icode;
+
+  if (icode == CODE_FOR_nothing) {
+    if (MEM_P(x)) {
+       rtx inner,lhs=0,rhs=0;
+       rtx new_lhs = 0, new_rhs=0;
+  
+       inner = XEXP(x,0);
+       switch (GET_CODE(inner)) {
+         case PLUS:
+         case MINUS:
+           lhs = XEXP(inner,0);
+           rhs = XEXP(inner,1);
+           break;
+         case POST_INC:
+         case POST_DEC:
+         case PRE_INC:
+         case PRE_DEC:
+           lhs = XEXP(inner,0);
+           break;
+         default: break;
+       }
+       if (lhs && REG_P(lhs) && (REGNO(lhs) >= FIRST_PSEUDO_REGISTER) &&
+           reg_equiv_mem[REGNO(lhs)] != 0) {
+          new_lhs = reg_equiv_mem[REGNO(lhs)];
+       }
+       if (rhs && REG_P(rhs) && (REGNO(rhs) >= FIRST_PSEUDO_REGISTER) &&
+           reg_equiv_address[REGNO(rhs)] != 0) {
+          new_rhs = reg_equiv_mem[REGNO(rhs)];
+       }
+       if ((new_lhs) || (new_rhs)) {
+         rtx new_x;
+         if (rhs) {
+           new_x = gen_rtx_fmt_ee(GET_CODE(inner), GET_MODE(inner), 
+                                  new_lhs ? new_lhs : lhs, 
+                                  new_rhs ? new_rhs : rhs);
+         } else {
+           new_x = gen_rtx_fmt_e(GET_CODE(inner), GET_MODE(inner), 
+                                 new_lhs ? new_lhs : lhs);
+                           
+         }
+         new_x = gen_rtx_MEM(GET_MODE(x), new_x);
+         x = new_x;
+       }
+    } else
+#endif
+#if defined(_BUILD_C30_)
+    if (REG_P(x) && REGNO(x) >= FIRST_PSEUDO_REGISTER
+       && reg_equiv_address[REGNO (x)] != 0) {
+       rtx addr = reg_equiv_address[REGNO(x)];
+       rtx new_x;
+  
+       new_x = gen_rtx_MEM(GET_MODE(x), addr);
+       reg_equiv_mem[REGNO(x)] = new_x;
+       x = new_x;
+    }
+#endif
+
+    sri.icode = CODE_FOR_nothing;
+    sri.prev_sri = prev_sri;
+    rclass = targetm.secondary_reload(in_p, x, reload_class, reload_mode, &sri);
+    icode = (enum insn_code) sri.icode;
+#if defined(_BUILD_C30_)
+  }
+#endif
 
   /* If we don't need any secondary registers, done.  */
   if (rclass == NO_REGS && icode == CODE_FOR_nothing)
@@ -5135,7 +5189,17 @@ find_reloads_address (enum machine_mode mode, rtx *memrefloc, rtx ad,
 
       else if (regno < FIRST_PSEUDO_REGISTER
 	       && regno_ok_for_base_p (regno, mode, MEM, SCRATCH)
-	       && ! regno_clobbered_p (regno, this_insn, mode, 0))
+#ifdef _BUILD_C30_
+               /* here we are checking to see if regno is being clobbered;
+                *   regno represents an address so the 'mode' should be
+                *   pointer mode, not the mode of the dereference.  IMHO (CAW) 
+                */
+	       && ! regno_clobbered_p (regno, this_insn, 
+                                       targetm.addr_space.pointer_mode(as), 0)
+#else
+	       && ! regno_clobbered_p (regno, this_insn, mode, 0)
+#endif
+              )
 	return 0;
 
       /* If we do not have one of the cases above, we must do the reload.  */
@@ -6014,7 +6078,7 @@ find_reloads_address_1 (enum machine_mode mode, rtx x, int context,
 	  gcc_assert (regno < FIRST_PSEUDO_REGISTER
 		      || reg_equiv_constant[regno] == 0);
 
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) && 0
           /* fix for c30-242 (orig), c30-505 (4.5.1 port) */
 #else
 	  /* Handle a register that is equivalent to a memory location

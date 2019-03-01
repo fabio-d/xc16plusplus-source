@@ -1318,6 +1318,14 @@ is_widening_mult_rhs_p (tree rhs, tree *type_out, tree *new_rhs_out)
       return true;
     }
 
+#ifdef _BUILD_C30_
+  if (TREE_CODE(rhs) == FIXED_CST) {
+    *new_rhs_out = rhs;
+    *type_out = NULL; // TREE_TYPE(rhs);
+    return true;
+  }
+#endif
+
   return false;
 }
 
@@ -1347,6 +1355,15 @@ is_widening_mult_p (gimple stmt,
 
   if (*type1_out == NULL)
     {
+#ifdef _BUILD_C30_
+      tree rhs1_type = TREE_TYPE(*rhs1_out);
+      if ((*type2_out) && (TREE_CODE(*rhs1_out) == FIXED_CST) &&
+          ((TREE_CODE(rhs1_type) == TREE_CODE(*type2_out)) ||
+           (TYPE_PRECISION(rhs1_type) * 2 == TYPE_PRECISION(*type2_out)) ||
+           (TYPE_PRECISION(rhs1_type) == TYPE_PRECISION(*type2_out) *2)))
+        (void)(0);
+      else
+#endif
       if (*type2_out == NULL || !int_fits_type_p (*rhs1_out, *type2_out))
 	return false;
       *type1_out = *type2_out;
@@ -1354,6 +1371,15 @@ is_widening_mult_p (gimple stmt,
 
   if (*type2_out == NULL)
     {
+#ifdef _BUILD_C30_
+      tree rhs2_type = TREE_TYPE(*rhs2_out);
+      if ((*type1_out) && (TREE_CODE(*rhs2_out) == FIXED_CST) &&
+          ((TREE_CODE(rhs2_type) == TREE_CODE(*type1_out)) ||
+           (TYPE_PRECISION(rhs2_type) * 2 == TYPE_PRECISION(*type1_out)) ||
+           (TYPE_PRECISION(rhs2_type) == TYPE_PRECISION(*type1_out) *2)))
+        (void)(0);
+      else
+#endif
       if (!int_fits_type_p (*rhs2_out, *type1_out))
 	return false;
       *type2_out = *type1_out;
