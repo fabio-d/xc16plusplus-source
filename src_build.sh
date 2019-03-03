@@ -62,7 +62,7 @@ mkdir bin
     (
        cd gcc-${OMF}-native
        export EXTRA_CFLAGS
-       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=i686-pc-mingw32-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v0_00
+       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=i686-pc-mingw32-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v1_11
        cp gcc/gcc/xgcc${EXE} ${install_dir}/bin/bin/${OMF}-gcc${EXE}
        cp gcc/gcc/cc1${EXE} ${install_dir}/bin/bin/${OMF}-cc1${EXE}
        cp gcc/gcc/cpp${EXE} ${install_dir}/bin/bin/${OMF}-cpp${EXE}
