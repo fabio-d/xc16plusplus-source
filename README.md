@@ -36,29 +36,6 @@ This repository is organized in several branches:
    to make C++ work with that version;
  * The *master* branch contains the README.md and LICENSE files only.
 
-## Updating
-
-I destroy and recreate the *master* branch every time I modify the latest
-*xc16++-vX.YY* or the *metadata* branch. Therefore, `git` will always fail to
-fast-forward it. The recommended way to update a clone of this repository is to
-run the following sequence of commands:
-```
-git fetch
-git checkout master
-git reset --hard origin/master
-```
-and, for each other tracked branch:
-```
-git checkout tracked-branch-name
-git pull
-```
-
-The first command will download all the updates without touching neither the
-local index nor working tree. The second and third commands will update the
-local master branch. The fourth and fifth commands, that must be repeated for
-each branch you are interested in, update branch *tracked-branch-name* the
-regular way.
-
 # License
 
 Patches are released under the same license as the portion of the XC16 source
