@@ -6,26 +6,24 @@ It is neither endorsed nor supported in any form by Microchip.
 
 ## This is not the repository you are looking for
 
-If you just want to download patches against the official Microchip XC16 source,
-compile or install C++ support for XC16, **this is not the repository you are
-looking for**. Please refer to https://github.com/fabio-d/xc16plusplus instead.
+If you just want to install the C++ compiler, **this is not the repository you
+are looking for**. Please refer to
+https://github.com/fabio-d/xc16plusplus/releases instead.
 
 ## About this repository
 
-I use this repository to track Microchip's official XC16 releases and rebase my
+I use this repository to track Microchip's official XC16 releases along with my
 patches that enable C++ support every time they release a new version.
 
-This repository contains both the official XC16 source **and** my patches.
+This repository contains both the official XC16 source **and** my patches (see
+below).
 
-When I update this repository, I also update https://github.com/fabio-d/xc16plusplus.
-**That repository contains the same patches as this one, but in `patch` format
-that can easily be applied to the official Microchip source archive**.
-
-The [xc16plusplus](https://github.com/fabio-d/xc16plusplus) repository also
-contains **release notes**, **examples**, **tests** and
+The [xc16plusplus](https://github.com/fabio-d/xc16plusplus) companion repository
+contains **release notes**, **examples**, **automatic tests** and
 **support files** that **are NOT present in this repository**. Unless you want
-to **modify** XC16++, the [xc16plusplus](https://github.com/fabio-d/xc16plusplus)
-repository will probably be more useful to you.
+to **rebuild** or **modify** XC16++, the
+[xc16plusplus](https://github.com/fabio-d/xc16plusplus) repository will probably
+be more useful to you.
 
 This repository is organized in several branches:
  * The *upstream-official* branch has one commit for each official xc16 release.
