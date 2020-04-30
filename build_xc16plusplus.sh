@@ -9,7 +9,7 @@ BUILD=$("$SRCDIR/XC_GCC/gcc/config.guess")
 MCHP_VERSION=$(sed -n 's/.*MCHP_VERSION=\(v[^ ]*\).*/\1/p' src_build.sh)
 
 # Set the XC16++ revision number
-XC16PLUSPLUS_VERSION=v2
+XC16PLUSPLUS_REVISION=2
 
 if [ "$1" == "linux" ];
 then
@@ -39,7 +39,7 @@ echo "Building xc16plusplus with:"
 echo " BUILD=$BUILD"
 echo " HOST=$HOST"
 echo " MCHP_VERSION=$MCHP_VERSION"
-echo " XC16PLUSPLUS_VERSION=$XC16PLUSPLUS_VERSION"
+echo " XC16PLUSPLUS_REVISION=$XC16PLUSPLUS_REVISION"
 echo " MAKEFLAGS=$MAKEFLAGS"
 echo
 
@@ -103,7 +103,7 @@ function build_gcc()
 
 	AR="$(sed -n 's/^AR = //p' ../gmp/Makefile)" \
 	MAKEINFO=missing AS_FOR_TARGET=missing LD_FOR_TARGET=missing \
-	CFLAGS="$CFLAGS -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=$MCHP_VERSION -DXC16PLUSPLUS_VERSION=$XC16PLUSPLUS_VERSION -D_BUILD_C30_ -D_BUILD_MCHP_ -O2 -DRESOURCE_MISMATCH_OK -I$SRCDIR/c30_resource/src/c30/" \
+	CFLAGS="$CFLAGS -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=$MCHP_VERSION -DXC16PLUSPLUS_REVISION=$XC16PLUSPLUS_REVISION -D_BUILD_C30_ -D_BUILD_MCHP_ -O2 -DRESOURCE_MISMATCH_OK -I$SRCDIR/c30_resource/src/c30/" \
 	"$SRCDIR/XC_GCC/gcc/configure" \
 		--build=$BUILD --host=$HOST --target=pic30-$OMF $OPT_DWARF2 \
 		--with-bugurl="https://github.com/fabio-d/xc16plusplus/issues" \
