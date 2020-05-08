@@ -235,18 +235,37 @@ static int closest_target_match
   PARAMS ((const bfd_target *, PTR));
 static char * get_first_input_target
   PARAMS ((void));
+void dprint_last_statement 
+  PARAMS ((lang_statement_union_type *, int));
+void pic30_print_list
+  PARAMS ((lang_statement_list_type *, lang_statement_union_type *));
+int pic30_list_count
+  PARAMS ((lang_statement_list_type *));
 
 #ifdef PIC30
 extern bfd_boolean aivt_enabled;
 extern bfd_vma aivt_base;
 extern bfd_vma aivt_len;
+
 extern struct pic30_undefsym_table *pic30_undefsym_init
   PARAMS ((void));
 extern void pic30_init_section_list
   PARAMS ((struct pic30_section **));
-
 extern void pic30_append_section_to_list
   PARAMS ((struct pic30_section *, lang_input_statement_type *, asection *));
+extern int pic30_is_generic_machine
+  PARAMS((unsigned int));
+extern void pic30_load_codeguard_settings
+  PARAMS((const bfd_arch_info_type *, int));
+extern void pic30_create_data_init_templates 
+  PARAMS((void));
+extern void pic30_create_rom_usage_template
+  PARAMS((void));
+extern void pic30_create_ram_usage_template
+  PARAMS((void));
+extern void pic30_create_specific_fill_sections
+  PARAMS((void));
+
 #endif
 
 /* Exported variables.  */

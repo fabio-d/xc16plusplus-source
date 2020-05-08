@@ -1032,8 +1032,9 @@ BUILD_LIBDEPS= $(BUILD_LIBIBERTY)
 # and the system's installed libraries.
 LIBS = @LIBS@ $(CPPLIB) $(LIBINTL) $(LIBICONV) $(LIBIBERTY) $(LIBDECNUMBER) \
 	$(CSL_LICENSELIB) $(HOST_LIBS)
+EXPATLIB = -lexpat
 BACKENDLIBS = $(CLOOGLIBS) $(PPLLIBS) $(GMPLIBS) $(PLUGINLIBS) $(HOST_LIBS) \
-	$(ZLIB) $(LIBELFLIBS)
+	$(ZLIB) $(LIBELFLIBS) $(EXPATLIB)
 # Any system libraries needed just for GNAT.
 SYSLIBS = @GNAT_LIBEXC@
 
@@ -1456,7 +1457,9 @@ OBJS-archive = \
 	prefix.o \
 	tree-inline.o \
 	tree-nomudflap.o \
-	varpool.o
+	varpool.o \
+        xc-coverage.o \
+        xc-covtool-comm.o
 
 OBJS = $(OBJS-common) $(OBJS-md) $(OBJS-archive)
 

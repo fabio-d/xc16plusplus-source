@@ -39,6 +39,7 @@ extern int pic30_is_dma_machine(const bfd_arch_info_type *);
 extern int pic30_is_eds_machine(const bfd_arch_info_type *);
 extern int pic30_proc_family(const bfd_arch_info_type *);
 extern const bfd_arch_info_type * global_PROCESSOR;
+extern int pic30_is_auxflash_machine(const bfd_arch_info_type *);
 
 int pic30_global_warning = 0;
 bfd *pic30_output_bfd;
@@ -2190,6 +2191,12 @@ pic30_final_link (abfd, info)
                  (strcmp(r->name, sym->name+1) == 0)) ||
                 ((fill_ivt_pass == 1) && ((r->flags & ivt_seen) == 0)))) {
              r->flags |= ivt_seen;
+             if (fill_ivt_pass == 1) {
+                /* we have not seen a definition of this vector
+                 *  if its an alternate vector, see if we have the regular
+                 *  vector
+                 */
+             }
              if (r->is_alternate_vector) {
 #if 0
                 if (vector_table_status & USER_AIVT_DEFINED) delete_vector=1;
@@ -2208,6 +2215,7 @@ pic30_final_link (abfd, info)
              }
              for (sec = abfd->sections; sec != NULL; sec = sec->next) {
                 if ((strcmp(sec->name, sec_name) == 0) && (sec->flags))  {
+                  bfd_vma value = 0;
                   if (delete_vector == 1) {
                     sec->flags = 0;
                     break;
@@ -2222,8 +2230,16 @@ pic30_final_link (abfd, info)
                     abort();
                   }
                   data = buf;
-                  bfd_vma value = sym->section->output_offset + sym->value +
-                                  sym->section->output_section->vma;
+                  if ((fill_ivt_pass == 1) && (r->is_alternate_vector) &&
+                      (r->matching_vector) && (r->matching_vector->value)) {
+                    /* use the matching vector value, if defined */
+                    value = r->matching_vector->value;
+                  }
+                  if (value == 0) 
+                    value = sym->section->output_offset + sym->value +
+                            sym->section->output_section->vma;
+
+                  r->value = value;
                   *data++ = value & 0xFF;
                   *data++ = (value >> 8) & 0xFF;
                   *data++ = (value >> 16) & 0xFF;
@@ -2861,6 +2877,19 @@ pic30_bfd_reloc_range_check (howto, relocation, abfd, symbol, error_msg)
 #define family pic30_proc_family
 {
   bfd_reloc_status_type rc =  bfd_reloc_ok;
+  /* Note that bfd_vma relocation is right shifted before calling this function.
+   * Due to right shift the upper two bits can be zero since bfd_vma is unsigned
+   * long. So when masking to see if a negative number is within range we have 
+   * to make sure not to consider the upper two bits. The below control flow 
+   * assigns that value to upper_mask based on size of bfd_vma. It is explicitly
+   * assigned value so that we do not get confused in the future.
+   */
+  bfd_vma upper_mask;
+  if (sizeof(bfd_vma) == 8) {
+    upper_mask = 0xC000000000000000;
+  } else if (sizeof(bfd_vma) == 4) {
+    upper_mask = 0xC0000000;
+  }
 
   /* if an input file references SFRs, and was created for
      a different processor family, issue a warning */
@@ -2928,7 +2957,7 @@ pic30_bfd_reloc_range_check (howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_PCREL_BRANCH_SLIT6:
         /* valid range is [-32..31] and not [-2, -1, 0] */
-        if ((relocation > 0x1F) && ~(relocation | 0xC000001F))
+        if ((relocation > 0x1F) && ~(relocation | upper_mask | 0x1F))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,
@@ -2940,7 +2969,7 @@ pic30_bfd_reloc_range_check (howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_PCREL_BRANCH:
       case R_PIC30_BRANCH_ABSOLUTE:
         /* valid range is [-32768..32767] and not [-2, -1, 0] */
-        if ((relocation > 0x7FFF) && ~(relocation | 0xC0007FFF))
+        if ((relocation > 0x7FFF) && ~(relocation | upper_mask | 0x7FFF))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,
@@ -2953,7 +2982,7 @@ pic30_bfd_reloc_range_check (howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_PCREL_DO:
       case R_PIC30_DO_ABSOLUTE:
         /* valid range is [-32768..32767] and not [-2, -1, 0] */
-        if ((relocation > 0x7FFF) && ~(relocation | 0xC0007FFF))
+        if ((relocation > 0x7FFF) && ~(relocation | upper_mask | 0x7FFF))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,

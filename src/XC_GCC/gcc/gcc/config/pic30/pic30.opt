@@ -308,3 +308,7 @@ Target Joined Var(pic30_cvt) Undocumented
 
 mdfp=
 Target Joined Var(pic30_dfp) Undocumented
+
+mcodecov=
+Target Joined RejectNegative Var(mchp_codecov) VarExists
+Enable code coverage instrumentation

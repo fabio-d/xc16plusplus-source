@@ -314,7 +314,7 @@ elf_link_add_archive_symbols (abfd, info)
     goto error_return;
 
 #if PIC30
-  { static smartio_run=0;
+  { static int smartio_run=0;
 
     
     if (smartio_run == 0) {

@@ -3914,7 +3914,7 @@ ac_c_preproc_warn_flag=yes
 
 ac_libiberty_warn_cflags=
 save_CFLAGS="$CFLAGS"
-for option in -W -Wall -Wwrite-strings -Wc++-compat \
+for option in -W -Wall -Wwrite-strings \
 			  -Wstrict-prototypes; do
   as_acx_Woption=`$as_echo "acx_cv_prog_cc_warning_$option" | $as_tr_sh`
 

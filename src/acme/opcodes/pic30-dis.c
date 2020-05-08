@@ -29,6 +29,20 @@
 #include "pic30-opc.h"
 #include "../bfd/coff-pic30.h"
 
+/* prototypes */
+extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+extern int pic30_is_isav4_machine(const bfd_arch_info_type *);
+
+
+void pic30_debug_semantics(const struct pic30_opcode *, char *, int);
+static int build_expr_operands(struct disassemble_info *, 
+                               struct pic30_private_data *, 
+                               int , 
+                               struct pic30_semantic_expr *);
+struct pic30_semantic_expr * pic30_analyse_semantics(struct disassemble_info *);
+/* end of prototypes */
+
+
 bfd_vma pic30_disassembly_address = 0; /* used by some extract functions
                                       in pic30-opc.c */
 

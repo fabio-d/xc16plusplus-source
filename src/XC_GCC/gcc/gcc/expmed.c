@@ -688,8 +688,14 @@ store_bit_field_1 (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
       bool copy_back = false;
 
       /* Add OFFSET into OP0's address.  */
-      if (MEM_P (xop0))
+      if (offset && MEM_P (xop0))
 	xop0 = adjust_address (xop0, byte_mode, offset);
+
+#ifdef _BUILD_C30_
+      /* CAW convert MEM of xop0 to be the same mode that we are assigning */
+      if (MEM_P (xop0))
+        xop0 = adjust_address(xop0, GET_MODE(value), 0);
+#endif
 
       /* If xop0 is a register, we need it in OP_MODE
 	 to make it acceptable to the format of insv.  */

@@ -63,6 +63,7 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 #include "cpplib.h"
 #include "config/mchp-cci/cci.h"
 #include "pic30-protos.h"
+#include "xc-coverage.h"
 #include "target.h"
 #include "target-def.h"
 #include "gimple.h"
@@ -130,6 +131,7 @@ const char * mchp_config_data_dir = NULL;
 struct mchp_config_specification *mchp_configuration_values;
 
 const char * pic30_dfp = NULL;
+const char * mchp_codecov = NULL;
 
 /*----------------------------------------------------------------------*/
 /*    L O C A L    V A R I A B L E S                    */
@@ -820,6 +822,12 @@ int TARGET_SMALL_SCALAR = 0;
 
 /* SFR warnings */
 const char *pic30_sfr_warning = NULL;
+
+/* Code coverage flags */
+int pic30_codecov_near = 0;
+int pic30_codecov_far = 0;
+int pic30_codecov_far_opt = 0;
+int pic30_codecov_license = 0;
 
 /*----------------------------------------------------------------------*/
 
@@ -3154,6 +3162,8 @@ get_license (void)
   char kopt[] = "-full-checkout-for-compilers";
   char product[] = "swxc16";
   char version[9] = "";
+  char  product_xccov[] = "swxc-cov";
+  char  version_xccov[4] = "1.0";
   char date[] = __DATE__;
   int mchp_license_valid, xclm_tampered;
   const char *pic30_nofallback_error = 0;
@@ -3198,10 +3208,18 @@ get_license (void)
     }
 
   /* Arguments to pass to xclm */
-  args[1] = kopt;
-  args[2] = product;
-  args[3] = version;
-  args[4] = date;
+  if (mchp_codecov) {
+    /* Need to send seperate args to xclm for code coverage */
+    args[1] = kopt;
+    args[2] = product_xccov;
+    args[3] = version_xccov;
+    args[4] = date;
+  } else {
+    args[1] = kopt;
+    args[2] = product;
+    args[3] = version;
+    args[4] = date;
+  }
   /* Get a path to the license manager to try */
   exec = get_license_manager_path();
 
@@ -3262,7 +3280,7 @@ get_license (void)
         }
       } else if (WIFEXITED(status)) {
         mchp_license_valid = WEXITSTATUS(status);
-        if (mchp_license_valid > MCHP_XCLM_VALID_PRO_LICENSE) {
+        if (mchp_license_valid > MCHP_XCLM_VALID_CCOV_LICENSE) {
           mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
         }
         if ((mchp_license_valid == MCHP_XCLM_FREE_LICENSE) && 
@@ -3872,8 +3890,31 @@ void pic30_override_options(void) {
       error("-mconst-in-auxflash not supported on this target");
     }
   }
-
+  if (mchp_codecov) {
+    if (strncasecmp(mchp_codecov,"near",4)==0) {
+      pic30_codecov_near = 1;
+    } else if (strncasecmp(mchp_codecov, "far-opt", 7)==0) {
+      pic30_codecov_far_opt = 1;
+    } else if (strlen(mchp_codecov)==3 && 
+               strncasecmp(mchp_codecov, "far", 3)==0) {
+      pic30_codecov_far = 1;
+    }
+#if defined(LICENSE_MANAGER_XCLM)
+    if (pic30_license_valid == MCHP_XCLM_VALID_CCOV_LICENSE) {
+      pic30_codecov_license = 1;
+    } else {
+      pic30_codecov_license = 0;
+    }
+#else
+    pic30_codecov_license = 1;
+#endif
+  }
   initialize_object_signatures();
+}
+
+/* Return pic30_codecov_license for code coverage license information*/
+int pic30_licensed_xccov_p() {
+  return pic30_codecov_license;
 }
 
 /*
@@ -5036,7 +5077,6 @@ static tree pic30_pointer_expr(tree arg) {
 ** Determine if a parameter is suitable as an argument to
 ** the builtin table and psv instructions.
 */
-int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0);
 int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0) {
   int p = 0;
 
@@ -16517,6 +16557,9 @@ static char *pic30_section_with_flags(const char *pszSectionName,
   if (flags & SECTION_UPDATE) {
     f += sprintf(f, "," SECTION_ATTR_UPDATE);
   }
+  if (flags & SECTION_INFO) {
+    f += sprintf(f, "," SECTION_ATTR_INFO);
+  }
   if (flags & (SECTION_NAMED | SECTION_PMP | SECTION_EXTERNAL)) {
     /* no other flags needed, it should be already in the name */
     *f = 0;
@@ -16960,6 +17003,43 @@ void pic30_asm_output_local(FILE *file, char *name, int size ATTRIBUTE_UNUSED,
    fprintf(file, "\t.popsection\n");
 }
 
+/************************************************************************/
+/*
+** Like ASM_OUTPUT_LOCAL except takes the required alignment as a separate,
+** explicit argument. If you define this macro, it is used in place of 
+** ASM_OUTPUT_LOCAL, and gives you more flexibility in handling the required
+** alignment of the variable. The alignment is specified as the number of bits.
+*/
+/************************************************************************/
+void pic30_asm_output_aligned_local(FILE *file, char *name, 
+                                    int size ATTRIBUTE_UNUSED, int alignment) {
+   const char *pszSectionName;
+   int reverse_aligned = 0;
+
+   SECTION_FLAGS_INT flags = validate_identifier_flags(name);
+
+   /* if this is a data sectino, this is now a BSS section */
+   if (flags & SECTION_WRITE) {
+     flags &= ~SECTION_WRITE;
+     flags |= SECTION_BSS;
+   }
+   pszSectionName = default_section_name(0, 0, flags);
+   if (flags) {
+     fprintf(file, "\t.pushsection\t%s\n",
+             pic30_section_with_flags(pszSectionName,flags));
+   } else {
+     fprintf(file, "\t.pushsection\t%s\n", name);
+   }
+   reverse_aligned = flags & SECTION_REVERSE;
+   if ((alignment > BITS_PER_UNIT) && !reverse_aligned)
+   {
+     fprintf(file, "\t.align\t%d\n", alignment / BITS_PER_UNIT);
+   }
+   assemble_name(file, name);
+   fputs(":\t.space\t", file);
+   fprintf(file, "%u\n", size);
+   fprintf(file, "\t.popsection\n");
+}
 /************************************************************************/
 /*
 ** Like ASM_OUTPUT_LOCAL except takes the required alignment as a separate,
@@ -17605,6 +17685,19 @@ void pic30_asm_file_end(void) {
     fprintf(asm_out_file,
             "\n\t.section __c30_info, info, bss\n__enable_fixed:\n");
   }
+  if (!TARGET_SKIP_DOT_FILE) { 
+   /* Microchip Libraries are built using the no-file option. This helps 
+    * identifying if the library is built by Microchip. This is not a solid
+    * identification flag for microchip built libraries, but can be used for 
+    * initial identification
+    * The following section will contain information if the file has been built
+    * with large scalar or large data
+    */
+    if((!TARGET_SMALL_SCALAR) || (!TARGET_SMALL_DATA)) {
+      fprintf(asm_out_file,
+              "\n\t.section __c30_info, info, bss\n__large_data_scalar:\n");
+    }
+  }
   {
     if (size_t_used_externally)
       external_options_mask.bits.unsigned_long_size_t = 1;
@@ -17678,6 +17771,88 @@ void pic30_asm_file_end(void) {
     free(buffer);
   }
 }
+
+/* Code coverage related */
+void pic30_asm_code_end(void) {
+  xccov_code_end();
+}
+
+void pic30_set_cc_bit(unsigned bitno) {
+  emit_insn(
+    gen_set_cover_point(gen_rtx_CONST_INT(HImode,bitno)));
+}
+
+void pic30_emit_cc_section(const char *name) {
+  gcc_assert(name);
+  SECTION_FLAGS_INT flags = 0;
+
+  if (!strcmp (name, CODECOV_SECTION)) {
+    if (pic30_codecov_near) {
+      /* Add near for near */
+      flags = SECTION_BSS | SECTION_NEAR;
+    } else {
+      /* Default is Far so we need not check if far or far-opt is selected */
+      flags = SECTION_BSS;
+    }
+  } else if (!strcmp (name, CODECOV_INFO_HDR) || !strcmp (name, CODECOV_INFO)) {
+    flags = SECTION_INFO | SECTION_KEEP;
+  } else {
+    gcc_unreachable ();
+  }
+
+  switch_to_section (get_section (name, flags, NULL));
+ 
+}
+
+void pic30_conditional_register_usage() {
+  if (pic30_codecov_far) {
+    fixed_regs[13] = call_used_regs[13] = 1;
+  }
+}
+
+char *pic30_cover_insn(unsigned bitno) {
+  static char insn[256];
+  int offset = bitno/8;
+  int bit = bitno % 8;
+  int regno = 0;
+  int use_reg = NULL;
+  rtx reg = NULL;
+  rtx first_insn = crtl->emit.x_first_insn;
+  if (pic30_codecov_near) {
+    sprintf(insn, "bset.b _%s+%d,#%d ; cover %d", 
+            xccov_cc_bits_name(), offset, bit, bitno);
+    return insn;
+  } else if (pic30_codecov_far_opt) {
+    /* Iterate through all registers to find a unused one */
+    for (regno = 0; regno<14; regno++) {
+      reg = gen_rtx_REG(HImode, regno);
+      if (pic30_reg_used_p(first_insn, reg) == 0) {
+        /* This reg is not being used */
+        use_reg = regno;
+        break;
+      } 
+    }
+    if (use_reg) {
+      sprintf(insn, "mov #_%s+%d,w%d;\n\tbset.b [w%d],#%d ; cover %d", 
+              xccov_cc_bits_name(), offset, use_reg, use_reg, bit, bitno);
+      use_reg = NULL;
+    } else {
+      /* We have no free regs. Make one, use w13 */
+      sprintf(insn, "push w13;\n\tmov #_%s+%d,w13;\n\tbset.b [w13],#%d ; cover %d\n\tpop w13;", 
+              xccov_cc_bits_name(), offset, bit, bitno);
+    }
+    return insn;
+  } else if (pic30_codecov_far) {
+    /* We are using the fixed register method so use w13 */
+    sprintf(insn, "mov #_%s+%d,w13;\n\tbset.b [w13],#%d ; cover %d", 
+            xccov_cc_bits_name(), offset, bit, bitno);
+    return insn;
+  } else {
+    fatal_error("Unknown option used. Please use -mcodecov=near or -mcodecov=far option");
+    return 1;
+  }
+}
+/* end of Code Coverage related */
 
 static int pic30_bsearch_compare(const void *va, const void *vb) {
   pic30_interesting_fn *a = (pic30_interesting_fn *)va;
@@ -21870,10 +22045,11 @@ char *pic30_register_extended_reloc(char *base, HOST_WIDE_INT offset) {
     }
   }
 
-  e = xmalloc(sizeof(struct pic30_extended_reloc));
+  e = (struct pic30_extended_reloc *)
+        xmalloc(sizeof(struct pic30_extended_reloc));
   e->next = pic30_extended_reloc_entries;
   e->base = base;
-  e->reloc = xmalloc(strlen(base)+24);
+  e->reloc = (char *)xmalloc(strlen(base)+24);
   e->offset = offset;
 
   sprintf(e->reloc,"_%s_%lx%d", base, time(0), id++);

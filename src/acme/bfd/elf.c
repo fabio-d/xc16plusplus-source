@@ -46,6 +46,8 @@
 
 extern unsigned int pic30_attribute_map
   PARAMS ((asection *));
+extern int pic30_is_valid_attributes
+  PARAMS ((unsigned int, unsigned char));
 
 #define PIC30_DEBUG 0
 #define PSV_BASE 0x8000
@@ -872,6 +874,14 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
   if (strncmp (name, ".gnu.linkonce", sizeof ".gnu.linkonce" - 1) == 0
       && elf_next_in_group (newsect) == NULL)
     flags |= SEC_LINK_ONCE | SEC_LINK_DUPLICATES_DISCARD;
+
+#if defined(PIC30)
+  /* We want the code coverage info sections to be combined into one.
+   */
+  if (strncmp (name, CODECOV_INFO_HDR, sizeof CODECOV_INFO_HDR -1) == 0
+      && elf_next_in_group (newsect) == NULL)
+    flags |= SEC_LINK_ONCE | SEC_LINK_DUPLICATES_SAME_CONTENTS;
+#endif
 
   bed = get_elf_backend_data (abfd);
   if (bed->elf_backend_section_flags)
@@ -2905,6 +2915,12 @@ elf_fake_sections (abfd, asect, failedptrarg)
     this_hdr->sh_flags |= SHF_MEMORY;
   if (PIC30_IS_NOLOAD_ATTR(asect))
     this_hdr->sh_flags |= SHF_NOLOAD;
+
+  /* This is to add the SHT_LOUSER+0xCC0 and SHT_LOUSER+0xCC1 type to the
+   * code coverage sections.
+   */
+  pic30_codecov_section(abfd, this_hdr, asect);
+
  
 #if PIC30_DEBUG
   printf("elf_fake_sections: %s, sh_flags = %lx\n",

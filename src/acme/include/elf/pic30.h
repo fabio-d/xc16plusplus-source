@@ -275,4 +275,15 @@ struct an_init_template {
                                           symbol */
 };
 
+/* Section types for code coverage */
+#define SHT_XC_CODECOV_INFO     (SHT_LOUSER + 0xCC0)
+#define SHT_XC_CODECOV_INFO_HDR (SHT_LOUSER + 0xCC1)
+
+/* Section names for code coverage (taken from gcc/gcc/xc-coverage.h) */
+#define CODECOV_SECTION        ".codecov"
+#define CODECOV_INFO           ".codecov_info"
+#define CODECOV_INFO_HDR       ".codecov_info.hdr"
+
+extern void pic30_codecov_section (bfd *, Elf_Internal_Shdr *, asection *);
+
 #endif /* _ELF_PIC30_H */

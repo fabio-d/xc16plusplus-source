@@ -109,6 +109,14 @@ extern struct pic30_memory *program_memory_free_blocks;
 extern struct pic30_memory *auxflash_memory_free_blocks;
 extern struct pic30_memory *aivt_free_blocks;
 
+/* External function prototypes */
+extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+extern int pic30_is_isav4_machine(const bfd_arch_info_type *);
+
+/* prototypes */
+static bfd_vma get_max_stack(void);
+void update_section_addr(asection *,bfd_vma );
+
 static int locate_options = 0;
 static bfd_vma exclude_addr = 0;
 

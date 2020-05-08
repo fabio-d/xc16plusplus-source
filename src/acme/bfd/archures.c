@@ -522,6 +522,9 @@ extern const bfd_arch_info_type bfd_xtensa_arch;
 extern const bfd_arch_info_type bfd_z8k_arch;
 extern const bfd_arch_info_type bfd_pic30_arch;
 
+extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+extern int pic30_is_isav4_machine(const bfd_arch_info_type *);
+extern int pic30_is_eds_machine(const bfd_arch_info_type *);
 
 static const bfd_arch_info_type * const bfd_archures_list[] =
   {

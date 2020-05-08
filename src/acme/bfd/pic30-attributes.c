@@ -47,6 +47,8 @@ char * pic30_section_attr_string
 char * pic30_section_size_string
   PARAMS ((asection *));
 
+void pic30_add_section_attributes
+  PARAMS((asection *, char *, char *));
 /*****************************************************************************/
 
 #undef ATTR

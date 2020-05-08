@@ -562,6 +562,7 @@ extern struct gimple_opt_pass pass_all_early_optimizations;
 extern struct gimple_opt_pass pass_update_address_taken;
 extern struct gimple_opt_pass pass_convert_switch;
 
+
 /* The root of the compilation pass tree, once constructed.  */
 extern struct opt_pass *all_passes, *all_small_ipa_passes, *all_lowering_passes,
                        *all_regular_ipa_passes, *all_lto_gen_passes;
@@ -630,6 +631,8 @@ extern struct rtl_opt_pass pass_track_sfrs;
 extern struct rtl_opt_pass pass_RAW_count;
 extern struct rtl_opt_pass pass_PSV_PSV_count;
 extern struct rtl_opt_pass pass_cse3;
+/* Add code coverage pass */
+extern struct rtl_opt_pass pass_xc_coverage;
 #endif
 
 #endif /* GCC_TREE_PASS_H */

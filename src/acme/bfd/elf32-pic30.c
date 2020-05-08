@@ -69,6 +69,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #define elf_backend_gc_mark_hook _bfd_pic30_elf_gc_mark_hook
 #define elf_backend_gc_sweep_hook _bfd_pic30_elf_gc_sweep_hook 
+#define elf_backend_section_from_shdr	_bfd_pic30_elf_section_from_shdr
+
 
 #define elf_backend_can_gc_sections 1
 
@@ -283,6 +285,8 @@ extern void pic30_undefsym_traverse
            bfd_boolean (*func) PARAMS ((struct bfd_hash_entry *, PTR)), PTR));
 extern struct pic30_undefsym_table *pic30_undefsym_init
   PARAMS ((void));
+extern bfd_reloc_status_type pic30_bfd_reloc_range_check
+  PARAMS ((reloc_howto_type *, bfd_vma, bfd *, asymbol *, char **));
 
 /* Local function prototypes */
 static void pic30_final_write_processing
@@ -312,6 +316,8 @@ static bfd_boolean pic30_elf32_bfd_get_section_contents
 static asection* _bfd_pic30_elf_gc_mark_hook PARAMS ((asection * ,struct bfd_link_info *, Elf_Internal_Rela *, struct elf_link_hash_entry *, Elf_Internal_Sym *));
 
 static bfd_boolean _bfd_pic30_elf_gc_sweep_hook PARAMS ((bfd *,  struct bfd_link_info *, asection *, const Elf_Internal_Rela *));
+
+static bfd_boolean _bfd_pic30_elf_section_from_shdr PARAMS ((bfd *,  Elf_Internal_Shdr *, const char *, int));
 
 static void bfd_pic30_print_section_header
   PARAMS ((void));
@@ -361,9 +367,16 @@ static bfd_vma bfd_pic30_handle
      PARAMS ((bfd *, bfd_vma, asymbol *));
 static int pic30_in_bounds
      PARAMS ((asection *, bfd_vma , bfd_size_type));
-extern bfd_reloc_status_type pic30_bfd_reloc_range_check
-  PARAMS ((reloc_howto_type *, bfd_vma, bfd *, asymbol *, char **));
-
+static void bfd_pic30_locate_ivt
+     PARAMS((bfd *, asection *, PTR));
+void pic30_debug_symbols
+     PARAMS((asymbol **,int));
+void pic30_grep_symbol_name
+     PARAMS((asymbol **, int, char *));
+void pic30_debug_section_list
+     PARAMS((asection *));
+void find_section
+     PARAMS((asection *, const char *));
 
 /* local statics */
 static bfd *link_output_bfd;
@@ -374,6 +387,8 @@ extern int pic30_is_dma_machine(const bfd_arch_info_type *);
 extern int pic30_is_eds_machine(const bfd_arch_info_type *);
 extern int pic30_proc_family(const bfd_arch_info_type *);
 extern const bfd_arch_info_type * global_PROCESSOR;
+extern int pic30_display_as_readonly_memory_p(asection *);
+extern int pic30_is_auxflash_machine(const bfd_arch_info_type *);
 
 /* Include the target file again for this target.  */
 #include "elf32-target.h"
@@ -3196,6 +3211,12 @@ pic30_final_link (abfd, info)
                   (strcmp(r->name, sym->name+1) == 0)) ||
                 ((fill_ivt_pass == 1) && ((r->flags & ivt_seen) == 0)))) {
              r->flags |= ivt_seen;
+             if (fill_ivt_pass == 1) {
+                /* we have not seen a definition of this vector
+                 *  if its an alternate vector, see if we have the regular
+                 *  vector
+                 */
+             }
              if (r->is_alternate_vector) {
                if (vector_table_status & USER_AIVT_DEFINED) delete_vector=1;
                if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
@@ -3210,6 +3231,7 @@ pic30_final_link (abfd, info)
              }
              for (sec = abfd->sections; sec != NULL; sec = sec->next) {
                 if ((strcmp(sec->name, sec_name) == 0) && (sec->flags)) {
+                  bfd_vma value = 0;
                   if (delete_vector == 1) {
                     sec->flags = 0;
                     break;
@@ -3224,8 +3246,15 @@ pic30_final_link (abfd, info)
                     abort();
                   }
                   data = buf;
-                  bfd_vma value = sym->section->output_offset + sym->value +
-                                  sym->section->output_section->vma;
+                  if ((fill_ivt_pass == 1) && (r->is_alternate_vector) &&
+                      (r->matching_vector) && (r->matching_vector->value)) {
+                    /* use the matching vector value, if defined */
+                    value = r->matching_vector->value;
+                  }
+                  if (value == 0) 
+                    value = sym->section->output_offset + sym->value +
+                            sym->section->output_section->vma;
+                  r->value = value;
                   *data++ = value & 0xFF;
                   *data++ = (value >> 8) & 0xFF;
                   *data++ = (value >> 16) & 0xFF;
@@ -3472,6 +3501,19 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
 #define family pic30_proc_family
 {
   bfd_reloc_status_type rc =  bfd_reloc_ok;
+  /* Note that bfd_vma relocation is right shifted before calling this function.
+   * Due to right shift the upper two bits can be zero since bfd_vma is unsigned
+   * long. So when masking to see if a negative number is within range we have 
+   * to make sure not to consider the upper two bits. The below control flow 
+   * assigns that value to upper_mask based on size of bfd_vma. It is explicitly
+   * assigned value so that we do not get confused in the future.
+   */
+  bfd_vma upper_mask;
+  if (sizeof(bfd_vma) == 8) {
+    upper_mask = 0xC000000000000000;
+  } else if (sizeof(bfd_vma) == 4) {
+    upper_mask = 0xC0000000;
+  }
 
   /* if an input file references SFRs, and was created for
      a different processor family, issue a warning */
@@ -3539,7 +3581,7 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_BRANCH_ABSOLUTE6:
       case R_PIC30_PCREL_BRANCH_SLIT6:
         /* valid range is [-32..31] */
-        if ((relocation > 0x1F) && ~(relocation | 0xC000001F))
+        if ((relocation > 0x1F) && ~(relocation | upper_mask | 0x1F))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,
@@ -3551,7 +3593,7 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_PCREL_BRANCH:
       case R_PIC30_BRANCH_ABSOLUTE:
         /* valid range is [-32768..32767] and not [-2, -1, 0] */
-        if ((relocation > 0x7FFF) && ~(relocation | 0xC0007FFF))
+        if ((relocation > 0x7FFF) && ~(relocation | upper_mask | 0x7FFF))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,
@@ -3564,7 +3606,7 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
       case R_PIC30_PCREL_DO:
       case R_PIC30_DO_ABSOLUTE:
         /* valid range is [-32768..32767] and not [-2, -1, 0] */
-        if ((relocation > 0x7FFF) && ~(relocation | 0xC0007FFF))
+        if ((relocation > 0x7FFF) && ~(relocation | upper_mask | 0x7FFF))
           {
             *error_msg = (char *) malloc(BUFSIZ);
             sprintf(*error_msg,
@@ -3923,7 +3965,8 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
       /* Add in supplied addend.  */
       relocation += reloc_entry->addend;
 
-#if 0
+#if 1
+  if (pic30_debug) {
   printf("\nsymbol->name = %s\n", symbol->name);
   printf("symbol->value = %x\n", symbol->value);
   printf("output_base = %x\n", output_base);
@@ -3931,6 +3974,7 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
   printf("reloc_entry->address = %x\n", reloc_entry->address);
   printf("reloc_entry->addend = %x\n", reloc_entry->addend);
   printf("relocation = %x\n", relocation);
+  }
 #endif
 
       /* Here the variable relocation holds the final address of the
@@ -3978,8 +4022,10 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
       /* apply the rightshift parameter */
       relocation >>= (bfd_vma) howto->rightshift;
 
-#if 0
+#if 1
+      if (pic30_debug) {
       printf("Final relocation = %lx at %lx\n", relocation, octets);
+      }
 #endif
 
       /* Call the pic30-specific range check routine */
@@ -4111,7 +4157,8 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
       reloc_target_output_section = symbol->section->output_section;
       output_base = reloc_target_output_section->vma;
 
-#if 0
+#if 1
+      if (pic30_debug) {
       /* DEBUG */
       printf ("symbol->name = %s\n", symbol->name);
       printf ("symbol->value = 0x%x\n", symbol->value);
@@ -4122,6 +4169,7 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
               symbol->section->output_offset);
       printf ("data = 0x%x\n", data);
       printf ("octets = 0x%x\n", octets);
+      }
 #endif
 
       relocation += symbol->section->output_offset;
@@ -4134,8 +4182,10 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
 
       relocation >>= (bfd_vma) howto->rightshift;
 
-#if 0
+#if 1
+      if (pic30_debug) {
       printf("%d relocation = 0x%x\n", __LINE__, (long) relocation);
+      }
 #endif
 
       /* Extract offset data from the encoded instruction. */
@@ -5693,6 +5743,32 @@ _bfd_pic30_elf_gc_sweep_hook (abfd, info, sec, relocs)
   return TRUE;
 }
 
+bfd_boolean
+_bfd_pic30_elf_section_from_shdr (abfd, hdr, name, shindex)
+     bfd *abfd ATTRIBUTE_UNUSED;
+     Elf_Internal_Shdr *hdr ATTRIBUTE_UNUSED;
+     const char *name ATTRIBUTE_UNUSED;
+     int shindex ATTRIBUTE_UNUSED;
+{
+  /* We currentyly need this for code coverage only. For the rest return false
+   */
+  switch (hdr->sh_type)
+    {
+    case SHT_LOUSER+0xCC0:
+      break;
+    case SHT_LOUSER+0xCC1:
+      break;
+    default:
+      return FALSE;
+    }
+
+    if (!_bfd_elf_make_section_from_shdr (abfd, hdr, name)) {
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
 static int
 pic30_in_bounds (asection *sec, bfd_vma region_origin,
                  bfd_size_type region_length)
@@ -5718,4 +5794,23 @@ pic30_in_bounds (asection *sec, bfd_vma region_origin,
 
   return result;
 }
+
+/* Code coverage code for section flags */
+void pic30_codecov_section (bfd *abfd, Elf_Internal_Shdr *hdr, asection *sec)
+{
+  const char *name;
+
+  name = bfd_get_section_name (abfd, sec);
+  if (!name) return;
+
+  if (strncmp (name, CODECOV_INFO_HDR, sizeof CODECOV_INFO_HDR -1) == 0)
+    {
+      hdr->sh_type = SHT_XC_CODECOV_INFO_HDR;
+    }
+  else if (strncmp (name, CODECOV_INFO, sizeof CODECOV_INFO - 1) == 0)
+    {
+      hdr->sh_type = SHT_XC_CODECOV_INFO;
+    }
+}
+
 /*****************************************************************************/

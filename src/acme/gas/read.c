@@ -220,6 +220,7 @@ static int dwarf_file_string;
 #endif
 #endif
 
+/* prototypes */
 static void cons_worker PARAMS ((int, int));
 static int scrub_from_string PARAMS ((char *, int));
 static void do_align PARAMS ((int, char *, int, int));
@@ -240,6 +241,11 @@ static segT get_known_segmented_expression PARAMS ((expressionS * expP));
 static void pobegin PARAMS ((void));
 static int get_line_sb PARAMS ((sb *));
 static void generate_file_debug PARAMS ((void));
+
+/* extern prototypes */
+extern char *dwarf2_directive_file PARAMS ((int));
+extern void dwarf2_directive_loc PARAMS ((int));
+
 
 void
 read_begin ()

@@ -40,6 +40,8 @@
 
 extern void pic30_set_extended_attributes
   PARAMS ((asection *, unsigned int, unsigned char ));
+extern struct pic30_semantic_expr * pic30_analyse_semantics
+  PARAMS ((struct disassemble_info *));
 
 extern char *pic30_dfp;
 #endif
@@ -148,6 +150,46 @@ enum debug_trace_status {
   dbg_all = 0xFFFF
 };
 
+enum register_state {
+   rs_unknown,
+   rs_stack_offset,
+   rs_output_pointer,
+   rs_small_literal,
+   rs_literal,
+   rs_xfactor
+};
+
+struct psrd_psrd_facts {
+  struct {
+    bfd_vma memaddr;
+    int opnd[MAX_OPERANDS];
+  } last_hit;
+  struct {
+    unsigned int fSFA:1;                  /* current state of SFA */
+    unsigned int fSFA_for_fn:1;           /* SFA state for current fn */
+    unsigned int fREPEAT:1;               /* REPEAT n > 0 */
+    unsigned int fREPEATED:1;             /* REPEATed insn */
+    unsigned int precon_lddw:1;           /* during connecting code check
+                                              we have seen a mov.d PSV */
+    asymbol *current_fn;
+    bfd_vma current_fn_addr;
+    asymbol *last_sym;
+    bfd_vma last_sym_addr;
+    bfd_vma precon_addr;                  /* precondition found */
+    bfd_vma precon_single_psv_insn;       /* single PSV insn found here */
+  } state;
+  struct {
+    enum register_state register_state;
+    unsigned value;
+  } register_info[16];
+};
+
+struct psrd_psrd_matches {
+  bfd_vma memaddr;
+  bfd_vma precon_addr;
+  struct psrd_psrd_matches *next;
+} *possible_psrd_psrd_matches = NULL;
+
 static int debug_trace = 0;
 static enum psrd_psrd_mode back_to_back_psv = 0;
 static int back_to_back_psrd_count = 0;
@@ -168,6 +210,10 @@ static void pic30_display_hex_byte
   PARAMS ((asection *, bfd_byte *, bfd_size_type, bfd_size_type, unsigned int));
 static void pic30_display_char_byte
   PARAMS ((asection *, bfd_byte *, bfd_size_type, bfd_size_type, unsigned int));
+static void pic30_annul_precondition
+  PARAMS ((struct psrd_psrd_facts *, struct disassemble_info *, bfd_vma, struct pic30_private_data *, struct pic30_semantic_expr *));
+static void pic30_detect_back_to_back_psv
+  PARAMS ((bfd_vma, struct disassemble_info *, asymbol *));
 #endif
 
 static void usage
@@ -1488,45 +1534,6 @@ objdump_sprintf VPARAMS ((SFILE *f, const char *format, ...))
      OPND_REGISTER_POST_DECREMENT_BY_N   \
    )
 
-enum register_state {
-   rs_unknown,
-   rs_stack_offset,
-   rs_output_pointer,
-   rs_small_literal,
-   rs_literal,
-   rs_xfactor
-};
-
-struct psrd_psrd_facts {
-  struct {
-    bfd_vma memaddr;
-    int opnd[MAX_OPERANDS];
-  } last_hit;
-  struct {
-    unsigned int fSFA:1;                  /* current state of SFA */
-    unsigned int fSFA_for_fn:1;           /* SFA state for current fn */
-    unsigned int fREPEAT:1;               /* REPEAT n > 0 */
-    unsigned int fREPEATED:1;             /* REPEATed insn */
-    unsigned int precon_lddw:1;           /* during connecting code check
-                                              we have seen a mov.d PSV */
-    asymbol *current_fn;
-    bfd_vma current_fn_addr;
-    asymbol *last_sym;
-    bfd_vma last_sym_addr;
-    bfd_vma precon_addr;                  /* precondition found */
-    bfd_vma precon_single_psv_insn;       /* single PSV insn found here */
-  } state;
-  struct {
-    enum register_state register_state;
-    unsigned value;
-  } register_info[16];
-};
-
-struct psrd_psrd_matches {
-  bfd_vma memaddr;
-  bfd_vma precon_addr;
-  struct psrd_psrd_matches *next;
-} *possible_psrd_psrd_matches = NULL;
 
 static void
 pic30_psv_clear_register_facts_helper(struct psrd_psrd_facts *facts,

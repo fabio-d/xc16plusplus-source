@@ -9,20 +9,14 @@
 /* malloc.h should be stdlib.h for POSIX compliance */
 #include <stdlib.h>
 #include "bucomm.h"
+#include "libiberty.h"
+#include "pic30-utils.h"
 
 #define error -1
 #define success 0
 #define EEDATA_BASE_ADDR 0x7ff000
 
 static int verbose = 0;
-
-struct pic30_section
-{
-  struct pic30_section *next;
-  unsigned int attributes; /* unused */
-  PTR *file;
-  asection *sec;
-};
 
 /* prototypes */
 int main (int argc, char ** argv);
@@ -33,6 +27,7 @@ struct pic30_section *write_section_image(bfd *abfd, struct pic30_section *s,
 int write_hex_file(char *name, bfd *abfd);
 int dump_symbols(bfd *abfd);
 void print_symbol(asymbol *sym);
+int write_image_file(char *, bfd *);
 
 /* needed for sorting */
 void init_section_list (struct pic30_section **);
@@ -58,7 +53,8 @@ static long long int image_address = 0;
 
 /* from elsewhere */
 extern bfd_boolean pic30_partition_flash;
-extern int pic30_mem_info[2];
+extern struct pic30_mem_info_ pic30_mem_info;
+extern void pic30_load_codeguard_settings(const bfd_arch_info_type *, int);
 
 #define MAX_ROW 16384
 static long subordinate_image_row = 0;
@@ -797,7 +793,7 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
     }
     high_addr = low_addr+j*2;
   }
-  if ((pic30_mem_info[0]) && (high_addr >= pic30_mem_info[0])) {
+  if ((pic30_mem_info.flash[0]) && (high_addr >= pic30_mem_info.flash[0])) {
      /* already beyond devices memory? */
   } else if (last_row & 1) {
      /* pad */

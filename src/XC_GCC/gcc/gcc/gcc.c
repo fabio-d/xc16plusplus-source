@@ -7892,7 +7892,7 @@ main (int argc, char **argv)
             char *pic30_resource_file;
 
             SET_MCHP_VERSION(vid);
-            pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+            pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
                                   sizeof("/c30_device.info"));
             if (pic30_resource_file) {
               { char *c;
@@ -7932,7 +7932,7 @@ main (int argc, char **argv)
                     *Microchip = 0;
                     version_part2 = Microchip+1;
                     /* version part located */
-                    version_string = xmalloc(strlen(version_part1) +
+                    version_string = (char *)xmalloc(strlen(version_part1) +
                                              strlen(version_part2) + 40);
                     mismatch = (vid != (rib->version.major*1000 +
                                         rib->version.minor));
@@ -7982,7 +7982,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
       struct resource_introduction_block *rib = 0;
       char *pic30_resource_file;
 
-      pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+      pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
                             sizeof("/c30_device.info"));
       if (pic30_resource_file) 
         { char *c;
@@ -8011,7 +8011,8 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
 
       /* We do not exit here. We use the same mechanism of --help to print
 	 the version of the sub-processes. */
-      fputc ('\n\n', stdout);
+      fputc ('\n', stdout);
+      fputc ('\n', stdout);
       fflush (stdout);
     }
 
@@ -8059,7 +8060,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
       struct resource_introduction_block *rib = 0;
       char *pic30_resource_file;
 
-      pic30_resource_file = xmalloc(strlen(gcc_exec_prefix) +
+      pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
                             sizeof("/c30_device.info"));
       if (pic30_resource_file) 
         { char *c;

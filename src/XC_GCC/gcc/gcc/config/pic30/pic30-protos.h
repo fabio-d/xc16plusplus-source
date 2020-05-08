@@ -221,6 +221,7 @@ extern void pic30_identify_used_regs(rtx, int*);
 extern int pic30_trace_all_addresses(void);
 extern int pic30_function_uses_w0(int);
 
+extern int pic30_builtin_tblpsv_arg_p(tree arg0 ATTRIBUTE_UNUSED, rtx r0);
 
 
 #ifdef TREE_CODE
@@ -370,6 +371,7 @@ extern int  pic30_registerpairs_p(rtx, rtx, rtx, rtx);
 extern int  pic30_near_function_p(rtx);
 extern int  pic30_shadow_operand_p(rtx);
 extern int  pic30_has_space_operand_p(rtx, char *);
+extern int  pic30_eds_space_operand_p(rtx op);
 extern rtx  pic30_program_space_operand_p(rtx);
 extern enum reg_class pic30_preferred_reload_class(rtx, enum reg_class);
 extern enum reg_class pic30_secondary_reload_class(enum reg_class,
@@ -418,7 +420,7 @@ extern bool pic30_frame_pointer_required(void);
 
 extern enum machine_mode pic30_unified_mode(tree);
 
-void pic30_adjust_reg_alloc_order();
+void pic30_adjust_reg_alloc_order(void);
 
 int pic30_psrd_psrd_errata(rtx op1, rtx op2);
 int pic30_psrd_psrd_errata_movd(rtx op1, rtx op2);
@@ -431,6 +433,20 @@ int pic30_legitimize_reload_address(rtx X, enum machine_mode MODE,
 extern int pic30_will_reload_again;
 
 tree pic30_fold_convert_const_int_from_fixed (tree type, const_tree arg1);
+
+extern rtx pic30_get_set_psv_value(rtx);
+extern int pic30_extended_pointer_operand(rtx x, enum machine_mode ptr_mode);
+extern int pic30_register_operand_helper(rtx op, enum machine_mode mode, enum pic30_acceptible_regs_flags flags);
+extern int pic30_mode1MinMax_APSV_operand(rtx op, enum machine_mode mode, int nMin,int nMax);
+extern tree lookup_name (tree);
+extern int pic30_builtin_tblpsv_arg_p(tree, rtx);
+extern int pic30_eds_space_operand_p(rtx);
+
+extern void pic30_asm_code_end(void);
+extern void pic30_set_cc_bit(unsigned bitno);
+extern void pic30_conditional_register_usage (void);
+extern void pic30_emit_cc_section(const char *name);
+extern int pic30_licensed_xccov_p(void);
 
 #ifdef GCC_C_PRAGMA_H
 #endif

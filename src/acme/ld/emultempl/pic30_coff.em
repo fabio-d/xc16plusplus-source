@@ -398,6 +398,7 @@ static void bfd_pic30_pad_flash
 int fill_section_count = 0;
 int pad_section_count = 0;
 unsigned int enable_fixed = 0;
+unsigned int large_data_scalar = 0;
 
 static void gld${EMULATION_NAME}_before_parse PARAMS ((void));
 static void gld${EMULATION_NAME}_after_parse PARAMS ((void));
@@ -410,6 +411,10 @@ static char *gld${EMULATION_NAME}_get_script PARAMS ((int *isfile));
 static int  gld${EMULATION_NAME}_place_orphan
   PARAMS((lang_input_statement_type *, asection *)); 
 
+void get_aivt_base (void);
+void pic30_create_specific_fill_sections(void);
+static bfd * bfd_pic30_create_pad_bfd (bfd *);
+void pic30_pad_flash (void);
 /*****************************************************************************
 **
 ** Emulation Data Structures
@@ -3706,6 +3711,18 @@ bfd_pic30_process_bfd_after_open (abfd, info)
         sym_name = bfd_asymbol_name(symbols[i]);
         if (strstr(sym_name, "__enable_fixed")) {
           enable_fixed = 1;
+
+          if (pic30_debug)
+            printf("    %s\n", sym_name);
+        }
+      }
+
+      /* Look for __large_data_scalar flag */
+      if (PIC30_IS_INFO_ATTR(symbols[i]->section) &&
+          strcmp(symbols[i]->section->name, "__c30_info") == 0) {
+        sym_name = bfd_asymbol_name(symbols[i]);
+        if (strstr(sym_name, "__large_data_scalar")) {
+          large_data_scalar = 1;
 
           if (pic30_debug)
             printf("    %s\n", sym_name);

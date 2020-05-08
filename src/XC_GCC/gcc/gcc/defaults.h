@@ -246,7 +246,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
       putc ('\n', STREAM);				\
     }							\
   while (0)
-
 #endif
 #endif
 

@@ -13,11 +13,14 @@ BUILD_OS="i386-$UNAME"
 EXTRA_DEFINES="-DRESOURCE_MISMATCH_OK"
 EXTRA_OPTS=
 CROSS=
+BUILD_OPTION=
 STATIC=
 BUILD_SHA=
 BUILDING_SHA=
 INSTALL_DIR=  
 XCLM_DIR=
+BUILD64=0
+export ABI=32
 
 BUGURL="https://www.microchip.com/technical-support"
 
@@ -65,7 +68,7 @@ while [ "$DONE" = "0" ]; do
          fi
          shift 1;;
       -cross=*) 
-         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' `;
+         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' -e 's/64//g'`;
          SUFFIX=`echo $1 | sed -e 's/.*=//'`
          if ( echo $SUFFIX | grep -q -i "xclm" ); then
            BUILDING_SHA=1
@@ -74,14 +77,24 @@ while [ "$DONE" = "0" ]; do
            *-*) SUFFIX=`echo $SUFFIX | sed -e 's/.*-/-/'`;;
            *) SUFFIX="";
          esac
+         if ( echo $1 | grep -q "64" ); then
+           BUILD64=1
+         fi
          if ( echo $TARGET_OS | grep -v -q -e "native" -e $NATIVE ); then
            if ( echo ${TARGET_OS} | grep "i[0-9]86" ); then
               # full host os specified
               CROSS="--host=${TARGET_OS}"
               ZLIB_TOOLS="${TARGET_OS}"
            else
-              CROSS="--host=i386-${TARGET_OS}"
-              ZLIB_TOOLS="i386-${TARGET_OS}"
+              if [ "$BUILD64" == "1" ];then 
+                CROSS="--host=x86_64-w64-${TARGET_OS}"
+                ZLIB_TOOLS="x86_64-w64-${TARGET_OS}"
+                BUILD_OS="x86_64-$UNAME"
+              else
+                CROSS="--host=i386-${TARGET_OS}"
+                ZLIB_TOOLS="i386-${TARGET_OS}"
+                BUILD_OS="i386-$UNAME"
+              fi
            fi
          fi
          shift 1;;
@@ -112,7 +125,7 @@ if [ "$INSTALL" != "" ]; then
 fi
 
 if [ "$BUILD" = "" ]; then
-  BUILD="gmp cloog libelf zlib gcc"
+  BUILD="expat gmp cloog libelf zlib gcc"
 fi
 
 if [ -f $SRC_DIR/../c30_resource/src/c30/resource_info.h ]; then
@@ -125,6 +138,13 @@ elif [ -f $SRC_DIR/../../c30_resource/c30_resource/src/c30/resource_info.h ]; th
   C30_RESOURCE_DIR="$SRC_DIR/../../c30_resource/c30_resource/src/c30"
 else
   echo "**** cannot find c30_resource"
+fi
+
+if [ -f $SRC_DIR/../expat/configure ]; then
+  EXPAT_CONFIG="$SRC_DIR/../expat/configure";
+else
+  echo "**** cannot find expat"
+  exit 1
 fi
 
 EXE_SUFFIX=""
@@ -174,8 +194,22 @@ fi
 
 if [ "$BUILD_OS" != "i386-darwin" ]; then
   BUILD="$BUILD ppl"
-  STATIC="-Wl,-Bstatic,-lstdc++,-Bdynamic,-lm"
+  STATIC="-Wl,-lstdc++,-lm"
 fi
+
+if [ "$BUILD64" == "1" ]; then
+  if [ "$NATIVE" == "mac" ]; then
+    echo "*** Building for Darwin"
+    BUILD_OPTION="--build=i386-apple"
+    BUILD_GMP="--host=none-apple --target=none-apple"
+  else
+    BUILD_OPTION="--build=x86_64-${NATIVE}"
+    BUILD_GMP=""
+  fi
+  ABI=""
+else 
+  BUILD_OPTION="--build=$BUILD_OS"
+fi 
 
 if ( echo $EXTRA_CFLAGS | grep -q -e "cover" ); then
   OPT=
@@ -183,9 +217,26 @@ else
   OPT="-O2"
 fi
 
-# configure GMP
-
 mkdir -p $WORKING_DIR/host-libs
+
+# configure EXPAT
+
+if ( echo $BUILD | grep -q -i expat ); then
+echo
+echo "*********** EXPAT"
+echo 
+
+mkdir -p expat
+( cd expat
+
+  echo $EXPAT_CONFIG ${CROSS} --prefix=$WORKING_DIR/host-libs --disable-shared  --build=$BUILD_OS
+  $EXPAT_CONFIG ${CROSS} --prefix=$WORKING_DIR/host-libs --disable-shared --build=$BUILD_OS
+
+  make -j 2 install
+)
+fi
+
+# configure GMP
 
 if ( echo $BUILD | grep -q -i gmp ); then
 echo
@@ -195,8 +246,8 @@ echo
 mkdir -p gmp
 ( cd gmp
 
-  echo ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" --build=$BUILD_OS
-  ABI=32 CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" --build=$BUILD_OS
+  echo CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} ${BUILD_OPTION} ${BUILD_GMP} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" 
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/gmp/configure ${CROSS} ${BUILD_OPTION} ${BUILD_GMP} --enable-cxx --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-gnu-ld --disable-debug --disable-rpath --enable-fft --enable-hash-synchronization --with-host-libstdcxx="-static-libgcc $STATIC" 
 
   make -j 2 install
 )
@@ -210,10 +261,13 @@ echo
 mkdir -p ppl
 ( cd ppl
 
-  export CFLAGS=-m32
-  export CXXFLAGS=-m32
+  if [ "$BUILD64" == "0" ]; then
+    export CFLAGS=-m32
+    export CXXFLAGS=-m32
+  fi 
+  echo CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} ${BUILD_OPTION} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" 
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" --build=$BUILD_OS
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} ${BUILD_OPTION} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" 
 
   make -j 2 install
 )
@@ -228,7 +282,8 @@ mkdir -p cloog
 (
   cd cloog
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld --with-host-libstdcxx="$STATIC" --build=$BUILD_OS
+  echo CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} ${BUILD_OPTION} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld --with-host-libstdcxx="$STATIC" 
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/cloog/configure ${CROSS} ${BUILD_OPTION} --prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --with-ppl=$WORKING_DIR//host-libs --enable-static --disable-shared --with-bits=gmp --disable-rpath --with-gnu-ld --with-host-libstdcxx="$STATIC" 
 
   make -j 2 install
 )
@@ -245,7 +300,8 @@ mkdir -p libelf
 
   cd libelf
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/libelf/configure ${CROSS} --prefix=$WORKING_DIR//host-libs -disable-shared --disable-nls --disable-debug --build=$BUILD_OS
+  echo CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/libelf/configure ${CROSS} ${BUILD_OPTION} --prefix=$WORKING_DIR//host-libs -disable-shared --disable-nls --disable-debug 
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/libelf/configure ${CROSS} ${BUILD_OPTION} --prefix=$WORKING_DIR//host-libs -disable-shared --disable-nls --disable-debug 
 
   make -j 2 install
 )
@@ -260,6 +316,7 @@ mkdir -p zlib
 (
   cd $SRC_DIR/zlib/
 
+  echo ./configure --prefix=$WORKING_DIR//host-libs
   ./configure --prefix=$WORKING_DIR//host-libs
 
   make clean
@@ -317,10 +374,10 @@ mkdir -p gcc
   fi
 
   echo "{"
-  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
+  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure ${CROSS} ${BUILD_OPTION} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
   echo "}"
 
-  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure --build=${BUILD_OS} ${CROSS} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure ${CROSS} ${BUILD_OPTION} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
 
 
   

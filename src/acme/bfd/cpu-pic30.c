@@ -80,14 +80,18 @@ int pic30_is_epmp_machine(const bfd_arch_info_type *);
 int pic30_is_ecore_machine(const bfd_arch_info_type *);
 int pic30_is_dualpartition_machine(const bfd_arch_info_type *);
 int pic30_is_5V_machine(const bfd_arch_info_type *);
-void pic30_update_resource(const char *resource);
+int pic30_is_contexts_machine(const bfd_arch_info_type *);
+int pic30_is_generic_machine(unsigned int );
+int pic30_is_isav4_machine(const bfd_arch_info_type *);
+static void get_resource_path(const char *);
+void pic30_update_resource(const char *);
 void pic30_load_codeguard_settings(const bfd_arch_info_type *, int);
 void pic30_clear_codeguard_settings(void);
 void * pic30_lookup_codeguard_setting(unsigned int, unsigned int);
 void * pic30_lookup_valid_codeguard_setting(unsigned int);
 char * pic30_codeguard_setting_name(void *);
-unsigned int pic30_codeguard_setting_flags(void *s);
-bfd_vma pic30_codeguard_setting_address(void *s);
+unsigned int pic30_codeguard_setting_flags(void *);
+bfd_vma pic30_codeguard_setting_address(void *);
 int pic30_add_selected_codeguard_option(void *);
 void pic30_dump_selected_codeguard_options(FILE *);
 char * pic30_unique_selected_configword_names(void);
@@ -201,7 +205,13 @@ unsigned int aivtloc_mask = 0;
 bfd_boolean pic30_has_floating_aivt = FALSE;
 bfd_boolean pic30_has_fixed_aivt = FALSE;
 
-int pic30_mem_info[2];   // flash sizes
+/* device MEM info */
+struct pic30_mem_info_ pic30_mem_info = {
+  { -1, -1 }, 
+  { -1, -1 }, 
+  { -1, -1 },
+  { -1, -1 }
+};
 
 #define QUOTE2(X) #X
 #define QUOTE(X) QUOTE2(X)
@@ -213,7 +223,6 @@ pic30_is_generic_machine(unsigned int machine) {
 }
 
 
-/* stupid prototype */ static void get_resource_path(const char *resource);
 static void get_resource_path(const char *resource) {
 
   char *tool_name = (char *) resource;
@@ -551,11 +560,17 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         } else if (d2.v.i & MEM_FIXED_AIVT) {
           pic30_has_fixed_aivt = TRUE;
           aivt_base = d4.v.i;
-       } else if (d2.v.i & MEM_FLASH) { 
+        } else if (d2.v.i & MEM_FLASH) { 
           if (((d2.v.i & MEM_PARTITIONED) != 0) == pic30_partition_flash) {
-            pic30_mem_info[0] = d4.v.i;
-            pic30_mem_info[1] = d5.v.i;
+            pic30_mem_info.flash[0] = d4.v.i;
+            pic30_mem_info.flash[1] = d5.v.i;
           }
+        } else if (d2.v.i & MEM_SFR) {
+          pic30_mem_info.sfr[0] = d4.v.i;
+          pic30_mem_info.sfr[1] = d5.v.i;
+        } else if (d2.v.i & MEM_RAM) {
+          pic30_mem_info.ram[0] = d4.v.i;
+          pic30_mem_info.ram[1] = d5.v.i;
         }
       }  
       else if (((d2.v.i & RECORD_TYPE_MASK) == IS_VECTOR_ID)  &&
@@ -568,6 +583,8 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
         /* unfilled fields */
         ivt_next->sec_name = 0;
         ivt_next->ivt_sec = 0;
+        ivt_next->value = 0;
+        ivt_next->matching_vector = 0;
 
         ivt_next->name = d.v.s;
         ivt_next->offset = ((d2.v.i >> VECTOR_IDX_SHIFT) & 
@@ -606,6 +623,28 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
     close_rib();
     rib = 0;
   }
+  /* fill in matching_vector */
+  {  
+    ivt_record_type *l,*s;
+
+    for (l = ivt_records_list; l; l = l->next) {
+      if (l->is_alternate_vector) {
+        if (pic30_debug) {
+          printf("\nAttempting to locate main vector match for %s\n", l->name);
+        }
+        for (s = ivt_records_list; s; s = s->next) {
+          if (strcmp(l->name+4,s->name+1) == 0) {
+            if (pic30_debug) {
+              printf("   matched with %s\n", s->name);
+            }
+            l->matching_vector = s;
+            break;
+          }
+        }
+      }
+    }
+  }
+             
   if (debug)
     printf("\n");
 }
@@ -979,7 +1018,7 @@ pic30_is_generic(const bfd_arch_info_type *proc)
   int rc = 0;
   struct pic30_resource_info *f;
 
-  for (f = arch_flags_head[0].next; f != NULL;rc++, f = f->next)
+  for (f = &arch_flags_head[0]; f != NULL;rc++, f = f->next)
     if (proc == f->arch_info) {
       break;
     }

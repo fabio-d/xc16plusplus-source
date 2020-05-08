@@ -29,8 +29,10 @@
   (PIC30_IS_AUXFLASH_ATTR(s) || PIC30_IS_AUXPSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
 
 /*****************************************************************************/
-
+/* prototypes */
+int indent_fprintf(FILE *, char *, ...);
 extern char *pic30_resource_version;
+extern struct pic30_mem_info_ pic30_mem_info;
 
 int indent_fprintf(FILE *stream, char *format, ...) {
   int indent_level=0;
@@ -323,6 +325,13 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   bfd_map_over_sections(output_bfd, &pic30_build_section_list, NULL);
 
   fprintf(fp,"\n\nxc16-ld %s", pic30_resource_version); 
+  if ((pic30_mem_info.ram[0] + pic30_mem_info.sfr[0]) > 8192) {
+    fprintf(fp,
+            "\n\nDefault Code Model: Small\nDefault Data Model: Large\nDefault Scalar Model: Small"); 
+  } else {
+    fprintf(fp,
+            "\n\nDefault Code Model: Small\nDefault Data Model: Small\nDefault Scalar Model: Small"); 
+  }
 
   for (region = pic30_all_regions(); region; region=region=region->next) {
   
@@ -537,7 +546,15 @@ bfd_pic30_report_memory_usage (FILE *fp) {
       fprintf( fp, "\n\n");
     }
   }
-  
+ 
+  /* Check the data_memory_used and see if small-data model is sufficient
+   */
+  if ((data_memory_used < (8192 - pic30_mem_info.sfr[0])) 
+      && (large_data_scalar == 1)) {
+    fprintf(fp,
+            "Note: Project is using a large data memory model when small data memory model is sufficient.\n\n"); 
+  }
+   
   /* free the output section list */
   pic30_free_section_list(&pic30_section_list);
 

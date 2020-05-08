@@ -267,9 +267,12 @@ enum pic30_builtins
    directory will cause make_relative_paths to make no change - ie look in the 
    gcc executable's directory.  */
 #undef STANDARD_EXEC_PREFIX
-#undef STANDARD_BINDIR_PREFIX
 #define STANDARD_EXEC_PREFIX "/bin/"
+
+#undef STANDARD_LIBEXEC_PREFIX
 #define STANDARD_LIBEXEC_PREFIX "/bin/"
+
+#undef STANDARD_BINDIR_PREFIX
 #define STANDARD_BINDIR_PREFIX "/bin/bin"
 
 /* By default, the GCC_EXEC_PREFIX_ENV prefix is "GCC_EXEC_PREFIX", however
@@ -2694,6 +2697,17 @@ do {               \
    pic30_asm_output_local(FILE, NAME, SIZE, ROUNDED)
 
 /*
+** Like ASM_OUTPUT_LOCAL except takes the required alignment as a separate,
+** explicit argument. If you define this macro, it is used in place of 
+** ASM_OUTPUT_LOCAL, and gives you more flexibility in handling the required
+** alignment of the variable. The alignment is specified as the number of bits.
+*/
+#if 1
+#define ASM_OUTPUT_ALIGNED_LOCAL(FILE, NAME, SIZE, ALIGNMENT)  \
+   pic30_asm_output_aligned_local(FILE, NAME, SIZE, ALIGNMENT)
+#endif
+
+/*
 ** Like ASM_OUTPUT_LOCAL except takes a decl, and the required alignment as 
 ** a separate, explicit argument. If you define this macro, it is used in 
 ** place of ASM_OUTPUT_LOCAL, and gives you more flexibility in handling the 
@@ -2835,7 +2849,7 @@ enum pic30_set_psv_results {
   pic30_set_nothing,
   pic30_set_on_call,
   pic30_set_on_return,
-  pic30_set_for_tracking,
+  pic30_set_for_tracking
 };
 
 
@@ -3063,6 +3077,22 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define SECTION_PRIORITY        (PIC30_LL(SECTION_MACH_DEP) << 24)    /* 50 */
 #define SECTION_UPDATE          (PIC30_LL(SECTION_MACH_DEP) << 25)    /* 51 */
 
+/* Add macros for code coverage */
+#define TARGET_XCCOV_LIBEXEC_PATH "/bin/"
+#define TARGET_XCCOV_SET_CC_BIT pic30_set_cc_bit
+
+#undef TARGET_ASM_CODE_END
+#define TARGET_ASM_CODE_END pic30_asm_code_end
+
+extern char *pic30_cover_insn(unsigned bitno);
+
+#undef TARGET_XCCOV_EMIT_SECTION
+#define TARGET_XCCOV_EMIT_SECTION pic30_emit_cc_section
+
+#undef TARGET_XCCOV_LICENSED
+#define TARGET_XCCOV_LICENSED pic30_licensed_xccov_p
+
+
 #endif
 
 #define CLEAR_RATIO(speed) 2
@@ -3074,5 +3104,8 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define USE_STORE_PRE_INCREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
 #define USE_STORE_PRE_DECREMENT(mode) (((mode) == QImode) || ((mode) == HImode))
 
-extern void record_psv_tracking(int delete, int clear, rtx x);
+extern void record_psv_tracking(int pic30_delete, int clear, rtx x);
+rtx pic30_get_set_psv_value(rtx x);
+
+#define CONDITIONAL_REGISTER_USAGE pic30_conditional_register_usage()
 

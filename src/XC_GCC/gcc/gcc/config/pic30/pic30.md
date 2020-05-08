@@ -1284,6 +1284,7 @@
   (UNSPEC_FF1L                 109)
   (UNSPEC_ASHIFTSI_LOW         110)
   (UNSPECV_WRITERPCON          111) ; __builtin_write_RPCON
+  (UNSPECV_COVER               112) ; code coverage insn
   (UNSPECV_TEMP                199)
  ]
 )
@@ -3483,11 +3484,11 @@
 (define_insn "movmemhi"
   [(set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,R,m,R,m")
         (match_operand:BLK 1 "pic30_memory_operand"   "R,R,m,R,R,m,m"))
-   (use (match_operand:HI 2 "immediate_operand" "J,J,J,i,i,i,i"))
+   (use (match_operand:HI 2 "immediate_operand"       "J,J,J,i,i,i,i"))
    (use (match_operand:HI 3 "const_int_operand" ""))
    (clobber (reg:HI RCOUNT))
-   (clobber (match_scratch:HI 4  "=X,&r,&r,&r,&r,&r,&r"))
-   (clobber (match_scratch:HI 5  "=X,X,X,X,&r,&r,&r"))
+   (clobber (match_scratch:HI 4                      "=X,&r,&r,&r,&r,&r,&r"))
+   (clobber (match_scratch:HI 5                      "=X,X,X,X,&r,&r,&r"))
   ]
   "((pic30_errata_mask & ecc_errata) == 0)"
   "*
@@ -3670,12 +3671,7 @@
               } else {
                 gcc_assert(0);
               }
-              if (pic30_T_constraint(operands[2],VOIDmode) ||
-                  pic30_U_constraint(operands[2],VOIDmode)) {
-                c += sprintf(c,\"mov #%%2,%%5\;\");
-              } else {
-                c += sprintf(c,\"mov %%2,%%5\;\");
-              }
+              c += sprintf(c,\"mov #%%2,%%5\;\");
               sub_value = \"%5\";
               restore_with_sub_1 = \"%r1\";
               break;
@@ -3710,12 +3706,7 @@
                 gcc_assert(0);
               }
               restore_with_sub_0 = \"%r0\";
-              if (pic30_T_constraint(operands[2],VOIDmode) ||
-                  pic30_U_constraint(operands[2],VOIDmode)) {
-                c += sprintf(c,\"mov #%%2,%%5\;\");
-              } else {
-                c += sprintf(c,\"mov %%2,%%5\;\");
-              }
+              c += sprintf(c,\"mov #%%2,%%5\;\");
               sub_value = \"%5\";
               break;
      }
@@ -4063,9 +4054,6 @@
   ]
 )
 
-;
-; RAW stall on 1/3
-;
 (define_insn "cmpqi3_2sfr"
   [(set (cc0)
         (compare 
@@ -4074,9 +4062,9 @@
    (clobber (match_scratch:HI 2 "=r,X,r,X"))]
   ""
   "@
-   mov #%1,%2\;sub.b %0,[%2],[w15]
+   mov %1,%2\;cp.b %0,%2
    cp.b %0
-   mov #%0,%2\;sub.b %0,[%2],[w15]
+   mov %0,%2\;cp.b %2,%1
    cp.b %0,%1"
   [
     (set_attr "cc" "set")
@@ -23573,6 +23561,18 @@
   ]
 )
 
+
+;;;;;;;;;;;;;;;;;;;
+;; Code Coverage ;;
+;;;;;;;;;;;;;;;;;;;
+(define_insn "set_cover_point"
+ [(unspec_volatile [(match_operand 0 "immediate_operand" "i")] UNSPECV_COVER)]
+  ""
+  "*
+   return pic30_cover_insn(INTVAL(operands[0]));
+  "
+)
+
 ;;;;;;;;;;;;;;;
 ;; Reset Bit ;;
 ;;;;;;;;;;;;;;;
@@ -32844,13 +32844,20 @@
 { int n;
   int mode;
   if (pic30_isav4_target() && 
-      pic30_mode2_or_near_operand(operands[0],VOIDmode) &&
+      //pic30_mode2_or_near_operand(operands[0],VOIDmode) &&
       (INTVAL(operands[1]) > 1) &&
       pic30_reg_or_lit8(operands[3], VOIDmode) &&
       (INTVAL(operands[1])+INTVAL(operands[2])<17)
      ) {
+      rtx op0 = operands[0];
+
+#if 1
+      if (!pic30_mode2_or_near_operand(op0,VOIDmode)) {
+        op0 = force_reg(GET_MODE(op0),op0);
+      }
+#endif
       emit(
-        gen_bfins(operands[0],operands[1],operands[2],operands[3])
+        gen_bfins(op0,operands[1],operands[2],operands[3])
       );
       DONE;
   }

@@ -58,14 +58,30 @@ static void pic30_emit_leb128_expr PARAMS ((expressionS *exp, int sign));
 static int pic30_output_sleb128 PARAMS ((char *p, offsetT value));
 static int pic30_output_uleb128 PARAMS ((char *p, valueT value));
 #endif
+
 extern unsigned int pic30_attribute_map PARAMS ((asection *));
 extern unsigned int pic30_extended_attribute_map PARAMS ((asection *));
 extern int pic30_set_implied_attributes PARAMS ((asection *, unsigned char ));
+extern const bfd_arch_info_type * pic30_get_machine(const char * const);
+extern const bfd_arch_info_type * global_PROCESSOR;
+extern int pic30_proc_family(const bfd_arch_info_type *);
+extern int pic30_is_dsp_machine(const bfd_arch_info_type *);
+extern int pic30_is_eedata_machine(const bfd_arch_info_type *);
+extern int pic30_is_dma_machine(const bfd_arch_info_type *);
+extern int pic30_is_codeguard_machine(const bfd_arch_info_type *);
+extern int pic30_is_pmp_machine(const bfd_arch_info_type *);
+extern int pic30_is_epmp_machine(const bfd_arch_info_type *);
+extern int pic30_is_eds_machine(const bfd_arch_info_type *);
+extern int pic30_is_5V_machine(const bfd_arch_info_type *);
+extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+extern int pic30_is_valid_attributes PARAMS ((unsigned int, unsigned char));
+extern int pic30_is_isav4_machine(const bfd_arch_info_type *);
+extern int pic30_is_dualpartition_machine(const bfd_arch_info_type *);
+
 static int pic30_align_power PARAMS ((offsetT));
 static int pic30_address_align_power PARAMS ((bfd_vma));
 static  bfd_vma pic30_address PARAMS ((bfd_vma));
 static  bfd_vma pic30_element_size PARAMS ((bfd_vma));
-extern int pic30_is_valid_attributes PARAMS ((unsigned int, unsigned char));
 int subseg_readonly PARAMS ((segT));
 int subseg_psv PARAMS ((segT));
 int subseg_auxpsv PARAMS ((segT));
@@ -212,17 +228,6 @@ static int pic30_max_symbols;
  * GLOBALS
  ******************************************************************************/
 
-extern const bfd_arch_info_type * pic30_get_machine(const char * const);
-extern const bfd_arch_info_type * global_PROCESSOR;
-extern int pic30_proc_family(const bfd_arch_info_type *);
-extern int pic30_is_dsp_machine(const bfd_arch_info_type *);
-extern int pic30_is_eedata_machine(const bfd_arch_info_type *);
-extern int pic30_is_dma_machine(const bfd_arch_info_type *);
-extern int pic30_is_codeguard_machine(const bfd_arch_info_type *);
-extern int pic30_is_pmp_machine(const bfd_arch_info_type *);
-extern int pic30_is_epmp_machine(const bfd_arch_info_type *);
-extern int pic30_is_eds_machine(const bfd_arch_info_type *);
-extern int pic30_is_5V_machine(const bfd_arch_info_type *);
 
 static struct hash_control * pic30_opcodes_hash;
 static enum pic30_relax_state global_RELAX = NO_RELAX_STATE;

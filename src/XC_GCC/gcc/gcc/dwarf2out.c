@@ -16713,7 +16713,8 @@ add_bit_offset_attribute (dw_die_ref die, tree decl)
     }
     highest_order_field_bit_offset = bitpos_int + field_size_in_bits;
     highest_order_field_bit_offset %= type_size_in_bits;
-    bit_offset = type_size_in_bits - highest_order_field_bit_offset;
+    bit_offset = (type_size_in_bits - highest_order_field_bit_offset) %
+                   type_size_in_bits;
   }
 #else
   highest_order_field_bit_offset = bitpos_int;

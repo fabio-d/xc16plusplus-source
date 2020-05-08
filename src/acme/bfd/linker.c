@@ -25,6 +25,7 @@
 #include "bfdlink.h"
 #include "genlink.h"
 #include "elf-bfd.h"
+#include "libiberty.h"
 #if PIC30
 #include "pic30-utils.h"
 
@@ -457,6 +458,9 @@ bfd_boolean (*pic30_bfd_has_signature)
   PARAMS ((bfd *, unsigned int *, unsigned int *, unsigned int *));
 void (*pic30_update_object_compatibility)
   PARAMS ((const char *, bfd *, unsigned int *, unsigned int *));
+bfd_boolean pic30_is_valid_archive_element
+  PARAMS ((struct bfd_link_info *, asymbol *, bfd *, unsigned int *,
+             unsigned int *));
 
 /* The link hash table structure is defined in bfdlink.h.  It provides
    a base hash table which the backend specific hash tables are built
@@ -988,7 +992,7 @@ _bfd_generic_link_add_archive_symbols (abfd, info, checkfn)
 
 
 #if PIC30
-  { static smartio_run=0;
+  { static int smartio_run=0;
 
     if (smartio_run == 0) {
       /* look through the undef list and adds those symbols that are smartio
@@ -1200,6 +1204,7 @@ extern const char *pic30_startup1_file;
 extern bfd_boolean pic30_debug, pic30_data_init;
 extern bfd_boolean pic30_select_objects;
 extern bfd *pic30_output_bfd;
+extern int pic30_is_dsp_machine(const bfd_arch_info_type *);
 
 bfd_boolean
 pic30_is_valid_archive_element(struct bfd_link_info *info,
@@ -1827,19 +1832,21 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
 
         for (r = ivt_records_list; r != NULL; r = next) {
           next = r->next;
-          if (r->name && (strcmp(r->name, p->name+1) == 0)) {
+          if ((r->name && (strcmp(r->name, p->name+1))) == 0) {
             asection *ivt_sec;
             char *sec_name;
            
-            if (p->flags & BSF_DEBUGGING != 0) {
+            if ((p->flags & BSF_DEBUGGING) != 0) {
               break;
             }
             if (r->is_alternate_vector) {
-              sec_name = xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
+              sec_name = (char *)
+                           xmalloc( strlen(r->name) + strlen(".aivt.") + 2);
               (void) sprintf(sec_name, ".aivt.%s", r->name);
             }
             else {
-              sec_name = xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
+              sec_name = (char *)
+                           xmalloc( strlen(r->name) + strlen(".ivt.") + 2);
               (void) sprintf(sec_name, ".ivt.%s", r->name);
             }
             r->flags |= ivt_seen;

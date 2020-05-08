@@ -408,9 +408,17 @@ static void bfd_pic30_memory_summary
 static void bfd_pic30_pad_flash
   PARAMS ((char *));
 
+void pic30_create_data_init_templates 
+  PARAMS((void));
+void pic30_create_rom_usage_template
+  PARAMS((void));
+void pic30_create_ram_usage_template
+  PARAMS((void));
+
 int fill_section_count = 0;
 int pad_section_count = 0;
 unsigned int enable_fixed = 0;
+unsigned int large_data_scalar = 0;
 
 static void gld${EMULATION_NAME}_before_parse PARAMS ((void));
 static void gld${EMULATION_NAME}_after_parse PARAMS ((void));
@@ -423,6 +431,10 @@ static char *gld${EMULATION_NAME}_get_script PARAMS ((int *isfile));
 static int  gld${EMULATION_NAME}_place_orphan
   PARAMS((lang_input_statement_type *, asection *)); 
 
+void get_aivt_base (void);
+void pic30_create_specific_fill_sections(void);
+static bfd * bfd_pic30_create_pad_bfd (bfd *);
+void pic30_pad_flash (void);
 /*****************************************************************************/
 
 /*
@@ -3828,6 +3840,18 @@ bfd_pic30_process_bfd_after_open (abfd, info)
         }
       }
 
+      /* Look for __large_data_scalar flag */
+      if (PIC30_IS_INFO_ATTR(symbols[i]->section) &&
+          strcmp(symbols[i]->section->name, "__c30_info") == 0) {
+        sym_name = bfd_asymbol_name(symbols[i]);
+        if (strstr(sym_name, "__large_data_scalar")) {
+          large_data_scalar = 1;
+
+          if (pic30_debug)
+            printf("    %s\n", sym_name);
+        }
+      }
+
       /* look for __psv_trap_errata flag */
       if (PIC30_IS_INFO_ATTR(symbols[i]->section) &&
           strcmp(symbols[i]->section->name, "__c30_info") == 0) {
@@ -5677,7 +5701,7 @@ pic30_release_kept_symbols(char *symbol) {
               symbols are defined in the same object file */
           if (strcmp(&rsl->reduced_set[strlen(rsl->reduced_set)-2],"_0") == 0) {
             if (pic30_debug) 
-              fprintf(stderr,"*** Not removing %s\n", rsl->module_name);
+              printf("*** Not removing %s\n", rsl->module_name);
             continue;
           }
         }
@@ -5758,9 +5782,9 @@ smartio_symbols(struct bfd_link_info *info) {
              struct bfd_link_hash_entry *new;
 
              if (pic30_debug) {
-               fprintf(stderr,"Adding %s to undef\n", buffer_map_to);
+               printf("Adding %s to undef\n", buffer_map_to);
                for (l = smartio_fn_list; l; l=l->next)
-                 fprintf(stderr,"  because of: %s\n", l->h->root.string);
+                 printf("  because of: %s\n", l->h->root.string);
              }
              new = bfd_hash_lookup(info->hash, buffer_map_to, 1, 1);
              new->next = newundefs;
@@ -5775,7 +5799,7 @@ smartio_symbols(struct bfd_link_info *info) {
            full = bfd_pic30_is_defined_global_symbol(buffer_map_to);
            if (!full) {
              if (pic30_debug)
-               fprintf(stderr," no hash for %s\n", buffer_map_to);
+               printf(" no hash for %s\n", buffer_map_to);
            } else {
              for (l = smartio_fn_list; l; l=l->next) {
                if (pic30_debug)

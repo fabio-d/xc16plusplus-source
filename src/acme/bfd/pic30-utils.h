@@ -343,6 +343,15 @@ struct handle_hash_table
   int num;  /* # of entries */
 };
 
+/* Memory sizes for current device; */
+struct pic30_mem_info_ {
+  int flash[2];      /* [0] -> main flash,    [1] -> aux flash */
+  int ram[2];        /* [0] -> main ram,      [1] -> aux ram */
+  int eeprom[2];     /* [0] -> eeprom size,   [1] -> unused */
+  int dataflash[2];  /* [0] -> size in bytes, [1] -> page number */
+  int sfr[2];        /* [0] -> end of SFR space, [1] -> unused */
+};
+
 #define handle_hash_lookup(t, string, create, copy) \
   ((struct handle_hash_entry *) \
    bfd_hash_lookup (&(t)->table, (string), (create), (copy)))
@@ -424,10 +433,12 @@ typedef struct pic30_ivt_record {
   char *name;
   char *sec_name;
   bfd_vma offset;
+  bfd_vma value;
   bfd_boolean is_alternate_vector;
   enum pic30_ivt_record_flags flags;
   asection *ivt_sec;
   struct pic30_ivt_record *next;
+  struct pic30_ivt_record *matching_vector; /* for is_alternatte_vectors */
 } ivt_record_type;
 
 extern char *pic30_add_data_flags;
@@ -502,11 +513,12 @@ extern void pic30_defer_archive(carsym *symdef,
                                 unsigned int new_set_bits,
                                 symindex aye);
 extern void pic30_remove_archive(carsym *symdef,asymbol *sym);
-extern struct pic30_deferred_archive_members *pic30_pop_tail_archive();
+extern struct pic30_deferred_archive_members *pic30_pop_tail_archive(void);
 extern void pic30_clear_deferred(void);
 extern int pic30_count_ones(unsigned int a);
 
 extern void build_aivt_free_block_list(bfd_vma start, bfd_vma length);
+extern void pic30_add_section_attributes(asection *, char *, char *);
 
 /*****************************************************************************/
 
