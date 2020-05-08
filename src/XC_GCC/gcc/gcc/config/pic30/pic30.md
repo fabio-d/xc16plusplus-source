@@ -32859,6 +32859,9 @@
       emit(
         gen_bfins(op0,operands[1],operands[2],operands[3])
       );
+      if (op0 != operands[0]) {
+        emit_move_insn(operands[0], op0);
+      }
       DONE;
   }
 

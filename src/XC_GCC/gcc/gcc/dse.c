@@ -1301,6 +1301,42 @@ static rtx get_stored_val (store_info_t, enum machine_mode, HOST_WIDE_INT,
 			   HOST_WIDE_INT, basic_block, bool);
 
 
+#ifdef _PIC30_H_
+/* find the first mem in x; if there more than one, then... */
+rtx pic30_find_mem_in(rtx x) {
+
+  if (GET_CODE(x) == MEM) {
+    return x;
+  } else {
+    int opnd,j;
+    char *fmt;
+    rtx mem;
+
+    fmt = GET_RTX_FORMAT(GET_CODE(x));
+    for (opnd = GET_RTX_LENGTH(GET_CODE(x)) -1; opnd >= 0; opnd--) {
+      switch(fmt[opnd]) {
+        case 'E':
+          /* A vector of expressions.  */
+          for (j = XVECLEN(x, opnd) - 1; j >= 0; j--) {
+            rtx inv = XVECEXP(x, opnd, j);
+            mem = pic30_find_mem_in(inv);
+            if (mem) return mem;
+          }
+          break;
+        case 'e':
+          /* An expression (actually a pointer to an expression). */
+          mem = pic30_find_mem_in(XEXP(x,opnd));
+          if (mem) return mem;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  return NULL;
+}
+#endif
+
 /* BODY is an instruction pattern that belongs to INSN.  Return 1 if
    there is a candidate store, after adding it to the appropriate
    local store group if so.  */
@@ -1322,6 +1358,10 @@ record_store (rtx body, bb_info_t bb_info)
   if (GET_CODE (body) != SET && GET_CODE (body) != CLOBBER)
     return 0;
 
+#ifdef _PIC30_H_
+  mem = pic30_find_mem_in(SET_DEST(body));
+  if (mem == NULL)
+#endif
   mem = SET_DEST (body);
 
   /* If this is not used, then this cannot be used to keep the insn
@@ -1329,6 +1369,21 @@ record_store (rtx body, bb_info_t bb_info)
      that can be used to prove that another store is dead.  */
   store_is_unused
     = (find_reg_note (insn_info->insn, REG_UNUSED, mem) != NULL);
+
+#ifdef _PIC30_H_
+  if (mem != SET_DEST(body)) {
+    /* something more complicated like a set (ZERO_EXTEND( MEM)) -
+         treat it like memset below */
+    if (!store_is_unused)
+    {
+      /* If the set or clobber is unused, then it does not effect our
+           ability to get rid of the entire insn.  */
+      insn_info->cannot_delete = true;
+      clear_rhs_from_active_local_stores ();
+    }
+    return 0;
+  }
+#endif
 
   /* Check whether that value is a suitable memory location.  */
   if (!MEM_P (mem))

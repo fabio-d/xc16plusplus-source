@@ -3779,9 +3779,6 @@ void pic30_override_options(void) {
 #elif defined(LICENSE_MANAGER_XCLM)
   if (pic30_license_valid < MCHP_XCLM_VALID_PRO_LICENSE) {
     invalid = (char*) "restricted";
-    if (pic30_license_valid < MCHP_XCLM_VALID_STANDARD_LICENSE) {
-      nullify_O2 = 1;
-    }
     nullify_Os = 1;
     nullify_O3 = 1;
   }
@@ -20666,6 +20663,37 @@ unsigned int pic30_track_sfrs(void) {
   return 0;
 }
 
+static pic30_notice_RAW_derefence(rtx x) {
+  int this_reg_use = -1;
+
+  if (GET_CODE(x) == MEM) {
+    x = XEXP(x,0);
+    switch (GET_CODE(x)) {
+      default:  break;
+
+    case SUBREG:
+      if (GET_CODE(SUBREG_REG(x)) == REG) {
+        this_reg_use = REGNO(SUBREG_REG(x));
+      }
+      break;
+
+    case REG:
+      this_reg_use = REGNO(x);
+      break;
+
+    case POST_INC:
+    case POST_DEC:
+    case PRE_INC:
+    case PRE_DEC:
+    case PLUS:
+      x = XEXP(x,0);
+      if (GET_CODE(x) == REG) this_reg_use = REGNO(x);
+      break;
+    }
+  }
+  return this_reg_use;
+}
+
 unsigned int pic30_RAW_count(void) {
   rtx x;
   rtx insn;
@@ -20673,6 +20701,10 @@ unsigned int pic30_RAW_count(void) {
   int last_reg_def = -1;  /* none */
   int this_reg_use = -1;
   int we_stall = 0;
+  int frame_pointer_register = -1;
+
+  if (pic30_frame_pointer_needed_p(get_frame_size()))
+    frame_pointer_register = 14;
 
   for (insn = get_insns(); insn; insn = NEXT_INSN(insn)) {
     if (INSN_P(insn)) {
@@ -20691,35 +20723,44 @@ unsigned int pic30_RAW_count(void) {
           /* FALLSTHROUGH */
         case TYPE_DEFUSE:
           if (last_reg_def >= 0) {
+            int opnd;
+
             x = SET_SRC(p);
             if (GET_CODE(x) == MEM) {
-              x = XEXP(x,0);
-              switch (GET_CODE(x)) {
-                default:  break;
+              this_reg_use = pic30_notice_RAW_derefence(x);
+            } else {
+              int opnd,j;
+              char *fmt;
 
-                case SUBREG:
-                  if (GET_CODE(SUBREG_REG(x)) == REG) {
-                    this_reg_use = REGNO(SUBREG_REG(x));
-                  }
-                  break;
-
-                case REG:
-                  this_reg_use = REGNO(x);
-                  break;
-
-                case POST_INC:
-                case POST_DEC:
-                case PRE_INC:
-                case PRE_DEC:
-                case PLUS:
-                  x = XEXP(x,0);
-                  if (GET_CODE(x) == REG) this_reg_use = REGNO(x);
-                  break;
+              fmt = GET_RTX_FORMAT(GET_CODE(x));
+              for (opnd = GET_RTX_LENGTH(GET_CODE(x)) -1; opnd >= 0; opnd--) {
+                switch(fmt[opnd]) {
+                  case 'E':
+                    /* A vector of expressions.  */
+                    for (j = XVECLEN(x, opnd) - 1; j >= 0; j--) {
+                      rtx inv = XVECEXP(x, opnd, j);
+                      this_reg_use = pic30_notice_RAW_derefence(inv);
+                    }
+                    break;
+                  case 'e':
+                    /* An expression (actually a pointer to an expression). */
+                    this_reg_use = pic30_notice_RAW_derefence(XEXP(x,opnd));
+                    break;
+                  default:
+                    break;
+                }
+                if ((this_reg_use >= 0) && (this_reg_use < 15) &&
+                    (this_reg_use != frame_pointer_register) &&
+                    ((last_reg_def == -2) || (this_reg_use == last_reg_def))) {
+                  we_stall = 1;
+                }
+                this_reg_use = -1;
               }
             }
           }
-          if ((this_reg_use > 0) && ((last_reg_def == -2) || 
-                                     (this_reg_use == last_reg_def))) {
+          if ((this_reg_use >= 0) && (this_reg_use < 15) &&
+              (this_reg_use != frame_pointer_register) &&
+              ((last_reg_def == -2) || (this_reg_use == last_reg_def))) {
             we_stall = 1;
           }
           if (insn_attr = TYPE_USE) break;
