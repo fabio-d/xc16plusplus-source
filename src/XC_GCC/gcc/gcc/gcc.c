@@ -7891,6 +7891,12 @@ main (int argc, char **argv)
             char *version_part2;
             char *pic30_resource_file;
 
+#ifdef _BUILDC30_FUSA
+#define     FUSAV "Functional Safety"
+#else
+#define     FUSAV ""
+#endif
+
             SET_MCHP_VERSION(vid);
             pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
                                   sizeof("/c30_device.info"));
@@ -7933,17 +7939,18 @@ main (int argc, char **argv)
                     version_part2 = Microchip+1;
                     /* version part located */
                     version_string = (char *)xmalloc(strlen(version_part1) +
+                                             sizeof(FUSAV)+ 2 +
                                              strlen(version_part2) + 40);
                     mismatch = (vid != (rib->version.major*1000 +
                                         rib->version.minor));
                     if (mismatch) {
                       sprintf(version_string,
-                              "%s, resource version %d.%.2d (%c), %s",
+                              "%s " FUSAV ", resource version %d.%.2d (%c), %s",
                               version_part1, rib->version.major,
                               rib->version.minor,
                               rib->resource_version_increment,version_part2);
                     } else {
-                      sprintf(version_string,"%s (%c) %s",
+                      sprintf(version_string,"%s " FUSAV " (%c) %s",
                               version_part1,
                               rib->resource_version_increment,version_part2);
                     }

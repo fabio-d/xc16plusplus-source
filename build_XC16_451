@@ -68,9 +68,9 @@ while [ "$DONE" = "0" ]; do
          fi
          shift 1;;
       -cross=*) 
-         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' -e 's/64//g'`;
+         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' -e 's/64//g' -e 's/-fusa//'`;
          SUFFIX=`echo $1 | sed -e 's/.*=//'`
-         if ( echo $SUFFIX | grep -q -i "xclm" ); then
+         if ( echo $SUFFIX | grep -q -i -e "xclm" -e 'fusa' ); then
            BUILDING_SHA=1
          fi
          case $SUFFIX in
@@ -91,11 +91,11 @@ while [ "$DONE" = "0" ]; do
                 ZLIB_TOOLS="x86_64-w64-${TARGET_OS}"
                 BUILD_OS="x86_64-$UNAME"
               else
-                CROSS="--host=i386-${TARGET_OS}"
-                ZLIB_TOOLS="i386-${TARGET_OS}"
+              CROSS="--host=i386-${TARGET_OS}"
+              ZLIB_TOOLS="i386-${TARGET_OS}"
                 BUILD_OS="i386-$UNAME"
-              fi
            fi
+         fi
          fi
          shift 1;;
       -build=*)
@@ -262,8 +262,8 @@ mkdir -p ppl
 ( cd ppl
 
   if [ "$BUILD64" == "0" ]; then
-    export CFLAGS=-m32
-    export CXXFLAGS=-m32
+  export CFLAGS=-m32
+  export CXXFLAGS=-m32
   fi 
   echo CXXFLAGS="$EXTRA_CFLAGS $OPT" CFLAGS="$EXTRA_CFLAGS $OPT" $SRC_DIR/ppl/configure ${CROSS} ${BUILD_OPTION} --enable-arch=no --prefix=$WORKING_DIR//host-libs --disable-shared --enable-static --disable-nls --with-libgmp-prefix=$WORKING_DIR//host-libs --with-gmp=$WORKING_DIR//host-libs --enable-optimization=speed --disable-rpath --with-gnu-ld --with-host-libstdcxx="-static-libgcc $STATIC -lm" 
 
@@ -336,7 +336,7 @@ mkdir -p zlib
 )
 fi
 
-if [ $SUFFIX == "-xclm" ] || [ $SUFFIX == "-exlm" ]; then
+if [ $SUFFIX == "-xclm" ] || [ $SUFFIX == "-fusa" ] || [ $SUFFIX == "-exlm" ]; then
   XCLM_DIR=`find $SRC_DIR/../xclm-release -iname xclm_public.h -exec dirname {} \;`
   if [ ! -f "$XCLM_DIR/xclm_public.h" ]; then
     echo "**** cannot find dir containing xclm_public.h"

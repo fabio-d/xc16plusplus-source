@@ -3152,21 +3152,31 @@ get_license_manager_path (void)
 #undef MCHP_LICENSEPATH_MARKER
 #undef MCHP_XCLM_FILENAME
 
+enum check_license_flag {
+  check_for_normal_license,
+  check_for_code_coverage = 1
+};
+
 static int
-get_license (void)
+get_license (enum check_license_flag type)
 {
   /*
    *  On systems where we have a licence manager, call it
    */
   char *exec;
+#ifdef _BUILDC30_FUSA_
+  char kopt[] = "-fcfs";
+#else
   char kopt[] = "-full-checkout-for-compilers";
-  char product[] = "swxc16";
+#endif
+  char ccov_kopt[] = "-full-checkout-for-compilers";
   char version[9] = "";
   char  product_xccov[] = "swxc-cov";
   char  version_xccov[4] = "1.0";
   char date[] = __DATE__;
   int mchp_license_valid, xclm_tampered;
   const char *pic30_nofallback_error = 0;
+  char product[] = "swxc16";
 
   char * args[] = { NULL, NULL, NULL, NULL, NULL, NULL};
 
@@ -3177,6 +3187,10 @@ get_license (void)
   int major_ver =0, minor_ver=0;
   extern char **save_argv;
   struct stat filestat;
+
+#ifdef _BUILDC30_FUSA_
+  pic30_nofallback = 1;
+#endif
 
   mchp_license_valid = 0;
   xclm_tampered = 1;
@@ -3208,9 +3222,9 @@ get_license (void)
     }
 
   /* Arguments to pass to xclm */
-  if (mchp_codecov) {
+  if (type == check_for_code_coverage) {
     /* Need to send seperate args to xclm for code coverage */
-    args[1] = kopt;
+    args[1] = ccov_kopt;
     args[2] = product_xccov;
     args[3] = version_xccov;
     args[4] = date;
@@ -3267,25 +3281,44 @@ get_license (void)
                      PEXECUTE_FIRST | PEXECUTE_LAST);
       if (pid == -1) fatal_error (err_msg, exec);
       pid = pwait(pid, &status, 0);
-      if (pid < 0) {
-        /* Set free edition if the license manager isn't available. 
-         * The free edition disables optimization options without an eval 
-         * period. 
-         */
-        mchp_license_valid=MCHP_XCLM_FREE_LICENSE;
-        if (pic30_nofallback) {
-          pic30_nofallback_error="Cannot fall back to free license.";
-        } else {
-          warning (0, "Could not retrieve compiler license (%s)", failure);
-        }
-      } else if (WIFEXITED(status)) {
-        mchp_license_valid = WEXITSTATUS(status);
-        if (mchp_license_valid > MCHP_XCLM_VALID_CCOV_LICENSE) {
-          mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
+      if (type == check_for_normal_license) {
+        if (pid < 0) {
+          /* Set free edition if the license manager isn't available. 
+           * The free edition disables optimization options without an eval 
+           * period. 
+           */
+          mchp_license_valid=MCHP_XCLM_FREE_LICENSE;
+          if (pic30_nofallback) {
+            pic30_nofallback_error="Cannot fall back to free license.";
+          } else {
+            warning (0, "Could not retrieve compiler license (%s)", failure);
+          }
+        } else if (WIFEXITED(status)) {
+          mchp_license_valid = WEXITSTATUS(status);
+#ifdef _BUILDC30_FUSA_
+          /* if we are fusa license, return true only if we have a FS license */
+          if (mchp_license_valid != MCHP_XCLM_VALID_FS_LICENSE) 
+#else
+          /* if we are normal license, return FREE if license is wrong */
+          if (mchp_license_valid > MCHP_XCLM_VALID_PRO_LICENSE)
+#endif
+          {
+            mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
+          }
         }
         if ((mchp_license_valid == MCHP_XCLM_FREE_LICENSE) && 
             (pic30_nofallback)) {
           pic30_nofallback_error="Cannot fall back to free license.";
+        }
+      } else if (type == check_for_code_coverage) {
+        if (pid < 0) {
+          mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
+        } else {
+          mchp_license_valid = WEXITSTATUS(status);
+          /* return FREE if we dont' have CCOV license */
+          if (mchp_license_valid != MCHP_XCLM_VALID_CCOV_LICENSE) {
+            mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
+          }
         }
       }
     }
@@ -3569,7 +3602,7 @@ void pic30_override_options(void) {
   } else if (mchp_skip_license_check) {
     pic30_license_valid = -1;
   } else {
-    pic30_license_valid = get_license();
+    pic30_license_valid = get_license(check_for_normal_license);
   }
 
 #elif defined(LICENSE_MANAGER)
@@ -3897,7 +3930,7 @@ void pic30_override_options(void) {
       pic30_codecov_far = 1;
     }
 #if defined(LICENSE_MANAGER_XCLM)
-    if (pic30_license_valid == MCHP_XCLM_VALID_CCOV_LICENSE) {
+    if (get_license(check_for_code_coverage) == MCHP_XCLM_VALID_CCOV_LICENSE) {
       pic30_codecov_license = 1;
     } else {
       pic30_codecov_license = 0;
@@ -20787,7 +20820,7 @@ unsigned int pic30_RAW_count(void) {
       last_reg_def = -2;  /* we don't know */
     } 
     if (we_stall) {
-#ifdef MCHP_DEBUG
+#if 0
        fprintf(stderr,"This instruction looks like it causes a stall:\n");
        debug_rtx(insn);
 #endif

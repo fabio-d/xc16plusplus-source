@@ -367,6 +367,12 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
   static int record = 0;
   static struct resource_introduction_block *rib = 0;
 
+#ifdef _BUILDC30_FUSA_
+#define FUSA " Functional Safety"
+#else
+#define FUSA ""
+#endif
+
   if (err_return) return;
 
   if (pic30_resource_file == 0) {
@@ -411,11 +417,11 @@ static void process_resource_file(unsigned int mode, unsigned int procID, int de
               rib->resource_version_increment);
     }  
     else {
-      sprintf(pic30_resource_version,"%s (%c)",
+      sprintf(pic30_resource_version,"%s" FUSA " (%c)",
               version_part1, rib->resource_version_increment);
     }
 #else
-      sprintf(pic30_resource_version,"%s (%c)",
+      sprintf(pic30_resource_version,"%s" FUSA " (%c)",
               version_part1, rib->resource_version_increment);
 #endif
   }
