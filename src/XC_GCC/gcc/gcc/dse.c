@@ -1362,7 +1362,7 @@ record_store (rtx body, bb_info_t bb_info)
   mem = pic30_find_mem_in(SET_DEST(body));
   if (mem == NULL)
 #endif
-  mem = SET_DEST (body);
+    mem = SET_DEST (body);
 
   /* If this is not used, then this cannot be used to keep the insn
      from being deleted.  On the other hand, it does provide something

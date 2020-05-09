@@ -713,3 +713,5 @@ extern void pic30_init(int argc, char **argv);
 extern char *pic30_resource_version;
 extern int pic30_partition_flash;
 extern bfd_boolean pic30_isa_v4;
+
+extern void pre_parse_args(int argc, char **argv);

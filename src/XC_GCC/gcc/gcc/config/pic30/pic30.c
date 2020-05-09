@@ -46,6 +46,8 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 #include "function.h"
 #include "expr.h"
 #include "recog.h"
+#include "reload.h"
+#include "sched-int.h"
 #include "toplev.h"
 #if !defined(HAVE_cc0)
 #define HAVE_cc0
@@ -924,6 +926,7 @@ enum css {
 };
 
 static char *force_section_name(tree decl);
+int pic30_output_address_of_external(FILE *, rtx);
 
 /*----------------------------------------------------------------------*/
 
@@ -1164,6 +1167,41 @@ static void pic30_init_sections(void) {
   }
 }
 
+void pic30_validate_resource_data(const char *field,unsigned int flags) {
+  int masked_flag = flags & (~RECORD_TYPE_MASK);
+  int warn_unrecognized_device_info = 0;
+  static int already_warned = 0;
+
+  if ((flags & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
+    if (masked_flag > ALL_DEVICE_ID_FLAGS) {
+      warn_unrecognized_device_info = 1;
+    }
+  }
+  if ((flags & RECORD_TYPE_MASK) == IS_CODEGUARD_ID) {
+    if (masked_flag > ALL_CODEGUARD_ID_FLAGS) {
+      warn_unrecognized_device_info = 1;
+    }
+  }
+  if ((flags & RECORD_TYPE_MASK) == IS_MEM_ID) {
+    if (masked_flag > ALL_MEM_ID_FLAGS) {
+      warn_unrecognized_device_info = 1;
+    }
+  }
+  if ((warn_unrecognized_device_info) && (!already_warned)) {
+    already_warned = 1;
+    if (pic30_dfp) {
+      warning(0,"Unrecognized device information.\n\t"
+                "Device data present in DFP is not known to this "
+                  "version of the compiler.");
+    } else {
+      warning(0,"Unrecognized device information.\n\t"
+                "This device may not be fully supported by "
+                  "this version of the compiler.");
+    }
+    warning(0,"Please update to the latest version of the compiler.");
+  }
+}
+
 /* stupid prototype */
 unsigned int validate_target_id(char *id, char **matched_id);
 unsigned int validate_target_id(char *id, char **matched_id) {
@@ -1302,6 +1340,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
         /* match */
         *matched_id = d.v.s;
         if ((d1.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID) {
+          pic30_validate_resource_data(d.v.s, d1.v.i);
           pic30_device_mask = (d1.v.i & (~IS_DEVICE_ID));
           if (d1.v.i & P30F) mask = MASK_ARCH_PIC30F;
           if (d1.v.i & P33E) mask = MASK_ARCH_PIC33E;
@@ -1354,6 +1393,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
             valid_isr_names[isr_names_idx++].mask = mask;
           }
         } else if (d.v.i & IS_MEM_ID) {
+          pic30_validate_resource_data(d.v.s, d.v.i);
           flags = d.v.i;
           read_value(rik_int,&d);
           if ((d.v.i) && (d.v.i == pic30_device_id)) {
@@ -3230,9 +3270,9 @@ get_license (enum check_license_flag type)
     args[4] = date;
   } else {
     args[1] = kopt;
-    args[2] = product;
-    args[3] = version;
-    args[4] = date;
+  args[2] = product;
+  args[3] = version;
+  args[4] = date;
   }
   /* Get a path to the license manager to try */
   exec = get_license_manager_path();
@@ -3486,7 +3526,6 @@ void pic30_override_options(void) {
                                  prologue and epilogue code */
   flag_rename_registers=0;
 #endif
-  flag_var_tracking=0;     /* location lists are not yet supported in MPLAB */
   if (flag_strict_aliasing && warn_strict_aliasing < 0) warn_strict_aliasing = 2;
 #ifdef SET_MCHP_VERSION
   SET_MCHP_VERSION(pic30_compiler_version);
@@ -3810,7 +3849,7 @@ void pic30_override_options(void) {
   }
 
 #elif defined(LICENSE_MANAGER_XCLM)
-  if (pic30_license_valid < MCHP_XCLM_VALID_PRO_LICENSE) {
+  if (pic30_license_valid < MCHP_XCLM_VALID_STANDARD_LICENSE) {
     invalid = (char*) "restricted";
     nullify_Os = 1;
     nullify_O3 = 1;
@@ -16468,8 +16507,7 @@ void pic30_asm_declare_object_name(FILE *file, char *name,
         fprintf(file, "%s", "\t.type\t");
         assemble_name(file, name);
         putc(',', file);
-        fprintf(file, "@%s", "object");
-        putc('\n', file);
+        fprintf(file, "@object\n");
         size = int_size_in_bytes(TREE_TYPE(decl));
         ASM_OUTPUT_SIZE_DIRECTIVE(file,name,size);
     }
@@ -16882,8 +16920,10 @@ void pic30_asm_output_common(FILE *file, char *name,
     fprintf(file, "%s", "\t.type\t");
     assemble_name(file, name);
     putc(',', file);
-    fprintf(file, "@%s", "object");
-    putc('\n', file);
+    fprintf(file, "@object\n");
+    fprintf(file, SIZE_ASM_OP);
+    assemble_name(file, name);
+    fprintf(file, ", %d\n", size);
   }
   fputs("\t.global\t", file);
   assemble_name(file, name);
@@ -16975,8 +17015,10 @@ void pic30_asm_output_aligned_common(FILE *file, tree decl, char *name,
      fprintf(file, "%s", "\t.type\t");
      assemble_name(file, name);
      putc(',', file);
-     fprintf(file, "@%s", "object");
-     putc('\n', file);
+     fprintf(file, "@object\n");
+     fprintf(file, SIZE_ASM_OP);
+     assemble_name(file, name);
+     fprintf(file, ", %d\n", size);
    }
    fputs("\t.global\t", file);
    assemble_name(file, name);
@@ -17036,7 +17078,7 @@ void pic30_asm_output_local(FILE *file, char *name, int size ATTRIBUTE_UNUSED,
 /************************************************************************/
 /*
 ** Like ASM_OUTPUT_LOCAL except takes the required alignment as a separate,
-** explicit argument. If you define this macro, it is used in place of 
+** explicit argument. If you define this macro, it is used in place of
 ** ASM_OUTPUT_LOCAL, and gives you more flexibility in handling the required
 ** alignment of the variable. The alignment is specified as the number of bits.
 */
@@ -21258,6 +21300,11 @@ unsigned int pic30_validate_dsp_instructions(void) {
           break;
         case PIC30_BUILTIN_SUBAB:
         case PIC30_BUILTIN_ADDAB:
+          /* Errata version of addac is a parallel so check the actual pattern
+           * instead of the parallel clobber version */
+          if (GET_CODE(p) == PARALLEL) {
+            p = XVECEXP(p,0,0);
+          }
           p = SET_SRC(p);
           for (i = 0; i < 2; i++) {
             o = XEXP(p,i);
@@ -21276,6 +21323,11 @@ unsigned int pic30_validate_dsp_instructions(void) {
 
         case PIC30_BUILTIN_ADD: {
           int found = 0;
+          /* Errata version of addac is a parallel so check the actual pattern
+           * instead of the parallel clobber version */
+          if (GET_CODE(p) == PARALLEL) {
+            p = XVECEXP(p,0,0);
+          }
 
           p = SET_SRC(p);
           for (i = 0; i < 2; i++) {

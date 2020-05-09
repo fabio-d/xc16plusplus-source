@@ -1991,7 +1991,8 @@ extern void pic30_cpu_cpp_builtins(void *);
 ** Compute extra cost of moving data between one register class
 ** and another.
 */
-#define REGISTER_MOVE_COST(MODE,FROM,TO)  ((MODE > P16PMPmode) ? 2 : 1)
+#define REGISTER_MOVE_COST(MODE,FROM,TO)  ((GET_MODE_SIZE(MODE) > 2) ?  \
+                                            (GET_MODE_SIZE(MODE)/2) : 1)
 
 /*
 ** A C expression for the cost of moving data of mode MODE between a register

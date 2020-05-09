@@ -841,8 +841,17 @@ const struct pic30_operand pic30_operands[] =
    },
 
 #define BRANCH_LABEL                    (PIC30_BASE_OPERAND + 32)
-   { 16, 0, OPND_VALUE, FALSE, PIC30_RELOC_INFO_PCREL_BRANCH,
-     0, 0, 0, pic30_extract_offset },
+   {    
+        16, 
+        0, 
+        OPND_VALUE, 
+        FALSE, 
+        PIC30_RELOC_INFO_PCREL_BRANCH,
+        0, 
+        0, 
+        0, 
+        pic30_extract_offset 
+   },
 
 #define BRANCH_ON_DSP_CONDITION_OPERAND (PIC30_BASE_OPERAND + 33)
    { 2, 16, OPND_BRANCH_ON_DSP_CONDITION, FALSE, PIC30_RELOC_INFO_NONE,
@@ -986,8 +995,19 @@ const struct pic30_operand pic30_operands[] =
 	pic30_insert_byte_cp_8bit_lit, 	/* insert() */
 	pic30_extract_byte_cp_8bit_lit	/* extract() */
    },
+
 #define REG_L                             (PIC30_BASE_OPERAND + 52)
-   { 4, 0, OPND_REGISTER_DIRECT, FALSE, PIC30_RELOC_INFO_NONE, pic30_match_even, 0, pic30_insert_byte_l_operand, 0 },
+   {    
+        4, 
+        0, 
+        OPND_REGISTER_DIRECT, 
+        FALSE, 
+        PIC30_RELOC_INFO_NONE, 
+        pic30_match_even_not_14, 
+        "Register # must be a member of [0, 2, 4, ... 12].", 
+        pic30_insert_byte_l_operand, 
+        0 
+   },
 
 #define LITERAL_15BIT                   (PIC30_BASE_OPERAND + 53)
    {
@@ -1046,8 +1066,17 @@ const struct pic30_operand pic30_operands[] =
    },
 
 #define BRANCH_LABEL_SLIT6                    (PIC30_BASE_OPERAND + 58)
-   { 6, 4 , OPND_VALUE, FALSE, PIC30_RELOC_INFO_PCREL_BRANCH_SLIT6,
-     0, 0, 0, pic30_extract_offset },
+   {    
+        6, 
+        4, 
+        OPND_VALUE, 
+        FALSE, 
+        PIC30_RELOC_INFO_PCREL_BRANCH_SLIT6,
+        0, 
+        0, 
+        0, 
+        pic30_extract_offset 
+   },
 
 #define LITERAL_3BIT                   (PIC30_BASE_OPERAND + 59)
    {

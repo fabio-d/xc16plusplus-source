@@ -1577,7 +1577,8 @@ select_free_block(struct pic30_section *s, unsigned int len,
      /* This check is necessary to prevent the linker from
         placing code at the last word of program memory */
 
-     if (PIC30_IS_CODE_ATTR(s->sec) || PIC30_IS_AUXFLASH_ATTR(s->sec))
+     if ((PIC30_IS_CODE_ATTR(s->sec) || PIC30_IS_AUXFLASH_ATTR(s->sec)) &&
+         (!PIC30_IS_ABSOLUTE_ATTR(s->sec)))
         {
          if ((s->sec->lma + len) == (region->origin + region->length))
           {

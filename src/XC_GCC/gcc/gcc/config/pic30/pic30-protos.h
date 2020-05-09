@@ -448,6 +448,8 @@ extern void pic30_conditional_register_usage (void);
 extern void pic30_emit_cc_section(const char *name);
 extern int pic30_licensed_xccov_p(void);
 
+extern bool pic30_valid_pointer_mode(enum machine_mode);
+
 #ifdef GCC_C_PRAGMA_H
 #endif
 

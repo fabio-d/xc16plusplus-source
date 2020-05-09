@@ -3651,10 +3651,6 @@ display_help (void)
                            guessing the language based on the file's extension\n\
 "), stdout);
 
-#ifdef _BUILD_C30_
-  fputs (_("\
-  -fast-math               Use alternative floating point support routines\n"), stdout);
-#endif
 
   printf (_("\
 \nOptions starting with -g, -f, -m, -O, -W, or --param are automatically\n\
@@ -7820,6 +7816,30 @@ main (int argc, char **argv)
       fflush (stdout);
     }
 
+#ifdef _BUILD_C30_
+  struct resource_introduction_block *rib = 0;
+  char *pic30_resource_file;
+  pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
+                        sizeof("/c30_device.info"));
+  if (pic30_resource_file) {
+    { char *c;
+      int l = 0;
+      /* up three levels */
+      strcpy(pic30_resource_file, gcc_exec_prefix);
+      c = pic30_resource_file+strlen(gcc_exec_prefix)-1;
+      while ((c > pic30_resource_file) && (l < 3)) {
+        c--;
+        if (IS_DIR_SEPARATOR(*c)) {
+          l++;
+        }
+      }
+      *c = 0;
+      strcat(pic30_resource_file, "/c30_device.info");
+    }
+    rib = read_rib(pic30_resource_file);
+  }
+#endif
+
   if (print_version)
     {
 #if defined(TARGET_MCHP_PIC32MX)
@@ -7884,12 +7904,10 @@ main (int argc, char **argv)
       }
 #elif defined(_BUILD_C30_) && defined(MCHP_VERSION)
           { int vid;
-            struct resource_introduction_block *rib = 0;
             char *Microchip;
             char *new_version = xstrdup(version_string);
             char *version_part1;
             char *version_part2;
-            char *pic30_resource_file;
 
 #ifdef _BUILDC30_FUSA
 #define     FUSAV "Functional Safety"
@@ -7898,62 +7916,42 @@ main (int argc, char **argv)
 #endif
 
             SET_MCHP_VERSION(vid);
-            pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
-                                  sizeof("/c30_device.info"));
-            if (pic30_resource_file) {
-              { char *c;
-                int l = 0;
-                /* up two levels */
-                strcpy(pic30_resource_file, gcc_exec_prefix);
-                c = pic30_resource_file+strlen(gcc_exec_prefix);
-                while (c && l < 2) {
-                  if (*c == 0) c--;
-                  if (*c == DIR_SEPARATOR) {
-                    l++;
-                  }
-                  c--;
-                }
-                *c = 0;
-                strcat(pic30_resource_file, "/c30_device.info");
-              }
-              rib = read_rib(pic30_resource_file);
-              if (rib) {
-                Microchip = strstr(new_version,"Microchip");
-                if (Microchip) {
-                  int i;
-                  int mismatch;
+            if (rib) {
+              Microchip = strstr(new_version,"Microchip");
+              if (Microchip) {
+                int i;
+                int mismatch;
 
-                  for (; (*Microchip) &&
-                         ((*Microchip <= '0') || (*Microchip >= '9'));
-                       Microchip++);
-                  if (*Microchip) {
+                for (; (*Microchip) &&
+                       ((*Microchip <= '0') || (*Microchip >= '9'));
+                     Microchip++);
+                if (*Microchip) {
+                  i = strtol(Microchip, &Microchip, 0);
+                  if ((*Microchip) &&
+                      ((*Microchip == '_') || (*Microchip == '.'))) {
+                    Microchip++;
                     i = strtol(Microchip, &Microchip, 0);
-                    if ((*Microchip) &&
-                        ((*Microchip == '_') || (*Microchip == '.'))) {
-                      Microchip++;
-                      i = strtol(Microchip, &Microchip, 0);
-                      for (; *Microchip && *Microchip != ' '; Microchip++);
-                    }
-                    version_part1 = new_version;
-                    *Microchip = 0;
-                    version_part2 = Microchip+1;
-                    /* version part located */
-                    version_string = (char *)xmalloc(strlen(version_part1) +
-                                             sizeof(FUSAV)+ 2 +
-                                             strlen(version_part2) + 40);
-                    mismatch = (vid != (rib->version.major*1000 +
-                                        rib->version.minor));
-                    if (mismatch) {
-                      sprintf(version_string,
-                              "%s " FUSAV ", resource version %d.%.2d (%c), %s",
-                              version_part1, rib->version.major,
-                              rib->version.minor,
-                              rib->resource_version_increment,version_part2);
-                    } else {
-                      sprintf(version_string,"%s " FUSAV " (%c) %s",
-                              version_part1,
-                              rib->resource_version_increment,version_part2);
-                    }
+                    for (; *Microchip && *Microchip != ' '; Microchip++);
+                  }
+                  version_part1 = new_version;
+                  *Microchip = 0;
+                  version_part2 = Microchip+1;
+                  /* version part located */
+                  version_string = (char *)xmalloc(strlen(version_part1) +
+                                           sizeof(FUSAV)+ 2 +
+                                           strlen(version_part2) + 40);
+                  mismatch = (vid != (rib->version.major*1000 +
+                                      rib->version.minor));
+                  if (mismatch) {
+                    sprintf(version_string,
+                            "%s " FUSAV ", resource version %d.%.2d (%c), %s",
+                            version_part1, rib->version.major,
+                            rib->version.minor,
+                            rib->resource_version_increment,version_part2);
+                  } else {
+                    sprintf(version_string,"%s " FUSAV " (%c) %s",
+                            version_part1,
+                            rib->resource_version_increment,version_part2);
                   }
                 }
               }
@@ -7966,7 +7964,6 @@ main (int argc, char **argv)
                       rib->version.major,
                       rib->version.minor, 
                       rib->resource_version_increment);
-              close_rib();
             }
             printf (_("__XC16_VERSION__ == %d\n"), vid);
           }
@@ -7986,34 +7983,16 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
        * find out if the installation is a Beta installation or a public
        * installation
        */
-      struct resource_introduction_block *rib = 0;
-      char *pic30_resource_file;
-
-      pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
-                            sizeof("/c30_device.info"));
-      if (pic30_resource_file) 
-        { char *c;
-          int l = 0;
-          /* up two levels */
-          strcpy(pic30_resource_file, gcc_exec_prefix);
-          c = pic30_resource_file+strlen(gcc_exec_prefix);
-          while (c && l < 2) {
-            if (*c == 0) c--;
-            if (*c == DIR_SEPARATOR) {
-              l++;
-            }
-            c--;
-          }
-          *c = 0;
-          strcat(pic30_resource_file, "/c30_device.info");
+      if (rib) {
+        if( ISDIGIT(rib->resource_version_increment) ) {
+          printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
         }
-      rib = read_rib(pic30_resource_file);
-      if( ISDIGIT(rib->resource_version_increment) ) {
-        printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
       }
-      close_rib();
 #endif
       if (! verbose_flag)
+        if (rib) {
+          close_rib();
+        }
 	return 0;
 
       /* We do not exit here. We use the same mechanism of --help to print
@@ -8064,37 +8043,24 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
        * find out if the installation is a Beta installation or a public
        * installation
        */
-      struct resource_introduction_block *rib = 0;
-      char *pic30_resource_file;
-
-      pic30_resource_file = (char *)xmalloc(strlen(gcc_exec_prefix) +
-                            sizeof("/c30_device.info"));
-      if (pic30_resource_file) 
-        { char *c;
-          int l = 0;
-          /* up two levels */
-          strcpy(pic30_resource_file, gcc_exec_prefix);
-          c = pic30_resource_file+strlen(gcc_exec_prefix);
-          while (c && l < 2) {
-            if (*c == 0) c--;
-            if (*c == DIR_SEPARATOR) {
-              l++;
-            }
-            c--;
-          }
-          *c = 0;
-          strcat(pic30_resource_file, "/c30_device.info");
+      if (rib) {
+        if( ISDIGIT(rib->resource_version_increment) ) {
+          printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
         }
-      rib = read_rib(pic30_resource_file);
-      if( ISDIGIT(rib->resource_version_increment) ) {
-        printf("\n*** NOTICE: This is a non-commercial compiler version. Please contact your FAE or microchip.com/MPLABXC to obtain an official, released compiler.\n\n");
       }
-      close_rib();
 #endif
       if (n_infiles == 0)
+        if (rib) {
+          close_rib();
+        }
 	return (0);
     }
 
+#ifdef _BUILD_C30_
+  if (rib) {
+    close_rib();
+  }
+#endif
   if (n_infiles == added_libraries)
     fatal ("no input files");
 

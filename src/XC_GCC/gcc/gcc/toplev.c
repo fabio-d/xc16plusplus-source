@@ -2130,7 +2130,7 @@ process_options (void)
     flag_var_tracking = 1;
 
   if (flag_var_tracking == AUTODETECT_VALUE)
-    flag_var_tracking = optimize >= 1;
+    flag_var_tracking = 0;
 
   if (flag_var_tracking_assignments == AUTODETECT_VALUE)
     flag_var_tracking_assignments = flag_var_tracking

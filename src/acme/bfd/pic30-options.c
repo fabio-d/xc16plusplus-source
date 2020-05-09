@@ -15,6 +15,7 @@
 */
 
 #include <errno.h>
+#include <unistd.h>
 
 /*
 ** list_options()
@@ -92,6 +93,11 @@ pic30_list_options (file)
   fprintf (file, _("  --no-psrd-psrd-check   Do not scan linked executable for psrd psrd violations\n"));
   fprintf (file, _("  --add-flags-code       Add section flags to a code section on link\n"));
   fprintf (file, _("  --add-flags-data       Add section flags to a data section on link\n"));
+#if PIC30ELF
+  fprintf (file, _("  --mslave-id[=id]       Add unique identifier to slave image\n"));
+  fprintf (file, _("  --mslave-id-location=  Modify the __SLAVE_ID address\n"));
+  fprintf (file, _("                         [default last program memory location]\n"));
+#endif
 
 } /* static void pic30_list_options () */
 
@@ -484,10 +490,7 @@ pic30_parse_args (argc, argv)
       break;
     case HEAP_OPTION:
       pic30_has_heap_option = TRUE;
-      if (strstr(optarg, "0x") == 0)
-        pic30_heap_size = atoi(optarg);
-      else
-        (void) sscanf(optarg, "%x", &pic30_heap_size);
+      pic30_heap_size = strtol(optarg,0,0);
       break;
     case DATA_INIT_OPTION:
       if (pic30_has_data_init_option && (!pic30_data_init))
@@ -783,9 +786,53 @@ pic30_parse_args (argc, argv)
         pic30_add_data_flags = strdup(optarg);
       }
       break;
+    case ADD_CONST_FLAGS:
+      if (pic30_add_const_flags) {
+        char *f = malloc(strlen(pic30_add_const_flags) + strlen(optarg) + 2);
+        sprintf(f, "%s,%s", pic30_add_const_flags, optarg);
+        free(pic30_add_const_flags);
+        pic30_add_const_flags = f;
+      } else {
+        pic30_add_const_flags = strdup(optarg);
+      }
+      break;
     case PIC30_DFP:
       pic30_dfp = strdup(optarg);
       break;
+#ifdef PIC30ELF
+    case PIC30_SLAVE_ID: 
+      { unsigned int value;
+
+        value = 0xFFFFFFFF;     // language tool picks
+        if (optarg) {
+          char *end;
+          value = strtol(optarg, &end, 0);
+          if (*end) {
+            einfo(_("%P%F: Error: Invalid argument to --mslave-id\n"));
+            value = 0xFFFFFFFF;
+          } else if (value & 0xFF000000) {
+            einfo(_("%P%F: Error: Invalid argument to --mslave-id\n"));
+            value = 0xFFFFFFFF;
+          }
+        }
+        if (value == 0xFFFFFFFF) {
+          value = getpid();
+          value = value & 0xFFFFFF;
+        }
+        pic30_slave_id = value;
+      }
+      break;
+    case PIC30_SLAVE_ID_LOCATION: 
+      { char *end;
+
+        pic30_slave_id_location = strtol(optarg,&end,0);
+        if (*end) {
+          einfo(_("%P%F: Error: Invalid argument to --mslave-id-location\n"));
+          pic30_slave_id_location = 0;
+        }
+      }
+      break;
+#endif
     }
   return 1; 
 } /* static int pic30_parse_args ()*/

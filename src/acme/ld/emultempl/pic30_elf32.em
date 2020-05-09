@@ -2917,6 +2917,85 @@ bfd_pic30_create_heap_bfd (bfd *parent) {
   return abfd;
 } /* static bfd * bfd_pic30_create_heap_bfd (...)*/
 
+/*
+** Create a bfd for a slave-id
+**
+** Uses the following global variables:
+**   symtab
+**   symptr
+*/
+static bfd *
+bfd_pic30_create_slave_id_bfd  (char *name, unsigned int val)
+{
+  bfd_size_type size;
+  bfd *abfd;
+  asection *sec;
+  char *oname,*sec_name,*sec_data, *d;
+  extern struct pic30_mem_info_ pic30_mem_info;
+
+
+  /* create a bare-bones bfd */
+  oname = (char *) bfd_alloc (output_bfd, strlen(name) + 5);
+  sprintf (oname, "/CW/_%s", name);
+  abfd = bfd_create (oname, output_bfd);
+  bfd_find_target ("elf-pic30", abfd);
+  bfd_make_writable (abfd);
+
+  bfd_set_format (abfd, bfd_object);
+  bfd_set_arch_mach (abfd, bfd_arch_pic30, 0);
+
+  /* create a symbol table (room for 2 entries) */
+  symptr = 0;
+  symtab = (asymbol **) bfd_alloc (output_bfd, 2 * sizeof (asymbol *));
+
+  /* create a bare-bones section */
+  sec_name = (char *) bfd_alloc (output_bfd, strlen(name) + 6 + 1);
+
+  sprintf(sec_name, "%s.sec", name);
+  sec = bfd_pic30_create_section (abfd, sec_name,
+                                  SEC_HAS_CONTENTS | SEC_IN_MEMORY | 
+                                  SEC_CODE | SEC_KEEP, 1);
+  sec->linker_generated = 1;
+  if (pic30_slave_id_location == 0) {
+    struct memory_region_struct *region;
+    region = region_lookup("program");
+    if (region) {
+      pic30_slave_id_location = region->origin + region->length-2;
+    }
+  }
+  if (pic30_slave_id_location) {
+    PIC30_SET_ABSOLUTE_ATTR(sec);
+    bfd_set_section_vma(abfd, sec, pic30_slave_id_location);
+  } else {
+    einfo (_("%F%B: could not determine slave id locaiton;\n\tconsider using --mslave-id-location option\n"));
+  }
+  size = (bfd_size_type) 4;
+  bfd_set_section_size (abfd, sec, size);
+
+  /* allocate memory */
+  sec_data = (char *) bfd_alloc (output_bfd, size);
+  if (!sec_data) abort();
+  sec->contents = (unsigned char *) sec_data;
+
+  /* fill it with config word value (16 valid bits, padded to 32) */
+  d = sec_data;
+  *d++ = val & 0xFF; *d++ = (val >> 8) & 0xFF;
+  *d++ = val >> 16; *d++ = 0;
+
+  /* create global label at offset zero */
+  bfd_pic30_create_symbol (abfd, sec_name, sec, BSF_GLOBAL, 0);
+
+  /* put in the symbol table */
+  bfd_set_symtab (abfd, symtab, symptr);
+
+  /* and the new section */
+  bfd_set_section_contents (abfd, sec, sec_data, 0, size);
+
+  /* finish it */
+  if (!bfd_make_readable (abfd)) abort();
+
+  return abfd;
+}
 
 /*
 ** Count the number of active entries in map[num]
@@ -6592,6 +6671,7 @@ void pic30_create_ram_usage_template(void) {
 **
 ** Create access entry tables for CodeGuard.
 **
+** Create slave-id, if required
 */
 static void
 gld${EMULATION_NAME}_after_open()
@@ -7213,6 +7293,13 @@ gld${EMULATION_NAME}_after_open()
     heap_bfd = bfd_pic30_create_heap_bfd (output_bfd);
     bfd_pic30_add_bfd_to_link (heap_bfd, heap_bfd->filename);
     heap_section_defined = TRUE;
+  }
+
+  if (pic30_slave_id != 0xFFFFFFF) {
+    bfd *abfd;
+    
+    abfd = bfd_pic30_create_slave_id_bfd("__SLAVE_ID", pic30_slave_id);
+    bfd_pic30_add_bfd_to_link (abfd, abfd->filename);
   }
 
 }/* static void gld${EMULATION_NAME}_after_open ()*/

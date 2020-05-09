@@ -245,7 +245,11 @@ unsigned int pagesize_arg = 0;
 bfd_boolean pic30_psrd_psrd_check = TRUE;
 char *pic30_add_data_flags = 0;
 char *pic30_add_code_flags = 0;
+char *pic30_add_const_flags = 0;
 char *pic30_dfp = 0;
+char *pic30_requested_processor=0;
+unsigned int pic30_slave_id = 0xFFFFFFF;   // not defined
+unsigned int pic30_slave_id_location = 0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -1738,7 +1742,7 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
   /* branch abosolute for 6-bit branches */
   HOWTO(R_PIC30_BRANCH_ABSOLUTE6,       /* type */
          1,                             /* rightshift */
-         0,                             /* size (0=byte, 1=short, 2=long) */
+         1,                             /* size (0=byte, 1=short, 2=long) */
          6,                             /* bitsize */
          TRUE,                          /* pc_relative? */
          4,                             /* bitpos */
@@ -1746,8 +1750,8 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          RELOC_SPECIAL_FN_PCREL,        /* special_function */
          "BRANCH ABSOLUTE 6",           /* name */
          PIC30_PIP,                     /* partial_inplace? */
-         SRC_MASK(0x002f0),             /* src_mask */
-         0x002F0,                       /* dst_mask */
+         SRC_MASK(0x003f0),             /* src_mask */
+         0x003F0,                       /* dst_mask */
          TRUE),                         /* pcrel_offset? */
 };
 
@@ -2800,6 +2804,10 @@ pic30_final_link (abfd, info)
         printf("dinit_size = %lx\n", dinit_size);
         printf("dinit_offset = %lx\n", dinit_offset);
   #endif
+
+        if (pic30_add_code_flags) {
+          pic30_add_section_attributes(dinit_sec,0,pic30_add_code_flags,0);
+        }
   
         /* clear SEC_IN_MEMORY flag if inaccurate */
         if ((dinit_sec->contents == 0) && 
@@ -3022,8 +3030,6 @@ pic30_final_link (abfd, info)
        }
     }
 
-
-
    /* ROM usage contents */
   if (pic30_memory_usage)
    {
@@ -3054,6 +3060,10 @@ pic30_final_link (abfd, info)
                    rom_usage_sec->name);
           abort();
         }
+
+      if (pic30_add_code_flags) 
+        pic30_add_section_attributes(rom_usage_sec,0,pic30_add_code_flags,0);
+
       /* scan sections and write ROM usage ranges */
       if (pic30_debug)
           printf("\nWriting ROM sections usage ranges:\n");
@@ -3128,6 +3138,10 @@ pic30_final_link (abfd, info)
                    ram_usage_sec->name);
           abort();
         }
+
+      if (pic30_add_code_flags) 
+        pic30_add_section_attributes(ram_usage_sec,0,pic30_add_code_flags,0);
+
       /* scan sections and write RAM usage ranges */
       if (pic30_debug)
           printf("\nWriting RAM sections usage ranges:\n");
@@ -3286,37 +3300,6 @@ pic30_final_link (abfd, info)
     }
   }
  
-#if 0 /* need to do it earlier */
-  /* clean the section names */
-  if (pic30_debug)
-    printf("\nCleaning section names:\n");
-  bfd_map_over_sections(abfd, &bfd_pic30_clean_section_names, 0);
-#endif
-
-#if 0
-  /* need to do it earlier */
-  { asymbol **syms;
-    syms = bfd_get_outsymbols(abfd);
-    if (syms) {
-      asymbol *sym;
-      int count = 0;
-      while (count < bfd_get_symcount(abfd)) {
-        sym = *syms;
-        if ( (sym->flags & BSF_GLOBAL) &&
-            !(sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM | BSF_FILE))) {
-          struct elf_link_hash_entry *h;
-          sym->flags |= BSF_WEAK;
-          h = elf_link_hash_lookup ((struct elf_link_hash_table *)info->hash, 
-                                     sym->name, FALSE, FALSE, TRUE);
-          h->root.type = bfd_link_hash_defweak;
-          fprintf(stderr,"weaken: %s (%d) %p\n", sym->name, count, h);
-        }
-        syms++;
-        count++;
-      }
-    }
-  }
-#endif
   if (pic30_debug)
   {
       printf("\nAfter pic30 final link:\n");

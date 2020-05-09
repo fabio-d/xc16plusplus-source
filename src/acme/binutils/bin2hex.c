@@ -50,6 +50,7 @@ static struct pic30_section *outputs;
 static char *subordinate_image_file = 0;
 static char *subordinate_image = 0;
 static long long int image_address = 0;
+static long pic30_slave_id_value = 0xFFFFFFFF;
 
 /* from elsewhere */
 extern bfd_boolean pic30_partition_flash;
@@ -60,8 +61,6 @@ extern void pic30_load_codeguard_settings(const bfd_arch_info_type *, int);
 static long subordinate_image_row = 0;
 
 char *program_name;
-
-extern char *pic30_dfp;
 
 void help(char **argv);
 void help(char **argv) {
@@ -415,6 +414,14 @@ write_image_file(char *name, bfd *abfd) {
   fprintf(fp,"       .word 0x0000\n");
   fprintf(fp,";      .word 0x0000\n");
 
+  if (pic30_slave_id_value != 0xFFFFFFFF) {
+    fprintf(fp,"       ; Slave-id information\n");
+    fprintf(fp,"       .section *,info\n");
+    fprintf(fp,"       .global ___slave_id_0x%x\n", pic30_slave_id_value);
+    fprintf(fp,"___slave_id_0x%x:  .long %d\n", pic30_slave_id_value, 
+            pic30_slave_id_value);
+  }
+
   fclose(fp);
 
   return 1;
@@ -724,6 +731,11 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
         fprintf(stderr,"*** Error %d: could not get section contents %s\n", 
                 bfd_get_error(), s->sec->name);
       } else {
+        if (strcmp(s->sec->name,"__SLAVE_ID.sec") == 0) {
+           // slave-id section name; cause a equate to be dumped so that
+           // we can identify duplicate slave ids
+           pic30_slave_id_value = p[0] + (p[1] << 8) + (p[2] << 16);
+        }
         p += s->sec->_raw_size;
       }
     }

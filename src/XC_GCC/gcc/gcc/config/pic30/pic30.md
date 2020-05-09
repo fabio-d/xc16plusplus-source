@@ -1285,6 +1285,8 @@
   (UNSPEC_ASHIFTSI_LOW         110)
   (UNSPECV_WRITERPCON          111) ; __builtin_write_RPCON
   (UNSPECV_COVER               112) ; code coverage insn
+  (UNSPECV_SETACC              113) ; generic set of accumulator to prevent
+                                    ;  optimisation
   (UNSPECV_TEMP                199)
  ]
 )
@@ -1618,7 +1620,9 @@
 
 (define_insn "clrac_gen_hi"
   [(set (match_operand: HI 0 "pic30_accumulator_operand" "=w,w,w,w,w,w,w,w,w")
-        (const_int 0))
+        (unspec:HI [
+           (const_int 0)
+         ] UNSPECV_SETACC))
    (set (match_operand: HI 1 "pic30_mac_input_operand"   "=z,B,B,z,z,z,z,z,B")
         (mem:HI
           (match_operand: HI 2 "pic30_xprefetch_operand" " x,B,B,x,x,x,x,x,B")))
@@ -2538,7 +2542,13 @@
   [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
         (match_operand: HI 1 "pic30_mode3_operand" "RS<>r"))]
   ""
-  "lac %1, #0, %0"
+  "*{
+        /* lac %1, %0 */
+        error(\"Automatic generation of DSP instructions not yet supported; \"
+              \"use __builtin_lac() instead\");
+        return \"cannot generate instruction\";
+    }
+  "
 )  
 
 (define_insn "movhi_accumulator2"
@@ -2555,20 +2565,26 @@
   "
 )
 
-;(define_insn "movhi_accumulator3"
-;  [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
-;        (match_operand:HI 1 "immediate_operand" "i"))]
-;  ""
-;  "*
-;   {
-;     if (INTVAL(operands[1]) == 0) {
-;       return \"clr %0\";
-;     } else {
-;       return \"lac %1, #0, %0\";
-;     }
-;   }
-;  "
-;)
+(define_insn "movhi_accumulator3"
+  [(set (match_operand:HI 0 "pic30_accumulator_operand" "=w")
+        (match_operand:HI 1 "immediate_operand" "i"))]
+  ""
+  "*
+   {
+     if (INTVAL(operands[1]) == 0) {
+        /* clr %0 */
+        error(\"Automatic generation of DSP instructions not yet supported; \"
+              \"use __builtin_clr() instead\");
+        return \"cannot generate instruction\";
+     } else {
+        /* lac ... */
+        error(\"Automatic generation of DSP instructions not yet supported; \"
+              \"use __builtin_lac() instead\");
+        return \"cannot generate instruction\";
+     }
+   }
+  "
+)
 
 (define_insn "addab_error"
   [(set (match_operand: HI          0 "pic30_accumulator_operand" "=w")
@@ -8800,6 +8816,23 @@
   ]
 )
 
+(define_insn "subp32eds3"
+  [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,&r")
+        (minus: P32EDS
+          (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
+          (match_operand:P32EDS  2 "pic30_mode2_operand"    "r,R")))
+   (clobber (match_scratch:HI 3                             "=&r,&r"))
+   (clobber (match_scratch:HI 4                             "=&r,&r"))
+  ]
+  ""
+  "@
+   sl %1,%3\;sl %2,%4\;sub %3,%4,%0\;bset _SR,#1\;subb %d1,%d2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
+   sl %1,%3\;sl %I2,%4\;sub %3,%4,%0\;bset _SR,#1\;subb %d1,%D2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
 (define_expand "addp32eds3"
   [(set (match_operand:P32EDS 0 "pic30_register_operand" "")
         (plus: P32EDS (match_operand:P32EDS 1 "pic30_register_operand" "")
@@ -13102,7 +13135,7 @@
        sprintf(buffer,\"mov #edsoffset(%%1),%%0\;mov #edspage(%%1),%%d0\");
      } else {
        sprintf(buffer,\"mov #%ld,%%0\;mov #%ld,%%d0\",(i & 0x7FFF),
-                      (i & 0xFF8000) >> 15);
+                      i >> 15);
      }
      return buffer;
    }"
@@ -14142,7 +14175,7 @@
                   l[1] = CONST_DOUBLE_HIGH(operands[1]);
                 } else if (sizeof(HOST_WIDE_INT) == 8) {
                   l[0] = CONST_DOUBLE_LOW(operands[1]) & 0xFFFFFFFF;
-                  l[1] = CONST_DOUBLE_LOW(operands[1]) >> 32;
+                  l[1] = (CONST_DOUBLE_LOW(operands[1]) >> 32) & 0xFFFFFFFF;
                 } else {
                   gcc_unreachable();
                 }
@@ -14160,7 +14193,7 @@
               l[1] = l[0] < 0 ? -1 : 0;
             } else if (sizeof(HOST_WIDE_INT) == 8) {
               l[0] = CONST_DOUBLE_LOW(operands[1]) & 0xFFFFFFFF;
-              l[1] = CONST_DOUBLE_LOW(operands[1]) >> 32;
+              l[1] = (CONST_DOUBLE_LOW(operands[1]) >> 32) & 0xFFFFFFFF;
             } else {
               gcc_unreachable();
             }
@@ -19652,16 +19685,6 @@
   ]
 )
 
-(define_insn "subp32eds3"
-  [(set(match_operand:P32EDS   0 "pic30_register_operand" "=&r")
-       (minus:P32EDS
-         (match_operand:P32EDS 1 "pic30_register_operand" "r")
-         (match_operand:P32EDS 2 "pic30_register_operand" "r")))
-  ]
-  ""
-  "sl %1,%0\;sl %2,%d0\;sub %0,%d0,%0\;subb %d1,%d2,%d0\;asr %d0,%d0\;rrc %0,%0"
-)
-
 (define_insn "subsip32eds3"
   [(set(match_operand:SI         0 "pic30_register_operand" "=&r")
        (minus:SI
@@ -23050,10 +23073,12 @@
 
 ; leave this match_dup, there is no operand 2 to interfere with a reload (CAW)
 (define_insn "*neghi2_sfr1"
-  [(set (match_operand:HI 0 "pic30_reg_or_near_operand"        "=U,r")
+  [(set (match_operand:HI 0 "pic30_reg_or_near_operand"        "+U,r")
         (neg:HI (match_dup 0)))]
   ""
-  "neg %0"
+  "@
+   neg %0
+   neg %0,%0"
   [
    (set_attr "cc" "set")
    (set_attr "type" "etc,def")
@@ -31087,11 +31112,11 @@
 
 ; leave this match_dup, operand 0 will not require a reload (CAW)
 (define_insn "*lshrqi3_sfr1"
-  [(set (match_operand:QI 0 "pic30_near_operand"          "=U")
+  [(set (match_operand:QI 0 "pic30_near_operand"          "+U")
         (lshiftrt:QI (match_dup 0)
                      (match_operand:QI 1 "pic30_I_operand" "I")))]
   ""
-  "lsr %0"
+  "lsr.b %0"
   [(set_attr "cc" "math")])
 
 ;;;;;;;;;;;;
@@ -32734,10 +32759,10 @@
 
 (define_insn "bfins"
   [(set (zero_extract:HI    
-          (match_operand    0 "pic30_mode2_or_near_operand" "+Rr,Rr,U,U")
-          (match_operand:HI 1 "immediate_operand"           " i, i, i,i")
-          (match_operand:HI 2 "immediate_operand"           " i, i, i,i"))
-        (match_operand:HI 3 "pic30_reg_or_lit8"             " r, i, r,???i"))
+          (match_operand    0 "pic30_mode2_or_near_operand" "+U, Rr,Rr,U")
+          (match_operand:HI 1 "immediate_operand"           " i, i, i, i")
+          (match_operand:HI 2 "immediate_operand"           " i, i, i, i"))
+        (match_operand:HI 3 "pic30_reg_or_lit8"             " r, r, i, ???i"))
    (clobber (match_scratch:HI 4                             "=X, X, X, r"))
   ]
   "(pic30_isav4_target())"
@@ -32745,18 +32770,27 @@
 {
   switch (which_alternative) 
   {
-    case 0: return \"bfins #%2,#%1,%3,%0\";
-    case 1: return \"bfins #%2,#%1,#%3,%0\";
-    case 2:  { /* U, i, i, r */
+    case 1: return \"bfins #%2,#%1,%3,%0\";
+    case 2: return \"bfins #%2,#%1,#%3,%0\";
+    case 3:
+    case 0:  { /* U, i, i, r */
       /* Check to see if it is near+offset */
       if (GET_CODE(XEXP(operands[0],0)) == CONST) {
         if(GET_CODE(XEXP(XEXP(operands[0],0),0)) == PLUS) {
           int offset;
           offset = INTVAL(XEXP(XEXP(XEXP(operands[0],0),0),1));
           if (offset & 1) {
-            return \"bfins #%2+8,#%1,%3,%0-1\";
+            if (which_alternative == 3) {
+              return \"mov #%3,%4\;bfins #%2+8,#%1,%4,%0-1\";
+            } else {
+              return \"bfins #%2+8,#%1,%3,%0-1\";
+            }
           } else {
-            return \"bfins #%2,#%1,%3,%0\";
+            if (which_alternative == 3) {
+              return \"mov #%3,%4\;bfins #%2,#%1,%4,%0\";
+            } else {
+              return \"bfins #%2,#%1,%3,%0\";
+            }
           }
         } else {
           gcc_assert(0);
@@ -32765,8 +32799,6 @@
         return \"bfins #%2,#%1,%3,%0\";
       }
     }
-    case 3: /* U,i,i,???i,r */
-      return \"mov #%3,%4\;bfins #%2,#%1,%4,%0\";
     default:
       gcc_assert(0);
   }
@@ -32779,7 +32811,7 @@
 (define_insn "bfext"
   [(set (match_operand:HI   0 "pic30_register_operand"      "=r,r")
         (zero_extract:HI  
-          (match_operand    1 "pic30_mode2_or_near_operand" "Rr,U")
+          (match_operand:HI 1 "pic30_mode2_or_near_operand" "Rr,U")
           (match_operand:HI 2 "immediate_operand"           " i,i")
           (match_operand:HI 3 "immediate_operand"           " i,i")))]
   "(pic30_isav4_target())"
@@ -32820,7 +32852,7 @@
   { 
     if (pic30_isav4_target() &&
         pic30_mode2_or_near_operand(operands[1],VOIDmode) &&
-        GET_MODE(operands[0]) == HImode) {
+        GET_MODE(operands[1]) == HImode) {
       emit(
         gen_bfext(operands[0], operands[1], operands[2], operands[3])
       );
@@ -32844,25 +32876,23 @@
 { int n;
   int mode;
   if (pic30_isav4_target() && 
-      //pic30_mode2_or_near_operand(operands[0],VOIDmode) &&
+      (!pic30_mode2_operand(operands[0],QImode)) &&
       (INTVAL(operands[1]) > 1) &&
       pic30_reg_or_lit8(operands[3], VOIDmode) &&
       (INTVAL(operands[1])+INTVAL(operands[2])<17)
      ) {
-      rtx op0 = operands[0];
+    rtx op0 = operands[0];
 
-#if 1
-      if (!pic30_mode2_or_near_operand(op0,VOIDmode)) {
-        op0 = force_reg(GET_MODE(op0),op0);
-      }
-#endif
-      emit(
-        gen_bfins(op0,operands[1],operands[2],operands[3])
-      );
-      if (op0 != operands[0]) {
-        emit_move_insn(operands[0], op0);
-      }
-      DONE;
+    if (!pic30_mode2_or_near_operand(op0,VOIDmode)) {
+      op0 = force_reg(GET_MODE(op0),op0);
+    }
+    emit(
+      gen_bfins(op0,operands[1],operands[2],operands[3])
+    );
+    if (op0 != operands[0]) {
+      emit_move_insn(operands[0], op0);
+    }
+    DONE;
   }
 
   n = 4;
@@ -33816,13 +33846,14 @@
 ;;
 (define_insn "lnk"
  [
-    (set (mem:HI (post_inc:HI (reg:HI SPREG)))
+    (set (mem:HI (reg:HI SPREG))
          (reg:HI FPREG))
     (set (reg:HI FPREG)
-         (reg:HI SPREG))
+         (plus:HI (reg:HI SPREG) (const_int 2)))
     (set (reg:HI SPREG)
          (plus:HI (reg:HI SPREG)
-                  (match_operand 0 "immediate_operand" "i")))
+                  (plus:HI (match_operand 0 "immediate_operand" "i")
+                           (const_int 2))))
  ]
  "reload_completed"
  "lnk #%0"
@@ -33838,9 +33869,9 @@
 (define_insn "ulnk"
   [
      (set (reg:HI SPREG) 
-          (reg:HI FPREG))
+          (minus:HI (reg:HI FPREG) (const_int 2)))
      (set (reg:HI FPREG)
-          (mem:HI (pre_dec:HI (reg:HI SPREG))))
+          (mem:HI (reg:HI SPREG)))
   ]
   "reload_completed"
   "*

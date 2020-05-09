@@ -48,7 +48,7 @@ char * pic30_section_size_string
   PARAMS ((asection *));
 
 void pic30_add_section_attributes
-  PARAMS((asection *, char *, char *));
+  PARAMS((asection *, char *, char *, char *));
 /*****************************************************************************/
 
 #undef ATTR
@@ -533,7 +533,8 @@ char * pic30_section_size_string (asection *sec)
    there is space, return the arg */
 
 void pic30_add_section_attributes(asection *sec, 
-                                  char *data_attrs, char *code_attrs) 
+                                  char *data_attrs, char *code_attrs, 
+                                  char *const_attrs) 
 {
   char *c, save_c;
   char *arg;
@@ -545,8 +546,8 @@ void pic30_add_section_attributes(asection *sec,
   int warning = 0;
 
   if (pic30_debug)
-    printf("---> pic30_add_section_attributes(%s,\"%s\",\"%s\")\n",
-           sec->name, data_attrs, code_attrs);
+    printf("---> pic30_add_section_attributes(%s,\"%s\",\"%s\",\"%s\")\n",
+           sec->name, data_attrs, code_attrs, const_attrs);
 
   if (sec->linker_generated) return;
   if (sec->linked) return;
@@ -567,8 +568,13 @@ void pic30_add_section_attributes(asection *sec,
   {
     option = "--add-flags-data";
     attrs = data_attrs;
+  } else if (sec->flags & SEC_READONLY) {
+    /* this covers PSV type sections too */
+    option = "--add-flags-const";
+    attrs = const_attrs;
   } else {
-    if (pic30_debug) printf("skipping section '%s'\n", sec->name);
+    if (pic30_debug) printf("skipping section '%s' with flags 0x%x\n",
+                            sec->name,sec->flags);
   }
 
   if (attrs == 0) return;

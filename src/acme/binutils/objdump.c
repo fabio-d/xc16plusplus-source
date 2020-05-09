@@ -147,6 +147,7 @@ enum debug_trace_status {
   dbg_xfactor = 4,
   dbg_insitu =  8,
   dbg_annulled = 16,
+  dbg_cover = 32,
   dbg_all = 0xFFFF
 };
 
@@ -206,6 +207,7 @@ static bfd_size_type stabstr_size;
 /* Static declarations.  */
 
 #if defined(PIC30)
+static void print_cover_data(FILE *f, bfd_vma addr);
 static void pic30_display_hex_byte
   PARAMS ((asection *, bfd_byte *, bfd_size_type, bfd_size_type, unsigned int));
 static void pic30_display_char_byte
@@ -2179,6 +2181,9 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	       when calling show_line.  */
 	    show_line (aux->abfd, section, addr_offset - adjust_section_vma);
 
+          if (insns)
+            print_cover_data(stdout, section->vma + addr_offset);
+
 	  if (! prefix_addresses)
 	    {
 	      char *s;
@@ -3080,6 +3085,235 @@ bfd *abfd;
   bfd_print_private_bfd_data (abfd, stdout);
 }
 
+/* store n-bytes of data starting from index */
+int index_read_n(bfd_byte *data, int index, int n, void *store) {
+  unsigned char *x = store;
+  int i;
+
+  /* take care of phantom byte here */
+  if (index & 1) index++;
+  for (i = 0; i < n; i++) {
+    x[i] = data[index +i +i];
+  }
+  return index +n +n;
+}
+
+struct coverage_info_header {
+  char size;
+  int  version;
+  char pointsize;
+  char unitsize;
+  char flags;
+};
+
+struct coverage_entry {
+  unsigned int cc_addr_space;
+  unsigned int cc_addr;
+  unsigned int num_points;
+  unsigned int offset;
+  unsigned int reserved;
+  struct range_header *ranges;
+  struct coverage_entry *next;
+}; 
+
+struct range_header {
+  unsigned int range_space;
+  unsigned int num_ranges;
+  struct range_entry *entry;
+  struct range_header *next;
+};
+
+struct range_entry {
+  unsigned int start_addr;
+  unsigned int end_addr;
+  struct range_entry *next;
+};
+
+static struct coverage_info_header header = { 0 };
+static struct coverage_entry *cover_entries = 0;
+static struct coverage_entry *last_cover_entry = 0;
+    
+static void dump_coverage_info(bfd *abfd) {
+  asection *sect;
+
+  bfd_size_type loc = 0;
+  bfd_size_type datasize = 0;
+  bfd_byte *data = NULL;
+
+  /* find .codecov_info.hdr and record information */
+  for (sect = abfd->sections; sect != NULL; sect = sect->next) {
+    if (strcmp(sect->name,".codecov_info.hdr") == 0) {
+      datasize = bfd_get_section_size_before_reloc (sect);
+      if (datasize == 0) 
+        continue;
+      
+      data = (bfd_byte *) xmalloc ((size_t) datasize);
+ 
+      if (data == 0) return;
+      bfd_get_section_contents (abfd, sect, data, 0, datasize);
+
+      loc = 0;
+      loc = index_read_n(data, loc, 1, &header.size);
+      loc = index_read_n(data, loc, 4, &header.version);
+      loc = index_read_n(data, loc, 1, &header.pointsize);
+      loc = index_read_n(data, loc, 1, &header.unitsize);
+      loc = index_read_n(data, loc, 1, &header.flags);
+
+      free(data);
+      data = 0;
+      break;
+    }
+  }
+  if (header.version == 0) {
+    printf("*** Cannot locate .codecov_info.hdr\n");
+    return;
+  }
+  printf("(datasize %d)\n", datasize);
+  printf("  size %d\n", header.size);
+  printf("  version %d\n", header.version);
+  printf("  pointsize %d\n", header.pointsize);
+  printf("  unitsize %d\n", header.unitsize);
+  printf("  flags 0x%x\n", header.flags);
+  printf("\n");
+
+#if 1
+  /* find .codecov_info section and build table */
+  for (sect = abfd->sections; sect != NULL; sect = sect->next) {
+    if (strcmp(sect->name,".codecov_info") == 0) {
+      struct coverage_entry *c_e = 0;
+
+      datasize = bfd_get_section_size_before_reloc (sect);
+      if (datasize == 0) 
+        continue;
+      
+      data = (bfd_byte *) xmalloc ((size_t) datasize);
+ 
+      if (data == 0) return;
+      bfd_get_section_contents (abfd, sect, data, 0, datasize);
+
+      loc = 0;
+      /* datasize counts the phantom byte */
+      while (loc < datasize) {
+        /* read entry header */
+        c_e = (struct coverage_entry*)calloc(sizeof(struct coverage_entry),1);
+        if (c_e == NULL) return;
+
+        if (cover_entries == NULL) cover_entries = c_e; 
+        if (last_cover_entry) last_cover_entry->next = c_e;
+        last_cover_entry = c_e;
+
+        loc = index_read_n(data, loc, 4, &c_e->cc_addr_space);
+        loc = index_read_n(data, loc, 4, &c_e->cc_addr);
+        loc = index_read_n(data, loc, 4, &c_e->num_points);
+        loc = index_read_n(data, loc, 4, &c_e->offset);
+        loc = index_read_n(data, loc, 4, &c_e->reserved);
+
+        printf("coverage_entry {\n");
+        printf("  cc_addr_space = %d\n", c_e->cc_addr_space);
+        printf("  cc_addr       = 0x%x\n", c_e->cc_addr);
+        printf("  num_points    = %d\n", c_e->num_points);
+        printf("  offset        = %d\n", c_e->offset);
+        printf("\n");
+
+        /* read num_points ranges */
+        if (c_e->num_points) {
+          struct range_header *r_h,*l_r_h = NULL;
+          int n_r_h;
+
+          for (n_r_h = 0; n_r_h < c_e->num_points; n_r_h++) {
+            r_h = (struct range_header*)
+                  calloc(sizeof(struct coverage_entry),1);
+
+            r_h->next = NULL;
+            r_h->entry = NULL;
+            if (c_e->ranges == NULL) c_e->ranges = r_h;
+            if (l_r_h) l_r_h->next = r_h;
+            l_r_h = r_h;
+
+            loc = index_read_n(data, loc, 4, &r_h->range_space);
+            loc = index_read_n(data, loc, 4, &r_h->num_ranges);
+
+            printf("  range_header %d {\n", n_r_h);
+            printf("    range_space = %d\n", r_h->range_space);
+            printf("    num_ranges  = %d\n", r_h->num_ranges);
+            printf("\n");
+
+            /* read num_ranges */
+            if (r_h->num_ranges) {
+              struct range_entry *r_e,*l_r_e = NULL;
+              int n_r_e;
+            
+              printf("    ranges {\n");
+
+              for (n_r_e = 0; n_r_e < r_h->num_ranges; n_r_e++) {
+                r_e = (struct range_entry *)
+                      calloc(sizeof(struct range_entry),1);
+                if (r_e == NULL) return;
+
+                r_e->next = NULL;
+                if (r_h->entry == NULL) r_h->entry = r_e;
+                if (l_r_e) l_r_e->next = r_e;
+                l_r_e = r_e;
+                
+                loc = index_read_n(data, loc, 4, &r_e->start_addr);
+                loc = index_read_n(data, loc, 4, &r_e->end_addr);
+
+                printf("      [ 0x%x -> 0x%x )\n",
+                       r_e->start_addr,r_e->end_addr);
+              }
+
+              printf("    }\n");
+            }
+            printf("  }\n");
+          }
+        }
+        printf("}\n");
+      }
+    }
+  }
+#endif
+}
+
+static void print_cover_data(FILE *f, bfd_vma addr) {
+  /* search for addr as the start of a range or the end of a range and
+     display relevent information */
+  struct coverage_entry *ce;
+  struct range_header *rh;
+  struct range_entry *re;
+
+  int ce_num = 0;
+  int rh_num = 0;
+  int re_num = 0;
+  int cover_printed = 0;
+  if (cover_entries == NULL) return;
+  for (ce = cover_entries; ce; ce_num++,ce = ce->next) {
+    rh_num = 0;
+    for (rh = ce->ranges; rh; rh_num++,rh = rh->next) {
+      re_num = 0;
+      for (re = rh->entry; re; re_num++, re = re->next) {
+        if (re->start_addr == addr) {
+          if (cover_printed++ == 0) {
+            fprintf(f,"\n  Coverage information:\n");
+          }
+          fprintf(f,"    %d] START %p + %d - (%d,%d,%d)\n",
+                  cover_printed, ce->cc_addr, ce->offset + rh_num,
+                  ce_num, rh_num, re_num);
+        }
+        if (re->end_addr-2 == addr) {
+          if (cover_printed++ == 0) {
+            fprintf(f,"\n  Coverage information:\n");
+          }
+          fprintf(f,"    %d] END   %p + %d - (%d,%d,%d)\n",
+                  cover_printed, ce->cc_addr, ce->offset + rh_num,
+                  ce_num, rh_num, re_num);
+        }
+      }
+    }
+  }
+  if (cover_printed) fprintf(f,"\n");
+}
+
+
 /* Dump selected contents of ABFD.  */
 
 #define PIC30_QUIET if ((back_to_back_psv == psrd_psrd_off) || (disassemble))
@@ -3165,6 +3399,10 @@ dump_bfd (abfd)
       back_to_back_psv)
     syms = slurp_symtab (abfd);
 #endif
+  if (debug_trace & dbg_cover) {
+    dump_coverage_info(abfd);
+  }
+
   if (dump_dynamic_symtab || dump_dynamic_reloc_info)
     dynsyms = slurp_dynamic_symtab (abfd);
 
@@ -3856,7 +4094,6 @@ main (argc, argv)
     }
   }
 
-
   bfd_init ();
   set_default_bfd_target ();
 
@@ -3919,6 +4156,9 @@ main (argc, argv)
               }
               if (strstr(optarg,"annulled")) {
                 debug_trace |= dbg_annulled;
+              }
+              if (strstr(optarg,"cover")) {
+                debug_trace |= dbg_cover;
               }
             }
           }

@@ -68,7 +68,7 @@ while [ "$DONE" = "0" ]; do
          fi
          shift 1;;
       -cross=*) 
-         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' -e 's/64//g' -e 's/-fusa//'`;
+         TARGET_OS=`echo $1 | sed -e 's/.*=//' -e 's/-nolm//' -e 's/-xclm//' -e 's/-exlm//' -e 's/mingw64/mingw32/' -e 's/64//' -e 's/-fusa//'`;
          SUFFIX=`echo $1 | sed -e 's/.*=//'`
          if ( echo $SUFFIX | grep -q -i -e "xclm" -e 'fusa' ); then
            BUILDING_SHA=1
@@ -91,11 +91,13 @@ while [ "$DONE" = "0" ]; do
                 ZLIB_TOOLS="x86_64-w64-${TARGET_OS}"
                 BUILD_OS="x86_64-$UNAME"
               else
-              CROSS="--host=i386-${TARGET_OS}"
-              ZLIB_TOOLS="i386-${TARGET_OS}"
+                CROSS="--host=i386-${TARGET_OS}"
+                ZLIB_TOOLS="i386-${TARGET_OS}"
                 BUILD_OS="i386-$UNAME"
+              fi
            fi
-         fi
+         elif [ "$BUILD64" == "1" ]; then
+           BUILD_OS="x86_64-$UNAME"
          fi
          shift 1;;
       -build=*)

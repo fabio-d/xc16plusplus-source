@@ -330,6 +330,13 @@ size_of_uleb128 (unsigned HOST_WIDE_INT value)
 {
   int size = 0;
 
+#ifdef _BUILD_C30_
+  /* on 64-bit platforms an large value is too big for uleb128 on our target 
+   *   mask it to 32-bits
+   */
+  value &= 0xFFFFFFFF;
+#endif
+
   do
     {
       value >>= 7;
@@ -573,6 +580,13 @@ dw2_asm_output_data_uleb128 (unsigned HOST_WIDE_INT value,
   va_list ap;
 
   va_start (ap, comment);
+
+#ifdef _BUILD_C30_
+  /* on 64-bit platforms an large value is too big for uleb128 on our target 
+   *   mask it to 32-bits
+   */
+  value &= 0xFFFFFFFF;
+#endif
 
 #ifdef HAVE_AS_LEB128
   fprintf (asm_out_file, "\t.uleb128 " HOST_WIDE_INT_PRINT_HEX , value);

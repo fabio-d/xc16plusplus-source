@@ -1167,6 +1167,14 @@ multiple_definition (info, name, obfd, osec, oval, nbfd, nsec, nval)
   if (obfd != (bfd *) NULL)
     einfo (_("%D: first defined here\n"), obfd, osec, oval);
 
+#if PIC30
+  /* special case for ___slave_id symbols, direct users to not define
+     the same id more than once */
+  if (strncmp("___slave_id_", name, 12) == 0) {
+     einfo(_("Info: It appears that duplicate slave-ids have been defined; consider using --mslave-id=<value> to force uniqueness\n"));
+  }
+#endif
+
   if (command_line.relax)
     {
       einfo (_("%P: Disabling relaxation: it will not work with multiple definitions\n"));

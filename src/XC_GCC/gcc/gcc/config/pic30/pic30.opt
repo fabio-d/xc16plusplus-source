@@ -307,7 +307,8 @@ mcvt=
 Target Joined Var(pic30_cvt) Undocumented
 
 mdfp=
-Target Joined Var(pic30_dfp) Undocumented
+Target Joined Var(pic30_dfp) 
+Select device data from a Device Family Pack (DFP).
 
 mcodecov=
 Target Joined RejectNegative Var(mchp_codecov) VarExists

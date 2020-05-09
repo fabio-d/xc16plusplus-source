@@ -2221,7 +2221,8 @@ dwarf2out_frame_debug_expr (rtx expr, const char *label)
 
   gcc_assert (GET_CODE (expr) == SET);
 
-  src = SET_SRC (expr);
+  src = simplify_rtx(SET_SRC (expr));
+  if (src == NULL) src = SET_SRC(expr);
   dest = SET_DEST (expr);
 
   if (REG_P (src))

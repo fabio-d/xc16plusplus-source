@@ -443,6 +443,7 @@ typedef struct pic30_ivt_record {
 
 extern char *pic30_add_data_flags;
 extern char *pic30_add_code_flags;
+extern char *pic30_add_const_flags;
 extern char *pic30_dfp;
 extern bfd_boolean pic30_preserve_all;
 extern bfd_boolean pic30_has_fill_option;
@@ -518,7 +519,10 @@ extern void pic30_clear_deferred(void);
 extern int pic30_count_ones(unsigned int a);
 
 extern void build_aivt_free_block_list(bfd_vma start, bfd_vma length);
-extern void pic30_add_section_attributes(asection *, char *, char *);
+extern void pic30_add_section_attributes(asection *, char *, char *, char *);
+
+extern char *pic30_dfp;
+extern char *pic30_requested_processor;
 
 /*****************************************************************************/
 

@@ -131,11 +131,6 @@ static const int n_emulations = sizeof (emulations) / sizeof (emulations[0]);
 
 static void select_emulation_mode PARAMS ((int, char **));
 
-/* This is where the path to dfp is stored for use in pic30_update_resource
- * and other similar function during bfd_init()
- */
-extern char *pic30_dfp;
-
 static void
 select_emulation_mode (argc, argv)
      int argc;
@@ -877,12 +872,9 @@ main (argc, argv)
 
   out_file_name = OBJ_DEFAULT_OUTPUT_FILE_NAME;
 
-  /* Collect pic30_dfp value if -mdfp exists in the arguments */
-  for (iter = 0; iter < argc; iter++) {
-    if (strstr(argv[iter], "-mdfp=") != NULL) {
-      pic30_dfp = xstrdup(argv[iter]+6);
-    }
-  }
+#ifdef TC_PIC30
+  pre_parse_args(argc,argv);
+#endif
 
   hex_init ();
 #ifdef BFD_ASSEMBLER

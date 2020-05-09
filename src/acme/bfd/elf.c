@@ -1040,7 +1040,8 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 
   if (pic30_add_data_flags || pic30_add_code_flags) {
     pic30_add_section_attributes(newsect, 
-                                 pic30_add_data_flags, pic30_add_code_flags);
+                                 pic30_add_data_flags, pic30_add_code_flags,
+                                 pic30_add_const_flags);
   }
 #endif
 

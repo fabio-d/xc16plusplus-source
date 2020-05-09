@@ -411,8 +411,12 @@ msvcrt_stat (const char *path, struct stat *buffer)
 	  errno = ENOSYS;
 	  return NULL;
 	}
-      if (sizeof (time_t) == 8)
-	f = (stat_type *) GetProcAddress (dll, "_stat64i32");
+      if (sizeof (time_t) == 8) 
+        {
+	  f = (stat_type *) GetProcAddress (dll, "_stat64i32");
+          if (!f)
+	    f = (stat_type *) GetProcAddress (dll, "_stat");
+        }
       else
 	{
 	  f = (stat_type *) GetProcAddress (dll, "_stat32");
@@ -422,7 +426,8 @@ msvcrt_stat (const char *path, struct stat *buffer)
       if (!f)
 	{
 	  errno = ENOSYS;
-	  return NULL;
+          /* CAW - stat should return -1 to indicate an error */
+	  return -1;
 	}
     }
 

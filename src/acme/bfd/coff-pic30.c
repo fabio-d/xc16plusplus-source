@@ -155,7 +155,9 @@ unsigned int pagesize_arg = 0;
 bfd_boolean pic30_psrd_psrd_check = TRUE;
 char *pic30_add_data_flags = 0;
 char *pic30_add_code_flags = 0;
+char *pic30_add_const_flags = 0;
 char *pic30_dfp = 0;
+char *pic30_requested_processor=0;
 
 /* Other state variables */
 bfd_boolean pic30_has_user_startup = 0;
@@ -631,9 +633,9 @@ reloc_howto_type pic30_coff_howto_table[] =
    HOWTO(R_PIC30_WORD_ADDR_HI, 0, 2, 16, FALSE, 4, complain_overflow_bitfield,
          RELOC_SPECIAL_FN_OPERATORS, "WORD - ADDR_HI",
          TRUE, 0xffff0, 0x0ffff0, FALSE),
-   HOWTO(R_PIC30_BRANCH_ABSOLUTE6, 1, 0, 6, TRUE, 4, complain_overflow_dont,
+   HOWTO(R_PIC30_BRANCH_ABSOLUTE6, 1, 1, 6, TRUE, 4, complain_overflow_dont,
          RELOC_SPECIAL_FN_PCREL, "BRANCH ABSOLUTE 6",
-         TRUE, 0x02f0, 0x0002f0, TRUE),
+         TRUE, 0x03f0, 0x0003f0, TRUE),
 
 };
 
@@ -2204,13 +2206,13 @@ pic30_final_link (abfd, info)
                 if ((pic30_has_floating_aivt && (aivt_enabled == 0)) ||
                      (!pic30_has_floating_aivt && !pic30_has_fixed_aivt))
                   continue;
-                sec_name = xmalloc(strlen(r->name) + strlen(".aivt.") + 2);
+                sec_name = bfd_malloc(strlen(r->name) + strlen(".aivt.") + 2);
                 (void) sprintf(sec_name, ".aivt.%s", r->name);
              } else {
 #if 0
                 if (vector_table_status & USER_IVT_DEFINED) delete_vector=1;
 #endif
-                sec_name = xmalloc(strlen(r->name) + strlen(".ivt.") + 2);
+                sec_name = bfd_malloc(strlen(r->name) + strlen(".ivt.") + 2);
                 (void) sprintf(sec_name, ".ivt.%s", r->name);
              }
              for (sec = abfd->sections; sec != NULL; sec = sec->next) {

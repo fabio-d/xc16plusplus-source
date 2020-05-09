@@ -1759,6 +1759,12 @@ setup_section (ibfd, isection, obfdarg)
   COPY_FLAG(page);
   COPY_FLAG(auxflash);
   COPY_FLAG(packedflash);
+  COPY_FLAG(linked);
+  COPY_FLAG(shared);
+  COPY_FLAG(preserved);
+  COPY_FLAG(auxpsv);
+  COPY_FLAG(linker_generated);
+  COPY_FLAG(update);
   /* linker_generated flag - not required to copy */
 #undef COPY_FLAG
 #endif

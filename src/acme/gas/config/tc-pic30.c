@@ -1045,20 +1045,6 @@ static void report_target_attribute_err (char *attr)
 }
 
 /*
-** Create a symbol in the object file
-*/
-static void
-create_object_file_symbol(char *name, valueT val)
-{
-  symbolS * symbolp;
-  symbolp = symbol_new (name, absolute_section,
-                            val, &zero_address_frag);
-
-  symbol_table_insert (symbolp);
-  symbol_mark_resolved (symbolp);
-}
-
-/*
 ** record a secure access entry point
 **  in the object's symbol table
 **
@@ -4396,6 +4382,27 @@ md_parse_option (option, argument)
    return rc;
 } /* int md_parse_option(int, char *) */
 
+void pre_parse_args(int argc, char **argv) {
+  int iter;
+
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strstr(argv[iter], "-mdfp=") != NULL) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+    } else if ((strstr(argv[iter],"--processor=")) ||
+               (strstr(argv[iter],"--cpu="))) {
+      if (pic30_requested_processor) free(pic30_requested_processor);
+      pic30_requested_processor = xstrdup(strchr(argv[iter],'=')+1);
+    } else if (strstr(argv[iter],"-p")) {
+      if (pic30_requested_processor) free(pic30_requested_processor);
+      if (argv[iter][2] == 0) {
+        iter++;
+        pic30_requested_processor = xstrdup(argv[iter]);
+      } else pic30_requested_processor = xstrdup(argv[iter]+2);
+    }
+  }
+}
+
 /******************************************************************************/
 
 /******************************************************************************
@@ -4656,13 +4663,7 @@ md_begin (void)
 #else
       const char *pszOMFdef = "__C30COFF";
 #endif
-      symbolS * symbolp;
-
-      symbolp = symbol_new (pszOMFdef, absolute_section,
-                            (valueT) 1, &zero_address_frag);
-
-      symbol_table_insert (symbolp);
-      symbol_mark_resolved (symbolp);
+      create_absolute_symbol(pszOMFdef, 1);
    }
 
    if (flag_debug)
@@ -9048,16 +9049,29 @@ pic30_frob_label_before_define (name)
  ******************************************************************************/
 
 {
+   if (flag_debug) {
+      printf ("--> pic30_frob_label_before_define ('%s')::begin\n",name);
+   }
+   
    if ((subseg_text_p (now_seg)) || (now_seg == text_section))
    {
       if ((global_must_align_location_counter) &&
           (PIC30_VALID_PC_ADDRESS (global_current_location) == FALSE))
       {
+         if (flag_debug) {
+            printf ("    pic30_frob_label_before_define ('%s')::align\n",name);
+         }
          PIC30_DO_CODE_ALIGNMENT ();
          listing_prev_line();  /* attach padding (if any) to previous */
                                /*   line in the listing file          */
       } /* if (global_must_align_location_counter) */
    } /* if SEC_CODE */
+   frag_wane(frag_now);
+   frag_new(0);
+   frag_align(0,0,0);
+   if (flag_debug) {
+      printf ("<-- pic30_frob_label_before_define ::exit\n");
+   }
 } /* void pic30_frob_label_before_define(char *) */
 
 /******************************************************************************/
@@ -9082,6 +9096,17 @@ pic30_frob_symbol (symbolS *sym )
 {
   int result = 0;
 
+  if (flag_debug) {
+     printf ("--> pic30_frob_symbol ('%s')::begin\n",sym->bsym->name);
+     printf ("    X_add_symbol ('%s')\n",
+             sym->sy_value.X_add_symbol ? 
+               sym->sy_value.X_add_symbol->bsym->name : "none");
+     printf ("    X_op_symbol ('%s')\n",
+             sym->sy_value.X_op_symbol ? 
+               sym->sy_value.X_op_symbol->bsym->name : "none");
+     printf ("    X_add_number (%d)\n", sym->sy_value.X_add_number);
+  }
+
   if (symbol_section_p (sym))
     return result;
 
@@ -9105,6 +9130,9 @@ pic30_frob_symbol (symbolS *sym )
                                       sizeof(symbolS *) * pic30_max_symbols);
     }
     pic30_equate_symbols[pic30_symbol_count++] = sym;
+  }
+  if (flag_debug) {
+     printf ("--> pic30_frob_symbol ('%s')::exit = %d\n",sym->bsym->name,result);
   }
   return result;
 }

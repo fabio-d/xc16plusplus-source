@@ -179,7 +179,8 @@ make_a_section_from_file (abfd, hdr, target_index)
 
   if (pic30_add_data_flags || pic30_add_code_flags) {
     pic30_add_section_attributes(return_section,
-                                 pic30_add_data_flags, pic30_add_code_flags);
+                                 pic30_add_data_flags, pic30_add_code_flags,
+                                 pic30_add_const_flags);
   }
 #else
   /* FIXME: should this check 'hdr->s_size > 0' */

@@ -544,7 +544,7 @@ pp_dir_change (cpp_reader *pfile ATTRIBUTE_UNUSED, const char *dir)
   /* cpp_quote_string does not nul-terminate, so we have to do it ourselves.  */
   p = cpp_quote_string (to_file_quoted, (const unsigned char *) dir, to_file_len);
   *p = '\0';
-  fprintf (print.outf, "# 1 \"%s//\"\n", to_file_quoted);
+  fprintf (print.outf, "# 1 \"%s\"\n", to_file_quoted);
 }
 
 /* The file name, line number or system header flags have changed, as

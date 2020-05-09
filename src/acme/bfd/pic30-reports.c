@@ -552,7 +552,7 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   if ((data_memory_used < (8192 - pic30_mem_info.sfr[0])) 
       && (large_data_scalar == 1)) {
     fprintf(fp,
-            "Note: Project is using a large data memory model when small data memory model is sufficient.\n\n"); 
+            "Info: Project is using a large data memory model when small data memory model is sufficient.\n\n"); 
   }
    
   /* free the output section list */
