@@ -60,6 +60,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "cgraph.h"
 
+#ifdef OBJECT_FORMAT_ELF
+/* HACK, the pic30 elf target has USER_LABEL_PREFIX="_", so the initial
+ * underscore will be added anyway */
+#define PIC30_MANGLE_PREFIX "Z"
+#else
+#define PIC30_MANGLE_PREFIX "_Z"
+#endif
+
 /* Debugging support.  */
 
 /* Define DEBUG_MANGLE to enable very verbose trace messages.  */
@@ -646,7 +654,7 @@ write_mangled_name (const tree decl, bool top_level)
 	     overloaded operators that way though, because it contains
 	     characters invalid in assembler.  */
 	  if (abi_version_at_least (2))
-	    write_string ("_Z");
+	    write_string (PIC30_MANGLE_PREFIX);
 	  else
 	    G.need_abi_warning = true;
 	  write_source_name (DECL_NAME (decl));
@@ -670,7 +678,7 @@ write_mangled_name (const tree decl, bool top_level)
   else
     {
     mangled_name:;
-      write_string ("_Z");
+      write_string (PIC30_MANGLE_PREFIX);
       write_encoding (decl);
       if (DECL_LANG_SPECIFIC (decl)
 	  && (DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (decl)
@@ -2769,7 +2777,7 @@ write_template_arg (tree node)
 	  write_char ('Z');
 	}
       else
-	write_string ("_Z");
+	write_string (PIC30_MANGLE_PREFIX);
       write_encoding (node);
       write_char ('E');
     }
@@ -3127,7 +3135,7 @@ mangle_special_for_type (const tree type, const char *code)
   start_mangling (type);
 
   /* Start the mangling.  */
-  write_string ("_Z");
+  write_string (PIC30_MANGLE_PREFIX);
   write_string (code);
 
   /* Add the type.  */
@@ -3196,7 +3204,7 @@ mangle_ctor_vtbl_for_type (const tree type, const tree binfo)
 
   start_mangling (type);
 
-  write_string ("_Z");
+  write_string (PIC30_MANGLE_PREFIX);
   write_string ("TC");
   write_type (type);
   write_integer_cst (BINFO_OFFSET (binfo));
@@ -3253,7 +3261,7 @@ mangle_thunk (tree fn_decl, const int this_adjusting, tree fixed_offset,
 
   start_mangling (fn_decl);
 
-  write_string ("_Z");
+  write_string (PIC30_MANGLE_PREFIX);
   write_char ('T');
 
   if (!this_adjusting)
@@ -3358,8 +3366,8 @@ tree
 mangle_guard_variable (const tree variable)
 {
   start_mangling (variable);
-  write_string ("_ZGV");
-  if (strncmp (IDENTIFIER_POINTER (DECL_NAME (variable)), "_ZGR", 4) == 0)
+  write_string (PIC30_MANGLE_PREFIX "GV");
+  if (strncmp (IDENTIFIER_POINTER (DECL_NAME (variable)), PIC30_MANGLE_PREFIX "GR", 4) == 0)
     /* The name of a guard variable for a reference temporary should refer
        to the reference, not the temporary.  */
     write_string (IDENTIFIER_POINTER (DECL_NAME (variable)) + 4);
@@ -3376,7 +3384,7 @@ tree
 mangle_ref_init_variable (const tree variable)
 {
   start_mangling (variable);
-  write_string ("_ZGR");
+  write_string (PIC30_MANGLE_PREFIX "GR");
   write_name (variable, /*ignore_local_scope=*/0);
   return finish_mangling_get_identifier (/*warn=*/false);
 }
