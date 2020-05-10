@@ -11,22 +11,38 @@ MCHP_VERSION=$(sed -n 's/.*MCHP_VERSION=\(v[^ ]*\).*/\1/p' src_build.sh)
 # Set the XC16++ revision number
 XC16PLUSPLUS_REVISION=2
 
-if [ "$1" == "linux" ];
+if [ "$1" == "linux32" ];
 then
-	# Tested on Debian 8 i386
+	# Tested on Fedora 22
 	HOST=i386-linux
-elif [ "$1" == "win32" ];
+	CFLAGS=-m32
+elif [ "$1" == "linux64" ];
+then
+	# Tested on Fedora 22
+	HOST=x86_64-linux
+	CFLAGS=-m64
+elif [ "$1" == "windows32" ];
 then
 	# Tested with mingw32-gcc on Fedora 22
 	HOST=i686-w64-mingw32
-elif [ "$1" == "osx" ];
+elif [ "$1" == "windows64" ];
+then
+	# Tested with mingw64-gcc on Fedora 22
+	HOST=x86_64-w64-mingw32
+elif [ "$1" == "osx32" ];
 then
 	# Tested with a cross-compling gcc 5.3.0 compiled by
 	# https://github.com/tpoechtrager/osxcross on Fedora 22, using
 	# MacOSX10.5.sdk from https://github.com/phracker/MacOSX-SDKs
 	HOST=i386-apple-darwin9
+elif [ "$1" == "osx64" ];
+then
+	# Tested with a cross-compling gcc 5.3.0 compiled by
+	# https://github.com/tpoechtrager/osxcross on Fedora 22, using
+	# MacOSX10.5.sdk from https://github.com/phracker/MacOSX-SDKs
+	HOST=x86_64-apple-darwin9
 else
-	echo "Usage: $0 <linux | win32 | osx>" >&2
+	echo "Usage: $0 <linux32 | linux64 | windows32 | windows64 | osx32 | osx64>" >&2
 	exit 1
 fi
 
@@ -36,6 +52,7 @@ INSTALLDIR="$THISDIR/install-$1/bin"
 MAKEFLAGS="-j$(($(nproc || sysctl -n hw.ncpu)+1))" # Enable parallel builds
 
 echo "Building xc16plusplus with:"
+echo " TARGET=$1"
 echo " BUILD=$BUILD"
 echo " HOST=$HOST"
 echo " MCHP_VERSION=$MCHP_VERSION"
@@ -48,6 +65,7 @@ set -ex # Exit on error and print executed commands
 echo "== LIBELF =="
 mkdir -p "$BUILDDIR/libelf"
 cd "$BUILDDIR/libelf"
+CFLAGS="$CFLAGS" \
 "$SRCDIR/XC_GCC/libelf/configure" --build=$BUILD --host=$HOST \
 	--prefix="$BUILDDIR/host-libs" --disable-nls
 make $MAKEFLAGS
@@ -61,7 +79,7 @@ cd "$BUILDDIR/gmp"
 make $MAKEFLAGS
 make install
 
-if [ "$1" != "osx" ]; # Use system's zlib on OSX
+if [[ "$1" != osx* ]]; # Use system's zlib on OSX
 then
 	echo "== ZLIB =="
 	cp -rv "$SRCDIR/XC_GCC/zlib" "$BUILDDIR/zlib"
