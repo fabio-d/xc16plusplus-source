@@ -45,7 +45,7 @@ const char version_string[] = BASEVER " " "MPLAB XC32 Compiler v1.11"; /* XC32 *
 #define version(X) version2(X)
 
 char *version_string = BASEVER " " "(XC16, Microchip " version(MCHP_VERSION)
-                       ") Build date: " __DATE__;
+                       ", XC16++ patch " version(XC16PLUSPLUS_VERSION) ") Build date: " __DATE__;
 #else
 
 const char version_string[] = BASEVER " " "MPLAB XC Compiler v1.10";

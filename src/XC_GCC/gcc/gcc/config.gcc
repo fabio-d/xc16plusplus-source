@@ -2043,8 +2043,9 @@ pic30-*-coff)
         host_xm_defines="OMF=\\\"coff\\\" ${host_xm_defines}"
         extra_modes=pic30/pic30-modes.h
         c_target_objs=pic30-c.o
+        cxx_target_objs=pic30-c.o
         extra_objs="${extra_objs} cci-backend.o"
-        LANGUAGES="c"
+        LANGUAGES="c,c++"
         LIBGCCMK=
         ;;
 pic30-*-elf)
@@ -2056,8 +2057,9 @@ pic30-*-elf)
         host_xm_defines="OMF=\\\"elf\\\" ${host_xm_defines}"
         extra_modes=pic30/pic30-modes.h
         c_target_objs=pic30-c.o
+        cxx_target_objs=pic30-c.o
         extra_objs="${extra_objs} cci-backend.o"
-        LANGUAGES="c"
+        LANGUAGES="c,c++"
         LIBGCCMK=
         ;;
 pic32*-mchp-elf*)
