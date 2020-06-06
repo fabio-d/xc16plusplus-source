@@ -2,6 +2,7 @@
 cd "$(dirname "$0")"
 THISDIR="$PWD"
 
+TARGET="$1"
 SRCDIR="$THISDIR/src"
 BUILD=$("$SRCDIR/XC_GCC/gcc/config.guess")
 
@@ -11,31 +12,31 @@ MCHP_VERSION=$(sed -n 's/.*MCHP_VERSION=\(v[^ ]*\).*/\1/p' src_build.sh)
 # Set the XC16++ revision number
 XC16PLUSPLUS_REVISION=2
 
-if [ "$1" == "linux32" ];
+if [ "$TARGET" == "linux32" ];
 then
 	# Tested on Fedora 22
 	HOST=i386-linux
 	CFLAGS=-m32
-elif [ "$1" == "linux64" ];
+elif [ "$TARGET" == "linux64" ];
 then
 	# Tested on Fedora 22
 	HOST=x86_64-linux
 	CFLAGS=-m64
-elif [ "$1" == "windows32" ];
+elif [ "$TARGET" == "windows32" ];
 then
 	# Tested with mingw32-gcc on Fedora 22
 	HOST=i686-w64-mingw32
-elif [ "$1" == "windows64" ];
+elif [ "$TARGET" == "windows64" ];
 then
 	# Tested with mingw64-gcc on Fedora 22
 	HOST=x86_64-w64-mingw32
-elif [ "$1" == "osx32" ];
+elif [ "$TARGET" == "osx32" ];
 then
 	# Tested with a cross-compling gcc 5.3.0 compiled by
 	# https://github.com/tpoechtrager/osxcross on Fedora 22, using
 	# MacOSX10.5.sdk from https://github.com/phracker/MacOSX-SDKs
 	HOST=i386-apple-darwin9
-elif [ "$1" == "osx64" ];
+elif [ "$TARGET" == "osx64" ];
 then
 	# Tested with a cross-compling gcc 5.3.0 compiled by
 	# https://github.com/tpoechtrager/osxcross on Fedora 22, using
@@ -46,13 +47,13 @@ else
 	exit 1
 fi
 
-BUILDDIR="$THISDIR/build-$1"
-INSTALLDIR="$THISDIR/install-$1/bin"
+BUILDDIR="$THISDIR/build-$TARGET"
+INSTALLDIR="$THISDIR/install-$TARGET/bin"
 
 MAKEFLAGS="-j$(($(nproc || sysctl -n hw.ncpu)+1))" # Enable parallel builds
 
 echo "Building xc16plusplus with:"
-echo " TARGET=$1"
+echo " TARGET=$TARGET"
 echo " BUILD=$BUILD"
 echo " HOST=$HOST"
 echo " MCHP_VERSION=$MCHP_VERSION"
@@ -79,7 +80,7 @@ cd "$BUILDDIR/gmp"
 make $MAKEFLAGS
 make install
 
-if [[ "$1" != osx* ]]; # Use system's zlib on OSX
+if [[ "$TARGET" != osx* ]]; # Use system's zlib on OSX
 then
 	echo "== ZLIB =="
 	cp -rv "$SRCDIR/XC_GCC/zlib" "$BUILDDIR/zlib"
@@ -133,15 +134,24 @@ function build_gcc()
 		--{libexecdir,prefix}="$INSTALLDIR" --program-prefix="pic30-" \
 		--with-{gmp,libelf}="$BUILDDIR/host-libs" $OPT_ZLIB
 
-	make $MAKEFLAGS all-gcc || \
-		make -C gcc $MAKEFLAGS cc1plus g++ || \
-		make -C gcc $MAKEFLAGS cc1plus.exe g++.exe
+	# Select the expected suffix according to TARGET
+	if [[ "$TARGET" != windows* ]];
+	then
+		EXE_SUFFIX=""
+	else
+		EXE_SUFFIX=.exe
+	fi
 
+	# Build up to cc1plus
+	make $MAKEFLAGS TARGET-gcc="native" all-gcc
+
+	# Build g++ too
+	make $MAKEFLAGS TARGET-gcc="g++$EXE_SUFFIX" all-gcc
+
+	# Copy output executables to the installation directory
 	mkdir -p "$INSTALLDIR/bin"
-	cp -v gcc/cc1plus "$INSTALLDIR/bin/$OMF-cc1plus" || \
-		cp -v gcc/cc1plus.exe "$INSTALLDIR/bin/$OMF-cc1plus.exe"
-	cp -v gcc/g++ "$INSTALLDIR/bin/$OMF-g++" || \
-		cp -v gcc/g++.exe "$INSTALLDIR/bin/$OMF-g++.exe"
+	cp -v "gcc/cc1plus$EXE_SUFFIX" "$INSTALLDIR/bin/$OMF-cc1plus$EXE_SUFFIX"
+	cp -v "gcc/g++$EXE_SUFFIX" "$INSTALLDIR/bin/$OMF-g++$EXE_SUFFIX"
 }
 
 build_gcc elf
