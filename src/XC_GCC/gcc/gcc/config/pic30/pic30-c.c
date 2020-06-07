@@ -113,6 +113,11 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     cpp_define(pfile,buffer);
   }
 
+#ifdef XC16PLUSPLUS_REVISION
+  cpp_define(pfile, "__XC16PLUSPLUS__");
+  sprintf(buffer, "__XC16PLUSPLUS_REVISION__=%d", XC16PLUSPLUS_REVISION);
+  cpp_define(pfile, buffer);
+#endif
 
   if ((cpp_get_options (pfile)->lang != CLK_ASM)) {
     cpp_define(pfile,"__XC16");
