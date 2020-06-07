@@ -135,15 +135,18 @@ function build_gcc()
 		--with-{gmp,libelf}="$BUILDDIR/host-libs" $OPT_ZLIB
 
 	# Select the expected suffix according to TARGET
+	# Force libexpat to be linked statically on windows
 	if [[ "$TARGET" != windows* ]];
 	then
 		EXE_SUFFIX=""
+		OPT_EXPATLIB=""
 	else
 		EXE_SUFFIX=.exe
+		OPT_EXPATLIB="EXPATLIB=-l:libexpat.a"
 	fi
 
 	# Build up to cc1plus
-	make $MAKEFLAGS TARGET-gcc="native" all-gcc
+	make $MAKEFLAGS TARGET-gcc="native $OPT_EXPATLIB" all-gcc
 
 	# Build g++ too
 	make $MAKEFLAGS TARGET-gcc="g++$EXE_SUFFIX" all-gcc
