@@ -8161,6 +8161,10 @@ grokdeclarator (const cp_declarator *declarator,
     }
 
   type_quals = TYPE_UNQUALIFIED;
+
+  /* Set target address space.  */
+  type_quals |= ENCODE_QUAL_ADDR_SPACE (declspecs->address_space);
+
   if (declspecs->specs[(int)ds_const])
     type_quals |= TYPE_QUAL_CONST;
   /* A `constexpr' specifier used in an object declaration declares
