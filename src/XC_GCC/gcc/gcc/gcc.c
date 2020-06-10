@@ -3981,7 +3981,7 @@ process_command (int argc, const char **argv)
 
 #ifdef _BUILD_C30_
   {
-    char *base_path;
+    char *base_path = NULL;
     for (i = 1; i < argc; i++)
     {
       if (!strncmp(argv[i], "-mdfp=", sizeof("-mdfp=")-1)) 
