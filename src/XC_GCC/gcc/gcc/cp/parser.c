@@ -9098,6 +9098,13 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
 		       cp_parser_attributes_opt (parser));
 	  continue;
 	}
+      else if (token->keyword >= RID_FIRST_ADDR_SPACE
+	      && token->keyword <= RID_LAST_ADDR_SPACE)
+	{
+	  decl_specs->address_space = token->keyword - RID_FIRST_ADDR_SPACE;
+	  cp_lexer_consume_token (parser->lexer);
+	  continue;
+	}
       /* Assume we will find a decl-specifier keyword.  */
       found_decl_spec = true;
       /* If the next token is an appropriate keyword, we can simply
@@ -14714,9 +14721,13 @@ cp_parser_type_specifier_seq (cp_parser* parser,
     {
       tree type_specifier;
       bool is_cv_qualifier;
+      cp_token *token;
+
+      /* Peek at the next token.  */
+      token = cp_lexer_peek_token (parser->lexer);
 
       /* Check for attributes first.  */
-      if (cp_lexer_next_token_is_keyword (parser->lexer, RID_ATTRIBUTE))
+      if (token->keyword == RID_ATTRIBUTE)
 	{
 	  type_specifier_seq->attributes =
 	    chainon (type_specifier_seq->attributes,
@@ -14727,7 +14738,16 @@ cp_parser_type_specifier_seq (cp_parser* parser,
       /* record the token of the beginning of the type specifier seq,
          for error reporting purposes*/
      if (!start_token)
-       start_token = cp_lexer_peek_token (parser->lexer);
+       start_token = token;
+
+      if (token->keyword >= RID_FIRST_ADDR_SPACE
+	    && token->keyword <= RID_LAST_ADDR_SPACE)
+      {
+	type_specifier_seq->address_space =
+	  token->keyword - RID_FIRST_ADDR_SPACE;
+	cp_lexer_consume_token (parser->lexer);
+	continue;
+      }
 
       /* Look for the type-specifier.  */
       type_specifier = cp_parser_type_specifier (parser,
