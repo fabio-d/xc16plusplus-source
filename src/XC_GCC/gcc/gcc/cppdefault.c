@@ -41,6 +41,19 @@
 # undef CROSS_INCLUDE_DIR
 #endif
 
+// XC16/XC16++ does not use any of the standard include directories
+#undef GPLUSPLUS_INCLUDE_DIR
+#undef GPLUSPLUS_TOOL_INCLUDE_DIR
+#undef GPLUSPLUS_BACKWARD_INCLUDE_DIR
+#undef LOCAL_INCLUDE_DIR
+#undef PREFIX_INCLUDE_DIR
+#undef GCC_INCLUDE_DIR
+#undef FIXED_INCLUDE_DIR
+#undef CROSS_INCLUDE_DIR
+#undef TOOL_INCLUDE_DIR
+#undef SYSTEM_INCLUDE_DIR
+#undef STANDARD_INCLUDE_DIR
+
 const struct default_include cpp_include_defaults[]
 #ifdef INCLUDE_DEFAULTS
 = INCLUDE_DEFAULTS;
