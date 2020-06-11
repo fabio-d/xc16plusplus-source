@@ -4388,6 +4388,8 @@ typedef struct cp_decl_specifier_seq {
   BOOL_BITFIELD explicit_int_p : 1;
   /* True iff "char" was explicitly provided.  */
   BOOL_BITFIELD explicit_char_p : 1;
+  /* The address space that the declaration belongs to.  */
+  addr_space_t address_space;
 } cp_decl_specifier_seq;
 
 /* The various kinds of declarators.  */
