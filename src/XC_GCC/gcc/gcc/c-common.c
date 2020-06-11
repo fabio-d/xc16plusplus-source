@@ -4774,6 +4774,8 @@ c_common_nodes_and_builtins (void)
   signed_size_type_node = c_common_signed_type (size_type_node);
   size_type_node = build_distinct_type_copy(size_type_node);
   signed_size_type_node = build_distinct_type_copy(signed_size_type_node);
+  record_builtin_type (RID_MAX, "__mchp_size_t", size_type_node);
+  record_builtin_type (RID_MAX, "__mchp_ssize_t", signed_size_type_node);
 #endif
   set_sizetype (size_type_node);
 
@@ -5746,7 +5748,7 @@ boolean_increment (enum tree_code code, tree arg)
 void
 c_stddef_cpp_builtins(void)
 {
-  builtin_define_with_value ("__SIZE_TYPE__", SIZE_TYPE, 0);
+  builtin_define_with_value ("__SIZE_TYPE__", "__mchp_size_t", 0);
   builtin_define_with_value ("__PTRDIFF_TYPE__", PTRDIFF_TYPE, 0);
   builtin_define_with_value ("__WCHAR_TYPE__", MODIFIED_WCHAR_TYPE, 0);
   builtin_define_with_value ("__WINT_TYPE__", WINT_TYPE, 0);
