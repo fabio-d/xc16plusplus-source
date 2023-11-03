@@ -4388,7 +4388,7 @@ static void pic30_globalize_label(FILE *f, const char *l) {
 
 /* insert public functions and print name iff required */
 #define add_builtin_function_public(NAME, ...)                                 \
-        if (TARGET_PRINT_BUILTINS)                                             \
+        if (TARGET_PRINT_BUILTINS || mchp_builtins_h)                          \
           mchp_print_builtin_function(add_builtin_function(NAME, __VA_ARGS__));\
         else add_builtin_function(NAME, __VA_ARGS__)
 
@@ -4573,7 +4573,7 @@ static void pic30_init_builtins(void) {
   add_builtin_function_public("__builtin_write_DISICNT", fn_type,
                    PIC30_BUILTIN_WRITEDISICNT, BUILT_IN_MD, NULL, NULL_TREE);
 
-  fn_type = build_function_type(void_type_node, NULL_TREE);
+  fn_type = build_function_type_list(void_type_node, NULL_TREE);
   add_builtin_function_public("__builtin_write_NVM", fn_type,
                    PIC30_BUILTIN_WRITENVM, BUILT_IN_MD, NULL, NULL_TREE);
   add_builtin_function_public("__builtin_write_CRYOTP", fn_type,
@@ -4589,11 +4589,9 @@ static void pic30_init_builtins(void) {
   add_builtin_function_public("__builtin_write_DATAFLASH_secure", fn_type,
                    PIC30_BUILTIN_WRITEDATAFLASH_SECURE, BUILT_IN_MD, NULL, NULL_TREE);
 
-  fn_type = build_function_type(void_type_node, NULL_TREE);
+  fn_type = build_function_type_list(void_type_node, NULL_TREE);
   add_builtin_function_public("__builtin_write_RTCWEN", fn_type,
                    PIC30_BUILTIN_WRITERTCWEN, BUILT_IN_MD, NULL, NULL_TREE);
-
-  fn_type = build_function_type(void_type_node, NULL_TREE);
   add_builtin_function_public("__builtin_write_RTCC_WRLOCK", fn_type,
                    PIC30_BUILTIN_WRITEWRLOCK, BUILT_IN_MD, NULL, NULL_TREE);
 
@@ -4667,7 +4665,7 @@ static void pic30_init_builtins(void) {
   /*
   ** builtins for zero-operand machine instructions
   */
-  fn_type = build_function_type(void_type_node, NULL_TREE);
+  fn_type = build_function_type_list(void_type_node, NULL_TREE);
   add_builtin_function_public("__builtin_nop", fn_type,
           PIC30_BUILTIN_NOP, BUILT_IN_MD, NULL, NULL_TREE);
 
@@ -4802,8 +4800,7 @@ static void pic30_init_builtins(void) {
                    PIC30_BUILTIN_ADD, BUILT_IN_MD, NULL, NULL_TREE);
 
 
-   fn_type = build_function_type_list(integer_type_node,
-                                      void_type_node, NULL_TREE);
+   fn_type = build_function_type_list(integer_type_node, NULL_TREE);
    add_builtin_function_public("__builtin_clr", fn_type,
                    PIC30_BUILTIN_CLR, BUILT_IN_MD, NULL, NULL_TREE);
 
@@ -5003,8 +5000,7 @@ static void pic30_init_builtins(void) {
                                MCHP_BUILTIN_SECTION_END, BUILT_IN_MD, NULL,
                                NULL_TREE);
 
-   fn_type = build_function_type_list(unsigned_type_node,
-                                      void_type_node, NULL_TREE);
+   fn_type = build_function_type_list(unsigned_type_node, NULL_TREE);
    add_builtin_function_public("__builtin_get_isr_state", fn_type,
                                MCHP_BUILTIN_GET_ISR_STATE, BUILT_IN_MD, NULL,
                                NULL_TREE);
@@ -5017,8 +5013,7 @@ static void pic30_init_builtins(void) {
 
    /* miscelleneous void __builtin_ (void) funcitons */
 
-   fn_type = build_function_type_list(void_type_node,
-                                      void_type_node, NULL_TREE);
+   fn_type = build_function_type_list(void_type_node, NULL_TREE);
 
    add_builtin_function_public("__builtin_disable_interrupts", fn_type,
                                MCHP_BUILTIN_DISABLE_ISR, BUILT_IN_MD, NULL,
@@ -5051,7 +5046,7 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_pwrsav", fn_type,
           PIC30_BUILTIN_PWRSAV, BUILT_IN_MD, NULL, NULL_TREE);
 
-  fn_type = build_function_type(void_type_node, NULL_TREE);
+  fn_type = build_function_type_list(void_type_node, NULL_TREE);
 
   add_builtin_function_public("__builtin_clrwdt", fn_type,
           PIC30_BUILTIN_CLRWDT, BUILT_IN_MD, NULL, NULL_TREE);
@@ -5637,7 +5632,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       }
       emit_insn(
         gen_tblpage_helper(target,
-                           GEN_INT((HOST_WIDE_INT)pic30_section_base(r0,1,&r1)))
+                           gen_rtx_CONST_STRING(Pmode,
+                                                pic30_section_base(r0,1,&r1)))
       );
       if ((r1) && (INTVAL(r1) != 0))
         error("__builtin_tblpage argument does not allow an offset");
@@ -5674,7 +5670,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       }
       emit_insn(
         gen_psvpage_helper(target,
-                           GEN_INT((HOST_WIDE_INT)pic30_section_base(r0,1,&r1)))
+                           gen_rtx_CONST_STRING(Pmode,
+                                                pic30_section_base(r0,1,&r1)))
       );
       if ((r1) && (INTVAL(r1) != 0))
         error("__builtin_psvpage argument does not allow an offset");
@@ -22316,6 +22313,216 @@ pic30_fold_convert_const_int_from_fixed (tree type, const_tree arg1)
                              | TREE_OVERFLOW (arg1));
 
   return t;
+}
+
+void decode_qualifier(tree type, char **buffer) {
+  int qualifiers;
+
+  qualifiers = TYPE_QUALS(type);
+  if (qualifiers & TYPE_QUAL_CONST)
+    *buffer += sprintf(*buffer,"const ");
+  if (qualifiers & TYPE_QUAL_VOLATILE)
+    *buffer += sprintf(*buffer,"volatile ");
+  if (qualifiers & TYPE_QUAL_RESTRICT)
+    *buffer += sprintf(*buffer, "%s ",
+                       flag_isoc99 ? "restrict" : "__restrict__");
+
+  if (!ADDR_SPACE_GENERIC_P (TYPE_ADDR_SPACE (type))) {
+    const char *as = c_addr_space_name (TYPE_ADDR_SPACE (type));
+    *buffer += sprintf(*buffer, "%s ", as);
+  }
+}
+
+void decode_type(tree type, char **buffer) {
+  int strune=0;
+  int type_precision = -1;
+  int precision;
+
+  decode_qualifier(type, buffer);
+  switch TREE_CODE(type) {
+    case POINTER_TYPE:
+      decode_type(TREE_TYPE(type),buffer);
+      *buffer += sprintf(*buffer, " *");
+      return;
+
+    case VOID_TYPE:
+      *buffer += sprintf(*buffer,"void");
+      return;
+
+    case BOOLEAN_TYPE:
+    case INTEGER_TYPE:
+      type_precision = TYPE_PRECISION(type);
+      if (type_precision <= 8) {
+        type_precision = 8;
+      } else if (type_precision <= 16) {
+        type_precision = 16;
+      } else if (type_precision <= 32) {
+        type_precision = 32;
+      } else if (type_precision <= 64) {
+        type_precision = 64;
+      } else type_precision = 0;
+
+      if (type_precision) {
+        if (TYPE_UNSIGNED(type)) {
+          char *b = *buffer;
+          *b++ = 'u';
+          *buffer = b;
+        }
+        *buffer += sprintf(*buffer,"int%d_t", type_precision);
+        return;
+      }
+      /* FALLSTHROUGH */
+    case REAL_TYPE:
+      if (type_precision == -1) {
+        type_precision = TYPE_PRECISION(type);
+        switch (type_precision) {
+          case 32:  *buffer += sprintf(*buffer, "float");
+                    return;
+          case 64:  *buffer += sprintf(*buffer, "long double");
+                    return;
+        }
+      }
+      /* FALLSTHROUGH */
+    case FIXED_POINT_TYPE:
+      if (type_precision == -1) {
+        type_precision = TYPE_PRECISION(type);
+        if (TYPE_UNSIGNED(type)) {
+          *buffer = sprintf(*buffer,"unsigned ");
+        }
+        if (type_precision == 16) {
+          *buffer += sprintf(*buffer, "__Fract");
+          return;
+        } else if (type_precision == 40) {
+          *buffer += sprintf(*buffer, "__Accum");
+          return;
+        }
+      }
+      /* oh - oh, we didn't find a type */
+      if (TYPE_NAME(type)) {
+        int prec = TYPE_PRECISION (type);
+        decode_type(TYPE_NAME(type),buffer);
+        *buffer += sprintf(*buffer,":%d", prec);
+      } else {
+        int prec = TYPE_PRECISION (type);
+        if (ALL_FIXED_POINT_MODE_P (TYPE_MODE (type)))
+          type =c_common_type_for_mode(TYPE_MODE (type),TYPE_SATURATING (type));
+        else
+          type = c_common_type_for_mode(TYPE_MODE (type),TYPE_UNSIGNED (type));
+        if (TYPE_NAME (type)) {
+          decode_type(TYPE_NAME(type),buffer);
+          if (TYPE_PRECISION (type) != prec)
+          {
+            *buffer += sprintf(*buffer,":%d", prec);
+          }
+        } else {
+          *buffer += sprintf(*buffer,"<unkown type %d>",__LINE__);
+        }
+      }
+      return;
+
+    case TYPE_DECL:
+      if (DECL_NAME(type)) {
+        *buffer += sprintf(*buffer,"%s",
+                           IDENTIFIER_POINTER(DECL_NAME(type)));
+      } else {
+        *buffer += sprintf(*buffer,"<unkown type %d>",__LINE__);
+      }
+      break;
+
+    case UNION_TYPE:
+      *buffer += sprintf(*buffer,"union ");
+      strune=1;
+      /* FALLSTHROUGH */
+    case RECORD_TYPE:
+      if (strune == 0) {
+        *buffer += sprintf(*buffer,"struct ");
+        strune=1;
+      }
+      /* FALLSTHROUGH */
+    case ENUMERAL_TYPE:
+      if (strune == 0) {
+        *buffer += sprintf(*buffer,"enum ");
+        strune=1;
+      }
+      if (TYPE_NAME(type)) {
+        decode_type(TYPE_NAME(type),buffer);
+      } else {
+        *buffer += sprintf(*buffer,"<unkown type %d>",__LINE__);
+      }
+   }
+}
+
+void pretty_tree_with_prototype(tree fndecl_or_type) {
+  static FILE *builtins_h = 0;
+  static bool initialised = 0;
+  tree type,arg = 0;
+  int i = 0;
+  char buffer[1024];
+  char *bp = buffer;
+  int comma=0;
+  tree fndecl;
+  static int in_strict_misra = 0;
+
+  if (fndecl_or_type == 0) {
+    if (in_strict_misra) {
+      fprintf(builtins_h,"#endif\n");
+    }
+    return;
+  }
+
+  if (TYPE_P(fndecl_or_type)) {
+    fndecl = 0;
+    type = fndecl_or_type;
+  }
+  else {
+    type = TREE_TYPE(fndecl_or_type);
+    fndecl = fndecl_or_type;
+    gcc_assert(TREE_CODE(fndecl) == FUNCTION_DECL);
+  }
+
+  if (!initialised) {
+    int major, minor;
+
+    major = pic30_compiler_version / 1000;
+    minor = pic30_compiler_version - major * 1000;
+
+    initialised=1;
+    builtins_h = stderr;
+    if (mchp_builtins_h) {
+      builtins_h = fopen(mchp_builtins_h,"w");
+      if (builtins_h == NULL) {
+        warning(0,"Cannot open file for writing");
+      }
+    }
+    fprintf(builtins_h,"#include <stdint.h>\n\n");
+  }
+  arg = TYPE_ARG_TYPES(type);
+
+  if (arg == NULL) {
+    if (in_strict_misra == 0) {
+      fprintf(builtins_h,"#ifndef __XC_STRICT_MISRA\n");
+      in_strict_misra = 1;
+    }
+  } else if (in_strict_misra) {
+    fprintf(builtins_h,"#endif\n");
+    in_strict_misra = 0;
+  }
+
+  fprintf(builtins_h,"%s ",(decode_type(TREE_TYPE(type),&bp), buffer));
+  fprintf(builtins_h,"%s(",
+      fndecl && DECL_NAME(fndecl) ? 
+        IDENTIFIER_POINTER(DECL_NAME(fndecl)) : "!!unknown");
+  /* ) */
+
+  while (arg) {
+    bp = buffer;
+    buffer[0] = 0;
+    decode_type(TREE_VALUE(arg),&bp);
+    fprintf(builtins_h,"%c\n        %s",comma++ ? ',' : ' ', buffer);
+    arg = TREE_CHAIN(arg);
+    if (arg == void_list_node) break;
+  }
+  fprintf(builtins_h,");\n");
 }
 
 extern struct rtl_opt_pass pass_validate_dsp_instructions;

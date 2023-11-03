@@ -47,8 +47,12 @@ along with GCC; see the file COPYING3.  If not see
 
 void mchp_print_builtin_function (const_tree t)
 {
-  if (DECL_P(t))
-    puts (IDENTIFIER_POINTER(DECL_NAME(t)));
+  if (mchp_builtins_h) {
+    pretty_tree_with_prototype(t);
+  } else {
+    if (DECL_P(t))
+      puts (IDENTIFIER_POINTER(DECL_NAME(t)));
+  }
 }
 
 #ifdef _BUILD_C32_

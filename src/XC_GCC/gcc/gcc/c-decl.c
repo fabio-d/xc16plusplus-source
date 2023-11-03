@@ -1700,6 +1700,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 
   if (!comptypes (oldtype, newtype))
     {
+
       if (TREE_CODE (olddecl) == FUNCTION_DECL
 	  && DECL_BUILT_IN (olddecl) && !C_DECL_DECLARED_BUILTIN (olddecl))
 	{

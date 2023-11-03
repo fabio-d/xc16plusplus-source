@@ -273,6 +273,9 @@ mpa=
 Target RejectNegative Joined Var(pic30_pa_level) VarExists
 Procedural abstraction nesting limit
 
+mprint-protos=
+Target RejectNegative Joined Var(mchp_builtins_h) Undocumented
+
 mresource=
 Target RejectNegtive Joined Var(pic30_resource_file) VarExists
 Identify compiler resource file

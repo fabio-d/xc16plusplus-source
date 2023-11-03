@@ -253,7 +253,7 @@ pic30_init_cumulative_args(CUMULATIVE_ARGS *,tree,rtx);
 extern rtx
 pic30_expand_builtin PARAMS ((tree, rtx, rtx, enum machine_mode, int));
 #endif /* TREE_CODE and RTX_CODE*/
-
+extern void pretty_tree_with_prototype(tree fndecl);
 
 #ifdef RTX_CODE
 extern int  pic30_dead_or_set_p(rtx first, rtx reg);

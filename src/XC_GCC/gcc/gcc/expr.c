@@ -6098,6 +6098,11 @@ get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
 	     field's type, not the mode computed based on the bit
 	     size.  */
 	mode = TYPE_MODE (DECL_BIT_FIELD_TYPE (field));
+#ifdef _BUILD_C30_
+      else 
+         /* nobody has assigned mode ... */
+         mode = DECL_MODE (field);
+#endif
 
       *punsignedp = DECL_UNSIGNED (field);
     }

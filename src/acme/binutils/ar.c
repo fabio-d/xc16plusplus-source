@@ -105,6 +105,10 @@ usage PARAMS ((int));
 
 /** Globals and flags */
 
+#if PIC30
+extern char *pic30_dfp;
+#endif
+
 int mri_mode;
 
 /* This flag distinguishes between ar and ranlib:
@@ -386,6 +390,7 @@ main (argc, argv)
   char *inarch_filename;
   int show_version;
   int i;
+  int iter;
 
 #if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
   setlocale (LC_MESSAGES, "");
@@ -426,6 +431,18 @@ main (argc, argv)
     }
 
   START_PROGRESS (program_name, 0);
+
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strstr(argv[iter], "-mdfp=") != NULL) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+      /* Now delete this entry from argv since rest of AR can't parse it */
+      for (i = iter; i < argc; i++) {
+        argv[i] = argv[i+1]; 
+      }
+      argc--;
+    }
+  }
 
   bfd_init ();
   set_default_bfd_target ();

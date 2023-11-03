@@ -7989,11 +7989,12 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
         }
       }
 #endif
-      if (! verbose_flag)
+      if (! verbose_flag) {
         if (rib) {
           close_rib();
         }
 	return 0;
+      }
 
       /* We do not exit here. We use the same mechanism of --help to print
 	 the version of the sub-processes. */
@@ -8049,11 +8050,12 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"),
         }
       }
 #endif
-      if (n_infiles == 0)
+      if (n_infiles == 0) {
         if (rib) {
           close_rib();
         }
 	return (0);
+      }
     }
 
 #ifdef _BUILD_C30_

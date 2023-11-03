@@ -692,9 +692,16 @@ store_bit_field_1 (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 	xop0 = adjust_address (xop0, byte_mode, offset);
 
 #ifdef _BUILD_C30_
-      /* CAW convert MEM of xop0 to be the same mode that we are assigning */
-      if (MEM_P (xop0))
-        xop0 = adjust_address(xop0, GET_MODE(value), 0);
+      {
+        enum machine_mode target_mode = fieldmode;
+        
+        /* CAW convert MEM of xop0 to be the same mode that we are assigning */
+        if (((fieldmode == VOIDmode) || (fieldmode == BLKmode)) &&
+            (GET_MODE(value) != VOIDmode)) {
+          target_mode = GET_MODE(value);
+        }
+        if (MEM_P (xop0)) xop0 = adjust_address(xop0, target_mode, 0);
+      }
 #endif
 
       /* If xop0 is a register, we need it in OP_MODE

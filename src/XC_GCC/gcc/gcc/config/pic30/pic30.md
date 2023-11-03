@@ -1153,6 +1153,12 @@
   (ior (match_operand 0 "pic30_unified_mode2_operand")
        (match_operand 0 "pic30_unified_modek_operand")))
   
+(define_predicate "new_pic30_inc_imm_operand"
+  (and (match_operand 0 "immediate_operand")
+       (match_test "(-2<=INTVAL(op)) && (INTVAL(op)!=0) && (INTVAL(op)<=2)")))
+
+(define_predicate "pic30_string_operand"
+  (match_code "const_string"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_mode_iterator M32BIT [SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF])
@@ -5272,15 +5278,14 @@
 )
 
 (define_insn "extendhip32eds2_const"
-  [(set (match_operand: P32EDS 0 "pic30_register_operand"         "=r,r,r")
+  [(set (match_operand: P32EDS 0 "pic30_register_operand"         "=r,r")
         (unspec: P32EDS [
-          (match_operand:HI 1    "pic30_reg_or_symbolic_address"  " 0,r,q")
+          (match_operand:HI 1    "pic30_reg_or_symbolic_address"  " r,q")
         ] UNSPEC_EDSCONSTADDR))]
   ""
   "@
-   mov #__const_psvpage,%d0
-   mov %1,%0\;mov #__const_psvpage,%d0
-   mov #edsoffset(%1),%0\;mov #__const_psvpage,%d0"
+   mul.uu %1,#1,%0\;btsc %0,#15\;mov #__const_psvpage,%d0
+   mov #edsoffset(%1),%0\;clr %d1\;btsc %0,#15\;mov #__const_psvpage,%d0"
   [
     (set_attr "type" "def")
   ]
@@ -5298,14 +5303,12 @@
 )
 
 (define_insn "extendhip32peds2_const"
-  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r,r")
+  [(set (match_operand: P32PEDS 0 "pic30_register_operand"    "=r")
         (unspec: P32PEDS [
-          (match_operand:HI 1    "pic30_register_operand"    " 0,r")
+          (match_operand:HI 1    "pic30_register_operand"    " r")
         ] UNSPEC_EDSCONSTADDR))]
    ""
-   "@
-    mov #__const_psvpage,%d0
-    mov %1,%0\;mov #__const_psvpage,%d0"
+   "mul.uu %1,#1,%0\;btsc %0,#15\;mov #__const_psvpage,%d0"
    [
      (set_attr "type" "def")
    ]
@@ -6107,9 +6110,10 @@
            (match_operand 1 "pic30_symbolic_address_operand" "q")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
 
      emit_insn(
-       gen_tblpage_helper(operands[0], GEN_INT((HOST_WIDE_INT)t))
+       gen_tblpage_helper(operands[0], opnd)
      );
      DONE;
    }
@@ -6119,13 +6123,13 @@
 (define_insn "tblpage_helper"
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (tblpage:HI 
-           (match_operand 1 "immediate_operand"      " i")))
+           (match_operand 1 "pic30_string_operand"   "")))
   ]
   ""
   "*
    { static char result[256];
 
-     char *o1 = (char*)INTVAL(operands[1]);
+     char *o1 = XSTR(operands[1], 0);
      sprintf(result,\"mov #tblpage(%s),%%0\", o1);
      return result;
    }"
@@ -6142,9 +6146,9 @@
            (match_operand 2 "immediate_operand" "i")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
-
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
-       gen_edspage_helper(operands[0], GEN_INT((HOST_WIDE_INT)t),operands[2])
+       gen_edspage_helper(operands[0], opnd, operands[2])
      );
      DONE;
    }
@@ -6182,7 +6186,7 @@
 (define_insn "edspage_helper"
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (edspage:HI 
-           (match_operand 1 "immediate_operand"   "i")
+           (match_operand 1 "pic30_string_operand"   "")
            (match_operand 2 "immediate_operand"   "i")))]
   ""
   "*
@@ -6191,9 +6195,13 @@
      char *o1;
 
      /* immedidate operand matches a symbol_ref */
+#if 0
      if (pic30_symbolic_address_operand(operands[1],VOIDmode)) {
         o1 = pic30_section_base(operands[1],1,0);
      } else o1 = (char*)INTVAL(operands[1]);
+#else
+     o1 = XSTR(operands[1], 0);
+#endif
      e += sprintf(result,\"mov #edspage(%s),%%0\", 
                   pic30_strip_name_encoding_helper(o1));
      if (INTVAL(operands[2]))
@@ -6212,9 +6220,10 @@
            (match_operand 1 "pic30_symbolic_address_operand" "q")))]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
 
      emit_insn(
-       gen_edsoffset_helper(operands[0], GEN_INT((HOST_WIDE_INT)t))
+       gen_edsoffset_helper(operands[0], opnd)
      );
      DONE;
    }
@@ -6224,12 +6233,12 @@
 (define_insn "edsoffset_helper"
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (edsoffset:HI
-           (match_operand 1 "immediate_operand"   "i")))]
+           (match_operand 1 "pic30_string_operand"   "")))]
   ""
   "*
    { static char result[256];
 
-     char *o1 = (char*)INTVAL(operands[1]);
+     char *o1 = XSTR(operands[1], 0);
      sprintf(result,\"mov #edsoffset(%s),%%0\", o1);
      return result;
    }"
@@ -6258,9 +6267,10 @@
   ]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
 
      emit_insn(
-       gen_psvpage_helper(operands[0], GEN_INT((HOST_WIDE_INT)t))
+       gen_psvpage_helper(operands[0], opnd)
      );
      DONE;
    }"
@@ -6269,13 +6279,13 @@
 (define_insn "psvpage_helper"
   [(set (match_operand:HI 0 "pic30_register_operand" "=r")
         (psvpage:HI 
-           (match_operand 1 "immediate_operand"      " g")))
+           (match_operand 1 "pic30_string_operand"   "")))
   ]
   ""
   "*
    { static char result[256];
 
-     char *o1 = (char*)INTVAL(operands[1]);
+     char *o1 = XSTR(operands[1], 0);
      sprintf(result,\"mov #psvpage(%s),%%0\", o1);
      return result;
    }"
@@ -6775,11 +6785,12 @@
    mov #tbloffset(%1),%2\;mov %2,%0\;mov #tblpage(%1),%2\;mov %2,%0+2"
   "reload_completed && REG_P(operands[0])"
   [(set (match_operand:HI 3 "pic30_register_operand" "=r")
-        (tblpage:HI (match_operand 4 "immediate_operand" "i")))
+        (tblpage:HI (match_operand 4 "pic30_string_operand" "")))
    (set (match_operand:HI 5 "pic30_register_operand" "=r")
         (tbloffset:HI (match_dup 1)))]
   "operands[3] = gen_rtx_REG(HImode, REGNO(operands[0])+1);
-   operands[4] = GEN_INT((HOST_WIDE_INT)pic30_section_base(operands[1],1,0));
+   operands[4] = gen_rtx_CONST_STRING(Pmode,
+                                      pic30_section_base(operands[1],1,0));
    operands[5] = gen_rtx_REG(HImode, REGNO(operands[0]));"
   [
     (set_attr "type" "def,etc,etc,etc")
@@ -6823,17 +6834,17 @@
 ;   would not cause a stall
 ;
 (define_insn "movEDS_address_page"
-  [(set (match_operand:HI     0 "pic30_move_operand" "=r,R,<>,QSTU")
+  [(set (match_operand:HI     0 "pic30_move_operand"    "=r,R,<>,QSTU")
         (edspage: HI
-          (match_operand     1 "immediate_operand"   " i,i,i,i")
-          (match_operand     2 "immediate_operand"   " i,i,i,i"))
+          (match_operand     1 "pic30_string_operand"   "")
+          (match_operand     2 "immediate_operand"      " i,i,i,i"))
    )
    (clobber (match_scratch:HI 3                      "=X,&r,&r,&r"))
   ]
   ""
   "*
    { static char result[256];
-     char *o1 = pic30_strip_name_encoding_helper((char*)INTVAL(operands[1]));
+     char *o1 = pic30_strip_name_encoding_helper(XSTR(operands[1], 0));
      char *e = result;
      int excess = 0;
      
@@ -6880,14 +6891,14 @@
 (define_insn "movEDS_address_offset"
   [(set (match_operand:HI     0 "pic30_move_operand" "=r,R,<>,QSTU")
         (edsoffset: HI
-          (match_operand      1 "immediate_operand"  " i,i,i,i"))
+          (match_operand      1 "pic30_string_operand"  ""))
    )
    (clobber (match_scratch:HI 2                      "=X,&r,&r,&r"))
   ]
   ""
   "*
    { static char result[256];
-     char *o1 = (char*)INTVAL(operands[1]);
+     char *o1 = XSTR(operands[1], 0);
 
      switch (which_alternative) {
        default: gcc_assert(0);
@@ -6916,23 +6927,25 @@
   ""
   "{ rtx excess;
      char *t = pic30_section_base(operands[1],0,&excess);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
        gen_movEDS_address_offset(
          simplify_gen_subreg(HImode, operands[0], GET_MODE(operands[0]), 0),
-	 GEN_INT((HOST_WIDE_INT)t))
+	 opnd)
      );
      t = pic30_section_base(operands[1],1,&excess);
+     opnd = gen_rtx_CONST_STRING(Pmode, t);
      if (pic30_register_operand(operands[0], P32EDSmode)) {
        emit_insn(
          gen_edspage_helper(
            simplify_gen_subreg(HImode, operands[0], GET_MODE(operands[0]), 2), 
-           GEN_INT((HOST_WIDE_INT)t), excess)
+           opnd, excess)
        );
      } else {
        emit_insn(
          gen_movEDS_address_page(
            simplify_gen_subreg(HImode, operands[0], GET_MODE(operands[0]), 2),
-           GEN_INT((HOST_WIDE_INT)t), excess)
+           opnd, excess)
        );
      }
      DONE;
@@ -6947,16 +6960,18 @@
   ]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
        gen_movEDS_address_offset(
          simplify_gen_subreg(HImode, operands[0], GET_MODE(operands[0]), 0),
-         GEN_INT((HOST_WIDE_INT)t))
+         opnd)
      );
      t = pic30_section_base(operands[1],1,0);
+     opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
        gen_movEDS_address_page(
          simplify_gen_subreg(HImode, operands[0], GET_MODE(operands[0]), 2),
-         GEN_INT((HOST_WIDE_INT)t), GEN_INT(0))
+         opnd, GEN_INT(0))
      );
      DONE;
    } 
@@ -11426,12 +11441,13 @@
        if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
            pic30_symbolic_address_operand_offset(XEXP(op1,0)) < 1023) {
          char *t = pic30_section_base(XEXP(op1,0),0,0);
+         rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
          
          emit_insn(
            gen_movpag(XEXP(op1,0), GEN_INT(0))
          );
          emit_insn(
-           gen_movEDS_address_offset(offset, GEN_INT((HOST_WIDE_INT)t))   
+           gen_movEDS_address_offset(offset, opnd)
          );
        } else {
          rtx reg = force_reg(P32EDSmode, XEXP(op1,0));
@@ -11622,9 +11638,10 @@
    } else {
      if (pic30_ecore_target()) {
        char *t = pic30_section_base(XEXP(op1,0),0,0);
+       rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
        psv_set=1;
        emit_insn(
-         gen_movEDS_address_offset(offset, GEN_INT((HOST_WIDE_INT)t))   /* create pointer */
+         gen_movEDS_address_offset(offset, opnd)   /* create pointer */
        );
        emit_insn(
          gen_movpag(XEXP(op1,0), GEN_INT(0))
@@ -11947,16 +11964,16 @@
 #endif
      copy = 0;
      char *t = pic30_section_base(XEXP(op0,0),0,0);
+     rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
-       gen_movEDS_address_offset(
-         offset, 
-         GEN_INT((HOST_WIDE_INT)t))
+       gen_movEDS_address_offset( offset, opnd)
      );
      t = pic30_section_base(XEXP(op0,0),1,0);
+     opnd = gen_rtx_CONST_STRING(Pmode, t);
      emit_insn(
        gen_movEDS_address_page(
          page,
-         GEN_INT((HOST_WIDE_INT)t), GEN_INT(0))
+         opnd, GEN_INT(0))
      );
    }
    if (eds_target) {
@@ -16463,9 +16480,6 @@
 ;;;;;;;;;;;;;;;
 ;; half integer
 ;;;;;;;;;;;;;;;
-(define_predicate "new_pic30_inc_imm_operand"
-  (and (match_operand 0 "immediate_operand")
-       (match_test "(-2<=INTVAL(op)) && (INTVAL(op)!=0) && (INTVAL(op)<=2)")))
   
 (define_mode_iterator A16BITADD [HI P16APSV P16PMP])
 
