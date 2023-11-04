@@ -290,6 +290,9 @@ elf_link_add_archive_symbols (abfd, info)
   carsym *symdefs;
   bfd_boolean loop;
   bfd_size_type amt;
+#if PIC30
+  bfd_boolean warned_unknown_arch = 0;
+#endif
 
   if (! bfd_has_map (abfd))
     {
@@ -434,7 +437,19 @@ elf_link_add_archive_symbols (abfd, info)
 	    goto error_return;
          
 	  if (! bfd_check_format (element, bfd_object))
+#if PIC30
+          {
+            if (warned_unknown_arch == 0) {
+              warned_unknown_arch = 1;
+              (*_bfd_error_handler)
+                  (_("%s: warning: unknown objects in library;"
+                     " incorrect DFP specified?"), bfd_archive_filename (abfd));
+            }
+	    continue;
+          }
+#else
 	    goto error_return;
+#endif
 
 	  /* Doublecheck that we have not included this object
 	     already--it should be impossible, but there may be

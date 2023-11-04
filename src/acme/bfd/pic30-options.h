@@ -195,7 +195,7 @@ enum pic30_options {
   PRESERVE_ALL,
   NO_IVT_OPTION,
   IVT_OPTION,
-  PAGESIZE,
+  XC16_PAGESIZE,   /* MUSL for linux defines PAGESIZE even though it shouldn't*/
   PSRD_PSRD_CHECK,
   NO_PSRD_PSRD_CHECK,
   ADD_CODE_FLAGS,
@@ -256,7 +256,7 @@ static struct option longopts[] =
   { "inherit-application-info", required_argument, NULL, INHERIT_APPLICATION_INFO },
   { "preserved", required_argument, NULL, PRESERVED },
   { "preserve-all", no_argument, NULL, PRESERVE_ALL },
-  { "pagesize", required_argument, NULL, PAGESIZE },
+  { "pagesize", required_argument, NULL, XC16_PAGESIZE },
   { "psrd-psrd-check", no_argument, NULL, PSRD_PSRD_CHECK },
   { "no-psrd-psrd-check", no_argument, NULL, NO_PSRD_PSRD_CHECK },
   { "add-flags-code", required_argument, NULL, ADD_CODE_FLAGS },

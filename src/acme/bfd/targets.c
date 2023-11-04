@@ -1070,10 +1070,10 @@ static const bfd_target * const _bfd_target_vector[] = {
 /* And tekhex */
 	&tekhex_vec,
 /* Likewise for binary output.  */
+#endif
 	&binary_vec,
 /* Likewise for ihex.  */
 	&ihex_vec,
-#endif
 
 /* Add any required traditional-core-file-handler.  */
 

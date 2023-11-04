@@ -630,14 +630,6 @@ allocate_data_memory() {
          /* less restrictive  */
   result |= locate_sections(all_attr, eds|stack|heap, 0, region);
 
-  /* EDS, first pass */
-  set_locate_options(EXCLUDE_LOW_ADDR, max_stack);
-  result |= locate_sections(all_attr, stack|heap, 0, region);
-
-  /* EDS, second pass */
-  set_locate_options(FAVOR_HIGH_ADDR, 0);
-  result |= locate_sections(all_attr, stack|heap, 0, region);
-
   /* user-defined heap */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_heap);
   result |= locate_sections(heap, 0, 0, region);
@@ -645,6 +637,14 @@ allocate_data_memory() {
   /* user-defined stack */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_stack);
   result |= locate_sections(stack, 0, 0, region);
+
+  /* EDS, first pass */
+  set_locate_options(EXCLUDE_LOW_ADDR, max_stack);
+  result |= locate_sections(all_attr, stack|heap, 0, region);
+
+  /* EDS, second pass */
+  set_locate_options(FAVOR_HIGH_ADDR, 0);
+  result |= locate_sections(all_attr, stack|heap, 0, region);
 
   /* if any not previously linked sections are left in the allocation list,
      report an error */
@@ -1071,7 +1071,7 @@ group_section_alignment(struct pic30_section *g)
     if (b) {
       addr = b->addr + b->offset;
       update_group_section_info(addr,s,region);
-      create_remainder_blocks(free_blocks, b, len);
+      create_remainder_blocks(free_blocks, b, len, region);
       remove_free_block(b);
     } else {
       if (locate_options != NO_LOCATE_OPTION) {
@@ -1183,7 +1183,7 @@ group_section_alignment(struct pic30_section *g)
     if (b) {
       addr = b->addr + b->offset;
       update_section_info(addr,s,region);
-      create_remainder_blocks(free_blocks, b, len);
+      create_remainder_blocks(free_blocks, b, len, region);
 #ifdef PIC30ELF
       if (PIC30_IS_SHARED_ATTR(s->sec) && PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
         pic30_add_to_memory_list(shared_data_memory_blocks,
@@ -2438,10 +2438,20 @@ update_group_section_info(bfd_vma alloc_addr,
  */
 static void
 create_remainder_blocks(struct pic30_memory *lst,
-                        struct pic30_memory *b, unsigned int len)
+                        struct pic30_memory *b, unsigned int len,
+                        struct memory_region_struct *region)
 {
 
-  bfd_vma remainder = b->size - (len + b->offset);
+  bfd_vma remainder;
+
+  if ((strcmp(region->name,"program") == 0) && aivt_base) {
+    /* if we create a block that uses part of the aivt, then fill the rest...*/
+    if ((b->addr + b->offset >= aivt_base) &&
+        (b->addr + b->offset + len <= aivt_base + aivt_len)) {
+      len = aivt_base + aivt_len - b->addr - b->offset;
+    }
+  }
+  remainder = b->size - (len + b->offset);
 
   if (pic30_debug)
     printf("    creating remainder blocks: %lx, %lx\n",

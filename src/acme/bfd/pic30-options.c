@@ -750,7 +750,7 @@ pic30_parse_args (argc, argv)
       pic30_preserve_all = TRUE;
       break;
 #endif
-    case PAGESIZE:
+    case XC16_PAGESIZE:
       pic30_pagesize = TRUE;
       if (optarg)
       {

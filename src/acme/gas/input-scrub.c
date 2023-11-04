@@ -194,6 +194,7 @@ input_scrub_pop (saved)
   next_saved_file = saved->next_saved_file;
   memcpy (save_source, saved->save_source, sizeof (save_source));
 
+
   free (saved);
   return saved_position;
 }
@@ -289,6 +290,12 @@ input_scrub_include_sb (from, position, is_expansion)
       sb_add_char (&from_sb, '\n');
     }
   sb_add_sb (&from_sb, from);
+#if PIC30
+  /* safely add a null terminator then remove it so that we don't continue
+     to process the macro beyond the real end of the macro */
+  sb_add_char(&from_sb, 0);
+  from_sb.len--;
+#endif
   sb_index = 1;
 
   /* These variables are reset by input_scrub_push.  Restore them
@@ -335,6 +342,7 @@ input_scrub_next_buffer (bufp)
       partial_size = 0;
       *bufp = from_sb.ptr + sb_index;
       sb_index = from_sb.len;
+
       return partial_where;
     }
 

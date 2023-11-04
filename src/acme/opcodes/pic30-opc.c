@@ -283,6 +283,9 @@ char * pic30_extract_wmul_dst_reg PARAMS ((unsigned long insn,
 char * pic30_extract_sacd_dst_reg PARAMS ((unsigned long insn,
    struct disassemble_info * info, unsigned long flags,
    const struct pic30_operand * opnd, unsigned char * err));
+char * pic30_extract_ind_dst_reg_post_inc PARAMS ((unsigned long insn,
+   struct disassemble_info * info, unsigned long flags,
+   const struct pic30_operand * opnd, unsigned char * err));
 
 
 /******************************************************************************
@@ -1081,35 +1084,53 @@ const struct pic30_operand pic30_operands[] =
 #define LITERAL_3BIT                   (PIC30_BASE_OPERAND + 59)
    {
         3,                             /* # of bits in operand */
-        0,                              /* # of bits to shift for alignment */
-        OPND_VALUE,                     /* operand type */
-        TRUE,                           /* immediate operand ? */
+        0,                             /* # of bits to shift for alignment */
+        OPND_VALUE,                    /* operand type */
+        TRUE,                          /* immediate operand ? */
         PIC30_RELOC_INFO_UNSIGNED_3,   /* default relocation type */
         pic30_match_unsigned_3bit_lit, /* is_match() */
         "Operand must be between 0 and 4, inclusive.",
-        0,                              /* insert() */
-        0                               /* extract() */
+        0,                             /* insert() */
+        0                              /* extract() */
    },
 
 #define LITERAL_2BIT                   (PIC30_BASE_OPERAND + 60)
    {
         2,                             /* # of bits in operand */
-        12,                              /* # of bits to shift for alignment */
-        OPND_VALUE,                     /* operand type */
-        TRUE,                           /* immediate operand ? */
+        12,                            /* # of bits to shift for alignment */
+        OPND_VALUE,                    /* operand type */
+        TRUE,                          /* immediate operand ? */
         PIC30_RELOC_INFO_UNSIGNED_2,   /* default relocation type */
         pic30_match_unsigned_2bit_lit, /* is_match() */
         "Operand must be between 0 and 3, inclusive.",
-        0,                              /* insert() */
-        0                               /* extract() */
+        0,                             /* insert() */
+        0                              /* extract() */
    },
 
-#define H_DST_REG_0SHIFT                       (PIC30_BASE_OPERAND + 61)
-   { 4, 0, OPND_G_OR_H, FALSE, PIC30_RELOC_INFO_NONE,
-     0, 0, pic30_insert_h_dst_reg, pic30_extract_h_dst_reg },
+#define H_DST_REG_0SHIFT               (PIC30_BASE_OPERAND + 61)
+   { 
+        4,                             /* # of bits in operand */
+        0,                             /* # of bits to shift for alignment */
+        OPND_G_OR_H,                   /* operand type */
+        FALSE,                         /* immediate operand ? */
+        PIC30_RELOC_INFO_NONE,         /* default relocation type */
+        0,                             /* is_match() */
+        0,                             /* error */
+        pic30_insert_h_dst_reg,        /* insert() */
+        pic30_extract_h_dst_reg        /* extract() */
+   },
 
-#define IND_DST_REG_POST_INC                         (PIC30_BASE_OPERAND + 62)
-   { 4, 7, OPND_REGISTER_POST_INCREMENT, FALSE, PIC30_RELOC_INFO_NONE, 0, 0, 0, 0 }, 
+#define IND_DST_REG_POST_INC           (PIC30_BASE_OPERAND + 62)
+   {    4,                             /* # of bits in operand */
+        7,                             /* # of bits to shift for alignment */
+        OPND_REGISTER_POST_INCREMENT,  /* operand type */
+        FALSE,                         /* immediate operand ? */
+        PIC30_RELOC_INFO_NONE,         /* default relocation type */
+        0,                             /* is_match */
+        0,                             /* error */
+        0,                             /* insert() */
+        pic30_extract_ind_dst_reg_post_inc /* extract */
+    }, 
 
 #define SRC_REG                         (PIC30_BASE_OPERAND + 63)
    { 4, 8, OPND_REGISTER_DIRECT, FALSE, PIC30_RELOC_INFO_NONE, 0, 0, 0, 0 },
@@ -7519,4 +7540,19 @@ pic30_get_pc_relative_relocation_info ()
 } /* const struct relocation_info pic30_get_pc_relative_relocation_info(void) */
 
 /******************************************************************************/
+
+char *
+pic30_extract_ind_dst_reg_post_inc (insn, info, flags, opnd, err)
+   unsigned long insn;
+   struct disassemble_info * info __attribute__ ((__unused__));
+   unsigned long flags;
+   const struct pic30_operand * opnd;
+   unsigned char * err;
+{
+   long reg_num = PIC30_EXTRACT_OPERAND (insn, opnd->bits, opnd->shift);
+   int mode = G_OR_H_REGISTER_POST_INCREMENT;
+
+   record_private_data(info, reg_num, mode);
+   return pic30_generate_g_or_h_operand (insn, reg_num, mode, flags, err);
+} /* char * pic30_extract_h_dst_reg(...) */
 

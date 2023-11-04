@@ -61,7 +61,8 @@
 #define HAS_DUALCORE         (1 << 23)
 #define HAS_ISAV4            (1 << 24) /* may be the same as HAS_DUALCORE? */
 #define HAS_ISA32V0          (1 << 25)
-#define ALL_DEVICE_ID_FLAGS  ((1 << 26)-1)
+#define HAS_ALTACCUM         (1 << 26)
+#define ALL_DEVICE_ID_FLAGS  ((1 << 27)-1)
 #define HAS_EXTENDED_DEVID   (1 << 27) /* when we get here, use a 2nd word */
 
 /* EXTENDED_DEVICE_ID flags - bits [0 - 31] */

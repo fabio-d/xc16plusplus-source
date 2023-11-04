@@ -194,9 +194,17 @@ if [ "$TARGET_OS" = "i386-darwin" ]; then
   fi
 fi
 
-if [ "$BUILD_OS" != "i386-darwin" ]; then
+if [ "$TARGET_OS" = "native" -a "$BUILD_OS" != "i386-darwin" ]; then
   BUILD="$BUILD ppl"
-  STATIC="-Wl,-lstdc++,-lm"
+  # catalina ?
+  release_level=`uname -r | sed 's/\..*$//'`
+  if [ "$release_level" -gt "17" ]; then
+    # catalina is 19
+    # high siera is 17 ...
+    STATIC="-Wl,-lc++,-lm"
+  else
+    STATIC="-Wl,-lstdc++,-lm"
+  fi
 fi
 
 if [ "$BUILD64" == "1" ]; then

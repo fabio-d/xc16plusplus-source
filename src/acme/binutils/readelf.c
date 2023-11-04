@@ -133,6 +133,7 @@ int do_debug_abbrevs;
 int do_debug_lines;
 int do_debug_pubnames;
 int do_debug_aranges;
+int do_debug_ranges;
 int do_debug_frames;
 int do_debug_frames_interp;
 int do_debug_macinfo;
@@ -331,6 +332,8 @@ static int display_debug_str
   PARAMS ((Elf_Internal_Shdr *, unsigned char *, FILE *));
 static int display_debug_loc
   PARAMS ((Elf_Internal_Shdr *, unsigned char *, FILE *));
+static int display_debug_ranges
+  PARAMS ((Elf_Internal_Shdr *, unsigned char *, FILE *));
 static unsigned char *process_abbrev_section
   PARAMS ((unsigned char *, unsigned char *));
 static void load_debug_str
@@ -342,6 +345,10 @@ static const char *fetch_indirect_string
 static void load_debug_loc
   PARAMS ((FILE *));
 static void free_debug_loc
+  PARAMS ((void));
+static void load_debug_range
+  PARAMS ((FILE *));
+static void free_debug_range
   PARAMS ((void));
 static unsigned long read_leb128
   PARAMS ((unsigned char *, int *, int));
@@ -2590,8 +2597,8 @@ usage ()
   -A --arch-specific     Display architecture specific information (if any).\n\
   -D --use-dynamic       Use the dynamic section info when displaying symbols\n\
   -x --hex-dump=<number> Dump the contents of section <number>\n\
-  -w[liaprmfFso] or\n\
-  --debug-dump[=line,=info,=abbrev,=pubnames,=ranges,=macro,=frames,=str,=loc]\n\
+  -w[liaprmfFsoR] or\n\
+  --debug-dump[=line,=info,=abbrev,=pubnames,=aranges,=macro,=frames,=str,=loc,=Ranges]\n\
                          Display the contents of DWARF2 debug sections\n"));
 #ifdef SUPPORT_DISASSEMBLY
   fprintf (stdout, _("\
@@ -2650,7 +2657,7 @@ parse_args (argc, argv)
     usage ();
 
   while ((c = getopt_long
-	  (argc, argv, "ersuahnldSDAIw::x:i:vVWH", options, NULL)) != EOF)
+	  (argc, argv, "ersuahnldSDAIRw::x:i:vVWH", options, NULL)) != EOF)
     {
       char *cp;
       int section;
@@ -2758,8 +2765,11 @@ parse_args (argc, argv)
 		    break;
 
 		  case 'r':
-		  case 'R':
 		    do_debug_aranges = 1;
+		    break;
+
+		  case 'R':
+		    do_debug_ranges = 1;
 		    break;
 
 		  case 'F':
@@ -2796,8 +2806,8 @@ parse_args (argc, argv)
 	  else
 	    {
 	      static const char *debug_dump_opt[]
-		= { "line", "info", "abbrev", "pubnames", "ranges",
-		    "macro", "frames", "frames-interp", "str", "loc", NULL };
+		= { "line", "info", "abbrev", "pubnames", "aranges",
+		    "macro", "frames", "frames-interp", "str", "loc", "Ranges", NULL };
 	      unsigned int index;
 	      const char *p;
 
@@ -2836,6 +2846,10 @@ parse_args (argc, argv)
 
 			    case 'r':
 			      do_debug_aranges = 1;
+			      break;
+
+			    case 'R':
+			      do_debug_ranges = 1;
 			      break;
 
 			    case 'f':
@@ -3748,7 +3762,7 @@ process_section_headers (file)
       else if ((do_debugging || do_debug_info || do_debug_abbrevs
 		|| do_debug_lines || do_debug_pubnames || do_debug_aranges
 		|| do_debug_frames || do_debug_macinfo || do_debug_str
-		|| do_debug_loc)
+		|| do_debug_loc || do_debug_ranges)
 	       && strncmp (name, ".debug_", 7) == 0)
 	{
 	  name += 7;
@@ -3759,6 +3773,7 @@ process_section_headers (file)
 	      || (do_debug_lines    && (strcmp (name, "line") == 0))
 	      || (do_debug_pubnames && (strcmp (name, "pubnames") == 0))
 	      || (do_debug_aranges  && (strcmp (name, "aranges") == 0))
+	      || (do_debug_ranges   && (strcmp (name, "ranges") == 0))
 	      || (do_debug_frames   && (strcmp (name, "frame") == 0))
 	      || (do_debug_macinfo  && (strcmp (name, "macinfo") == 0))
 	      || (do_debug_str      && (strcmp (name, "str") == 0))
@@ -6885,6 +6900,47 @@ display_debug_pubnames (section, start, file)
   return 1;
 }
 
+
+static const char *   debug_range_contents;
+static unsigned long  debug_range_size;
+
+static void
+load_debug_range (FILE *file)
+{
+  Elf_Internal_Shdr *sec;
+  unsigned int i;
+
+  /* If it is already loaded, do nothing.  */
+  if (debug_range_contents != NULL)
+    return;
+
+  /* Locate the .debug_range section.  */
+  for (i = 0, sec = section_headers;
+       i < elf_header.e_shnum;
+       i++, sec++)
+    if (strcmp (SECTION_NAME (sec), ".debug_range") == 0)
+      break;
+
+  if (i == elf_header.e_shnum || sec->sh_size == 0)
+    return;
+
+  debug_range_size = sec->sh_size;
+
+  debug_range_contents = get_data (NULL, file, sec->sh_offset, sec->sh_size,
+				   _("debug_range section data"));
+}
+
+static void
+free_debug_range (void)
+{
+  if (debug_range_contents == NULL)
+    return;
+
+  free ((char *) debug_range_contents);
+  debug_range_contents = NULL;
+  debug_range_size = 0;
+}
+
 static char *
 get_TAG_name (tag)
      unsigned long tag;
@@ -8367,6 +8423,7 @@ display_debug_info (section, start, file)
 
   load_debug_str (file);
   load_debug_loc (file);
+  load_debug_range (file);
 
   while (start < end)
     {
@@ -8696,6 +8753,86 @@ display_debug_aranges (section, start, file)
 
   printf ("\n");
 
+  return 1;
+}
+
+static int
+display_debug_ranges (Elf_Internal_Shdr *section,
+		      unsigned char *start,
+		      FILE *file ATTRIBUTE_UNUSED)
+{
+  unsigned char *section_end;
+  unsigned long bytes;
+  unsigned char *section_begin = start;
+  unsigned int num_range_list = 0;
+  unsigned long last_offset = 0;
+  unsigned int first = 0;
+  unsigned int i;
+  unsigned int j;
+  int seen_first_offset = 0;
+  int use_debug_info = 1;
+  unsigned char *next;
+  bfd_vma addr;
+
+  addr = section->sh_addr;
+  bytes = section->sh_size;
+  section_end = start + bytes;
+
+  if (bytes == 0)
+    {
+      printf (_("\nThe .debug_ranges section is empty.\n"));
+      return 0;
+    }
+
+
+  printf (_("Contents of the .debug_ranges section:\n\n"));
+  printf (_("    Offset   Begin    End\n"));
+
+  seen_first_offset = 0;
+  while (start < section_end)
+    {
+      unsigned long begin;
+      unsigned long end;
+      unsigned long offset;
+      unsigned int pointer_size;
+      unsigned long base_address;
+
+      offset = start - section_begin;
+      while (1)
+        {
+          begin = byte_get (start, debug_line_pointer_size);
+          start += debug_line_pointer_size;
+          end = byte_get (start, debug_line_pointer_size);
+          start += debug_line_pointer_size;
+    
+          if (begin == 0 && end == 0)
+    	{
+    	  printf (_("    %8.8lx <End of list>\n"), offset);
+    	  break;
+    	}
+    
+          /* Check base address specifiers.  */
+          if (begin == -1UL && end != -1UL)
+    	{
+    	  base_address = end;
+    	  printf ("    %8.8lx %8.8lx %8.8lx (base address)\n",
+    		  offset, begin, end);
+    	  continue;
+    	}
+    
+          printf ("    %8.8lx %8.8lx %8.8lx",
+    	      offset, begin + base_address, end + base_address);
+    
+          if (begin == end)
+    	fputs (_(" (start == end)"), stdout);
+          else if (begin > end)
+    	fputs (_(" (start > end)"), stdout);
+    
+          putchar ('\n');
+        }
+    }
+    
+  putchar ('\n');
   return 1;
 }
 
@@ -9567,7 +9704,7 @@ debug_displays[] =
   { ".debug_str",		display_debug_str, NULL },
   { ".debug_loc",		display_debug_loc, NULL },
   { ".debug_pubtypes",		display_debug_not_supported, NULL },
-  { ".debug_ranges",		display_debug_not_supported, NULL },
+  { ".debug_ranges",		display_debug_ranges, NULL },
   { ".debug_static_func",	display_debug_not_supported, NULL },
   { ".debug_static_vars",	display_debug_not_supported, NULL },
   { ".debug_types",		display_debug_not_supported, NULL },

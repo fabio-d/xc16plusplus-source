@@ -4684,7 +4684,11 @@ lang_one_common (h, info)
   /* Change the symbol from common to defined.  */
   h->type = bfd_link_hash_defined;
   h->u.def.section = section;
+#if defined(PIC30)
+  h->u.def.value = section->_cooked_size / opb;
+#else
   h->u.def.value = section->_cooked_size;
+#endif
 
   /* Increase the size of the section.  */
   section->_cooked_size += size;

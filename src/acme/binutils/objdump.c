@@ -4106,7 +4106,9 @@ main (argc, argv)
 	case 0:
 	  break;		/* We've been given a long option.  */
 	case 'm':
-	  machine = optarg;
+          if (strstr(optarg,"dfp=") == 0) {
+	    machine = optarg;
+          }
 	  break;
 	case 'M':
 	  disassembler_options = optarg;

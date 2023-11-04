@@ -768,7 +768,8 @@ static void update_group_section_info
            struct pic30_section *, struct memory_region_struct *));
 
 static void create_remainder_blocks
-  PARAMS ((struct pic30_memory *, struct pic30_memory *, unsigned int));
+  PARAMS ((struct pic30_memory *, struct pic30_memory *, unsigned int,
+           struct memory_region_struct *));
 
 /*
 ** BFD Utility Routines
@@ -5872,7 +5873,7 @@ void pic30_pad_flash() {
               printf("after_open: section %s not found\n", sec->name);
 
            update_section_info(addr, s, region);
-           create_remainder_blocks(program_memory_free_blocks, b, len);
+           create_remainder_blocks(program_memory_free_blocks, b, len, region);
            pic30_remove_from_memory_list(program_memory_free_blocks, b);
            next = program_memory_free_blocks->next;
          }

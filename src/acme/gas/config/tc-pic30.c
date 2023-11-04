@@ -642,53 +642,58 @@ pic30_init(int argc __attribute__ ((__unused__)), char **argv)
   int proc_family = pic30_proc_family(global_PROCESSOR);
 
   buf = xmalloc(buflen);
-  for (f = argv[0];  *f; f++) {
-    if (IS_DIR_SEPARATOR(*f)) {
-      base = f;
-    }
-  }
-  if (base == 0) {
-    /* no path information in argv[0]; try to locate pic30-as in PATH */
-    char *pseparator;
-    char *p;
-
-    PATH = getenv("PATH");
-    if (PATH == 0) {
-      PATH=".";
-    } else {
-      char *newPATH = xmalloc(strlen(PATH)+3);
-   
-      sprintf(newPATH, "%s:.", PATH);
-      PATH=newPATH;
-    }
-    p = PATH;
-    do {
-      struct stat statbuf;
-
-      for (pseparator = p; *pseparator && !IS_PATH_SEPARATOR(*pseparator); 
-           pseparator++);
-      safe = *pseparator;
-      if (*pseparator) {
-        *pseparator = 0;
-      }
- 
-      if ((strlen(p) + 2 + sizeof(EXE_SUFFIX) + sizeof("pic30-as")) >= buflen) {
-        buflen = (strlen(p) + sizeof(EXE_SUFFIX) + sizeof("pic30-as") + 20);
-        buf = xrealloc(buf, buflen);
-      }
-      sprintf(buf, "%s%cpic30-as%s", p, DIR_SEPARATOR_2, EXE_SUFFIX);
-      if (stat(buf,&statbuf) == 0) break;
-      *pseparator = safe;
-      if (safe) p = pseparator+1; else p = pseparator;
-      safe = 0;
-      if (*p == 0) break;
-    } while(1);
-    base = p;
+  if (pic30_dfp) {
+   base = xmalloc(strlen(pic30_dfp)+sizeof("/support/"));
+   sprintf(base,"%s/support/",pic30_dfp);
   } else {
-    safe = *base;
-    *base = 0;
-    f = base;
-    base = argv[0];
+    for (f = argv[0];  *f; f++) {
+      if (IS_DIR_SEPARATOR(*f)) {
+        base = f;
+      }
+    }
+    if (base == 0) {
+      /* no path information in argv[0]; try to locate pic30-as in PATH */
+      char *pseparator;
+      char *p;
+  
+      PATH = getenv("PATH");
+      if (PATH == 0) {
+        PATH=".";
+      } else {
+        char *newPATH = xmalloc(strlen(PATH)+3);
+     
+        sprintf(newPATH, "%s:.", PATH);
+        PATH=newPATH;
+      }
+      p = PATH;
+      do {
+        struct stat statbuf;
+  
+        for (pseparator = p; *pseparator && !IS_PATH_SEPARATOR(*pseparator); 
+             pseparator++);
+        safe = *pseparator;
+        if (*pseparator) {
+          *pseparator = 0;
+        }
+   
+        if ((strlen(p) + 2 + sizeof(EXE_SUFFIX) + sizeof("pic30-as"))>= buflen){
+          buflen = (strlen(p) + sizeof(EXE_SUFFIX) + sizeof("pic30-as") + 20);
+          buf = xrealloc(buf, buflen);
+        }
+        sprintf(buf, "%s%cpic30-as%s", p, DIR_SEPARATOR_2, EXE_SUFFIX);
+        if (stat(buf,&statbuf) == 0) break;
+        *pseparator = safe;
+        if (safe) p = pseparator+1; else p = pseparator;
+        safe = 0;
+        if (*p == 0) break;
+      } while(1);
+      base = p;
+    } else {
+      safe = *base;
+      *base = 0;
+      f = base;
+      base = argv[0];
+    }
   }
   if (base) {
     char *include_path;

@@ -2771,6 +2771,7 @@ _bfd_generic_link_output_symbols (output_bfd, input_bfd, info, psymalloc)
 
       h = NULL;
       sym = *sym_ptr;
+
 #if defined(PIC30) && 0
       /* not the right way to do this, but checking to see if this is the
            right time */

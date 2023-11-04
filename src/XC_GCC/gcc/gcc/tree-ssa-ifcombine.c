@@ -138,6 +138,44 @@ same_phi_args_p (basic_block bb1, basic_block bb2, basic_block dest)
   return true;
 }
 
+/* Similar, but make sure that bb1->bb1_dest == bb2->bb2_dest   */
+
+static bool
+complex_same_phi_args_p (basic_block bb1, basic_block bb1_dest,
+                         basic_block bb2, basic_block bb2_dest)
+{
+  edge e1 = find_edge (bb1, bb1_dest);
+  edge e2 = find_edge (bb2, bb2_dest);
+  gimple_stmt_iterator gsi1;
+  gimple_stmt_iterator gsi2;
+  gimple_stmt_iterator *gsi;
+  gimple phi;
+  int capacity;
+  
+
+  gsi1 = gsi_start_phis(bb1_dest);
+  gsi2 = gsi_start_phis(bb2_dest);
+  if ((gsi1.ptr == NULL) && (gsi2.ptr == NULL)) return true;
+  gsi = &gsi1;
+  if (gsi1.ptr == NULL) {
+    gsi = &gsi2;
+  }
+  for (; !gsi_end_p (*gsi); gsi_next (gsi))
+    {
+      phi = gsi_stmt (*gsi);
+      capacity = gimple_phi_capacity(phi);
+      if ((e1->dest_idx > capacity) ||
+          (e2->dest_idx > capacity)) {
+        return false;
+      }
+      if (!operand_equal_p (PHI_ARG_DEF_FROM_EDGE (phi, e1),
+			    PHI_ARG_DEF_FROM_EDGE (phi, e2), 0))
+        return false;
+    }
+
+  return true;
+}
+
 /* Return the best representative SSA name for CANDIDATE which is used
    in a bit test.  */
 
@@ -629,6 +667,29 @@ tree_ssa_ifcombine_bb (basic_block inner_cond_bb)
 	   */
 	  return ifcombine_iforif (inner_cond_bb, outer_cond_bb);
 	}
+
+#ifdef _BUILD_C30_
+      /* alternate || form |
+      /* The || form is characterized by a common else_bb with the
+	 two edges leading to it mergable.  The latter is guaranteed
+         by matching PHI arguments in the then_bb and the inner cond_bb
+	 having no side-effects.  */
+      if (recognize_if_then_else (outer_cond_bb, &else_bb, &inner_cond_bb)
+	  && complex_same_phi_args_p (outer_cond_bb, else_bb, 
+                                      inner_cond_bb, then_bb)
+	  && bb_no_side_effects_p (inner_cond_bb))
+	{
+	  /* We have
+	       <outer_cond_bb>
+		 if (q) goto then_bb; else goto inner_cond_bb;
+	       <inner_cond_bb>
+		 if (q) goto then_bb; else goto ...;
+	       <then_bb>
+		 ...
+	   */
+	  return ifcombine_iforif (inner_cond_bb, outer_cond_bb);
+	}
+#endif
     }
 
   return false;

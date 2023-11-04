@@ -2876,7 +2876,7 @@ eliminate_regs_1 (rtx x, enum machine_mode mem_mode, rtx insn,
 				  for_costs);
 
 #ifdef _BUILD_C30_
-      if (!for_costs && pic30_ecore_target()) 
+      if (!for_costs && (pic30_ecore_target() || pic30_isav4_target())) 
         new_rtx = targetm.legitimize_address(new_rtx, new_rtx, GET_MODE(x));
 #endif
 

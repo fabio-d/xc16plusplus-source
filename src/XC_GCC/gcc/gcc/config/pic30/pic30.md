@@ -1293,6 +1293,12 @@
   (UNSPECV_COVER               112) ; code coverage insn
   (UNSPECV_SETACC              113) ; generic set of accumulator to prevent
                                     ;  optimisation
+  (UNSPEC_MIN                  114)
+  (UNSPEC_MINV                 115)
+  (UNSPEC_MINV2                116)
+  (UNSPEC_MAX                  117)
+  (UNSPEC_MAXV                 118)
+  (UNSPEC_MAXV2                119)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -2914,7 +2920,7 @@
         (match_operand:QI 1 "pic30_general_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov %1,[w15++]\";
    } else {
      return \"mov %1,[w15++]\";
@@ -2931,7 +2937,7 @@
                 (subreg:HI (match_operand:QI 0 "register_operand" "r") 0))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push %0\";
    } else {
      return \"push %0\";
@@ -2948,7 +2954,7 @@
 	(const_int -1))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;setm %0\";
    } else {
      return \"setm %0\";
@@ -2976,7 +2982,7 @@
         (match_operand:HI 1 "pic30_pushhi_operand" "r,R>,O,T"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
   
@@ -3015,7 +3021,7 @@
                 (match_operand:SI 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\";
    } else {
      return \"push.d %0\";
@@ -3032,7 +3038,7 @@
         (match_operand:MODES32 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\";
@@ -3049,7 +3055,7 @@
                 (match_operand:DI 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\;push.d %t0\";
    } else {
      return \"push.d %0\;push.d %t0\";
@@ -3066,7 +3072,7 @@
         (match_operand:DI 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
    } else { 
      return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
@@ -3083,7 +3089,7 @@
                 (match_operand:SF 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\";
    } else {
      return \"push.d %0\";
@@ -3100,7 +3106,7 @@
         (match_operand:SF 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\";
@@ -3128,7 +3134,7 @@
         (match_operand:DF 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
@@ -3178,7 +3184,7 @@
         (match_operand:QI 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -3195,7 +3201,7 @@
         (match_operand:HI 1 "pop_operand"    " <,<,<,<"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 0: return \"movpag #1,DSRPAG\;mov %1,%0\";
@@ -3227,7 +3233,7 @@
   ]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 0: return \"movpag #1,DSRPAG\;mov [--w15],%0\";
@@ -3253,7 +3259,7 @@
   ]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%0\";
@@ -3270,7 +3276,7 @@
         (match_operand:DI 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%t0\;mov.d %1,%0\";
@@ -3287,7 +3293,7 @@
         (match_operand:SF 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%0\";
@@ -3304,7 +3310,7 @@
         (match_operand:DF 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_ecore_target() && TARGET_EDS) {
+   if (pic30_eds_target() && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%t0\;mov.d %1,%0\";
@@ -6160,7 +6166,7 @@
         (edspage:HI
            (match_operand 0 "pic30_reg_or_symbolic_address" "r,q")
            (match_operand 1 "immediate_operand"             "i,i")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "*
    {  
       if (INTVAL(operands[1])) {
@@ -11435,7 +11441,7 @@
        );
      }
    } else {
-     if (pic30_ecore_target()) {
+     if (pic30_ecore_target() || pic30_isav4_target()) {
        psv_set = 1;
        /* create pointer */
        if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
@@ -11636,7 +11642,7 @@
        );
      }
    } else {
-     if (pic30_ecore_target()) {
+     if (pic30_ecore_target() || pic30_isav4_target()) {
        char *t = pic30_section_base(XEXP(op1,0),0,0);
        rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
        psv_set=1;
@@ -12072,7 +12078,7 @@
           /* OFFSET doesn't need unpacking, but we need to set page to 1
               on some devices -
               ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target()) {
+          if (pic30_ecore_target() || pic30_isav4_target()) {
             f += sprintf(f, \"movpag #1,DSRPAG\");
           }
         } if (which_alternative == 1) {
@@ -12121,7 +12127,7 @@
           /* OFFSET doesn't need unpacking, but we need to set page to 1
               on some devices -
               ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target()) {
+          if (pic30_ecore_target() || pic30_isav4_target()) {
             f += sprintf(f, \"movpag #1,DSWPAG\");
           }
         } if (which_alternative == 1) {
@@ -12199,7 +12205,7 @@
           /* OFFSET doesn't need unpacking, but we need to set page to 1
               on some devices -
               ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target()) {
+          if (pic30_ecore_target() || pic30_isav4_target()) {
             f += sprintf(f, \"movpag #1,DSRPAG\;\");
           }
         } if (which_alternative == 1) {
@@ -12248,7 +12254,7 @@
           /* OFFSET doesn't need unpacking, but we need to set page to 1
               on some devices -
               ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target()) {
+          if (pic30_ecore_target() || pic30_isav4_target()) {
             f += sprintf(f, \"movpag #1,DSWPAG\");
           }
         } if (which_alternative == 1) {
@@ -12365,7 +12371,7 @@
 
      {
        if (REGNO(operands[2]) == PSVPAG) {
-         if (pic30_ecore_target()) {
+         if (pic30_ecore_target() || pic30_isav4_target()) {
            emit(
              gen_umovpagr(operands[1])
            );
@@ -12375,7 +12381,7 @@
            );
          }
        } else if (REGNO(operands[2]) == DSWPAG) {
-         if (pic30_ecore_target()) {
+         if (pic30_ecore_target() || pic30_isav4_target()) {
            emit(
              gen_umovpagw(operands[1])
            );
@@ -12676,7 +12682,7 @@
    if (which_alternative == 0) {
      return \"mov.b %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSWPAG\;mov.b %1,%0\";
    } else {
      return \"mov.b %1,%0\";
@@ -12693,7 +12699,7 @@
    if (which_alternative == 0) {
      return \"mov.b %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSRPAG\;mov.b %1,%0\";
    } else {
      return \"mov.b %1,%0\";
@@ -12709,7 +12715,7 @@
    if (which_alternative == 0) {
      return \"mov %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSWPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -12726,7 +12732,7 @@
    if (which_alternative == 0) {
      return \"mov %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSRPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -12742,7 +12748,7 @@
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
@@ -12767,7 +12773,7 @@
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 1: 
@@ -12843,7 +12849,7 @@
    if (which_alternative == 0) {
      return \"mov.b %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSWPAG\;mov.b %1,%0\";
    } else {
      return \"mov.b %1,%0\";
@@ -12860,7 +12866,7 @@
    if (which_alternative == 0) {
      return \"mov.b %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSRPAG\;mov.b %1,%0\";
    } else {
      return \"mov.b %1,%0\";
@@ -12876,7 +12882,7 @@
    if (which_alternative == 0) {
      return \"mov %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSWPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -12893,7 +12899,7 @@
    if (which_alternative == 0) {
      return \"mov %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      return \"movpag #1,DSRPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -12909,7 +12915,7 @@
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
@@ -12934,7 +12940,7 @@
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
    }
-   if (pic30_ecore_target()) {
+   if (pic30_ecore_target() || pic30_isav4_target()) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 1:
@@ -12983,122 +12989,6 @@
    }
   "
 )
-
-;(define_insn "movP32PEDSP32PEDS"
-;  [(set (match_operand:P32PEDS 0 "pic30_unified_move2_operand" "=r,R,Q")
-;        (match_operand:P32PEDS 1 "pic30_register_operand"       "r,r,r"))]
-;  "TARGET_EDS"
-;  "*
-;   if (which_alternative == 0) {
-;     return \"mov.d %1,%0\";
-;   }
-;   if (pic30_ecore_target()) {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-;       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
-;     }
-;   } else {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: return \"mov.d %1,%0\";
-;       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
-;     }
-;   }
-;  "
-;)
-;
-;/*VRT: Need optimized fix for psrd psrd*/
-;(define_insn "movsiP32PEDSP32PEDS2"
-;  [(set (match_operand:P32PEDS 0 "pic30_register_operand"      "=r,&r,&r")
-;        (match_operand:P32PEDS 1 "pic30_unified_move2_operand"  "r, R, Q")
-;  )]
-;  "TARGET_EDS"
-;  "*
-;   if (which_alternative == 0) {
-;     return \"mov.d %1,%0\";
-;   }
-;   if (pic30_ecore_target()) {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;                 return \"movpag #1,DSWPAG\;mov %I1,%0\;mov %D1,%d0\";
-;               } else {
-;                 return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-;               }
-;       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
-;     }
-;   } else {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;                 return \"mov %I1,%0\;mov %D1,%d0\";
-;               } else {
-;                 return \"mov.d %1,%0\";
-;               }
-;       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
-;     }
-;   }
-;  "
-;)
-;
-;(define_insn "movP32EDSP32PEDS"
-;  [(set (match_operand:P32EDS 0 "pic30_unified_move2_operand" "=r,R,Q")
-;        (match_operand:P32EDS 1 "pic30_register_operand"       "r,r,r"))]
-;  "TARGET_EDS"
-;  "*
-;   if (which_alternative == 0) {
-;     return \"mov.d %1,%0\";
-;   }
-;   if (pic30_ecore_target()) {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-;       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
-;     }
-;   } else {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: return \"mov.d %1,%0\";
-;       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
-;     }
-;   }
-;  "
-;)
-;
-;/*VRT: Need optimized fix for psrd psrd*/
-;(define_insn "movsiP32EDSP32PEDS2"
-;  [(set (match_operand:P32EDS 0 "pic30_register_operand"      "=r,&r,&r")
-;        (match_operand:P32EDS 1 "pic30_unified_move2_operand"  "r, R, Q")
-;  )]
-;  "TARGET_EDS"
-;  "*
-;   if (which_alternative == 0) {
-;     return \"mov.d %1,%0\";
-;   }
-;   if (pic30_ecore_target()) {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;                 return \"movpag #1,DSWPAG\;mov %I1,%0\;mov %D1,%d0\";
-;               } else {
-;                 return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-;               }
-;       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
-;     }
-;   } else {
-;     switch (which_alternative) {
-;       default: gcc_assert(0);
-;       case 1: if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;                 return \"movpag #1,DSWPAG\;mov %I1,%0\;mov %D1,%d0\";
-;               } else {
-;                 return \"mov.d %1,%0\";
-;               }
-;       case 2: return \"mov %1,%0\;mov %Q1,%d0\";
-;     }
-;   }
-;  "
-;)
 
 (define_insn "movhi_P24PROGaddress_low"
   [(set (match_operand:HI 0 "pic30_register_operand"               "=r")
@@ -21473,7 +21363,7 @@
       emit_move_insn(temp_opnd2, operands[2]);
     }
   }
-  if (pic30_ecore_target()) {
+  if (pic30_ecore_target() || pic30_isav4_target()) {
     if (valid_immediate) {
       emit_insn(
         gen_mulhi3imm(operands[0],
@@ -21534,7 +21424,7 @@
     
     emit_move_insn(temp_opnd1, operands[1]);
   }
-  if (pic30_ecore_target()) {
+  if (pic30_ecore_target() || pic30_isav4_target()) {
     if (valid_immediate) {
       emit_insn(
         gen_mulp16apsv3_imm(operands[0],
@@ -21732,7 +21622,7 @@
         (mult:P16APSV
           (match_operand:P16APSV 1 "pic30_near_mode2_APSV_operand" "U,D,R<>,D,R<>")
           (match_operand:P16APSV 2 "immediate_operand" "i,i,  i,  i,i")))]
-  "(INTVAL(operands[2]) == 2) && pic30_ecore_target()"
+  "(INTVAL(operands[2]) == 2) && (pic30_ecore_target() || pic30_isav4_target())"
   "
 {
   if (pic30_near_mode2_operand(operands[1],GET_MODE(operands[1])))
@@ -22145,7 +22035,7 @@
         (mult:HI
           (match_operand:HI 1 "pic30_register_operand" "%r")
           (match_operand:HI 2 "pic30_P_operand"        "P")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.su %1,#%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22158,7 +22048,7 @@
         (mult:HI
             (match_operand:HI 1 "pic30_register_operand" "%r,r")
             (match_operand:HI 2 "pic30_mode2_operand"    "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.ss %1,%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22171,7 +22061,7 @@
         (mult:HI
             (match_operand:HI 1 "pic30_register_operand"   "%r,r")
             (match_operand:HI 2 "pic30_mode2_APSV_operand" "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.ss %1,%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22184,7 +22074,7 @@
         (mult:HI
             (match_operand:HI 1 "pic30_register_operand"   "%r,r")
             (match_operand:HI 2 "pic30_mode2_APSV_operand" "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "
 {
   if (pic30_mode2_operand(operands[2],GET_MODE(operands[2])))
@@ -22199,7 +22089,7 @@
         (mult:P16APSV
           (match_operand:P16APSV 1 "pic30_register_operand" "%r")
           (match_operand:P16APSV 2 "pic30_P_operand"        "P")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.su %1,#%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22212,7 +22102,7 @@
         (mult:P16APSV
           (match_operand:P16APSV 1 "pic30_register_operand" "%r,r")
           (match_operand:P16APSV 2 "pic30_mode2_operand"    "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.ss %1,%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22225,7 +22115,7 @@
         (mult:P16APSV
           (match_operand:P16APSV 1 "pic30_register_operand" "%r,r")
           (match_operand:P16APSV 2 "pic30_mode2_APSV_operand" "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "mulw.ss %1,%2,%0"
   [
    (set_attr "cc" "change0")
@@ -22238,7 +22128,7 @@
         (mult:P16APSV
           (match_operand:P16APSV 1 "pic30_register_operand" "%r,r")
           (match_operand:P16APSV 2 "pic30_mode2_APSV_operand"    "r,R<>")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "
 {
   if (pic30_mode2_operand(operands[2],GET_MODE(operands[2])))
@@ -22651,7 +22541,7 @@
   [(set (match_operand:SI 0 "pic30_register_operand" "")
         (mult:SI (match_operand:SI 1 "pic30_register_operand" "")
                  (match_operand:SI 2 "pic30_reg_or_imm_operand" "")))]
-  "pic30_ecore_target()"
+  "pic30_ecore_target() || pic30_isav4_target()"
   "
 {  rtx low_2, low_1, high_2, high_1, temp_1;
 
@@ -32889,8 +32779,9 @@
   "
 { int n;
   int mode;
-  if (pic30_isav4_target() && 
-      (!pic30_mode2_operand(operands[0],QImode)) &&
+  if (pic30_isav4_target() &&
+      (pic30_register_operand(operands[0], VOIDmode) ||
+       pic30_mode2_or_near_operand(operands[0], HImode)) &&
       (INTVAL(operands[1]) > 1) &&
       pic30_reg_or_lit8(operands[3], VOIDmode) &&
       (INTVAL(operands[1])+INTVAL(operands[2])<17)
@@ -34797,7 +34688,7 @@
                  (match_operand:HI 2 "pic30_register_operand" "")))
    (set (match_operand:HI 3 "pic30_register_operand" "")
         (mem:HI (match_dup 0)))]
-  "((!pic30_ecore_target()) && (peep2_reg_dead_p(2, operands[0]) || (REGNO(operands[0]) == REGNO(operands[3]))))"
+  "((!pic30_ecore_target()) && (!pic30_isav4_target()) && (peep2_reg_dead_p(2, operands[0]) || (REGNO(operands[0]) == REGNO(operands[3]))))"
   [(set (match_dup 3)
         (mem:HI (plus:HI (match_dup 1) (match_dup 2))))]
 )
@@ -50176,3 +50067,280 @@
 ;     switch (GET_CODE(pp_inner)) {
 ;       default: gcc_assert(0);
 ;       case PRE_INC:  return \"mov %r0,%2
+
+(define_insn "popcounthi2"
+  [(set (match_operand:HI   0 "pic30_reg_or_R_operand"  "=&rR")
+        (popcount:HI
+          (match_operand:HI 1 "pic30_reg_or_R_operand" "  rR")))
+   (clobber 
+          (match_scratch:HI 2                           "= &r"))
+   (clobber 
+          (match_scratch:HI 3                           "= &r"))
+  ]
+  ""
+  "clr %0\;mov %1,%3\;1:\;ff1r %3,%2\;bra c,1f\;inc %0,%0\;lsr %3,%2,%3\;bra 1b\;1:"
+ [
+   (set_attr "cc" "clobber")
+ ]
+)
+
+(define_insn "popcountsi2"
+  [(set (match_operand:HI   0 "pic30_reg_or_R_operand"  "=&r,R")
+        (popcount:HI
+          (match_operand:SI 1 "pic30_reg_or_R_operand" "  r,R")))
+   (clobber 
+          (match_scratch:HI 2                           "=&r,r"))
+   (clobber 
+          (match_scratch:HI 3                           "=&r,r"))
+  ]
+  ""
+  "@
+   clr %0\;mov %1,%3;1:\;ff1r %3,%2\;bra c,1f\;inc %0,%0\;lsr %3,%2,%3\;bra 1b\;1:\;mov %d1,%3\;1:\;ff1r %3,%2\;bra c,1f\;inc %0,%0\;lsr %3,%2,%3\;bra 1b\;1:
+   clr %0\;mov %I1,%3;1:\;ff1r %3,%2\;bra c,1f\;inc %0,%0\;lsr %3,%2,%3\;bra 1b\;1:\;mov %d1,%3\;1:\;ff1r %3,%2\;bra c,1f\;inc %0,%0\;lsr %3,%2,%3\;bra 1b\;1:"
+ [
+   (set_attr "cc" "clobber")
+ ]
+)
+
+(define_insn "swapqi"
+    [(set (match_operand:QI     0 "pic30_register_operand" "=r,r")
+          (ior:QI
+            (ashift:QI 
+              (match_operand:QI 1 "pic30_register_operand" " 0,r")
+              (const_int 4))
+            (lshiftrt:QI 
+              (match_dup 1)
+              (const_int 4))))]
+
+   ""
+   "@
+    swap.b %0
+    mov.b %1,%0\;swap.b %0"
+)
+  
+(define_insn "swaphi"
+    [(set (match_operand:HI     0 "pic30_register_operand" "=r,r")
+          (ior:HI
+            (ashift:HI 
+              (match_operand:HI 1 "pic30_register_operand" " 0,r")
+              (const_int 8))
+            (lshiftrt:HI 
+              (match_dup 1)
+              (const_int 8))))]
+
+   ""
+   "@
+    swap %0
+    mov %1,%0\;swap %0"
+)
+
+(define_insn "flim_pack"
+  [(set (match_operand:SI       0 "pic30_register_operand" "=r")
+        (ior:SI
+          (zero_extend:SI
+            (match_operand:HI   1 "pic30_register_operand"  "r"))
+          (ashift:SI 
+            (zero_extend:SI
+              (match_operand:HI 2 "pic30_register_operand"  "r"))
+            (const_int 16))))
+  ]
+  ""
+  "*
+   if (REGNO(operands[1]) == REGNO(operands[0])) 
+      return \"; nop\";
+   if (REGNO(operands[2]) == REGNO(operands[0]))
+      return \"mov %2,%d0\;mov %1,%0\";
+   else return \"mov %1,%0\;mov %2,%d0\";
+  "
+)
+
+(define_insn "flim"
+  [
+  (set (match_operand:HI   0 "pic30_register_operand" "+r")
+       (if_then_else
+          (gt (match_operand:HI 1 "pic30_register_operand" "0")
+              (subreg:HI (match_operand:SI 2 "pic30_register_operand" "r") 0))
+          (subreg:HI (match_dup 2) 0)
+          (if_then_else
+            (lt (match_dup 1)
+                (subreg:HI (match_dup 2) 2))
+             (subreg:HI (match_dup 2) 2)
+             (match_dup 1))))
+  ]
+  ""
+  "flim %2,%0"
+)
+
+(define_insn "flim_excess"
+  [(parallel 
+    [(set (match_operand:HI 0 "pic30_register_operand" "+r")
+         (if_then_else
+            (gt (match_operand:HI 1 "pic30_register_operand" " 0")
+                (subreg:HI (match_operand:SI 2 "pic30_register_operand" "r") 0))
+            (subreg:HI (match_dup 2) 0)
+            (if_then_else
+              (lt (match_dup 1)
+                  (subreg:HI (match_dup 2) 2))
+               (subreg:HI (match_dup 2) 2)
+               (match_dup 1))))
+    (set (match_operand:HI   3 "pic30_register_operand" "=r")
+         (if_then_else
+            (gt (match_dup 1)
+                (subreg:HI (match_dup 2) 0))
+            (const_int 1)
+          (if_then_else
+              (lt (match_dup 1)
+                  (subreg:HI (match_dup 2) 2))
+               (const_int -1)
+               (const_int 0))))
+    ])
+  ]
+  ""
+  "flim %2,%1,%3"
+)
+
+(define_insn "flimv_excess"
+  [(parallel 
+    [(set (match_operand:HI 0 "pic30_register_operand" "+r")
+         (if_then_else
+            (gt (match_operand:HI 1 "pic30_register_operand" " 0")
+                (subreg:HI (match_operand:SI 2 "pic30_register_operand" "r") 0))
+            (subreg:HI (match_dup 2) 0)
+            (if_then_else
+              (lt (match_dup 1)
+                  (subreg:HI (match_dup 2) 2))
+               (subreg:HI (match_dup 2) 2)
+               (match_dup 1))))
+    (set (match_operand:HI   3 "pic30_register_operand" "=r")
+         (if_then_else
+            (gt (match_dup 1)
+                (subreg:HI (match_dup 2) 0))
+            (minus:HI 
+              (match_dup 1) 
+              (subreg:HI (match_dup 2) 0))
+            (if_then_else
+              (lt (match_dup 1)
+                  (subreg:HI (match_dup 2) 2))
+               (minus:HI 
+                 (match_dup 1) 
+                 (subreg:HI (match_dup 2) 2))
+               (const_int 0))))
+    ])
+  ]
+  ""
+  "flim.v %2,%1,%3"
+)
+
+(define_insn "min"
+  [
+  (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+       (unspec:HI [
+          (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+          (match_operand:HI 2 "pic30_accumulator_operand" " w")
+        ] UNSPEC_MIN))
+  ]
+  ""
+  "min %0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "min_excess"
+  [(parallel [
+    (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+         (unspec:HI [
+            (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+            (match_operand:HI 2 "pic30_accumulator_operand" " w")
+          ] UNSPEC_MIN))
+    (set (match_operand:HI   3 "pic30_reg_or_R_operand" "=rR")
+         (unspec:HI [
+            (match_dup 1)
+            (match_dup 2)
+         ] UNSPEC_MINV))
+    ])
+  ]
+  ""
+  "min %0, %3"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "minv_excess"
+  [(parallel [
+    (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+         (unspec:HI [
+            (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+            (match_operand:HI 2 "pic30_accumulator_operand" " w")
+          ] UNSPEC_MIN))
+    (set (match_operand:HI   3 "pic30_reg_or_R_operand" "=rR")
+         (unspec:HI [
+            (match_dup 1)
+            (match_dup 2)
+         ] UNSPEC_MINV2))
+    ])
+  ]
+  ""
+  "min.v %0, %3"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "max"
+  [
+  (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+       (unspec:HI [
+          (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+          (match_operand:HI 2 "pic30_accumulator_operand" " w")
+        ] UNSPEC_MAX))
+  ]
+  ""
+  "max %0"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "max_excess"
+  [(parallel [
+    (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+         (unspec:HI [
+            (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+            (match_operand:HI 2 "pic30_accumulator_operand" " w")
+          ] UNSPEC_MAX))
+    (set (match_operand:HI   3 "pic30_reg_or_R_operand" "=rR")
+         (unspec:HI [
+            (match_dup 1)
+            (match_dup 2)
+         ] UNSPEC_MAXV))
+    ])
+  ]
+  ""
+  "max %0, %3"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "maxv_excess"
+  [(parallel [
+    (set (match_operand:HI   0 "pic30_accumulator_operand" "=w")
+         (unspec:HI [
+            (match_operand:HI 1 "pic30_accumulator_operand" " 0")
+            (match_operand:HI 2 "pic30_accumulator_operand" " w")
+          ] UNSPEC_MAX))
+    (set (match_operand:HI   3 "pic30_reg_or_R_operand" "=rR")
+         (unspec:HI [
+            (match_dup 1)
+            (match_dup 2)
+         ] UNSPEC_MAXV2))
+    ])
+  ]
+  ""
+  "max.v %0, %3"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
