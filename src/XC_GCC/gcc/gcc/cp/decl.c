@@ -8161,6 +8161,10 @@ grokdeclarator (const cp_declarator *declarator,
     }
 
   type_quals = TYPE_UNQUALIFIED;
+
+  /* Set target address space.  */
+  type_quals |= ENCODE_QUAL_ADDR_SPACE (declspecs->address_space);
+
   if (declspecs->specs[(int)ds_const])
     type_quals |= TYPE_QUAL_CONST;
   /* A `constexpr' specifier used in an object declaration declares
@@ -13007,6 +13011,16 @@ cxx_comdat_group (tree decl)
     }
 
   return name;
+}
+
+// HACK to solve missing symbol in pic30.c
+#define I_SYMBOL_BINDING(node) \
+  (((struct lang_identifier *) IDENTIFIER_NODE_CHECK(node))->bindings)
+#define I_SYMBOL_DECL(node) \
+ (I_SYMBOL_BINDING(node) ? I_SYMBOL_BINDING(node)->value : 0)
+
+tree c_identifier_binding(tree node) {
+  return I_SYMBOL_DECL(node);
 }
 
 #include "gt-cp-decl.h"
