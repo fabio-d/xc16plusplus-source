@@ -168,8 +168,10 @@ complex_same_phi_args_p (basic_block bb1, basic_block bb1_dest,
           (e2->dest_idx > capacity)) {
         return false;
       }
-      if (!operand_equal_p (PHI_ARG_DEF_FROM_EDGE (phi, e1),
-			    PHI_ARG_DEF_FROM_EDGE (phi, e2), 0))
+      tree d1, d2;
+      d1 = PHI_ARG_DEF_FROM_EDGE (phi, e1);
+      d2 =  PHI_ARG_DEF_FROM_EDGE (phi, e2);
+      if ((d1 == NULL_TREE) || (d2 == NULL_TREE) || !operand_equal_p (d1,d2, 0))
         return false;
     }
 

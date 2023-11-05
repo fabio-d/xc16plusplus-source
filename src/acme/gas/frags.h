@@ -160,4 +160,6 @@ char *frag_var PARAMS ((relax_stateT type,
 			offsetT offset,
 			char *opcode));
 
+extern bfd_boolean
+frag_offset_fixed_p (const fragS *frag1, const fragS *frag2, offsetT *offset);
 #endif /* FRAGS_H */

@@ -3509,7 +3509,28 @@
 ;
 ;  This pattern should restore the src/ dest ptrs before finishing
 ;
-(define_insn "movmemhi"
+(define_expand "movmemhi"
+  [(set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,R,m,R,m")
+        (match_operand:BLK 1 "pic30_memory_operand"   "R,R,m,R,R,m,m"))
+   (use (match_operand:HI 2 "immediate_operand"       "J,J,J,i,i,i,i"))
+   (use (match_operand:HI 3 "const_int_operand" ""))
+  ]
+  "((pic30_errata_mask & ecc_errata) == 0)"
+  "{
+     if ((pic30_errata_mask & repeat_gie_errata) ||
+         (pic30_errata_mask & repeat_nstdis_errata)) {
+       FAIL;
+     } else {
+       emit_insn(
+         gen_movmemhi_helper(operands[0],operands[1],operands[2],operands[3])
+       );
+       DONE;
+     }
+  }
+  "
+)
+  
+(define_insn "movmemhi_helper"
   [(set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,R,m,R,m")
         (match_operand:BLK 1 "pic30_memory_operand"   "R,R,m,R,R,m,m"))
    (use (match_operand:HI 2 "immediate_operand"       "J,J,J,i,i,i,i"))
@@ -3520,17 +3541,21 @@
   ]
   "((pic30_errata_mask & ecc_errata) == 0)"
   "*
-   { /* my calculation says maximum string size is ~120 */
-     static char buffer[160];
+   { /* my calculation says maximum string size is ~120 
+      * Now add for repeat errata */
+     static char buffer[260];
      char *c = buffer;
      char *op0 = (char *)\"[%r0++]\";
      char *op1 = (char *)\"[%r1++]\";
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      char *restore_with_sub_0=0;
      char *restore_with_sub_1=0;
      char *restore_w14=0;
      char *sub_value = 0;  /* != 0 => use register */
      int repeat_repeat;
      int repeat_count;
+
 
      repeat_count = INTVAL(operands[2]);
      switch (which_alternative) {
@@ -3748,10 +3773,13 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c,\"repeat #16383-1\;mov.b %s,%s\;\", op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;mov.b %s,%s\", repeat_count,op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;mov.b %s,%s\", 
-                             repeat_count, op1, op0);
+           c += sprintf(c,\"%s\;repeat #16383-1\;mov.b %s,%s\;\",
+                          repeat_errata_push,op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;mov.b %s,%s\;%s\", 
+                          repeat_count,op1, op0, repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;mov.b %s,%s\;%s\", 
+                             repeat_errata_push, repeat_count, op1, 
+                             op0,repeat_errata_pop);
          break;
      default: {
          int repeat_remainder;
@@ -3764,11 +3792,13 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c,\"repeat #16383-1\;mov %s,%s\;\", op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;mov %s,%s\", 
-                        repeat_count, op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;mov %s,%s\", 
-                             repeat_count, op1, op0);
+           c += sprintf(c,\"%s\;repeat #16383-1\;mov %s,%s\;\", 
+                          repeat_errata_push, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;mov %s,%s\;%s\", 
+                        repeat_count, op1, op0, repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;mov %s,%s\;%s\", 
+                             repeat_errata_push, repeat_count, op1, 
+                             op0, repeat_errata_pop);
          if (repeat_remainder) {
            if (pic30_psrd_psrd_errata(operands[1],NULL)) {
              c += sprintf(c,\"\;nop\");
@@ -3807,7 +3837,29 @@
 ;; Argument 1 is the length
 ;; Argument 2 is the alignment
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define_insn "setmemhi"
+(define_expand "setmemhi"
+  [
+   (set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,m,R,m,R,m,R,m,R,m")
+        (match_operand     2 "pic30_reg_or_imm_operand" 
+                                                     "O,O,O,O,i,i,i,i,r,r,r,r"))
+   (use (match_operand:HI 1 "immediate_operand" "J,J,i,i,J,J,i,i,J,J,i,i"))
+   (use (match_operand:HI 3 "const_int_operand" ""))
+  ]
+  ""
+  "{
+     if ((pic30_errata_mask & repeat_gie_errata) ||
+         (pic30_errata_mask & repeat_nstdis_errata)) {
+       FAIL;
+     } else {
+       emit_insn(
+         gen_setmemhi_helper(operands[0],operands[1],operands[2],operands[3])
+       );
+       DONE;
+     }
+  }
+  "
+)
+(define_insn "setmemhi_helper"
   [
    (set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,m,R,m,R,m,R,m,R,m")
         (match_operand     2 "pic30_reg_or_imm_operand" 
@@ -3821,11 +3873,14 @@
   ]
   ""
   "*
-   { /* my calculation says maximum string size is ~120 */
-     static char buffer[160];
+   { /* my calculation says maximum string size is ~120 
+      * Now add for repeat errata */
+     static char buffer[260];
      char *c = buffer;
      char *op0 = \"[%r0++]\";
      char *op1 = \"\";
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      char *restore_with_sub_0=0;
      char *restore_w14=0;
      char *sub_value = 0;  /* != 0 => use register */
@@ -3963,12 +4018,13 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c, \"repeat #16383-1\;%s.b %s%s\;\", 
-                           set_instr, op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\", 
-                           repeat_count, set_instr, op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\", 
-                             repeat_count, set_instr, op1, op0);
+           c += sprintf(c, \"%s\;repeat #16383-1\;%s.b %s%s\;\", 
+                           repeat_errata_push,set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\;%s\", 
+                           repeat_count, set_instr, op1, op0,repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;%s.b %s%s\;%s\", 
+                             repeat_errata_push,repeat_count, set_instr, op1,
+                             op0, repeat_errata_pop);
          break;
        default: {
          int repeat_remainder;
@@ -3981,12 +4037,13 @@
          repeat_repeat =  repeat_count - 16383;
          if (repeat_repeat < 0) repeat_repeat = 0;
 	 if (repeat_repeat) {
-           c += sprintf(c,\"repeat #16383-1\;%s %s%s\;\", 
-                           set_instr, op1, op0);
-           c += sprintf(c,\"repeat #%d-1\;%s %s%s\", 
-                        repeat_count, set_instr, op1, op0);
-         } else c += sprintf(c,\"repeat #%d-1\;%s %s%s\", 
-                             repeat_count, set_instr, op1, op0);
+           c += sprintf(c,\"%s\;repeat #16383-1\;%s %s%s\;\", 
+                           repeat_errata_push,set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s %s%s\;%s\", 
+                        repeat_count, set_instr, op1, op0,repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;%s %s%s\;%s\", 
+                             repeat_errata_push, repeat_count, set_instr, op1, 
+                             op0, repeat_errata_pop);
          if (repeat_remainder) 
            c += sprintf(c,\"\;%s.b %s%s\", set_instr, op1, op0);
          break;
@@ -7129,7 +7186,8 @@
    ""
    "*
     {
-      if (pic30_ecore_target()) return \"mov %0,_DSRPAG\;nop\";
+      if (pic30_ecore_target() ||
+          pic30_isav4_target()) return \"movpag %0,DSRPAG\";
       if (pic30_eds_target()) return \"mov %0,_DSRPAG\";
       return \"mov %0,_PSVPAG\";
     }"
@@ -7156,7 +7214,8 @@
    ""
    "*
     {
-      if (pic30_ecore_target()) return \"mov %0,_DSRPAG\;nop\";
+      if (pic30_ecore_target() ||
+          pic30_isav4_target()) return \"movpag %0,DSRPAG\";
       if (pic30_eds_target()) return \"mov %0,_DSRPAG\";
       return \"mov %0,_PSVPAG\";
     }"
@@ -7172,7 +7231,8 @@
    ""
    "*
     {
-      if (pic30_ecore_target()) return \"mov %d0,_DSRPAG\;nop\";
+      if (pic30_ecore_target() ||
+          pic30_isav4_target()) return \"movpag %d0,DSRPAG\";
       if (pic30_eds_target()) return \"mov %d0,_DSRPAG\";
       return \"mov %d0,_PSVPAG\";
     }"
@@ -7190,7 +7250,8 @@
    ""
    "*
     {
-      if (pic30_ecore_target()) return \"mov %d0,_DSRPAG\;nop\";
+      if (pic30_ecore_target() ||
+          pic30_isav4_target()) return \"movpag %d0,DSRPAG\";
       if (pic30_eds_target()) return \"mov %d0,_DSRPAG\";
       return \"mov %d0,_PSVPAG\";
     }"
@@ -22598,9 +22659,30 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w0,w1"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have a new CC of div
     (set_attr "type" "def")
@@ -22618,9 +22700,30 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,w0"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,w0\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have a new CC of div
     (set_attr "type" "def")
@@ -22638,9 +22741,30 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;divf %1,%2
-   repeat #__TARGET_DIVIDE_CYCLES\;divf %1,%2\;mov w0,%0"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;divf %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;divf %%1,%%2\;\"
+                \"%s\"
+                \"mov w0,%%0\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new cc of div
     (set_attr "type" "def")
@@ -22658,9 +22782,30 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w0,w1"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -22678,9 +22823,30 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,w0"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,w0\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -22704,9 +22870,31 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,[%3]
-   repeat #__TARGET_DIVIDE_CYCLES\;div.sd %1,%2\;mov w1,[%3]\;mov w0,w1"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,[%%3]\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,[%%3]\;mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")   ; should have new CC of div
     (set_attr "type" "def")
@@ -22730,9 +22918,31 @@
    (clobber (reg:HI RCOUNT))
   ]
   ""
-  "@
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,[%3]
-   repeat #__TARGET_DIVIDE_CYCLES\;div.ud %1,%2\;mov w1,[%3]\;mov w0,w1"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,[%%3]\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,[%%3]\;mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -22752,17 +22962,38 @@
   ]
   ""
   "*
-   switch (which_alternative) {
-     default: gcc_assert(0);
-     case 0:  return \"repeat #__TARGET_DIVIDE_CYCLES\;div.sw %1,%2\";
-     case 1:  if (pic30_errata_mask & exch_errata) {
-                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                       \"div.sw %1,%2\;push w1\;mov w0,w1\;pop w0\";
-              } else {
-                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                       \"div.sw %1,%2\;exch w0,w1\";
-              }
-  }"
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sw %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        if (pic30_errata_mask & exch_errata) {
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.sw %%1,%%2\;\"
+                  \"%s\"
+                  \"push w1\;mov w0,w1\;pop w0\",
+                  repeat_errata_push,repeat_errata_pop);
+          return buffer;
+        } else {
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.sw %%1,%%2\;\"
+                  \"%s\"
+                  \"exch w0,w1\",
+                  repeat_errata_push,repeat_errata_pop);
+          return buffer;
+        }
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -22782,17 +23013,38 @@
   ]
   ""
   "*
-   switch (which_alternative) {
-     default: gcc_assert(0);
-     case 0:  return \"repeat #__TARGET_DIVIDE_CYCLES\;div.uw %1,%2\";
-     case 1:  if (pic30_errata_mask & exch_errata) {
-                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                       \"div.uw %1,%2\;push w1\;mov w0,w1\;pop w0\";
-              } else {
-                return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                       \"div.uw %1,%2\;exch w0,w1\";
-              }
-  }"
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.uw %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        if (pic30_errata_mask & exch_errata) {
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.uw %%1,%%2\;\"
+                  \"%s\"
+                  \"push w1\;mov w0,w1\;pop w0\",
+                  repeat_errata_push,repeat_errata_pop);
+          return buffer;
+        } else {
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.uw %%1,%%2\;\"
+                  \"%s\"
+                  \"exch w0,w1\",
+                  repeat_errata_push,repeat_errata_pop);
+          return buffer;
+        }
+    }
+  }
+  "
   [
     (set_attr "cc" "clobber")  ; should have new CC of div
     (set_attr "type" "def")
@@ -36511,116 +36763,165 @@
   {
      rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
      rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     static char buffer[512];
+     char *c = buffer;
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      if ((pic30_fp_round_p() == pic30_truncation) ||
          (pic30_fp_round_p() == pic30_fastest)) {
        switch (which_alternative) {
          case 0:  /*
-                ** wm/wn -> w0
-                */
+                  ** wm/wn -> w0
+                  */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"mov [--w15],w1\";
-                }
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov [--w15],w1\",
+                           repeat_errata_push,repeat_errata_pop);
+                    return buffer;
+                  }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
      } else if (pic30_fp_round_p() == pic30_conventional) {
        switch (which_alternative) {
          case 0:  /*
-                ** wm/wn -> w0
-                */
+                  ** wm/wn -> w0
+                  */
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"            /* compare 2*remainder */
-                           \"addc %0,#0,%0\";        /* inc if carry */
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"            /* compare 2*remainder */
+                            \"addc %%0,#0,%%0\",        /* inc if carry */
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;        
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"sl w1,w1\;\"
-                             \"cp w1,%2\;\"
-                             \"addc %0,#0,%0\;\"
-                             \"mov [--w15],w1\";
-                }
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\;\"
+                            \"mov [--w15],w1\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
+                  }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\;\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\;\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\;\"
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\;\"
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"addc %0,#0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"mov w0,%%0\;\"
+                            \"addc %%0,#0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\;\" 
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\;\" 
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -36632,73 +36933,95 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* convergent follows this
                                                         form */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"            /* cp divisor w/ 2*rem */
-                           \"btsc _SR,#1\;\"         /* if zero ... */
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"           /* cp divisor w/ 2*rem */
+                            \"btsc _SR,#1\;\"        /* if zero ... */
+                            \"btst.c w0,#0\;\"       /*   copy low bit to c */
                                                      /*   ie if low bit == 0 */
                                                      /*      don't add */
-                           \"addc.w w0,#0,%0\";      /* add carry */
+                            \"addc.w w0,#0,%%0\",     /* add carry */
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"sl w1,w1\;\"
-                             \"cp w1,%2\;\"
-                             \"btsc _SR,#1\;\"
-                             \"btst.c w0,#0\;\"
-                             \"addc.w w0,#0,%0\;\" 
-                             \"mov [--w15],w1\";
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"mov [--w15],w1\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"sl %2,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,[--w15]\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\;\" 
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"sl %%2,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,[--w15]\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2 : /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\;\" 
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -36730,6 +37053,10 @@
   {
      rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
      rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     static char buffer[512];
+     char *c = buffer;
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      if ((pic30_fp_round_p() == pic30_truncation) ||
          (pic30_fp_round_p() == pic30_fastest)) {
        switch (which_alternative) {
@@ -36737,96 +37064,120 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,%0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,%%0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w1,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"          /* if negative, neg */
-                           \"addc %4,#0,%0\;\"
-                           \"mov [--w15],w1\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"          /* if negative, neg */
+                            \"addc %%4,#0,%%0\;\"
+                            \"mov [--w15],w1\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                 }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\;\"
-                           \"mov [--w15],w0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\;\"
+                            \"mov [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2 : /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\n\"
-                           \".LE%=\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\n\"
+                            \".LE%%=\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"ff1r w1,w1\;\"             /* C = w1 == 0 */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\;\"
-                           \"mov.d [--w15],w0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"ff1r w1,w1\;\"             /* C = w1 == 0 */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\;\"
+                            \"mov.d [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -36837,140 +37188,164 @@
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow . flow */
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\" 
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\n\"       /* add in round */
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\" 
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\n\"       /* add in round */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w1,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"mov [--w15],w1\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"mov [--w15],w1\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                 }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\n\"       /* add in round */
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\n\"       /* add in round */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"mov [--w15],w0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"mov [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\n\"       /* add in round */
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\n\"       /* add in round */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"mov.d [--w15],w0\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"mov.d [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -36982,171 +37357,195 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* convergent follows this
                                                         form */
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\n\"     /* add carry */
-                           \".LE%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\n\"     /* add carry */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w1,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"     /* add carry */
-                           \"mov [--w15],w1\n\"
-                           \".LE%=:\";
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\"     /* add carry */
+                            \"mov [--w15],w1\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"sl w1,w1\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\n\"     /* add carry */
-                           \".LE%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"sl w1,w1\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\n\"     /* add carry */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"     /* add carry */
-                           \"mov [--w15],w0\n\"
-                           \".LE%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\"     /* add carry */
+                            \"mov [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\n\"     /* add carry */
-                           \".LE%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\n\"     /* add carry */
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"sub %1,%2,[w15]\;\"
-                           \"mov #0x8000,%0\;\"
-                           \"bra z,.LE%=\;\"
-                           \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"sub %%1,%%2,[w15]\;\"
+                            \"mov #0x8000,%%0\;\"
+                            \"bra z,.LE%%=\;\"
+                            \"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"sl w1,w1\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"     /* add carry */
-                           \"mov.d [--w15],w0\n\"
-                           \".LE%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"sl w1,w1\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\"     /* add carry */
+                            \"mov.d [--w15],w0\n\"
+                            \".LE%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37173,6 +37572,10 @@
   {
      rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
      rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     static char buffer[512];
+     char *c = buffer;
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      if ((pic30_fp_round_p() == pic30_truncation) ||
          (pic30_fp_round_p() == pic30_fastest)) {
        switch (which_alternative) {
@@ -37180,54 +37583,78 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"mov [--w15],w1\;\"
-                             \"btsc _SR,#2\;\"
-                             \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov [--w15],w1\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                 }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"mov [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"mov [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } 
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"mov w0,%0\;\"
-                           \"mov.d [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"mov w0,%%0\;\"
+                            \"mov.d [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37238,87 +37665,108 @@
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"            /* compare 2*remainder */
-                           \"addc %0,#0,%0\n\"           /* inc if carry */
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"            /* compare 2*remainder */
+                            \"addc %%0,#0,%%0\n\"           /* inc if carry */
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"bra ov,.OV%=\;\"
-                             \"sl w1,w1\;\"
-                             \"cp w1,%2\;\"
-                             \"addc %0,#0,%0\n\"
-                             \".OV%=:\;\"
-                             \"mov [--w15],w1\;\"
-                             \"btsc _SR,#2\;\"
-                             \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"mov [--w15],w1\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                 }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\n\"
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\n\"
-                           \".OV%=:\;\"
-                           \"mov [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"mov [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\n\"
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"mov w0,%0\;\"
-                           \"cp w1,%2\;\"
-                           \"addc %0,#0,%0\n\" 
-                           \".OV%=:\;\"
-                           \"mov.d [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"mov w0,%%0\;\"
+                            \"cp w1,%%2\;\"
+                            \"addc %%0,#0,%%0\n\" 
+                            \".OV%%=:\;\"
+                            \"mov.d [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37330,96 +37778,118 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* convergent follows this
                                                         form */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"            /* cp divisor w/ 2*rem */
-                           \"btsc _SR,#1\;\"         /* if zero ... */
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"addc.w w0,#0,%0\n\"     /* add carry */
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"            /* cp divisor w/ 2*rem */
+                            \"btsc _SR,#1\;\"         /* if zero ... */
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"addc.w w0,#0,%%0\n\"     /* add carry */
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"bra ov,.OV%=\;\"
-                             \"sl w1,w1\;\"
-                             \"cp w1,%2\;\"
-                             \"btsc _SR,#1\;\"
-                             \"btst.c w0,#0\;\"
-                             \"addc.w w0,#0,%0\n\" 
-                             \".OV%=:\;\"
-                             \"mov [--w15],w1\;\"
-                             \"btsc _SR,#2\;\"
-                             \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\n\" 
+                            \".OV%%=:\;\"
+                            \"mov [--w15],w1\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\n\"
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\n\" 
-                           \".OV%=:\;\"
-                           \"mov [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\n\" 
+                            \".OV%%=:\;\"
+                            \"mov [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\n\"
-                           \".OV%=:\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"%s\" 
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\n\"
+                            \".OV%%=:\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,w1\;\"
-                           \"cp w1,%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"
-                           \"addc.w w0,#0,%0\n\" 
-                           \".OV%=:\;\"
-                           \"mov.d [--w15],w0\;\"
-                           \"btsc _SR,#2\;\"
-                           \"mov #0x7FFF,%0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,w1\;\"
+                            \"cp w1,%%2\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"
+                            \"addc.w w0,#0,%%0\n\" 
+                            \".OV%%=:\;\"
+                            \"mov.d [--w15],w0\;\"
+                            \"btsc _SR,#2\;\"
+                            \"mov #0x7FFF,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37448,6 +37918,10 @@
   {
      rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
      rtx w1 = gen_rtx_REG(HImode, WR1_REGNO);
+     static char buffer[512];
+     char *c = buffer;
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
      if ((pic30_fp_round_p() == pic30_truncation) ||
          (pic30_fp_round_p() == pic30_fastest)) {
        switch (which_alternative) {
@@ -37455,97 +37929,120 @@
                 ** wm/wn -> w0
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra nov,.NOV%=\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"setm w1\n\"                /* force C == 0 */
-                           \".NOV%=:\;\"
-                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"setm w1\n\"                /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"             /* C = w1 == 0 */
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"bra nov,.NOV%=\;\"
-                             \"mov #0x7FFF,%0\;\"
-                             \"setm w1\n\"              /* force C == 0 */
-                             \".NOV%=:\;\"
-                             \"ff1r w1,%4\;\"           /* C = w1 == 0 */
-                             \"com w0,%4\;\"            /* complement in case
-                                                            of negate */
-                             \"btsc %3,#15\;\"          /* if negative, neg */
-                             \"addc %4,#0,w0\;\"
-                             \"mov [--w15],w1\";
-                }
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"setm w1\n\"              /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"           /* C = w1 == 0 */
+                            \"com w0,%%4\;\"            /* complement in case
+                                                           of negate */
+                            \"btsc %%3,#15\;\"          /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov [--w15],w1\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
+                  }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra nov,.NOV%=\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"setm w1\n\"                /* force C == 0 */
-                           \".NOV%=:\;\"
-                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov  w0,%0\";
-
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"setm w1\n\"                /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"             /* C = w1 == 0 */
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov  w0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra nov,.NOV%=\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"setm w1\n\"                /* force C == 0 */
-                           \".NOV%=:\;\"
-                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\;\"
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"setm w1\n\"                /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"             /* C = w1 == 0 */
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\;\"
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } 
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra nov,.NOV%=\;\"
-                           \"mov #0x7FFF,%0\"
-                           \"setm w1\n\"                /* force C == 0 */
-                           \".NOV%=:\;\"
-                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\"
+                            \"setm w1\n\"                /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"             /* C = w1 == 0 */
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra nov,.NOV%=\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"setm w1\n\"                /* force C == 0 */
-                           \".NOV%=:\;\"
-                           \"ff1r w1,%4\;\"             /* C = w1 == 0 */
-                           \"com w0,%4\;\"              /* complement in case
-                                                            of negate */
-                           \"btsc %3,#15\;\"            /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"mov w0,%0\;\"
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra nov,.NOV%%=\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"setm w1\n\"                /* force C == 0 */
+                            \".NOV%%=:\;\"
+                            \"ff1r w1,%%4\;\"             /* C = w1 == 0 */
+                            \"com w0,%%4\;\"              /* complement in case
+                                                             of negate */
+                            \"btsc %%3,#15\;\"            /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"mov w0,%%0\;\"
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37556,162 +38053,183 @@
                 */
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* all follow sim. flow */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
 
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"bra ov,.OV%=\;\"
-                             \"sl w1,%4\;\"
-                             \"sub %4,%2,%4\;\"      /* compare 2*remainder */
-                             \"btss _SR,#0\;\"       /* carry set, use new val*/
-                             \"mov %4,w1\;\"
-                             \"rlc w0,w0\;\"         /* put R in low bit */
-                             \"ff1r w1,%4\;\"        /* C = w1 == 0 */ 
-                             \"com w0,%4\;\"         /* complement in case
-                                                        of negate */
-                             \"btsc %3,#15\;\"       /* if negative, neg */ 
-                             \"addc %4,#0,w0\;\"
-                             \"rlc %3,[w15]\;\"        /* get sign in carry */
-                             \"rrc w0,w0\;\"           /* div by 2 again */
-                             \"addc w0,#0,%0\;\"       /* add in round */
-                             \"bra nov,.NOV%=\n\"
-                             \".OV%=:\;\"
-                             \"mov #0x7FFF,%0\;\"
-                             \"btsc %3,#15\;\"
-                             \"com %0,%0\n\"
-                             \".NOV%=:\;\"
-                             \"mov [--w15],w1\";
-                }
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"      /* compare 2*remainder */
+                            \"btss _SR,#0\;\"       /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"         /* put R in low bit */
+                            \"ff1r w1,%%4\;\"        /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"         /* complement in case
+                                                       of negate */
+                            \"btsc %%3,#15\;\"       /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov [--w15],w1\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
+                  }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\;\"
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc w0,#0,%0\;\"       /* add in round */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\;\"
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc w0,#0,%%0\;\"       /* add in round */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -37723,184 +38241,206 @@
                   if (pic30_dead_or_set_p(insn, w1)) {
                                                      /* convergent follows this
                                                         form */
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"     /* add carry */
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\"     /* add carry */
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                      return \"mov w1,[w15++]\;\"
-                             \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                             \"divf %1,%2\;\"
-                             \"bra ov,.OV%=\;\"
-                             \"sl w1,%4\;\"
-                             \"sub %4,%2,%4\;\"      /* compare 2*remainder */
-                             \"btss _SR,#0\;\"       /* carry set, use new val*/
-                             \"mov %4,w1\;\"
-                             \"btsc _SR,#1\;\"
-                             \"btst.c w0,#0\;\"      /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                             \"rlc w0,w0\;\"         /* put R in low bit */
-                             \"ff1r w1,%4\;\"        /* C = w1 == 0 */ 
-                             \"com w0,%4\;\"         /* complement in case
-                                                        of negate */
-                             \"btsc %3,#15\;\"       /* if negative, neg */ 
-                             \"addc %4,#0,w0\;\"
-                             \"rlc %3,[w15]\;\"      /* get sign in carry */
-                             \"rrc w0,w0\;\"         /* div by 2 again */
-                             \"addc.w w0,#0,%0\;\" 
-                             \"bra nov,.NOV%=\n\"
-                             \".OV%=:\;\"
-                             \"mov #0x7FFF,%0\;\"
-                             \"btsc %3,#15\;\"
-                             \"com %0,%0\n\"
-                             \".NOV%=:\;\"
-                             \"mov [--w15],w1\";
+                    sprintf(c,\"mov w1,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"      /* compare 2*remainder */
+                            \"btss _SR,#0\;\"       /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"      /*   copy low bit to c */
+                                                    /*   ie if low bit == 0 */
+                                                    /*      don't add */
+                            \"rlc w0,w0\;\"         /* put R in low bit */
+                            \"ff1r w1,%%4\;\"        /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"         /* complement in case
+                                                       of negate */
+                            \"btsc %%3,#15\;\"       /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"      /* get sign in carry */
+                            \"rrc w0,w0\;\"         /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov [--w15],w1\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 1:  /*
                   ** wm/wn -> w1
                   */
                   if (pic30_dead_or_set_p(insn, w0)) {
-                    return 
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%0\;\"
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\" 
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\;\"
-                           \"mov [--w15],w0\";
+                    sprintf(c,\"mov w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          case 2:  /*
                   ** wm/wn -> we
                   */
                   if (pic30_dead_or_set_p(insn, w0) &&
                       pic30_dead_or_set_p(insn, w1)) {
-                    return \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"bra ov,.OV%=\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\"
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\";
+                    sprintf(c,\"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"bra ov,.OV%%=\;\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\"
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   } else {
-                    return \"mov.d w0,[w15++]\;\"
-                           \"repeat #__TARGET_DIVIDE_CYCLES\;\"
-                           \"divf %1,%2\;\"
-                           \"sl w1,%4\;\"
-                           \"sub %4,%2,%4\;\"        /* compare 2*remainder */
-                           \"btss _SR,#0\;\"         /* carry set, use new val*/
-                           \"mov %4,w1\;\"
-                           \"btsc _SR,#1\;\"
-                           \"btst.c w0,#0\;\"        /*   copy low bit to c */
-                                                     /*   ie if low bit == 0 */
-                                                     /*      don't add */
-                           \"rlc w0,w0\;\"           /* put R in low bit */
-                           \"bra ov,.OV%=\;\"
-                           \"ff1r w1,%4\;\"          /* C = w1 == 0 */ 
-                           \"com w0,%4\;\"           /* complement in case
-                                                        of negate */
-                           \"btsc %3,#15\;\"         /* if negative, neg */ 
-                           \"addc %4,#0,w0\;\"
-                           \"rlc %3,[w15]\;\"        /* get sign in carry */
-                           \"rrc w0,w0\;\"           /* div by 2 again */
-                           \"addc.w w0,#0,%0\;\" 
-                           \"bra nov,.NOV%=\n\"
-                           \".OV%=:\;\"
-                           \"mov #0x7FFF,%0\;\"
-                           \"btsc %3,#15\;\"
-                           \"com %0,%0\n\"
-                           \".NOV%=:\;\"
-                           \"mov.d [--w15],w0\";
+                    sprintf(c,\"mov.d w0,[w15++]\;\"
+                            \"%s\"
+                            \"repeat #__TARGET_DIVIDE_CYCLES\;\"
+                            \"divf %%1,%%2\;\"
+                            \"%s\"
+                            \"sl w1,%%4\;\"
+                            \"sub %%4,%%2,%%4\;\"        /* compare 2*remainder */
+                            \"btss _SR,#0\;\"         /* carry set, use new val*/
+                            \"mov %%4,w1\;\"
+                            \"btsc _SR,#1\;\"
+                            \"btst.c w0,#0\;\"        /*   copy low bit to c */
+                                                      /*   ie if low bit == 0 */
+                                                      /*      don't add */
+                            \"rlc w0,w0\;\"           /* put R in low bit */
+                            \"bra ov,.OV%%=\;\"
+                            \"ff1r w1,%%4\;\"          /* C = w1 == 0 */ 
+                            \"com w0,%%4\;\"           /* complement in case
+                                                         of negate */
+                            \"btsc %%3,#15\;\"         /* if negative, neg */ 
+                            \"addc %%4,#0,w0\;\"
+                            \"rlc %%3,[w15]\;\"        /* get sign in carry */
+                            \"rrc w0,w0\;\"           /* div by 2 again */
+                            \"addc.w w0,#0,%%0\;\" 
+                            \"bra nov,.NOV%%=\n\"
+                            \".OV%%=:\;\"
+                            \"mov #0x7FFF,%%0\;\"
+                            \"btsc %%3,#15\;\"
+                            \"com %%0,%%0\n\"
+                            \".NOV%%=:\;\"
+                            \"mov.d [--w15],w0\",
+                            repeat_errata_push,repeat_errata_pop);
+                    return buffer;
                   }
          default: gcc_assert(0);
        }
@@ -48096,9 +48636,35 @@
    (use (reg:HI CORCON))
   ]
   ""
-  "@
-   .LB%=:\;dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
-   .LB%=:\;dec %2,%2\;bra n,.LE%=\;add %1,%1,%0\;addc %d1,%d1,%d0\;addc.b %t1,%t1,%t0\;bra .LB%=\n.LE%=:"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:
+        sprintf(c,\".LB%%=:\;\"
+                 \"dec %%2,%%2\;\"
+                 \"bra n,.LE%%=\;\"
+                 \"%s\"
+                 \"repeat %%2\;\"
+                 \"sftac %%1,#-1\;\"
+                 \"%s\n.LE%%=:\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;  
+      case 1:
+        return \".LB%=:\;\"
+               \"dec %2,%2\;\"
+               \"bra n,.LE%=\;\"
+               \"add %1,%1,%0\;\"
+               \"addc %d1,%d1,%d0\;\"
+               \"addc.b %t1,%t1,%t0\;\"
+               \"bra .LB%=\n.LE%=:\";
+    }
+  }
+  "
   [
    (set_attr "cc" "clobber")
   ]
@@ -48223,9 +48789,44 @@
    (use (reg:HI CORCON))
   ]
   ""
-  "@
-   .LB%=:\;dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
-   mov.d %1,%0\;mov.b %t1,%t0\;.LB%=:\;dec %2,%2\;bra n,.LE%=\;add %0,%0,%0\;addc %d0,%d0,%d0\;addc.b %t0,%t0,%t0\;bra nov,.LB%=\;mov.b #0x7F,%t0\;btsc %t1,#7\;com.b %t0,%t0\;sl %t0,#9,%d0\;asr %d0,#15,%d0\;asr %d0,#15,%0\n.LE%=:"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch(which_alternative) {
+      default: gcc_assert(0);
+        break;
+      case 0:
+        sprintf(c,\".LB%%=:\;\"
+                \"dec %%2,%%2\;\"
+                \"bra n,.LE%%=\;\"
+                \"%s\"
+                \"repeat %%2\;\"
+                \"sftac %%1,#-1\;\"
+                \"%s\n.LE%%=:\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:
+        return \"mov.d %1,%0\;\"
+               \"mov.b %t1,%t0\;\"
+               \".LB%=:\;\"
+               \"dec %2,%2\;\"
+               \"bra n,.LE%=\;\"
+               \"add %0,%0,%0\;\"
+               \"addc %d0,%d0,%d0\;\"
+               \"addc.b %t0,%t0,%t0\;\"
+               \"bra nov,.LB%=\;\"
+               \"mov.b #0x7F,%t0\;\"
+               \"btsc %t1,#7\;\"
+               \"com.b %t0,%t0\;\"
+               \"sl %t0,#9,%d0\;\"
+               \"asr %d0,#15,%d0\;\"
+               \"asr %d0,#15,%0\n.LE%=:\";
+    }
+  }
+  "
   [
    (set_attr "cc" "clobber")
   ]
@@ -48367,9 +48968,40 @@
    (use (reg:HI CORCON))
   ]
   ""
-  "@
-   dec %2,%2\;bra n,.LE%=\;repeat %2\;sftac %1,#-1\n.LE%=:
-   mov.d %1,%0\;mov.b %t1,%t0\;.LB%=:\;dec %2,%2\;bra n,.LE%=\;add %0,%0,%0\;addc %d0,%d0,%d0\;addc.b %t0,%t0,%t0\;bra nov,.LB%=\;mov.b #0x7F,%t0\;setm %d0\;setm %0\n.LE%=:"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch(which_alternative) {
+      default: gcc_assert(0);
+        break;
+      case 0:
+        sprintf(c,\"dec %%2,%%2\;\"
+                \"bra n,.LE%%=\;\"
+                \"%s\"
+                \"repeat %%2\;\"
+                \"sftac %%1,#-1\;\"
+                \"%s\n.LE%%=:\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:
+        return \"mov.d %1,%0\;\"
+               \"mov.b %t1,%t0\;\"
+               \".LB%=:\;\"
+               \"dec %2,%2\;\"
+               \"bra n,.LE%=\;\"
+               \"add %0,%0,%0\;\"
+               \"addc %d0,%d0,%d0\;\"
+               \"addc.b %t0,%t0,%t0\;\"
+               \"bra nov,.LB%=\;\"
+               \"mov.b #0x7F,%t0\;\"
+               \"setm %d0\;\"
+               \"setm %0\n.LE%=:\";
+    }
+  }
+  "
   [
    (set_attr "cc" "clobber")
   ]
@@ -48554,9 +49186,35 @@
    (use (reg:HI CORCON))
   ]
   ""
-  "@
-   dec %2,%2\;repeat %2\;sftac %1,#1
-   .LB%=:\;dec %2,%2\;bra n,.LE%=\;asr.b %t1,%t0\;rrc %d1,%d0\;rrc %1,%0\;bra .LB%=\n.LE%=:"
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch(which_alternative) {
+      default: gcc_assert(0);
+        break;
+      case 0:
+        sprintf(c,\"dec %%2,%%2\;\"
+                \"%s\"
+                \"repeat %%2\;\"
+                \"sftac %%1,#1\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:
+        return \".LB%=:\;\"
+               \"dec %2,%2\;\"
+               \"bra n,.LE%=\;\"
+               \"asr.b %t1,%t0\;\"
+               \"rrc %d1,%d0\;\"
+               \"rrc %1,%0\;\"
+               \"bra .LB%=\n.LE%=:\";
+        break;
+    }
+  }
+  "
   [
    (set_attr "cc" "clobber")
   ]
@@ -49971,21 +50629,21 @@
           pic30_rtx_nops+=3;
         sprintf(result, \"mov #%d,%%2\;\"
                         \"add %s,%%2,%%2\;\"
-                          \"mov [%%2++],%0\;\"
+                          \"mov [%%2++],%%0\;\"
                           \"nop\;\"
-                          \"mov [%%2++],%d0\;\"
+                          \"mov [%%2++],%%d0\;\"
                           \"nop\;\"
-                          \"mov [%%2++],%t0\;\"
+                          \"mov [%%2++],%%t0\;\"
                           \"nop\;\"
-                          \"mov [%%2],%q0\",
+                          \"mov [%%2],%%q0\",
                offset, reg_names[REGNO(lhs)]);
         } else {
           sprintf(result, \"mov #%d,%%2\;\"
                           \"add %s,%%2,%%2\;\"
-                          \"mov [%%2++],%0\;\"
-                          \"mov [%%2++],%d0\;\"
-                          \"mov [%%2++],%t0\;\"
-                          \"mov [%%2],%q0\",
+                          \"mov [%%2++],%%0\;\"
+                          \"mov [%%2++],%%d0\;\"
+                          \"mov [%%2++],%%t0\;\"
+                          \"mov [%%2],%%q0\",
                  offset, reg_names[REGNO(lhs)]);
         }
       } else gcc_assert(0);

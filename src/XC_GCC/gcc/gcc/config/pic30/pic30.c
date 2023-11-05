@@ -47,7 +47,6 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 #include "expr.h"
 #include "recog.h"
 #include "reload.h"
-#include "sched-int.h"
 #include "toplev.h"
 #if !defined(HAVE_cc0)
 #define HAVE_cc0
@@ -55,8 +54,9 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 #include "conditions.h"
 #include "real.h"
 #include "hard-reg-set.h"
-#include "insn-attr.h"
 #include "output.h"
+#include "insn-attr.h"
+#include "sched-int.h"
 #include "flags.h"
 #include "langhooks.h"
 /* #include "ggc.h" */
@@ -758,6 +758,18 @@ pic30_errata_map errata_map[] = {
                         "\t\tinformation, please review\n"
                         "\t\thttps://www.microchip.com/erratum_psrd_psrd.\n",
     0, 0 },
+  { "repeat_gie",    repeat_gie_errata,
+                        "An address error may occur when a repeat loop is\n"
+                        "\t\tinterrupted by back-to-back, nesting interrupts.\n"
+                        "\t\tThis option disables global interrupts while\n"
+                        "\t\trepeat looping.\n",
+    repeat_nstdis_errata, 10 },
+  { "repeat_nstdis", repeat_nstdis_errata,
+                        "An address error may occur when a repeat loop is\n"
+                        "\t\tinterrupted by back-to-back, nesting interrupts.\n"
+                        "\t\tThis option disables interrupt nesting while\n"
+                        "\t\trepeat looping.\n",
+    repeat_gie_errata, 0 },
   { 0, 0, 0, 0, 0 }
 };
 
@@ -830,6 +842,9 @@ int pic30_codecov_near = 0;
 int pic30_codecov_far = 0;
 int pic30_codecov_far_opt = 0;
 int pic30_codecov_license = 0;
+
+/* from tree.c */
+extern void set_type_quals (tree, int);
 
 /*----------------------------------------------------------------------*/
 
@@ -1226,13 +1241,20 @@ unsigned int validate_target_id(char *id, char **matched_id) {
   static struct {
     const char *id;
     int mask;
+    int device_mask;
   } generic_devices[] = {
-    { "GENERIC-16BIT",    MASK_ARCH_GENERIC },
-    { "GENERIC-16BIT-DA", MASK_ARCH_DA_GENERIC },
-    { "GENERIC-16BIT-EP", MASK_ARCH_EP_GENERIC },
-    { "GENERIC-16DSP",    MASK_ARCH_GENERIC },
-    { "GENERIC-16DSP-EP", MASK_ARCH_EP_GENERIC },
-    { "GENERIC-16DSP-CH", MASK_ARCH_CH_GENERIC },
+    { "GENERIC-16BIT",    MASK_ARCH_GENERIC,
+      0 },
+    { "GENERIC-16BIT-DA", MASK_ARCH_DA_GENERIC, 
+      HAS_EDS },
+    { "GENERIC-16BIT-EP", MASK_ARCH_EP_GENERIC, 
+      HAS_EDS | HAS_ECORE | HAS_GIE },
+    { "GENERIC-16DSP",    MASK_ARCH_GENERIC, 
+      HAS_DSP  },
+    { "GENERIC-16DSP-EP", MASK_ARCH_EP_GENERIC,
+      HAS_DSP | HAS_EDS | HAS_ECORE | HAS_GIE },
+    { "GENERIC-16DSP-CH", MASK_ARCH_CH_GENERIC, 
+      HAS_DSP | HAS_EDS | HAS_ISAV4 | HAS_DUALCORE | HAS_GIE },
     { 0, 0 }
   };
   
@@ -1247,6 +1269,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
       if (id && strcmp(id, generic_devices[j].id) == 0) {
         if (matched_id) *matched_id = xstrdup(generic_devices[j].id);
         mask = generic_devices[j].mask;
+        pic30_device_mask = generic_devices[j].device_mask;
         generic_device_matched = 1;
         if (!TARGET_PRINT_DEVICES) {
           return mask;
@@ -3821,7 +3844,10 @@ void pic30_override_options(void) {
      pic30_errata_mask &= ~pic30_clr_errata_mask;
   }
 
-
+  /* Repeat errata is not needed if there is no GIE to modify */
+  if (!pic30_device_has_gie()) {
+    pic30_errata_mask &= ~repeat_gie_errata;
+  }
 
 #ifdef LICENSE_MANAGER
   if (pic30_license_valid < 0) {
@@ -3851,7 +3877,6 @@ void pic30_override_options(void) {
 #elif defined(LICENSE_MANAGER_XCLM)
   if (pic30_license_valid < MCHP_XCLM_VALID_STANDARD_LICENSE) {
     invalid = (char*) "restricted";
-    nullify_O2 = 1;
     nullify_Os = 1;
     nullify_O3 = 1;
   }
@@ -20390,6 +20415,68 @@ int pic30_emit_block_move(rtx dest, rtx *src, rtx size, unsigned int align) {
   return result;
 }
 
+int pic30_emit_block_set(rtx dest, rtx size, unsigned int align) {
+  rtx inner_dest = 0;
+  int result = 0;
+  char *fn=0;
+  tree sym;
+  enum machine_mode mode;
+  rtx reg;
+  rtx zero;
+
+  if ((GET_CODE(dest) == MEM) && (GET_MODE(dest) == BLKmode)) {
+    inner_dest = XEXP(dest,0);
+  }
+  /* cannot generate block move with this function */
+  if (inner_dest == 0) return 0;
+  switch (GET_MODE(inner_dest)) {
+    default: break;
+    case P24PSVmode:
+    case P24PROGmode:
+    case P32DFmode:
+    case P32EXTmode:
+    case P16PMPmode:
+      return 0;
+  }
+  switch (GET_MODE(inner_dest)) {
+    default: return 0;  /* cannot support this source mode */
+    case P32PEDSmode:
+    case P32EDSmode:
+      sym = maybe_get_identifier("_memset_eds");
+      if (sym) sym = lookup_name(sym);
+      if (!sym) {
+        /* define it */
+        tree fn_type;
+        tree decl;
+
+        sym = get_identifier(fn ? fn : "_memset_eds");
+        fn_type = build_function_type_list(void_type_node,
+                                           long_unsigned_type_node,
+                                           integer_type_node,
+                                           unsigned_type_node,
+                                           unsigned_type_node,NULL_TREE);
+        decl = build_decl(UNKNOWN_LOCATION, FUNCTION_DECL, sym, fn_type);
+        TREE_PUBLIC(decl) = 1;
+        DECL_EXTERNAL(decl)=1;
+        SET_DECL_ASSEMBLER_NAME(decl,sym);
+        /* bind(sym,decl,external_scope,1,0); */
+        sym = decl;
+      }
+      zero = GEN_INT(0);
+      reg = inner_dest;
+      mode = GET_MODE(inner_dest);
+      emit_library_call(XEXP(DECL_RTL(sym),0),
+                        LCT_NORMAL, VOIDmode, 4,
+                        reg, mode,
+                        zero, HImode,
+                        size, HImode,
+                        GEN_INT(align), HImode);
+      result=1;
+
+  }
+  return result;
+}
+
 #define MAXHASH 253
 
 hashval_t section_base_hash(const void *foo) {
@@ -22512,6 +22599,26 @@ int pic30_psrd_psrd_errata_movd(rtx op1, rtx op2) {
   return count;
 }
 
+char *pic30_repeat_errata_push_init() {
+  char *repeat_errata_push = "";  
+  if (pic30_errata_mask & repeat_gie_errata) {
+    repeat_errata_push = "push _INTCON2\n\tbclr _INTCON2,#15\n\t";
+  } else if (pic30_errata_mask & repeat_nstdis_errata) {
+    repeat_errata_push = "push _INTCON1\n\tbset _INTCON1,#15\n\t";
+  }
+  return repeat_errata_push;
+}
+
+char *pic30_repeat_errata_pop_init() {
+  char *repeat_errata_pop = "";  
+  if (pic30_errata_mask & repeat_gie_errata) {
+    repeat_errata_pop = "pop _INTCON2\n\t";
+  } else if (pic30_errata_mask & repeat_nstdis_errata) {
+    repeat_errata_pop = "pop _INTCON1\n\t";
+  }
+  return repeat_errata_pop;
+}
+
 tree
 pic30_fold_convert_const_int_from_fixed (tree type, const_tree arg1)
 {
@@ -22607,7 +22714,7 @@ void decode_qualifier(tree type, char **buffer) {
   int qualifiers;
 
   qualifiers = TYPE_QUALS(type);
-  if (qualifiers & TYPE_QUAL_CONST)
+  if (qualifiers & TYPE_QUAL_CONST) 
     *buffer += sprintf(*buffer,"const ");
   if (qualifiers & TYPE_QUAL_VOLATILE)
     *buffer += sprintf(*buffer,"volatile ");
@@ -22650,7 +22757,16 @@ void decode_type(tree type, char **buffer) {
         type_precision = 64;
       } else type_precision = 0;
 
-      if (type_precision) {
+      if (TYPE_MAIN_VARIANT(type) == char_type_node) {
+        *buffer += sprintf(*buffer,"char");
+        return;
+      } else if (TYPE_MAIN_VARIANT(type) == signed_char_type_node) {
+        *buffer += sprintf(*buffer,"signed char");
+        return;
+      } else if (TYPE_MAIN_VARIANT(type) == unsigned_char_type_node) {
+        *buffer += sprintf(*buffer,"unsigned char");
+        return;
+      } else if (type_precision) {
         if (TYPE_UNSIGNED(type)) {
           char *b = *buffer;
           *b++ = 'u';

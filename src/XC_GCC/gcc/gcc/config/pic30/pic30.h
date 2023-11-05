@@ -443,7 +443,9 @@ enum errata_mask {
   ecc_errata =              32,
   busmaster_errata =        64,
   psrd_psrd_errata =        128,
-  psrd_psrd_errata_movd =   256
+  psrd_psrd_errata_movd =   256,
+  repeat_gie_errata =       512,
+  repeat_nstdis_errata =   1024
 };
 extern int pic30_errata_mask;
 
@@ -2890,6 +2892,9 @@ extern void pic30_target_bind(tree name, tree decl);
 
 extern int pic30_emit_block_move(rtx x, rtx *y, rtx size, unsigned int align);
 #define TARGET_EMIT_BLOCK_MOVE pic30_emit_block_move
+
+extern int pic30_emit_block_set(rtx x, rtx size, unsigned int align);
+#define TARGET_EMIT_BLOCK_SET pic30_emit_block_set
 
 #define EXTRA_RTL_FILE "config/pic30/pic30-rtl.def"
 

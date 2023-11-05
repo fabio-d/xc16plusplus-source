@@ -2721,6 +2721,12 @@ clear_storage_hints (rtx object, rtx size, enum block_op_methods method,
 
   align = MEM_ALIGN (object);
 
+#ifdef TARGET_EMIT_BLOCK_SET
+  if (TARGET_EMIT_BLOCK_SET(object,size,align)) {
+    return 0;
+  }
+#endif
+
   if (CONST_INT_P (size)
       && CLEAR_BY_PIECES_P (INTVAL (size), align))
     clear_by_pieces (object, INTVAL (size), align);

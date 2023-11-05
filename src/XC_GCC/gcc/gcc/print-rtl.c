@@ -123,6 +123,7 @@ print_rtx (const_rtx in_rtx)
   /* its really handy to know what the address of the rtx being
      dumped is!  This saves me having to work it out by following the chain */
 #ifdef _BUILD_C30_ 
+   extern int pic30_trace_all_addresses(void);
    if ((indent == 0) || pic30_trace_all_addresses())
 #else
    if (indent == 0)

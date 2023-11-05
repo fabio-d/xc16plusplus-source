@@ -26,6 +26,8 @@
 
 struct cpp_reader;
 
+#define SECTION_FLAGS_INT unsigned long long
+
 extern const enum reg_class *pic30_ira_cover_classes(void);
 
 extern tree pic30_get_save_variable_list(void);
@@ -449,6 +451,12 @@ extern void pic30_emit_cc_section(const char *name);
 extern int pic30_licensed_xccov_p(void);
 
 extern bool pic30_valid_pointer_mode(enum machine_mode);
+
+extern int pic30_modes_tieable(enum machine_mode mode1, 
+                               enum machine_mode mode2);
+
+extern char *pic30_repeat_errata_push_init(void);
+extern char *pic30_repeat_errata_pop_init(void);
 
 #ifdef GCC_C_PRAGMA_H
 #endif

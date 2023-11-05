@@ -11,6 +11,7 @@
 #include "bucomm.h"
 #include "libiberty.h"
 #include "pic30-utils.h"
+#include <time.h>
 
 #define error -1
 #define success 0

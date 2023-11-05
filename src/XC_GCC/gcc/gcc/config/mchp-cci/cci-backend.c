@@ -29,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "tm_p.h"
 
 #define CCI_BACKEND_H "config/mchp-cci/cci-backend.h"
 #include CCI_BACKEND_H

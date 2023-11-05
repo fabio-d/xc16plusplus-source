@@ -2241,6 +2241,22 @@ extract_range_from_binary_expr (value_range_t *vr,
 
 	  return;
 	}
+#ifdef _BUILD_C30_
+      /* fix for XC16-1464; later versin of GCC handles non POINTER_PLUS_EXPR
+         (I modelled this on GCC 4.7.4) */
+      if (code == POINTER_PLUS_EXPR) {
+        /* For pointer types, we are really only interested in asserting
+	   whether the expression evaluates to non-NULL.  */
+        if (range_is_nonnull (&vr0) || range_is_nonnull (&vr1))
+	  set_value_range_to_nonnull (vr, expr_type);
+        else if (range_is_null (&vr0) && range_is_null (&vr1))
+	  set_value_range_to_null (vr, expr_type);
+        else
+	  set_value_range_to_varying (vr);
+      } else {
+	  set_value_range_to_varying (vr);
+      }
+#else
       gcc_assert (code == POINTER_PLUS_EXPR);
       /* For pointer types, we are really only interested in asserting
 	 whether the expression evaluates to non-NULL.  */
@@ -2250,6 +2266,7 @@ extract_range_from_binary_expr (value_range_t *vr,
 	set_value_range_to_null (vr, expr_type);
       else
 	set_value_range_to_varying (vr);
+#endif
 
       return;
     }

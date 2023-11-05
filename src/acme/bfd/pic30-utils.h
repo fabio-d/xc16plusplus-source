@@ -524,6 +524,38 @@ extern void pic30_add_section_attributes(asection *, char *, char *, char *);
 extern char *pic30_dfp;
 extern char *pic30_requested_processor;
 
+extern int pic30_is_dsp_machine(const bfd_arch_info_type *);
+extern int pic30_is_eedata_machine(const bfd_arch_info_type *);
+extern int pic30_is_auxflash_machine(const bfd_arch_info_type *);
+extern int pic30_is_dma_machine(const bfd_arch_info_type *);
+extern int pic30_is_codeguard_machine(const bfd_arch_info_type *);
+extern int pic30_is_eds_machine(const bfd_arch_info_type *);
+extern int pic30_is_pmp_machine(const bfd_arch_info_type *);
+extern int pic30_is_epmp_machine(const bfd_arch_info_type *);
+extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
+extern int pic30_is_dualpartition_machine(const bfd_arch_info_type *);
+extern int pic30_is_5V_machine(const bfd_arch_info_type *);
+extern int pic30_is_isaBB_machine(const bfd_arch_info_type *);
+extern int pic30_is_isav32_machine(const bfd_arch_info_type *);
+extern int pic30_is_isav4_machine(const bfd_arch_info_type *);
+extern int pic30_is_contexts_machine(const bfd_arch_info_type *);
+extern int pic30_is_generic(const bfd_arch_info_type *);
+
+int pic30_is_valid_attributes
+  PARAMS ((unsigned int, unsigned char));
+
+
+int pic30_display_as_program_memory_p(asection *sec);
+int pic30_display_as_data_memory_p(asection *sec);
+int pic30_display_as_readonly_memory_p(asection *sec);
+
+void pic30_load_codeguard_settings(const bfd_arch_info_type *, int);
+
+void pic30_create_data_init_templates();
+void pic30_create_rom_usage_template(void);
+void pic30_create_ram_usage_template(void);
+void pic30_create_specific_fill_sections(void);
+
 /*****************************************************************************/
 
 #endif
