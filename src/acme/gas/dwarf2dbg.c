@@ -506,7 +506,12 @@ dwarf2_directive_loc (dummy)
   line = get_absolute_expression ();
   SKIP_WHITESPACE ();
   column = get_absolute_expression ();
+#if 0
+  /* Discard extra info such as discriminator -- XC16-2061 */
+  discard_rest_of_line ();
+#else
   demand_empty_rest_of_line ();
+#endif
 
   if (filenum < 1)
     {
@@ -617,7 +622,7 @@ out_two (data)
   unsigned int number_of_bytes_to_allocate = 2 * 2;
   char *p = frag_more(number_of_bytes_to_allocate);
   memset(p, 0, number_of_bytes_to_allocate);
-  md_number_to_chars(p, data, 2);
+  number_to_chars_with_phantom_bytes(p, data, 2);
 #else
   md_number_to_chars (frag_more (2), data, 2);
 #endif
@@ -636,7 +641,7 @@ out_four (data)
   unsigned int number_of_bytes_to_allocate = 4 * 2;
   char *p = frag_more(number_of_bytes_to_allocate);
   memset(p, 0, number_of_bytes_to_allocate);
-  md_number_to_chars(p, data, 4);
+  number_to_chars_with_phantom_bytes(p, data, 4);
 #else
   md_number_to_chars (frag_more (4), data, 4);
 #endif
@@ -1363,6 +1368,13 @@ out_debug_aranges (aranges_seg, info_seg)
   expressionS expr;
   char *p;
 
+  /* Size of 'arange' header
+   * = 4 (length field)
+   * + 2 (version number field = 2)
+   * + 4 (offset into .debug_info section)
+   * + 1 (size of an address = 4)
+   * + 1 (size of segment descriptor = 0)
+   */
   size = 4 + 2 + 4 + 1 + 1;
 
   skip = 2 * addr_size - (size & (2 * addr_size - 1));
@@ -1370,9 +1382,11 @@ out_debug_aranges (aranges_seg, info_seg)
     skip = 0;
   size += skip;
 
+  /* For each segment, an address/length pair */
   for (s = all_segs; s; s = s->next)
     size += 2 * addr_size;
 
+  /* Record terminator is 0/0 pair */
   size += 2 * addr_size;
 
   subseg_set (aranges_seg, 0);
@@ -1394,8 +1408,13 @@ out_debug_aranges (aranges_seg, info_seg)
   out_byte (0);
 
   /* Align the header.  */
+#if defined(TC_PIC30)
+  while (skip--)
+    out_byte(0x99);
+#else
   if (skip)
     frag_align (ffs (2 * addr_size) - 1, 0, 0);
+#endif
 
   for (s = all_segs; s; s = s->next)
     {
@@ -1410,6 +1429,7 @@ out_debug_aranges (aranges_seg, info_seg)
       end = symbol_new (fake_label_name, s->seg, get_frag_fix (frag), frag);
       s->text_end = end;
 
+      /* Beginning of address range */
       expr.X_op = O_symbol;
       expr.X_add_symbol = beg;
       expr.X_add_number = 0;
@@ -1420,6 +1440,7 @@ out_debug_aranges (aranges_seg, info_seg)
 #endif
       emit_expr (&expr, addr_size);
 
+      /* Length of address range */
       expr.X_op = O_subtract;
       expr.X_add_symbol = end;
       expr.X_op_symbol = beg;
@@ -1432,9 +1453,15 @@ out_debug_aranges (aranges_seg, info_seg)
       emit_expr (&expr, addr_size);
     }
 
+  /* Record terminator */
+#if defined(TC_PIC30)
+  out_four(0);
+  out_four(0);
+#else
   p = frag_more (2 * addr_size);
   md_number_to_chars (p, 0, addr_size);
   md_number_to_chars (p + addr_size, 0, addr_size);
+#endif
 }
 
 /* Emit data for .debug_abbrev.  Note that this must be kept in

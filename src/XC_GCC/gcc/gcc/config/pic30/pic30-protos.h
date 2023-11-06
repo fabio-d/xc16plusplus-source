@@ -57,6 +57,7 @@ extern tree pic30_identSpace[2];
 extern tree packed_char_type_node;
 extern tree packed_signed_char_type_node;
 extern tree packed_unsigned_char_type_node;
+extern tree psv_ptr_type; // for max/least 24
 
 
 extern unsigned int mchp_pragma_align;

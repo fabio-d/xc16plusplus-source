@@ -9,9 +9,8 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
-LIBPATH=$PIC30_CD/lib
 
 BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
 SIM30=$PIC30_CD/bin/sim30
@@ -49,11 +48,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o -L$LIBPATH -lpic30-elf -Map=t.map --pack-data || exit 99
+$GCC30 -o t.exe t1.o t2.o -Wl,-Map=t.map,--pack-data || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o t2.o -L$LIBPATH -lpic30-elf -Map=t.map --pack-data"
+    echo "$GCC30 -o t.exe t1.o t2.o -Wl,-Map=t.map,--pack-data"
     echo $err
 fi
 

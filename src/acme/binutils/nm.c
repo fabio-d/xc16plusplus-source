@@ -244,6 +244,7 @@ static bfd *lineno_cache_bfd;
 static bfd *lineno_cache_rel_bfd;
 
 #define OPTION_TARGET 200
+#define OPTION_MDFP 201
 
 static struct option long_options[] =
 {
@@ -254,6 +255,9 @@ static struct option long_options[] =
   {"format", required_argument, 0, 'f'},
   {"help", no_argument, 0, 'h'},
   {"line-numbers", no_argument, 0, 'l'},
+#ifdef PIC30
+  {"mdfp", required_argument, 0, OPTION_MDFP},
+#endif
   {"no-cplus", no_argument, &do_demangle, 0},  /* Linux compatibility.  */
   {"no-demangle", no_argument, &do_demangle, 0},
   {"no-sort", no_argument, &no_sort, 1},
@@ -378,6 +382,11 @@ set_output_format (f)
     }
   format = &formats[i];
 }
+
+#ifdef PIC30
+extern char *pic30_dfp;
+#endif
+
 
 int main PARAMS ((int, char **));
 
@@ -388,6 +397,9 @@ main (argc, argv)
 {
   int c;
   int retval;
+#ifdef PIC30
+  int iter;
+#endif
 
 #if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
   setlocale (LC_MESSAGES, "");
@@ -404,10 +416,21 @@ main (argc, argv)
 
   START_PROGRESS (program_name, 0);
 
+#ifdef PIC30
+  /* Collect pic30_dfp value if -mdfp exists in the arguments */
+  for (iter = 0; iter < argc; iter++) {
+    if (strncmp(argv[iter], "--mdfp=", 7) == 0) {
+      pic30_dfp = xstrdup(argv[iter]+7);
+    } else if (strncmp(argv[iter], "-mdfp=", 6) == 0) {
+      pic30_dfp = xstrdup(argv[iter]+6);
+    }
+  } 
+#endif
+
   bfd_init ();
   set_default_bfd_target ();
 
-  while ((c = getopt_long (argc, argv, "aABCDef:gHhlnopPrSst:uvVvX:",
+  while ((c = getopt_long_only (argc, argv, "aABCDef:gHhlnopPrSst:uvVvX:",
 			   long_options, (int *) 0)) != EOF)
     {
       switch (c)
@@ -497,6 +520,10 @@ main (argc, argv)
 	case OPTION_TARGET:	/* --target */
 	  target = optarg;
 	  break;
+
+        case OPTION_MDFP:
+          /* already used */
+          break;
 
 	case 0:		/* A long option that just sets a flag.  */
 	  break;

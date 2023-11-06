@@ -166,7 +166,7 @@ reset_locate_options(void) {
   exclude_addr = 0;
 }
 
-#define IS_LOCATE_OPTION(a)  ((locate_options & (a)) == (a))
+#define IS_LOCATE_OPTION(a)  (locate_options == (a))
 
 static void
 remove_section_from_bfd(bfd *abfd, asection *sec)
@@ -801,6 +801,8 @@ allocate_data_memory() {
   )
 
   /* EDS, first pass */
+  if (pic30_debug)
+    printf("\nEDS, first pass:\n");
   set_locate_options(EXCLUDE_LOW_ADDR, max_stack);
   FOR_EACH_USABLE_DATA_REGION(
     int tmp_result = 0;
@@ -809,6 +811,8 @@ allocate_data_memory() {
   )
 
   /* EDS, second pass */
+  if (pic30_debug)
+    printf("\nEDS, second pass:\n");
   set_locate_options(FAVOR_HIGH_ADDR, 0);
   FOR_EACH_USABLE_DATA_REGION(
     int tmp_result = 0;

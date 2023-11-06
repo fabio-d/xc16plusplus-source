@@ -433,6 +433,15 @@ builtin_define_stdint_macros (void)
       builtin_define_type_max ("__INT_LEAST16_MAX__", int_least16_type_node);
       builtin_define_constants ("__INT16_C", int_least16_type_node);
     }
+#ifdef _BUILD_C30_
+  if (psv_ptr_type) 
+    {
+      builtin_define_type_max ("__INT_LEAST24_MAX__", psv_ptr_type);
+      builtin_define_type_max ("__INT_FAST24_MAX__", psv_ptr_type);
+      builtin_define_type_max ("__UINT_LEAST24_MAX__", psv_ptr_type);
+      builtin_define_type_max ("__UINT_FAST24_MAX__", psv_ptr_type);
+    }
+#endif
   if (int_least32_type_node)
     {
       builtin_define_type_max ("__INT_LEAST32_MAX__", int_least32_type_node);

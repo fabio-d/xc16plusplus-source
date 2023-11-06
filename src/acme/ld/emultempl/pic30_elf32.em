@@ -5183,12 +5183,12 @@ bfd_pic30_finish(void)
   if (pic30_debug)
     printf("Creating __heap = %x\n", heap_base);
   link_add_one_symbol (&link_info, output_bfd, "__heap",
-                                    BSF_GLOBAL, heap_section,
+                                    BSF_GLOBAL, bfd_abs_section_ptr,
                                     heap_base, "__heap", 1, 0, 0);
   if (pic30_debug)
     printf("Creating __eheap = %x\n", heap_limit);
   link_add_one_symbol (&link_info, output_bfd, "__eheap",
-                                    BSF_GLOBAL, heap_section,
+                                    BSF_GLOBAL, bfd_abs_section_ptr,
                                     heap_limit, "__eheap", 1, 0, 0);
 
   /*

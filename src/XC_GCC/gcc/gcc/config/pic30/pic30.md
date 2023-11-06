@@ -1332,7 +1332,7 @@
   if (GET_CODE(x) == CONST_INT) return immediate_operand(op,mode);
   return FALSE;
 })
-  
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; G<mode> for general operations
@@ -1495,6 +1495,8 @@
   (UNSPEC_UNIFIED_RD           130)
   (UNSPEC_UMMPAGE              131)
   (UNSPEC_UMMOFFSET            132)
+  (UNSPEC_ASHIFTSIHI           133) ; __builtin_ashifrt_32_16()
+  (UNSPEC_LSHIFTSIHI           134) ; __builtin_lshifrt_32_16()
   (UNSPECV_TEMP                199)
  ]
 )
@@ -6974,12 +6976,11 @@
   "mov %1,%m0L"
 )
 
-
 (define_insn "mov<mode>_gen"
   [(set (match_operand:GM16BIT 0 
-           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a,U,Ur")
+           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a,U")
         (match_operand:GM16BIT 1
-	   "pic30_move_operand" " RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U,a,Ur"))
+           "pic30_move_operand" " RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U,a"))
   ]
   ""
   "*
@@ -7022,9 +7023,9 @@
    }"
   [
     (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,move,change0")
+              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,move")
    (set_attr "type" 
-             "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def,etc,etc")
+             "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def,etc")
   ]
 )
 
@@ -13307,7 +13308,7 @@
     switch (which_alternative) {
       default: gcc_assert(0);
       case 0:  /* R<> */
-               if (pic30_extended_ram_target()) {
+               if (pic30_extended_ram_target() && (TARGET_BIG)) {
                  /* page == 0, pre-init to 1 */
                  return \"mov %T1,%u0\;\"
                         \"btss %r1,#0\;\"
@@ -13321,7 +13322,7 @@
                op = (val >= 0) ? \"add\" : \"sub\";
                op2 = (val >= 0) ? \"addc\" : \"subb\";
                if (val < 0) val = -val;
-               if (pic30_extended_ram_target()) {
+               if (pic30_extended_ram_target() && (TARGET_BIG)) {
                  if ((val * 2) < 31) {
                    sprintf(buffer,
                            \"%s %%r1,#%d,%%0\;\"
@@ -13339,28 +13340,42 @@
                            \"%s %%T1,#0,%%2\;\"
                            \"btsc _SR,#1\;\"
                            \"inc %%2,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                 }
+               } else if (TARGET_BIG) {
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"%s %%T1,#0,%%2\;\"
                            \"mov %%2,%%u0\;\"
                            \"rrnc %%0,%%0\;\", val*2, op, op2);
                  }
                } else {
+                 /* we cannot overflow the page */
                  if ((val * 2) < 31) {
                    sprintf(buffer,
                            \"%s %%r1,#%d,%%0\;\"
-                           \"%s %%T1,#0,%%2\;\"
-                           \"mov %%2,%%u0\;\"
-                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                           \"mov %%T1,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2);
                  } else {
                    sprintf(buffer,
                            \"mov #%d,%%2\;\"
                            \"%s %%r1,%%2,%%0\;\"
-                           \"%s %%T1,#0,%%2\;\"
-                           \"mov %%2,%%u0\;\"
-                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                           \"mov %%T1,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op);
                  }
-               } 
+               }
                return buffer;
       case 2:  /* S */
-               if (pic30_extended_ram_target()) {
+               if (pic30_extended_ram_target() && (TARGET_BIG)) {
                  sprintf(buffer,
                          \"add %%r1,w%d,%%0\;\"
                          \"bclr %%0,#0\;\"
@@ -13373,7 +13388,7 @@
                          \"mov %%2,%%u0\;\"
                          \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)), 
                                            REGNO(XEXP(mem_inner,1))+1);
-               } else {
+               } else if (TARGET_BIG) {
                  sprintf(buffer,
                          \"add %%r1,w%d,%%0\;\"
                          \"bclr %%0,#0\;\"
@@ -13384,6 +13399,13 @@
                          \"mov %%2,%%u0\;\"
                          \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)), 
                                            REGNO(XEXP(mem_inner,1))+1);
+               } else {
+                 /* offsest must be < 32K (and not overflow the page),
+                    PSV bit (unpacked bit 0) will not change */
+                 sprintf(buffer,
+                         \"add %%r1,w%d,%%0\;\"
+                         \"mov %%T1,%%u0\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
                }
                return buffer;
       case 3:  /* UT */
@@ -13414,10 +13436,15 @@
       default: gcc_assert(0);
       case 0:  /* R<> */
                if (pic30_extended_ram_target()) {
-                 return \"mov %T1,DSWPAG\;\"
-                        \"btss %r1,#0\;\"
-                        \"inc %u0\;\"
-                        \"rrnc %r1,%0\";
+                 if (TARGET_BIG) {
+                   return \"mov %T1,DSWPAG\;\"
+                          \"btss %r1,#0\;\"
+                          \"inc %u0\;\"
+                          \"rrnc %r1,%0\";
+                 } else {
+                   return \"mov %T1,DSWPAG\;\"
+                          \"rrnc %r1,%0\";
+                 }
                } else {
                   return \"rrnc %r1,%0\";
                }
@@ -13427,25 +13454,40 @@
                op2 = (val >= 0) ? \"addc\" : \"subb\";
                if (val < 0) val = -val;
                if (pic30_extended_ram_target()) {
-                 if ((val * 2) < 31) {
-                   sprintf(buffer,
-                           \"%s %%r1,#%d,%%0\;\"
-                           \"bset _SR,#1\;\"
-                           \"%s %%T1,#0,%%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"inc %%2,%%2\;\"
-                           \"mov %%2,DSWPAG\;\"
-                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                 if (TARGET_BIG) {
+                   if ((val * 2) < 31) {
+                     sprintf(buffer,
+                             \"%s %%r1,#%d,%%0\;\"
+                             \"bset _SR,#1\;\"
+                             \"%s %%T1,#0,%%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"inc %%2,%%2\;\"
+                             \"mov %%2,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", op, val*2, op2);
+                   } else {
+                     sprintf(buffer,
+                             \"mov #%d,%%2\;\"
+                             \"%s %%r1,%%2,%%0\;\"
+                             \"bset _SR,#1\;\"
+                             \"%s %%T1,#0,%%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"inc %%2,%%2\;\"
+                             \"mov %%2,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", val*2, op, op2);
+                   }
                  } else {
-                   sprintf(buffer,
-                           \"mov #%d,%%2\;\"
-                           \"%s %%r1,%%2,%%0\;\"
-                           \"bset _SR,#1\;\"
-                           \"%s %%T1,#0,%%2\;\"
-                           \"btsc _SR,#1\;\"
-                           \"inc %%2,%%2\;\"
-                           \"mov %%2,DSWPAG\;\"
-                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                   if ((val * 2) < 31) {
+                     sprintf(buffer,
+                             \"%s %%r1,#%d,%%0\;\"
+                             \"mov %%T1,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", op, val*2);
+                   } else {
+                     sprintf(buffer,
+                             \"mov #%d,%%2\;\"
+                             \"%s %%r1,%%2,%%0\;\"
+                             \"mov %%T1,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", val*2, op, op2);
+                   }
                  }
                } else {
                  if ((val * 2) < 31) {
@@ -13462,18 +13504,27 @@
                return buffer;
       case 2:  /* S */
                if (pic30_extended_ram_target()) {
-                 sprintf(buffer,
-                         \"add %%r1,w%d,%%0\;\"
-                         \"bclr %%0,#0\;\"
-                         \"bset _SR,#1\;\"
-                         \"addc %%T1,w%d,%%2\;\"
-                         \"btss _SR,#1\;\"
-                         \"bset %%0,#0\;\"
-                         \"btsc _SR,#1\;\"
-                         \"inc %%2,%%2\;\"
-                         \"mov %%2,DSWPAG\;\"
-                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
-                                           REGNO(XEXP(mem_inner,1))+1);
+                 if (TARGET_BIG) {
+                   sprintf(buffer,
+                           \"add %%r1,w%d,%%0\;\"
+                           \"bclr %%0,#0\;\"
+                           \"bset _SR,#1\;\"
+                           \"addc %%T1,w%d,%%2\;\"
+                           \"btss _SR,#1\;\"
+                           \"bset %%0,#0\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
+                                             REGNO(XEXP(mem_inner,1))+1);
+		 } else {
+                   sprintf(buffer,
+                           \"add %%r1,w%d,%%0\;\"
+                           \"addc %%T1,w%d,%%2\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
+                                             REGNO(XEXP(mem_inner,1))+1);
+                 }
                } else {
                  sprintf(buffer,
                          \"add %%r1,w%d,%%0\;\"
@@ -13493,6 +13544,7 @@
     }
   }"
 )
+
 (define_insn "p32umm_rwmem"
  [(set (match_operand:HI       0 "pic30_register_operand" "=r,  r,r,r,r")
        (utrunc:HI
@@ -13505,17 +13557,25 @@
          (unspec_volatile:HI [
             (match_dup 1)
           ] UNSPEC_UMMPAGE))
+  (clobber (match_scratch:HI   2                          "=&r,&r,&r,X,X"))
  ]
  "(TARGET_EDS)"
  "*
   { static char buffer[256]; 
     rtx mem_inner = XEXP(operands[1],0);
     int val;
-    char *op;
+    char *op,*op2;
     switch (which_alternative) {
       default: gcc_assert(0);
       case 0:  /* R<> */
-               if (pic30_eds_target()) {
+               if (pic30_extended_ram_target() && (TARGET_BIG)) {
+                 return \"mov %T1,%%2\;\"
+                        \"btss %r1,#0\;\"
+                        \"inc %%2,%%2\;\"
+                        \"mov %%2,%u0\;\"
+                        \"mov %%2,DSWPAG\;\"
+                        \"rrnc %r1,%0\";
+               } else if (pic30_eds_target()) {
                  return \"mov %T1,%u0\;\"
                         \"mov %T1,DSWPAG\;\"
                         \"rrnc %r1,%0\";
@@ -13526,34 +13586,90 @@
       case 1:  /* Q */
                val = INTVAL(XEXP(mem_inner,1));
                op = (val >= 0) ? \"add\" : \"sub\";
+               op2 = (val >= 0) ? \"addc\" : \"subb\";
                if (val < 0) val = -val;
-               if (pic30_eds_target()) {
-                 sprintf(buffer,
-                        \"mov %%T1,%%u0\;\"
-                        \"mov %%T1,DSWPAG\;\"
-                        \"mov %%T1,%%u0\;\"
-                        \"rrnc %%r1,%%0\;\"
-                        \"%s #%d,%%0\", op, val);
+               if (pic30_extended_ram_target()) {
+                 if (TARGET_BIG) {
+                   if ((val * 2) < 31) {
+                     sprintf(buffer,
+                             \"%s %%r1,#%d,%%0\;\"
+                             \"bset _SR,#1\;\"
+                             \"%s %%T1,#0,%%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"inc %%2,%%2\;\"
+                             \"mov %%2,%u0\;\"
+                             \"mov %%2,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", op, val*2, op2);
+                   } else {
+                     sprintf(buffer,
+                             \"mov #%d,%%2\;\"
+                             \"%s %%r1,%%2,%%0\;\"
+                             \"bset _SR,#1\;\"
+                             \"%s %%T1,#0,%%2\;\"
+                             \"btsc _SR,#1\;\"
+                             \"inc %%2,%%2\;\"
+                             \"mov %%2,%u0\;\"
+                             \"mov %%2,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", val*2, op, op2);
+                   }
+                 } else {
+                   if ((val * 2) < 31) {
+                     sprintf(buffer,
+                             \"%s %%r1,#%d,%%0\;\"
+                             \"mov %%T1,%u0\;\"
+                             \"mov %%T1,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", op, val*2);
+                   } else {
+                     sprintf(buffer,
+                             \"mov #%d,%%2\;\"
+                             \"%s %%r1,%%2,%%0\;\"
+                             \"mov %%T1,%u0\;\"
+                             \"mov %%T1,DSWPAG\;\"
+                             \"rrnc %%0,%%0\;\", val*2, op, op2);
+                   }
+                 }
                } else {
-                 sprintf(buffer,
-                        \"mov %%T1,%%u0\;\"
-                        \"mov %%T1,%%u0\;\"
-                        \"rrnc %%r1,%%0\;\"
-                        \"%s #%d,%%0\", op, val);
-               }
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op);
+                 }
+               } 
                return buffer;
       case 2:  /* S */
-               if (pic30_eds_target()) {
-                 sprintf(buffer,
-                        \"mov %%T1,%%u0\;\"
-                        \"mov %%T1,DSWPAG\;\"
-                        \"add %%r1,w%d,%%0\;\"
-                        \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+              if (pic30_extended_ram_target()) {
+                 if (TARGET_BIG) {
+                   sprintf(buffer,
+                           \"add %%r1,w%d,%%0\;\"
+                           \"bclr %%0,#0\;\"
+                           \"bset _SR,#1\;\"
+                           \"addc %%T1,w%d,%%2\;\"
+                           \"btss _SR,#1\;\"
+                           \"bset %%0,#0\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,%u0\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
+                                             REGNO(XEXP(mem_inner,1))+1);
+                 } else {
+                   sprintf(buffer,
+                           \"add %%r1,w%d,%%0\;\"
+                           \"addc %%T1,w%d,%%2\;\"
+                           \"mov %%2,%u0\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
+                                             REGNO(XEXP(mem_inner,1))+1);
+                 }
                } else {
                  sprintf(buffer,
-                        \"mov %%T1,%%u0\;\"
-                        \"add %%r1,w%d,%%0\;\"
-                        \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+                         \"add %%r1,w%d,%%0\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
                }
                return buffer;
       case 3:  /* U */
@@ -34552,45 +34668,58 @@
                    (match_operand:HI 2 "pic30_reg_or_imm_operand" "")))]
   ""
   "
-{
-	if (GET_CODE(operands[2]) == CONST_INT)
-	{
-		switch (INTVAL(operands[2]))
-		{
-		case 0:
-			emit_insn(gen_movsi(operands[0], operands[1]));
-			break;
-		case 1:
-			emit_insn(gen_ashlsi3_imm1(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 8:
-			emit_insn(gen_ashlsi3_imm8(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 2 ... 7:
-		case 9 ... 15:
-			emit_insn(gen_ashlsi3_imm2to15(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 16:
-			emit_insn(gen_ashlsi3_imm16plus(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 17 ... 31:
-			emit_insn(gen_ashlsi3_imm16plus(operands[0],
-						operands[1], operands[2]));
-			break;
-		default:
-			emit_insn(gen_movsi(operands[0], const0_rtx));
-			break;
-		}
-	}
-	else
-	{
-		emit_insn(gen_ashlsi3_reg(operands[0],operands[1],operands[2]));
-	}
-	DONE;
+  {
+    if (GET_CODE(operands[2]) == CONST_INT) {
+      switch (INTVAL(operands[2])) {
+        case 0:
+          emit_insn(
+            gen_movsi(operands[0], operands[1])
+          );
+          break;
+        case 1:
+          emit_insn(
+            gen_ashlsi3_imm1(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 8:
+          emit_insn(
+            gen_ashlsi3_imm8(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 2 ... 7:
+        case 9 ... 15:
+          emit_insn(
+            gen_ashlsi3_imm2to15(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 16:
+          emit_insn(
+            gen_ashlsi3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        case 17 ... 31:
+          emit_insn(
+            gen_ashlsi3_imm16plus(operands[0], operands[1], operands[2])
+          );
+          break;
+        default:
+          emit_insn(
+            gen_movsi(operands[0], const0_rtx)
+          );
+          break;
+      }
+    } else {
+      if (optimize_size) {
+        emit_insn(
+          gen_ashlsi3_reg_Os(operands[0],operands[1],operands[2])
+        );
+      } else {
+        emit_insn(
+          gen_ashlsi3_reg(operands[0],operands[1],operands[2])
+        );
+      }
+    }
+    DONE;
 }")
 
 (define_insn "ashlsi3_imm1"
@@ -34693,12 +34822,12 @@
 ;
 ;  True it sets a reg, but.... the last instruction is not a load.  etc
 ;
-(define_insn "ashlsi3_reg"
+(define_insn "ashlsi3_reg_Os"
   [(set (match_operand:SI            0 "pic30_register_operand" "=r")
         (ashift:SI (match_operand:SI 1 "pic30_register_operand" " 0")
                    (match_operand:HI 2 "pic30_register_operand" " r")))
    (clobber (match_scratch:HI        3                          "=2"))]
-  ""
+  "optimize_size"
   "*
    {
       return 
@@ -34718,6 +34847,21 @@
    (set_attr "type" "etc")
   ]
 )
+
+(define_insn "ashlsi3_reg"
+  [(set (match_operand:SI     0 "pic30_register_operand" "=&r")
+        (ashift:SI 
+          (match_operand:SI   1 "pic30_register_operand" " r")
+          (match_operand:HI   2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI 3                         "=&r"))]
+  "(!optimize_size)"
+  "subr %2,#16,%3\;bra nn,.LB%=\;neg %3,%3\;sl %1,%3,%d0\;clr %0\;bra .LE%=\n.LB%=:\tlsr %1,%3,%3\;sl %1,%2,%0\;sl %d1,%2,%d0\;ior %3,%d0,%d0\n.LE%=:"
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+
 ;
 ; P32EDS
 ;
@@ -34902,62 +35046,35 @@
   ""
   "
 {
-	if (GET_CODE(operands[2]) == CONST_INT)
-	{
-		switch (INTVAL(operands[2]))
-		{
-		case 0:
-			emit_insn(gen_movdi(operands[0], operands[1]));
-			break;
-		case 1:
-			emit_insn(gen_ashldi3_imm1(operands[0],
-						    operands[1], operands[2]));
-			break;
-#if 1
-                case 2 ... 63:
-			emit_insn(gen_ashldi3_immn(operands[0],
-						   operands[1], operands[2]));
-			break;
-#else
-		case 2 ... 15:
-			emit_insn(gen_ashldi3_immn(operands[0],
-						   operands[1], operands[2]));
-			break;
-		case 16:
-			emit_insn(gen_ashldi3_imm16(operands[0],
-						    operands[1], operands[2]));
-			break;
-		case 17 ... 31:
-			emit_insn(gen_ashldi3_immn(operands[0],
-						   operands[1], operands[2]));
-			break;
-		case 32:
-			emit_insn(gen_ashldi3_imm32(operands[0],
-						    operands[1], operands[2]));
-			break;
-		case 33 ... 47:
-			emit_insn(gen_ashldi3_immn(operands[0],
-						   operands[1], operands[2]));
-			break;
-		case 48:
-			emit_insn(gen_ashldi3_imm48(operands[0],
-						    operands[1], operands[2]));
-			break;
-		case 49 ... 63:
-			emit_insn(gen_ashldi3_immn(operands[0],
-						   operands[1], operands[2]));
-			break;
-#endif
-		default:
-			emit_insn(gen_movdi(operands[0], const0_rtx));
-			break;
-		}
-	}
-	else
-	{
-		emit_insn(gen_ashldi3_reg(operands[0],operands[1],operands[2]));
-	}
-	DONE;
+   if (GET_CODE(operands[2]) == CONST_INT) {
+     switch (INTVAL(operands[2])) {
+       case 0:
+         emit_insn(
+           gen_movdi(operands[0], operands[1])
+         );
+         break;
+       case 1:
+         emit_insn(
+           gen_ashldi3_imm1(operands[0], operands[1], operands[2])
+         );
+         break;
+       case 2 ... 63:
+         emit_insn(
+           gen_ashldi3_immn(operands[0], operands[1], operands[2])
+         );
+         break;
+       default:
+         emit_insn(
+           gen_movdi(operands[0], const0_rtx)
+         );
+         break;
+      }
+   } else {
+     emit_insn(
+       gen_ashldi3_reg(operands[0],operands[1],operands[2])
+     );
+   }
+   DONE;
 }")
 
 (define_insn "ashldi3_imm1"
@@ -35429,15 +35546,15 @@
 
 (define_insn "lshrhi3"
   [(set (match_operand:HI 0 "pic30_register_operand"                "=r,r,r")
-        (lshiftrt:HI (match_operand:HI 1 "pic30_register_operand"   "r,r,r")
-                     (match_operand:HI 2 "pic30_reg_or_imm_operand" "K,i,r")))]
+        (lshiftrt:HI (match_operand:HI 1 "pic30_register_operand"   " r,r,r")
+                     (match_operand:HI 2 "pic30_reg_or_imm_operand" " r,K,i")))]
   ""
   "@
+    lsr %1,%2,%0
     lsr %1,#%2,%0
-    clr %0
-    lsr %1,%2,%0"
+    clr %0"
   [
-   (set_attr "cc" "math,change0,math")
+   (set_attr "cc" "math,math,change0")
    (set_attr "type" "def")
   ]
 )
@@ -35470,39 +35587,51 @@
   ""
   "
 {
-	if (GET_CODE(operands[2]) == CONST_INT)
-	{
-		switch (INTVAL(operands[2]))
-		{
-		case 0:
-			emit_insn(gen_mov<mode>(operands[0], operands[1]));
-			break;
-		case 1:
-			emit_insn(gen_lshr<mode>3_imm1(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 2 ... 15:
-			emit_insn(gen_lshr<mode>3_imm2to15(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 16:
-			emit_insn(gen_lshr<mode>3_imm16plus(operands[0],
-						operands[1], operands[2]));
-			break;
-		case 17 ... 31:
-			emit_insn(gen_lshr<mode>3_imm16plus(operands[0],
-						operands[1], operands[2]));
-			break;
-		default:
-			emit_insn(gen_mov<mode>(operands[0], const0_rtx));
-			break;
-		}
-	}
-	else
-	{
-		emit_insn(gen_lshr<mode>3_reg(operands[0],operands[1],operands[2]));
-	}
-	DONE;
+   if (GET_CODE(operands[2]) == CONST_INT) {
+     switch (INTVAL(operands[2])) {
+       case 0:
+         emit_insn(
+           gen_mov<mode>(operands[0], operands[1])
+         );
+         break;
+       case 1:
+         emit_insn(
+           gen_lshr<mode>3_imm1(operands[0], operands[1], operands[2])
+         );
+         break;
+       case 2 ... 15:
+         emit_insn(
+           gen_lshr<mode>3_imm2to15(operands[0],operands[1], operands[2])
+         );
+         break;
+       case 16:
+         emit_insn(
+           gen_lshr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+         );
+         break;
+       case 17 ... 31:
+         emit_insn(
+           gen_lshr<mode>3_imm16plus(operands[0], operands[1], operands[2])
+         );
+         break;
+       default:
+         emit_insn(
+           gen_mov<mode>(operands[0], const0_rtx)
+         );
+         break;
+     }
+   } else {
+      if (optimize_size) {
+        emit_insn(
+          gen_lshr<mode>3_reg_Os(operands[0],operands[1],operands[2])
+        );
+      } else {
+        emit_insn(
+          gen_lshr<mode>3_reg(operands[0],operands[1],operands[2])
+        );
+      }
+   }
+   DONE;
 }")
 
 (define_insn "lshr<mode>3_imm1"
@@ -35568,13 +35697,13 @@
   ]
 )
 
-(define_insn "lshr<mode>3_reg"
+(define_insn "lshr<mode>3_reg_Os"
   [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=r")
         (lshiftrt:GM32BIT 
           (match_operand:GM32BIT 1 "pic30_register_operand"  "0")
                      (match_operand:HI 2 "pic30_register_operand" "r")))
 		     (clobber (match_scratch:HI 3          "=2"))]
-  ""
+  "(optimize_size)"
   "*
    {
       return 
@@ -35592,6 +35721,19 @@
   [
    (set_attr "cc" "clobber")
    (set_attr "type" "etc")
+  ]
+)
+
+(define_insn "lshr<mode>3_reg"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=&r")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand" " r")
+          (match_operand:HI      2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI    3                         "=&r"))]
+  "(!optimize_size)"
+  "subr %2,#16,%3\;bra nn,.LB%=\;neg %3,%3\;lsr %d1,%3,%0\;clr %d0\;bra .LE%=\n.LB%=:\tsl %d1,%3,%3\;lsr %1,%2,%0\;ior %3,%0,%0\;lsr %d1,%2,%d0\n.LE%=:"
+  [
+    (set_attr "cc" "clobber")
   ]
 )
 
@@ -36192,6 +36334,41 @@
   ]
 )
 
+(define_insn "ashrsihi3" 
+  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
+        (unspec:SI [
+           (match_operand:SI  1 "pic30_register_operand" " 0,r")
+           (match_operand:HI  2 "pic30_register_operand" " r,r")
+        ] UNSPEC_ASHIFTSIHI))
+   (clobber (match_scratch:HI 3                         "=&r,r"))
+  ]
+  ""
+  "@
+   subr %2,#16,%3\;sl %d1,%3,%3\;asr %d1,%2,%d0\;lsr %1,%2,%0\;ior %0,%3,%0
+   subr %2,#16,%3\;lsr %1,%2,%0\;sl %d1,%3,%3\;ior %0,%3,%0\;asr %d1,%2,%d0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
+
+(define_insn "lshrsihi3"
+  [(set (match_operand:SI     0 "pic30_register_operand" "=r,r")
+        (unspec:SI [
+           (match_operand:SI  1 "pic30_register_operand" " 0,r")
+           (match_operand:HI  2 "pic30_register_operand" " r,r") 
+        ] UNSPEC_LSHIFTSIHI))
+   (clobber (match_scratch:HI 3                         "=&r,r"))
+  ]
+  ""
+  "@
+   subr %2,#16,%3\;sl %d1,%3,%3\;lsr %d1,%2,%d0\;lsr %1,%2,%0\;ior %0,%3,%0
+   subr %2,#16,%3\;lsr %1,%2,%0\;sl %d1,%3,%3\;ior %0,%3,%0\;lsr %d1,%2,%d0"
+  [
+   (set_attr "cc" "clobber")
+  ]
+)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SImode arithmetic shift right.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36249,9 +36426,15 @@
                 break;
       }
     } else {
-      emit_insn(
-        gen_ashrsi3_reg(operands[0],operands[1],operands[2])
-      );
+      if (optimize_size) {
+        emit_insn(
+          gen_ashrsi3_reg_Os(operands[0],operands[1],operands[2])
+        );
+      } else {
+        emit_insn(
+          gen_ashrsi3_reg(operands[0],operands[1],operands[2])
+        );
+      }
     }
     DONE;
   }"
@@ -36351,12 +36534,12 @@
   "
 )
 
-(define_insn "ashrsi3_reg"
+(define_insn "ashrsi3_reg_Os"
   [(set (match_operand:SI 0 "pic30_register_operand"             "=r")
         (ashiftrt:SI (match_operand:SI 1 "pic30_register_operand" "0")
                      (match_operand:HI 2 "pic30_register_operand" "r")))
-		     (clobber (match_scratch:HI 3          "=2"))]
-  ""
+   (clobber (match_scratch:HI 3                                  "=2"))]
+  "(optimize_size)"
   "*
    {
      return 
@@ -36374,6 +36557,18 @@
   [
    (set_attr "cc" "clobber")
    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "ashrsi3_reg"
+  [(set (match_operand:SI 0 "pic30_register_operand"             "=&r")
+        (ashiftrt:SI (match_operand:SI 1 "pic30_register_operand" " r")
+                     (match_operand:HI 2 "pic30_register_operand" " r")))
+   (clobber (match_scratch:HI 3                                  "=&r"))]
+  "(!optimize_size)"
+  "subr %2,#16,%3\;bra nn,.LB%=\;neg %3,%3\;asr %d1,%3,%0\;asr %d1,#15,%d0\;bra .LE%=\n.LB%=:\tsl %d1,%3,%3\;lsr %1,%2,%0\;ior %3,%0,%0\;asr %d1,%2,%d0\n.LE%=:"
+  [
+    (set_attr "cc" "clobber")
   ]
 )
 
@@ -38127,6 +38322,16 @@
  ]
 )
 
+; for creating a stack frame...
+(define_insn "addhi3_lnk"
+ [(set (reg:HI SPREG)
+       (plus:HI (reg:HI SPREG)
+                (match_operand 0 "immediate_operand" "i")))
+ ]
+ ""
+ "mov.w w0,[w14]\;mov.w #%0,w0\;add.w w0,w15,w15\;mov.w [w14],w0"
+)
+
 ;;
 ;; unlink
 ;;
@@ -39753,6 +39958,64 @@
   "pic30_dead_or_set_p(NEXT_INSN(insn),operands[0])"
   "; move deleted"
   [(set_attr "cc" "unchanged")])
+
+(define_peephole2
+  [(parallel[
+     (set (match_operand:SI     0 "pic30_register_operand" "")
+          (unspec:SI [
+             (match_operand:SI  1 "pic30_register_operand" "")
+             (match_operand:HI  2 "pic30_register_operand" "")
+           ] UNSPEC_LSHIFTSIHI)) 
+     (clobber (match_operand:HI 3 "pic30_register_operand" ""))
+   ])
+   (set (match_operand:HI     4 "pic30_register_operand" "")
+        (match_operand:HI     5 "pic30_register_operand" ""))
+   (set (match_operand:HI     6 "pic30_register_operand" "")
+        (match_operand:HI     7 "pic30_register_operand" ""))
+  ]
+  "(REGNO(operands[5]) == REGNO(operands[0])) &&
+   (REGNO(operands[7]) == REGNO(operands[5])+1) &&
+   (REGNO(operands[6]) == REGNO(operands[4])+1) &&
+   peep2_regno_dead_p(2, REGNO(operands[0]))"
+  [(parallel[
+    (set (match_operand:SI     8 "pic30_register_operand" "")
+        (unspec:SI [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_LSHIFTSIHI)) 
+    (clobber (match_dup 3))
+  ])]
+  "operands[8] =gen_rtx_REG(SImode,REGNO(operands[4]));"
+)
+
+(define_peephole2
+  [(parallel[
+     (set (match_operand:SI     0 "pic30_register_operand" "")
+          (unspec:SI [
+             (match_operand:SI  1 "pic30_register_operand" "")
+             (match_operand:HI  2 "pic30_register_operand" "")
+           ] UNSPEC_ASHIFTSIHI))
+     (clobber (match_operand:HI 3 "pic30_register_operand" ""))
+   ])
+   (set (match_operand:HI     4 "pic30_register_operand" "")
+        (match_operand:HI     5 "pic30_register_operand" ""))
+   (set (match_operand:HI     6 "pic30_register_operand" "")
+        (match_operand:HI     7 "pic30_register_operand" ""))
+  ]
+  "(REGNO(operands[5]) == REGNO(operands[0])) &&
+   (REGNO(operands[7]) == REGNO(operands[5])+1) &&
+   (REGNO(operands[6]) == REGNO(operands[4])+1) &&
+   peep2_regno_dead_p(2, REGNO(operands[0]))"
+  [(parallel[
+    (set (match_operand:SI     8 "pic30_register_operand" "")
+        (unspec:SI [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_ASHIFTSIHI))
+    (clobber (match_dup 3))
+  ])]
+  "operands[8] =gen_rtx_REG(SImode,REGNO(operands[4]));"
+)
 
 ;
 ; some general const int optimizations
@@ -55926,3 +56189,4 @@
 ;  ""
 ;  "btss %0,#%1"
 ;)
+

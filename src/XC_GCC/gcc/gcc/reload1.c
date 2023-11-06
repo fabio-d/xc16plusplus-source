@@ -3455,7 +3455,7 @@ eliminate_regs_in_insn (rtx insn, int replace)
             {
               int num_clobbers = 0;
               int new_icode = recog (PATTERN (insn), insn, &num_clobbers);
-              if (new_icode > 0) {
+              if (new_icode >= 0) {
                 INSN_CODE(insn) = new_icode;
                 if (num_clobbers) {
                   rtvec vec = rtvec_alloc (num_clobbers + 1);

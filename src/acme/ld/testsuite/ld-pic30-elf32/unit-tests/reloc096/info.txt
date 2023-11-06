@@ -20,10 +20,9 @@ File Descriptions:
 -----------------
 info.txt - this file
 go - shell script to automate testing
-t1.s, t2.s - source files
+t1.s - source files
 test.out - output of the test
 expect.out - correct output
 
-
-11/07/2001 - GSM
+2/4/2022 - GSM
 

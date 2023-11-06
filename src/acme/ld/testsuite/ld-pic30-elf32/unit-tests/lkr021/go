@@ -9,9 +9,8 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
-LIB_PATH=$PIC30_CD/lib
 
 #
 # END CONFIGURATION
@@ -37,11 +36,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-elf --data-init -Map=t.map > temp 2>&1
+$GCC30 -o t.exe t1.o -Wl,--data-init,-Map=t.map > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30-elf --data-init -Map=t.map"
+    echo "$GLD30 -o t.exe t1.o -Wl,--data-init,-Map=t.map"
     cat temp
     echo $err
     echo

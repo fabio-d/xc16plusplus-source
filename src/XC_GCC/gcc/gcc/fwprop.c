@@ -954,6 +954,11 @@ try_fwprop_subst (df_ref use, rtx *loc, rtx new_rtx, rtx def_insn, bool set_reg_
   int old_cost = 0;
   bool ok;
 
+#ifdef _BUILD_C30_
+  // Fix for XC16-1945, so we aren't testing an uninitalised variable later
+  ok = true;
+#endif
+
   /* forward_propagate_subreg may be operating on an instruction with
      multiple sets.  If so, assume the cost of the new instruction is
      not greater than the old one.  */
@@ -1068,6 +1073,13 @@ free_load_extend (rtx src, rtx insn)
   df_ref use = 0, def;
 
   reg = XEXP (src, 0);
+#ifdef _BUILD_C30_
+  /* some zero/sign extends are more than nops... ie, those
+   * that transform one address kind into another
+   */
+  if (pic30_valid_pointer_mode(GET_MODE(src)) &&
+      (GET_MODE(src) != Pmode)) return false;
+#endif
 #ifdef LOAD_EXTEND_OP
   if (LOAD_EXTEND_OP (GET_MODE (reg)) != GET_CODE (src))
 #endif
@@ -1146,6 +1158,14 @@ forward_propagate_subreg (df_ref use, rtx def_insn, rtx def_set)
     {
       use_insn = DF_REF_INSN (use);
       src = SET_SRC (def_set);
+#ifdef _BUILD_C30_
+      /* some zero/sign extends are more than nops... ie, those
+       * that transform one address kind into another 
+       */
+      if (pic30_valid_pointer_mode(GET_MODE(src)) &&
+          (GET_MODE(src) != Pmode)) return false;
+#endif 
+
       if ((GET_CODE (src) == ZERO_EXTEND
 	   || GET_CODE (src) == SIGN_EXTEND)
 	  && REG_P (XEXP (src, 0))

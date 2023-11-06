@@ -9,18 +9,9 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
-LIB_PATH=$PIC30_CD/lib
 
-#
-# convert paths to DOS, if necessary
-#
-HOST=`uname`
-if ( echo $HOST | grep -i "cygwin" > /dev/null 2>&1 ) ; then
-  HOST="cygwin"
-  LIB_PATH=`cygpath -m $LIB_PATH`
-fi
 
 #
 # END CONFIGURATION
@@ -46,11 +37,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30 --data-init -Map=t.map > test.out 2>&1
+$GCC30 -o t.exe t1.o -Wl,--data-init,-Map=t.map > test.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o -L$LIB_PATH -lpic30 --data-init -Map=t.map"
+    echo "$GCC30 -o t.exe t1.o -Wl,--data-init,-Map=t.map"
     cat test.out
     echo $err
     echo

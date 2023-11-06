@@ -59,6 +59,7 @@ static int pic30_output_sleb128 PARAMS ((char *p, offsetT value));
 static int pic30_output_uleb128 PARAMS ((char *p, valueT value));
 #endif
 
+extern void number_to_chars_with_phantom_bytes (char *, bfd_signed_vma, int);
 extern unsigned int pic30_attribute_map PARAMS ((asection *));
 extern unsigned int pic30_extended_attribute_map PARAMS ((asection *));
 extern int pic30_set_implied_attributes PARAMS ((asection *, unsigned char ));
@@ -767,6 +768,28 @@ pic30_init(int argc __attribute__ ((__unused__)), char **argv)
     }
     if (safe) *f = safe;
   }
+}
+
+/******************************************************************************
+ *
+ *   Provide a version of md_number-to-chars()
+ *    that inserts phantom bytes. This is needed
+ *    for some logic in gas/dwarf2dbg.c.
+ *
+ *   Assumes a "little endian" machine such as PIC30.
+ *
+ ******************************************************************************/
+void
+number_to_chars_with_phantom_bytes (char *buf, bfd_signed_vma val, int n)
+{
+  if (n <= 0)
+    abort ();
+  while (n--)
+    {
+      *buf++ = val & 0xff;
+      *buf++ = PIC30_PHANTOM_BYTE;
+      val >>= 8;
+    }
 }
 
 /******************************************************************************

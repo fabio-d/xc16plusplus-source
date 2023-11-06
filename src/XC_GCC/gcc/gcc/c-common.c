@@ -5775,6 +5775,10 @@ c_stddef_cpp_builtins(void)
     builtin_define_with_value ("__INT_LEAST8_TYPE__", INT_LEAST8_TYPE, 0);
   if (INT_LEAST16_TYPE)
     builtin_define_with_value ("__INT_LEAST16_TYPE__", INT_LEAST16_TYPE, 0);
+#ifdef _BUILD_C30_
+  if (INT_LEAST24_TYPE)
+    builtin_define_with_value ("__INT_LEAST24_TYPE__", INT_LEAST24_TYPE, 0);
+#endif
   if (INT_LEAST32_TYPE)
     builtin_define_with_value ("__INT_LEAST32_TYPE__", INT_LEAST32_TYPE, 0);
   if (INT_LEAST64_TYPE)
@@ -5783,6 +5787,10 @@ c_stddef_cpp_builtins(void)
     builtin_define_with_value ("__UINT_LEAST8_TYPE__", UINT_LEAST8_TYPE, 0);
   if (UINT_LEAST16_TYPE)
     builtin_define_with_value ("__UINT_LEAST16_TYPE__", UINT_LEAST16_TYPE, 0);
+#ifdef _BUILD_C30_
+  if (UINT_LEAST24_TYPE)
+    builtin_define_with_value ("__UINT_LEAST24_TYPE__", UINT_LEAST24_TYPE, 0);
+#endif
   if (UINT_LEAST32_TYPE)
     builtin_define_with_value ("__UINT_LEAST32_TYPE__", UINT_LEAST32_TYPE, 0);
   if (UINT_LEAST64_TYPE)
@@ -5791,6 +5799,10 @@ c_stddef_cpp_builtins(void)
     builtin_define_with_value ("__INT_FAST8_TYPE__", INT_FAST8_TYPE, 0);
   if (INT_FAST16_TYPE)
     builtin_define_with_value ("__INT_FAST16_TYPE__", INT_FAST16_TYPE, 0);
+#ifdef _BUILD_C30_
+  if (INT_FAST24_TYPE)
+    builtin_define_with_value ("__INT_FAST24_TYPE__", INT_FAST24_TYPE, 0);
+#endif
   if (INT_FAST32_TYPE)
     builtin_define_with_value ("__INT_FAST32_TYPE__", INT_FAST32_TYPE, 0);
   if (INT_FAST64_TYPE)
@@ -5799,6 +5811,10 @@ c_stddef_cpp_builtins(void)
     builtin_define_with_value ("__UINT_FAST8_TYPE__", UINT_FAST8_TYPE, 0);
   if (UINT_FAST16_TYPE)
     builtin_define_with_value ("__UINT_FAST16_TYPE__", UINT_FAST16_TYPE, 0);
+#ifdef _BUILD_C30_
+  if (UINT_FAST24_TYPE)
+    builtin_define_with_value ("__UINT_FAST24_TYPE__", UINT_FAST24_TYPE, 0);
+#endif
   if (UINT_FAST32_TYPE)
     builtin_define_with_value ("__UINT_FAST32_TYPE__", UINT_FAST32_TYPE, 0);
   if (UINT_FAST64_TYPE)

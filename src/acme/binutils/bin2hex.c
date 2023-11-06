@@ -397,7 +397,7 @@ write_image_file(char *name, bfd *abfd) {
     fprintf(fp,"\t.section %s_image,code,address(0x%x)\n",
             subordinate_image,image_address);
   } else {
-    fprintf(fp,"\t.section %s_image,code\n",subordinate_image);
+    fprintf(fp,"\t.section %s_image,code,align(4)\n",subordinate_image);
   }
   fprintf(fp,"\t.global _%s\n",subordinate_image);
   fprintf(fp,"_%s:\n\n",subordinate_image);
@@ -673,7 +673,7 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
   int data_line_width = 0;
   asection *sect = first->sec;
   struct pic30_section *last = first;
-  struct pic30_section *s,*next = first->next;
+  struct pic30_section *s, *prev, *next = first->next;
 
   offset = 0;
   total = 0;
@@ -703,16 +703,21 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
       last_end = last->sec->lma + (last->sec->_raw_size / 2);
       if (last_end & 2) {
         /* we end on a complete ECC word boundary; might need to pad 2 insns */
-        pad_insn = 4;
+        if ((last_end + 2) == next->sec->lma)
+          pad_insn = 4;
       }
       if ((last_end + pad_insn) < next->sec->lma) {
         /* including possible padd insn pair, not contiguous: stop at last */
         break;
       }
-      total += next->sec->_raw_size;
+      total = total + next->sec->_raw_size + pad_insn;
     } else break;
     last = next;
   } while (1);
+
+  /* total == amount of data to write, not including pad but includes the gap
+   * between sections that are too close to introduce a pad
+   * this code is looking to see how many sections are contigous */
 
   /* we require end - start byte for reading the data */
   buf = malloc(total);
@@ -723,8 +728,15 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
   }
 
   p = buf;
+  fprintf(imagefile,"\t; Sections included in record:\n");
+  prev = NULL;
   for (s = first; ; s = s->next) {
+    file_ptr prev_end;
+    int gap_section = 0;
     if ((s->sec->flags & SEC_LOAD) && (s->sec->flags & SEC_HAS_CONTENTS)) {
+      if (prev == NULL) {
+        prev = s;
+      }
       fprintf(imagefile,"\t; %s\n", s->sec->name);
       if (PCstart == -1) {
         PCstart = s->sec->lma;
@@ -738,7 +750,19 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
            // we can identify duplicate slave ids
            pic30_slave_id_value = p[0] + (p[1] << 8) + (p[2] << 16);
         }
-        p += s->sec->_raw_size;
+        /* Check if this sec is contiguous in the eye of ldslv to the prev sec
+         * and add the gap if it is contiguous */
+        prev_end = prev->sec->lma + (prev->sec->_raw_size / 2);
+        if (s != prev) {
+          /* We are not the last section, so there is another 'contiguous'
+           * section, we have already found the 'contiguous' sections when 
+           * calculating the value of total */
+          gap_section = (s->sec->lma - prev_end) * 2;
+          prev = s;
+          /* gap_section is in bytes, we don't need to care about the content
+           * of the gap_section because it is to take into account a gap */
+        }
+        p = p + s->sec->_raw_size + gap_section;
       }
     }
     if (s == last) break;
@@ -806,15 +830,22 @@ write_section_image(bfd *abfd, struct pic30_section *first, PTR fp) {
       }
     }
     high_addr = low_addr+j*2;
+    /* we have to add the pad insns that we accounted for on top to fluff the 
+     * record size */
+    for (j=0; j < pad_insns; j++) {
+      /* fill in pad */
+       fprintf(imagefile, "\t; record padding\n\t.pbyte 0x00,0x0,0xfe\n");
+    }
+      
   }
   if ((pic30_mem_info.flash[0]) && (high_addr >= pic30_mem_info.flash[0])) {
      /* already beyond devices memory? */
-  } else if (last_row & 1) {
-     /* pad */
-     fprintf(imagefile, "\t; padding\n\t.pbyte 0x00,0x0,0xfe\n");
-  } else if ((high_addr & 0x2) == 0) {
-     /* pad */
-     fprintf(imagefile,"\t; padding\n\t.pbyte 0x00,0x00,0xfe,0x00,0x00,0xfe\n");
+  } else {
+     while (high_addr & 0x3) {
+       /* pad */
+       fprintf(imagefile, "\t; high_addr padding\n\t.pbyte 0x00,0x0,0xfe\n");
+       high_addr += 2;
+     }
   }
   return last;
 }

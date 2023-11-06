@@ -16,7 +16,7 @@
 #define PIC30_TBLPAGE(value)  ((value) >> 16)
 #define PIC30_PSVPAGE(value)  ((value) >> 15)
 #define PIC30_HANDLE(value) ((value) & 0xFFFF)
-#define PIC30_UNIFIED_LO(value)         ((((value) & 0x7FFF) << 1) || \
+#define PIC30_UNIFIED_LO(value)         ((((value) & 0x7FFF) << 1) | \
                                          (((value) & 0xFFF8000) != 0))
 #define PIC30_UNIFIED_HI(value)         (((value) >> 15) & 0xFFFF)
 

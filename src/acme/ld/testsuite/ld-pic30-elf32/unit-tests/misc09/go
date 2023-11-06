@@ -9,7 +9,7 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
 BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
@@ -48,10 +48,10 @@ fi
 
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o -L$PIC30_CD/lib -lpic30-elf || exit 99
+$GCC30 -o t.exe t1.o t2.o || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GLD30 -o t.exe t1.o t2.o -L$PIC30_CD/lib -lpic30-elf"
+    echo "$GCC30 -o t.exe t1.o t2.o"
     echo $err
 fi
 
@@ -77,10 +77,10 @@ rm -f UartOut.txt
 
 # now repeat test with --no-handles
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o -L$PIC30_CD/lib -lpic30-elf --no-handles|| exit 99
+$GCC30 -o t.exe t1.o t2.o -Wl,--no-handles|| exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GLD30 -o t.exe t1.o t2.o -L$PIC30_CD/lib -lpic30-elf --no-handles"
+    echo "$GCC30 -o t.exe t1.o t2.o -Wl,--no-handles"
     echo $err
 fi
 

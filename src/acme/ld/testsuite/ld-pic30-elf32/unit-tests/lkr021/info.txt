@@ -13,9 +13,9 @@ The following warning message should be generated:
 
 How to execute the test:
 
-1. Set the environment variable $ACME_BIN
+1. Set the environment variable $PIC30_CD
     to your pic30 tools binary directory
-2. Export $ACME_BIN
+2. Export $PIC30_CD
 3. Edit the Configuration section of file "go"
 4. Execute "go"
 
@@ -30,4 +30,4 @@ go - shell script to automate testing
 t1.s - source file
 
 
-12/03/2002 - GSM
+2/4/2022 - GSM

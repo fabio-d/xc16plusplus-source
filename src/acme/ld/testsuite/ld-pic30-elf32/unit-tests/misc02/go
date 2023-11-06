@@ -10,7 +10,6 @@ fi
 
 GCC30="$PIC30_CD/bin/xc16-gcc -omf=elf"
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 
 BIN2HEX="$PIC30_CD/bin/xc16-bin2hex -omf=elf"
@@ -31,11 +30,11 @@ do
 done
 
 rm -f t1.s
-$GCC30 -S t1.c -isystem $PIC30_CD/include -mconst-in-code
+$GCC30 -S t1.c -mconst-in-code
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GCC30 -S t1.c -isystem $PIC30_CD/include -mconst-in-code"
+    echo "$GCC30 -S t1.c -mconst-in-code"
     echo $err
 fi
 
@@ -58,11 +57,11 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o -L$PIC30_CD/lib -lpic30-elf -Map=t.map --no-pack-data || exit 99
+$GCC30 -o t.exe t1.o t2.o -Wl,-Map=t.map,--no-pack-data || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GLD30 -o t.exe t1.o t2.o -L $PIC30_CD/lib -lpic30-elf -Map=t.map --no-pack-data"
+    echo "$GCC30 -o t.exe t1.o t2.o -Wl,-Map=t.map,--no-pack-data"
     echo $err
 fi
 

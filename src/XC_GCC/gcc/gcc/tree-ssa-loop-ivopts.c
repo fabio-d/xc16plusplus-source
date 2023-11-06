@@ -802,7 +802,7 @@ determine_base_object (tree expr)
     case INTEGER_CST:
 #ifdef _BUILD_C30_
       /* pointer to what? */
-      if (TYPE_MODE(TREE_TYPE(expr)) == P32UMMmode) return NULL_TREE;
+      if (TYPE_MODE(TREE_TYPE(expr)) == P32UMMmode) return expr;
       if (!ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(expr))))) {
         return expr;
       }

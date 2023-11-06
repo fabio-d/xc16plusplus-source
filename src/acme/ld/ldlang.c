@@ -1388,6 +1388,9 @@ lang_add_section (ptr, section, output, file)
       discard = TRUE;
     }
   }
+  /* Discard info sections from the MUSL library */
+  if (strcmp (output->name, "__xc_reference_data" ) == 0)
+    discard = TRUE;  
 #endif
 
   if (discard)
@@ -3762,11 +3765,13 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 
         pic30_set_output_section_flags(os);
         if (pic30_debug) {
-          if (os->region) {
+          if (os->region && os->bfd_section) {
             printf("\nSequential section %s in region '%s'"
-                   "\n    [origin = %x, dot = %x, length = %x]\n",
-                    os->bfd_section->name, os->region->name, 
-                    os->region->origin, dot, 
+                   "\n  [section: lma = %lx, length = %lx]"
+                   "\n  [region:  origin = %lx, dot = %lx, length = %lx]\n",
+                    os->bfd_section->name, os->region->name,
+                    os->bfd_section->lma, os->bfd_section->_raw_size,
+                    os->region->origin, dot,
                     os->region->origin + os->region->length);
           }
         }
@@ -3894,10 +3899,11 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
                 }
 
 #if 0
-			/* DEBUG */
-			printf("seq alloc %s, region = %s, next addr = %lx\n\n",
-						bfd_get_section_name (output_bfd, os->bfd_section),
-						(os->region ? os->region->name : "none"), dot);
+    /* DEBUG */
+    printf("seq alloc %s, lma = %lx, len = %lx, region = %s, next addr = %lx\n\n",
+            bfd_get_section_name (link_info.output_bfd, os->bfd_section),
+            os->bfd_section->lma, os->bfd_section->_raw_size / opb,
+            (os->region ? os->region->name : "none"), dot);
 #endif
 
 #ifdef PIC30

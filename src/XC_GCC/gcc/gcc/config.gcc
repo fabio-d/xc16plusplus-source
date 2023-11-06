@@ -2059,6 +2059,7 @@ pic30-*-elf)
         c_target_objs=pic30-c.o
         cxx_target_objs=pic30-c.o
         extra_objs="${extra_objs} cci-backend.o mchp_sha.o sha256.o"
+        tm_file="pic30/pic30-stdint.h ${tm_file}"
         LANGUAGES="c"
         LIBGCCMK=
         ;;

@@ -1,9 +1,12 @@
-lkr042: reduced code size with --smart-io:
+lkr042: reduced code size with smart-io:
 
 The objective of this test is to verify that a
-mixed I/O call application built with -smart-io
+mixed I/O call application built with -msmart-io=1
 uses less memory than a mixed call application
-built with --no-smartio.
+built with --no-smartio=0.
+
+Note: Compiler option -msmart-io=1 is the default
+setting. The option is used explicitly in this test.
 
 How to execute the test:
 
@@ -26,5 +29,4 @@ run.cmd - command file for the simulator
 t1.out,t2.out - output of the test
 
 
-
-10/06/2003 - GSM
+2/4/2022 - GSM

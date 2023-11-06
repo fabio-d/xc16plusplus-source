@@ -2152,7 +2152,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
 
       if ((m != machine_Pmode) && (m == Pmode)) {
         forced_section_eds=1;
-       flags |= SECTION_EDS;
+        flags |= (SECTION_EDS | (!TARGET_BIG? SECTION_PAGE : 0));
       }
     }
   }
@@ -4001,7 +4001,7 @@ void pic30_override_options(void) {
   }
 
   if (TARGET_EDS) {
-   warn_implicit_function_declaration = 1;
+    warn_implicit_function_declaration = 1;
   }
 
   initialize_object_signatures();
@@ -5156,6 +5156,20 @@ static void pic30_init_builtins(void) {
                   PIC30_BUILTIN_MAX_EXCESS, BUILT_IN_MD, NULL, NULL_TREE);
   add_builtin_function_public("__builtin_maxv_excess", fn_type,
                   PIC30_BUILTIN_MAXV_EXCESS, BUILT_IN_MD, NULL, NULL_TREE);
+
+  fn_type = build_function_type_list(long_unsigned_type_node, 
+                                     long_unsigned_type_node,
+                                     unsigned_type_node,
+                                     NULL_TREE);
+  add_builtin_function_public("__builtin_lshiftrt_32_16", fn_type,
+                              PIC30_BUILTIN_LSHIFTRT3216, BUILT_IN_MD,
+                              NULL, NULL_TREE);
+  fn_type = build_function_type_list(long_integer_type_node, 
+                                    long_integer_type_node, unsigned_type_node,
+                                    NULL_TREE);
+  add_builtin_function_public("__builtin_ashiftrt_32_16", fn_type,
+                              PIC30_BUILTIN_ASHIFTRT3216, BUILT_IN_MD,
+                              NULL, NULL_TREE);
 }
 
 /*
@@ -8121,6 +8135,46 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       
       return target;
     }
+    case PIC30_BUILTIN_LSHIFTRT3216:
+      arg0 = TREE_VALUE(arglist);
+      r0 = expand_expr(arg0, NULL_RTX, SImode, EXPAND_NORMAL);
+      if (!pic30_register_operand(r0, SImode)) {
+        r0 = force_reg(SImode, r0);
+      }
+      arglist = TREE_CHAIN(arglist);
+      arg1 = TREE_VALUE(arglist);
+      r1 = expand_expr(arg1, NULL_RTX, HImode, EXPAND_NORMAL);
+      if (!pic30_register_operand(r1, HImode)) {
+        r1 = force_reg(HImode, r1);
+      }
+      if (!target || !register_operand(target, SImode)) {
+        target = gen_reg_rtx(SImode);
+      }
+      emit_insn(
+        gen_lshrsihi3(target,r0,r1)
+      );
+
+      return target;
+    case PIC30_BUILTIN_ASHIFTRT3216:
+      arg0 = TREE_VALUE(arglist);
+      r0 = expand_expr(arg0, NULL_RTX, SImode, EXPAND_NORMAL);
+      if (!pic30_register_operand(r0, SImode)) {
+        r0 = force_reg(SImode, r0);
+      }
+      arglist = TREE_CHAIN(arglist);
+      arg1 = TREE_VALUE(arglist);
+      r1 = expand_expr(arg1, NULL_RTX, HImode, EXPAND_NORMAL);
+      if (!pic30_register_operand(r1, HImode)) {
+        r1 = force_reg(HImode, r1);
+      }
+      if (!target || !register_operand(target, SImode)) {
+        target = gen_reg_rtx(SImode);
+      }
+      emit_insn(
+        gen_ashrsihi3(target,r0,r1)
+      );
+
+      return target;
   }
   return(NULL_RTX);
 }
@@ -9647,11 +9701,14 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
                                       secondary_reload_info *sri) {
   int disp;
 
+  if (dump_file) {
+    static int id;
+
+    fprintf(dump_file,"pic30_secondary_reload[%d]: %d\n", id, in_p);
+    print_rtl_single(dump_file, x);
+    id++;
+  }
   if (pic30_data_operand(x,VOIDmode)) {
-    if (dump_file) {
-      fprintf(dump_file,"pic30_secondary_reload: %d\n", in_p);
-      print_rtl_single(dump_file, x);
-    }
     sri->extra_cost = 3;
     if (in_p) {
       switch (mode) {
@@ -10495,6 +10552,8 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode) {
             return FALSE;
           }
           switch (GET_CODE(rtxPlusOp0)) {
+            rtx reg1 = NULL_RTX;
+
             case SUBREG:
                 if ((!register_operand(rtxPlusOp0, machine_Pmode)) &&
                     (!register_operand(rtxPlusOp0, Pmode))) {
@@ -10506,11 +10565,13 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode) {
             case REG:
               rtxPlusOp1 = XEXP(rtxInner, 1);
               switch (GET_CODE(rtxPlusOp1)) {
+                int regno = -1;
                 case SUBREG:
-                    if ((!register_operand(rtxPlusOp0, machine_Pmode)) &&
-                        (!register_operand(rtxPlusOp0, Pmode))) {
+                    if ((!register_operand(rtxPlusOp1, machine_Pmode)) &&
+                        (!register_operand(rtxPlusOp1, Pmode))) {
                       break;
                     }
+                    regno = REGNO(SUBREG_REG(rtxPlusOp1));
                   /*
                   ** Fall thru
                   */
@@ -10518,7 +10579,10 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode) {
                   /*
                   ** Base with index
                   */
+                  if (regno == -1) regno = REGNO(rtxPlusOp1);
+                  
                   fMode3Operand = (GET_MODE(op)==mode) &&
+                                   // (regno < FIRST_PSEUDO_REGISTER) &&
                                    ((mode == QImode) || (mode == HImode));
                   break;
                 default:
@@ -11119,7 +11183,7 @@ static int pic30_big_index(rtx addr, rtx loc) {
   int result = 0;
   rtx new_rtx = 0;
 
-  if (TARGET_BIG || (TARGET_EDS && (TARGET_EDS_MODE != P32UMMmode))) {
+  if (TARGET_BIG) {
   switch(GET_CODE(addr)) {
       default: break;
       case MINUS:
@@ -11145,48 +11209,6 @@ static int pic30_big_index(rtx addr, rtx loc) {
   }
   }
   return 0;
-}
-
-rtx pic30_simplify_addr(rtx addr) {
-  rtx lhs, rhs;
-  enum machine_mode mode;
-  rtx (*gen)(rtx,rtx,rtx);  // add or subtract
-
-  switch (GET_CODE(addr)) {
-    default: break;
-    case PLUS: 
-       mode = GET_MODE(addr);
-       switch (mode) {
-         case HImode: gen = gen_addhi3;
-                      break;
-         case SImode: gen = gen_addsi3;
-                      break;
-         case P32UMMmode: gen = gen_addp32umm3;
-                          break;
-         default: return addr;
-       }
-       lhs = pic30_simplify_addr(XEXP(addr,0));
-       rhs = pic30_simplify_addr(XEXP(addr,1));
-       addr = gen_reg_rtx(mode);
-       emit(
-         gen(addr, lhs, rhs)
-       );
-  }
-  return addr;
-}
-       
-
-
-rtx pic30_simplify_mem(rtx op) {
-  rtx addr = NULL_RTX;
-  if (reload_in_progress) return op;
-  if (GET_CODE(op) != MEM) return op;
-
-  addr = pic30_simplify_addr(XEXP(op,0));
-  if (addr != XEXP(op,0)) {
-    return gen_rtx_MEM(GET_MODE(op), addr);
-  }
-  return op;
 }
 
 /************************************************************************/
@@ -11707,8 +11729,6 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
       op1 = new_op1;
     }
   }
-  op0 = pic30_simplify_mem(op0);
-  op1 = pic30_simplify_mem(op1);
   /*
   ** Adjust operands in case we have modified them.
   */
@@ -11849,7 +11869,7 @@ int pic30_R_constraint_strict(rtx op, int strict) {
             return 0;
           case P32EDSmode:
         case P32PEDSmode:
-           if ((Pmode == GET_MODE(rtxInner)) && TARGET_EDS) break;
+          if ((Pmode == GET_MODE(rtxInner)) && TARGET_EDS) break;
           if (strict == 0) break;
           return 0;
       }
@@ -12690,7 +12710,75 @@ int pic30_md_mustsave(rtx reg) {
                         current_function_is_leaf);
 }
 
+static bool pic30_frame_pointer_reg_offset(rtx x) {
+  // minus won't be a frame pointer offset
+  if (GET_CODE(x) == PLUS) {
+    rtx l,r;
+    int regs = 0;
+    int fp_regs = 0;
+
+    l = XEXP(x,0);
+    r = XEXP(x,1);
+    if (GET_CODE(l) == REG) {
+      regs++;
+      if (REGNO(l) == FP_REGNO) fp_regs++;
+    }
+    if (GET_CODE(r) == REG) {
+      regs++;
+      if (REGNO(r) == FP_REGNO) fp_regs++;
+    }
+    return (regs == 2) && (fp_regs != 0);
+  }
+  return 0;
+}
+
 bool pic30_frame_pointer_required(void) {
+  rtx insn;
+  rtx body;
+  enum rtx_code code;
+
+  /* 
+   * on dsPIC, if we have a frame pointer reference which is offset
+   * from another register; then... its cheaper to keep the frame pointer
+   * (actually, not keeping it may also fail).
+   *
+   * Here's why;
+   *
+   * 1 [W14 + Wn] will turn into [W15 - <frame-size> + Wn] if the
+   *   frame pointer is eleminated. 
+   * 2 We then then have to make a new register for W15 - <frame-size>...
+   *   in other words, a frame pointer.
+   *
+   */
+  for (insn = get_insns(); insn; insn = NEXT_INSN(insn)) { 
+    code = GET_CODE(insn);
+    int fpro;
+
+    fpro = 0;
+    if (code == INSN) { 
+      body = PATTERN(insn);
+      code = GET_CODE(body);
+      if (code == SET) {
+        if (GET_CODE(XEXP(body,0)) == MEM) {
+          fpro += pic30_frame_pointer_reg_offset(XEXP(XEXP(body,0),0));
+        }
+        if (GET_CODE(XEXP(body,1)) == MEM) {
+          fpro += pic30_frame_pointer_reg_offset(XEXP(XEXP(body,1),0));
+        }
+        if (fpro) return true;
+      } else if (code == PARALLEL) {
+        int i;
+        static rtx x;
+
+        for (i = 0; i < XVECLEN (body, 0); i++) {
+          x = XVECEXP (body, 0, i);
+          if (GET_CODE(x) == MEM) {
+            if (pic30_frame_pointer_reg_offset(XEXP(x,0))) return true;
+          }
+        }
+      }
+    }
+  }
   if (((pic30_isav4_target() || pic30_ecore_target()) && (TARGET_FORCE_EP)) ||        (TARGET_FORCE_EP == 1)) {
     /* a frame pointer is required if the frame size is > 1K */
     if (get_frame_size() > 1022) return 1;
@@ -13141,6 +13229,17 @@ static void pic30_expand_prologue_frame(int size) {
           }
 #endif
 #endif
+          if (size - n > (4*PIC30_ADD_MAX)) {
+            // quicker and smaller to do an 'add', which requires
+            // a save.
+            insn = emit_insn(
+                     gen_addhi3_lnk(GEN_INT(size-n))
+                   );
+#if MAKE_FRAME_RELATED
+            RTX_FRAME_RELATED_P(insn) = 1;
+#endif
+            size = 0;
+          }
         } else {
           /* all our calculations are based upon a lnk instruction */
           n = 0;
@@ -17118,7 +17217,7 @@ const char *pic30_set_constant_section_helper(const char **name,
       } else if (TARGET_EDS) {
         saved_name = SECTION_NAME_EDS_DATA;
         saved_decl = 0;
-        saved_flags = SECTION_EDS | SECTION_PAGE;
+        saved_flags = SECTION_EDS | (!TARGET_BIG ? SECTION_PAGE : 0);
       }
     } 
   } 
@@ -18238,9 +18337,9 @@ void pic30_asm_file_end(void) {
     }
   }
   {
-    if (size_t_used_externally) {
+    // if (size_t_used_externally) {
       external_options_mask.bits.unsigned_long_size_t = 1;
-    }
+    // }
     external_options_mask.bits.no_short_double = 1;
     external_options_mask.bits.unified_memory = 1;
 
@@ -21053,7 +21152,7 @@ void initialize_object_signatures(void) {
      (so will be set at code-generation in the pic30.md file) while others
      are significant simply by command line options (and will be set here) */
 
-  if (TARGET_BIG || TARGET_EDS) options_set.bits.unsigned_long_size_t = 1;
+  if (TARGET_BIG) options_set.bits.unsigned_long_size_t = 1;
   /* we may wish to condition this on external functions called with a pointer,
      not now */
   if (TARGET_EDS) options_set.bits.unified_memory = 1;
@@ -22783,6 +22882,9 @@ int pic30_type_suffix(tree type, int* is_long) {
     } else {
       *is_long = 0;
     }
+    return 1;
+  } else if (type == psv_ptr_type) {
+    *is_long = 1;
     return 1;
   } 
   return 0;
