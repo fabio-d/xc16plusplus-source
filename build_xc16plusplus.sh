@@ -158,4 +158,3 @@ function build_gcc()
 }
 
 build_gcc elf
-build_gcc coff
