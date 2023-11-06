@@ -44,6 +44,7 @@ extern struct pic30_semantic_expr * pic30_analyse_semantics
   PARAMS ((struct disassemble_info *));
 
 extern char *pic30_dfp;
+extern void sa_analyse_stack(bfd *,asymbol **,long int,char *,char *,FILE *);
 #endif
 
 
@@ -62,6 +63,7 @@ static int exit_status = 0;
 
 static char *default_target = NULL;	/* Default at runtime.  */
 
+static int show_header = 1;
 static int show_version = 0;		/* Show the version number.  */
 static int dump_section_contents;	/* -s */
 static int dump_section_headers;	/* -h */
@@ -89,6 +91,8 @@ static bfd_vma stop_address = (bfd_vma) -1;  /* --stop-address */
 static int dump_debugging;		/* --debugging */
 static bfd_vma adjust_section_vma = 0;	/* --adjust-vma */
 static int file_start_context = 0;      /* --file-start-context */
+static char *analyse_stack_sym = 0;     /* --mchp-stack-start */
+static char *analyse_stack_extra_out = 0;     /* --mchp-stack-usage */
 
 /* Extra info to pass to the disassembler address printing function.  */
 struct objdump_disasm_info
@@ -192,6 +196,7 @@ struct psrd_psrd_matches {
 } *possible_psrd_psrd_matches = NULL;
 
 static int debug_trace = 0;
+static char *debug_string = 0;
 static enum psrd_psrd_mode back_to_back_psv = 0;
 static int back_to_back_psrd_count = 0;
 static int back_to_back_psrd_xfactor = 0;
@@ -363,6 +368,9 @@ usage (stream, status)
 #define OPTION_ADJUST_VMA (OPTION_STOP_ADDRESS + 1)
 #define OPTION_PSRD_PSRD_CHECK (OPTION_ADJUST_VMA +1)
 #define OPTION_999 (OPTION_PSRD_PSRD_CHECK+1)
+#define OPTION_MCHP_STACK_USAGE (OPTION_999 + 1)
+#define OPTION_MCHP_STACK_SYM (OPTION_MCHP_STACK_USAGE+1)
+#define PIC30_DFP (OPTION_MCHP_STACK_SYM+1)
 
 static struct option long_options[]=
 {
@@ -404,6 +412,9 @@ static struct option long_options[]=
 #if PIC30
   {"psrd-psrd-check", optional_argument, NULL, OPTION_PSRD_PSRD_CHECK },
   {"psv-psv-check", optional_argument, NULL, OPTION_PSRD_PSRD_CHECK },
+  {"mchp-stack-usage", optional_argument, NULL, OPTION_MCHP_STACK_USAGE },
+  {"mchp-stack-sym", required_argument, NULL, OPTION_MCHP_STACK_SYM },
+  { "mdfp", required_argument, NULL, PIC30_DFP },
   {"999", optional_argument, NULL, OPTION_999},
 #endif
   {0, no_argument, 0, 0}
@@ -3316,7 +3327,7 @@ static void print_cover_data(FILE *f, bfd_vma addr) {
 
 /* Dump selected contents of ABFD.  */
 
-#define PIC30_QUIET if ((back_to_back_psv == psrd_psrd_off) || (disassemble))
+#define PIC30_QUIET if ((show_header) || (disassemble))
 
 static void
 dump_bfd (abfd)
@@ -3381,6 +3392,10 @@ dump_bfd (abfd)
   }
 #endif
 
+
+  if (analyse_stack_sym) {
+    sa_analyse_stack(abfd,syms,symcount,analyse_stack_sym,debug_string,analyse_stack_extra_out);
+  }
   if (dump_ar_hdrs)
     print_arelt_descr (stdout, abfd, TRUE);
   if (dump_file_header)
@@ -4089,8 +4104,9 @@ main (argc, argv)
 
   /* Collect pic30_dfp value if -mdfp exists in the arguments */
   for (iter = 0; iter < argc; iter++) {
-    if (strstr(argv[iter], "-mdfp=") != NULL) {
-      pic30_dfp = xstrdup(argv[iter]+6);
+    char *mdfp;
+    if (mdfp = strstr(argv[iter], "-mdfp=")) {
+      pic30_dfp = xstrdup(mdfp+6);
     }
   }
 
@@ -4139,8 +4155,12 @@ main (argc, argv)
 	case 'w':
 	  wide_output = TRUE;
 	  break;
+#if PIC30
+        case PIC30_DFP:
+          break;
         case OPTION_999:
           if (optarg) {
+            debug_string = strdup(optarg);
             if (strstr(optarg,"all")) {
               debug_trace = dbg_all;
             } else {
@@ -4166,11 +4186,28 @@ main (argc, argv)
           }
           break;
         case OPTION_PSRD_PSRD_CHECK:
+          show_header = 0;
 	  seenflag = TRUE;
           back_to_back_psv = psrd_psrd_executable_mode;
           if (optarg && strcasecmp(optarg,"library") == 0) 
             back_to_back_psv = psrd_psrd_library_mode;
           break;
+        case OPTION_MCHP_STACK_SYM:
+          show_header = 0;
+          seenflag = TRUE;
+          if (analyse_stack_sym) free(analyse_stack_sym);
+          if (optarg) analyse_stack_sym = strdup(optarg);
+          else analyse_stack_sym = strdup("__reset");
+          break;
+        case OPTION_MCHP_STACK_USAGE:
+          show_header = 0;
+          seenflag = TRUE;
+          if (!analyse_stack_sym) analyse_stack_sym = strdup("__reset");
+          if (analyse_stack_extra_out) free(analyse_stack_extra_out);
+          if (optarg) analyse_stack_extra_out = strdup(optarg);
+          else analyse_stack_extra_out = 0;
+          break;
+#endif
 	case OPTION_ADJUST_VMA:
 	  adjust_section_vma = parse_vma (optarg, "--adjust-vma");
 	  break;

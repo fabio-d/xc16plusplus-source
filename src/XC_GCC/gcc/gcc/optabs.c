@@ -5819,25 +5819,29 @@ gen_interclass_conv_libfunc (convert_optab tab,
 
   mname_len = strlen (GET_MODE_NAME (tmode)) + strlen (GET_MODE_NAME (fmode));
 
-  nondec_name = XALLOCAVEC (char, prefix_len + opname_len + mname_len + 1 + 1);
 #ifdef _BUILD_C30_
+  nondec_name = XALLOCAVEC (char, prefix_len + opname_len + mname_len + 1 + 1 + sizeof(PIC30_QLIBFN_FLAG));
   if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
     sprintf(nondec_name, PIC30_QLIBFN_FLAG);
     prefix_len = strlen(PIC30_QLIBFN_FLAG);
   }
-#endif 
+#else 
+  nondec_name = XALLOCAVEC (char, prefix_len + opname_len + mname_len + 1 + 1);
+#endif
   nondec_name[prefix_len+0] = '_';
   nondec_name[prefix_len+1] = '_';
   memcpy (&nondec_name[prefix_len+2], opname, opname_len);
   nondec_suffix = prefix_len+nondec_name + opname_len + 2;
 
-  dec_name = XALLOCAVEC (char, prefix_len + dec_len + opname_len + mname_len + 1 + 1);
 #ifdef _BUILD_C30_
+  dec_name = XALLOCAVEC (char, prefix_len + dec_len + opname_len + mname_len + 1 + 1 + sizeof(PIC30_QLIBFN_FLAG));
   if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
     sprintf(dec_name, PIC30_QLIBFN_FLAG);
     prefix_len = strlen(PIC30_QLIBFN_FLAG);
   }
-#endif 
+#else 
+  dec_name = XALLOCAVEC (char, prefix_len + dec_len + opname_len + mname_len + 1 + 1);
+#endif
   dec_name[prefix_len+0] = '_';
   dec_name[prefix_len+1] = '_';
   memcpy (&dec_name[prefix_len+2], DECIMAL_PREFIX, dec_len);
@@ -5957,24 +5961,28 @@ gen_intraclass_conv_libfunc (convert_optab tab, const char *opname,
 
   mname_len = strlen (GET_MODE_NAME (tmode)) + strlen (GET_MODE_NAME (fmode));
 
-  nondec_name = XALLOCAVEC (char, prefix_len + 2 + opname_len + mname_len + 1 + 1);
 #ifdef _BUILD_C30_
+  nondec_name = XALLOCAVEC (char, prefix_len + 2 + opname_len + mname_len + 1 + 1 + sizeof(PIC30_QLIBFN_FLAG));
   if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
     sprintf(nondec_name, PIC30_QLIBFN_FLAG);
     prefix_len = strlen(PIC30_QLIBFN_FLAG);
   }
+#else
+  nondec_name = XALLOCAVEC (char, prefix_len + 2 + opname_len + mname_len + 1 + 1);
 #endif
   nondec_name[prefix_len+0] = '_';
   nondec_name[prefix_len+1] = '_';
   memcpy (&nondec_name[prefix_len+2], opname, opname_len);
   nondec_suffix = prefix_len + nondec_name + opname_len + 2;
 
-  dec_name = XALLOCAVEC (char, prefix_len + 2 + dec_len + opname_len + mname_len + 1 + 1);
 #ifdef _BUILD_C30_
+  dec_name = XALLOCAVEC (char, prefix_len + 2 + dec_len + opname_len + mname_len + 1 + 1 + sizeof(PIC30_QLIBFN_FLAG));
   if (ALL_FIXED_POINT_MODE_P(tmode) || ALL_FIXED_POINT_MODE_P(fmode)) {
     sprintf(dec_name, PIC30_QLIBFN_FLAG);
     prefix_len = strlen(PIC30_QLIBFN_FLAG);
   }
+#else
+  dec_name = XALLOCAVEC (char, prefix_len + 2 + dec_len + opname_len + mname_len + 1 + 1);
 #endif
   dec_name[prefix_len+0] = '_';
   dec_name[prefix_len+1] = '_';

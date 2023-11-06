@@ -617,7 +617,21 @@ get_section (const char *name, unsigned int flags, tree decl)
 	  if (decl == 0)
 	    decl = sect->named.decl;
 	  gcc_assert (decl);
-	  error ("%+D causes a section type conflict", decl);
+	  error ("%+D causes a section type conflict with section %s", decl, name);
+#if defined(_BUILD_C30_) 
+          char *variable_flags;
+          char *section_flags;
+
+          variable_flags = pic30_report_section_flags_info(flags);
+          section_flags = pic30_report_section_flags_info(sect->common.flags);
+
+          inform(DECL_SOURCE_LOCATION(decl), "%+D variable flags: %s", 
+                   decl, variable_flags);
+          inform(DECL_SOURCE_LOCATION(decl), "%s section flags: %s", 
+                   name, section_flags);
+          free(variable_flags); // Free the memory allocated by pic30_report_section_flags_info
+          free(section_flags);
+#endif
 	}
     }
   return sect;

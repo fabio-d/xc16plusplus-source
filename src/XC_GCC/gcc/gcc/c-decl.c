@@ -596,7 +596,7 @@ bind (tree name, tree decl, struct c_scope *scope, bool invisible,
 {
   struct c_binding *b, **here;
 
-#if _BUILD_C30_
+#ifdef _BUILD_C30_
 #ifdef TARGET_BIND
   TARGET_BIND(name,decl);
 #endif
@@ -8920,8 +8920,9 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
 	    case RID_COMPLEX:
 	      dupe = specs->complex_p;
 #ifdef _BUILD_C30_
-              error_at (loc,
-                        "Complex types not supported");
+              if (!pic30_allow_complex)
+                error_at (loc,
+                          "Complex types not supported");
 #endif
 	      if (!flag_isoc99 && !in_system_header)
 		pedwarn (loc, OPT_pedantic,

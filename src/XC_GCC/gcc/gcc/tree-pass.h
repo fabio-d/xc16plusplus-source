@@ -631,8 +631,8 @@ extern struct rtl_opt_pass pass_track_sfrs;
 extern struct rtl_opt_pass pass_RAW_count;
 extern struct rtl_opt_pass pass_PSV_PSV_count;
 extern struct rtl_opt_pass pass_cse3;
-/* Add code coverage pass */
 extern struct rtl_opt_pass pass_xc_coverage;
+extern struct rtl_opt_pass pass_split_for_xc16;
 #endif
 
 #endif /* GCC_TREE_PASS_H */

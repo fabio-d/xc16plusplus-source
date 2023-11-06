@@ -75,8 +75,13 @@ static char *xstrdup(const char *s) {
 }
 #endif
 
+#if defined(TARGET_IS_PIC32MX)
+struct resource_introduction_block *read_device_rib(const char *name, 
+                                                    const char * device) {
+#else
 struct resource_introduction_block *read_device_rib(const char *name, 
                                                     char * device) {
+#endif
   unsigned int buffer_size = 80;
   unsigned char *buffer;
   unsigned int i;

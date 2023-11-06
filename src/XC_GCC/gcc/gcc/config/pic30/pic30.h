@@ -193,6 +193,8 @@ enum pic30_builtins
   %{mpartition=*:--partition %*} \
   %{mcpu=*:-p%*} \
   %{mdfp=*: --mdfp=%*} \
+  %{mchp-stack-usage: -mchp-stack-usage} \
+  %{mchp-stack-usage=*: -mchp-stack-usage=%*} \
   -omf=" OMF
 
 /*
@@ -906,27 +908,29 @@ extern int         pic30_clear_fn_list;
 enum reg_class
 {
    NO_REGS,
-   A_REGS,          /* 'a': accumulator regs (w0) */
-   B_REGS,          /* 'b': accumulator regs (w1) */
-   C_REGS,          /* 'c': accumulator regs (w2) */
-   CC_REGS,         /* 'C': accumulator regs 32 bit (w2-w3) */
-   ABC_REGS,        /* 'a+b+c': accumulator regs (w0..w2) */
-   X_PREFETCH_REGS, /*  w8,w9: X prefetch registers */
-   Y_PREFETCH_REGS, /*  w10,w11: Y prefetch registers */
+   A_REGS,                        /* 'a': accumulator regs (w0) */
+   B_REGS,                        /* 'b': accumulator regs (w1) */
+   C_REGS,                        /* 'c': accumulator regs (w2) */
+   CC_REGS,                       /* 'C': accumulator regs 32 bit (w2-w3) */
+   ABC_REGS,                      /* 'a+b+c': accumulator regs (w0..w2) */
+   X_PREFETCH_REGS,               /*  w8,w9: X prefetch registers */
+   Y_PREFETCH_REGS,               /*  w10,w11: Y prefetch registers */
    VERY_RESTRICTED_PRODUCT_REGS,  /* w7 */
    RESTRICTED_PRODUCT_REGS,       /* W4-W6 */
-   PRODUCT_REGS,    /*  w4 - w7: mac product registers  */
-   AWB_REGS,        /*  w13 */
-   ER_REGS,         /* even working regs (w0..w12) */
-   E_REGS,          /* 'e': data regs (w2..w14) */
-   AE_REGS,         /* 'a+e': data regs (w0,w2..w14) */
-   D_REGS,          /* 'd': data regs (w1..w14) */
-   W_REGS,          /* 'w': working regs (w0..w15) */
-   SINK_REGS,       /* sink */
-   ACCUM_REGS,      /*  A,B: accumulators */
-   W_ACCUM_REGS,    /*  ACCUM + W_REGS */
-   SFR_REGS,        /*  PSVPAG &c */
-   ALL_REGS,        /* 'r': (w0..w14) */
+   PRODUCT_REGS,                  /*  w4 - w7: mac product registers  */
+   PRODUCT_REGS_SIGNED,           /*  w5,w7: signed mode mac product reg */
+   PRODUCT_REGS_UNSIGNED,         /*  w4,w6: unsigned mode mac product reg */
+   AWB_REGS,                      /*  w13 */
+   ER_REGS,                       /* even working regs (w0..w12) */
+   E_REGS,                        /* 'e': data regs (w2..w14) */
+   AE_REGS,                       /* 'a+e': data regs (w0,w2..w14) */
+   D_REGS,                        /* 'd': data regs (w1..w14) */
+   W_REGS,                        /* 'w': working regs (w0..w15) */
+   SINK_REGS,                     /* sink */
+   ACCUM_REGS,                    /*  A,B: accumulators */
+   W_ACCUM_REGS,                  /*  ACCUM + W_REGS */
+   SFR_REGS,                      /*  PSVPAG &c */
+   ALL_REGS,                      /* 'r': (w0..w14) */
    LIM_REG_CLASSES
 };
 
@@ -961,6 +965,8 @@ enum reg_class
   "W7",         \
   "W4..W6",     \
   "W4..W7",     \
+  "W5,W7",      \
+  "w4,W6",      \
   "AWB",        \
   "ERREGS",     \
   "W2..W14",    \
@@ -1000,6 +1006,8 @@ enum reg_class
 /* V.R.PRODUCT_REGS*/{ 0x00000080, 0x00000000 }, \
 /* R.PRODUCt_REGS */ { 0x00000070, 0x00000000 }, \
 /* PRODUCT_REGS */   { 0x000000f0, 0x00000000 }, \
+/* PRODUCT_R.SIGN*/  { 0x000000a0, 0x00000000 }, \
+/* PRODUCT_R.UNS*/   { 0x00000050, 0x00000000 }, \
 /* AWB_REGS */       { 0x00002000, 0x00000000 }, \
 /* ER_REGS */        { 0x00001555, 0x00000000 }, \
 /* E_REGS */         { 0x0000fffc, 0x00000000 }, \
@@ -1173,6 +1181,8 @@ enum reg_class
 ** `x' is the class of x prefetch registers (W8..W9).
 ** `y' is the class of y prefetch registers (W10..W11).
 ** `z' is the class of mac product registers (W4..W7).
+** `zs' is the class of mac signed product registers (W5,W7).
+** `zu' is the class of mac unsigned product registers (W4,W6).
 ** `E' is sink
 */
 
@@ -1194,6 +1204,10 @@ enum reg_class
      ((Q) == 'B') ? SINK_REGS:                             \
      NO_REGS )
 
+#define REG_CLASS_FROM_CONSTRAINT(C,STR) (                \
+     (strcmp(STR,"zs")==0) ? PRODUCT_REGS_SIGNED :         \
+     (strcmp(STR,"zu")==0) ? PRODUCT_REGS_UNSIGNED :       \
+     REG_CLASS_FROM_LETTER(C)) 
 /*
 ** Return the maximum number of consecutive registers
 ** needed to represent mode MODE in a register of class CLASS.
@@ -1985,7 +1999,10 @@ typedef struct pic30_args
   c_register_pragma(0, "code", pic30_handle_code_pragma); \
   c_register_pragma(0, "idata", pic30_handle_idata_pragma); \
   c_register_pragma(0, "udata", pic30_handle_udata_pragma); \
-  c_register_pragma(0, "config", mchp_handle_config_pragma); \
+  if (pic30_expand_pragma_config) { \
+  c_register_pragma_with_expansion(0, "config", mchp_handle_config_pragma); \
+  } else { \
+  c_register_pragma(0, "config", mchp_handle_config_pragma);} \
   c_register_pragma(0, "large_ararys", pic30_handle_large_arrays_pragma); \
   c_register_pragma(0, "align", mchp_handle_align_pragma); \
   c_register_pragma(0, "section", mchp_handle_section_pragma); \
@@ -2848,7 +2865,8 @@ enum pic30_address_space {
   pic30_space_external,
   pic30_space_eds,
   pic30_space_packed,
-  pic30_space_data_flash
+  pic30_space_data_flash,
+  pic30_space_const            // for pic30_addr_space_subset_p
 };
 
 #define TARGET_ADDR_SPACE_KEYWORDS \
@@ -2857,6 +2875,7 @@ enum pic30_address_space {
   ADDR_SPACE_KEYWORD("__pmp__", pic30_space_pmp),            \
   ADDR_SPACE_KEYWORD("__external__", pic30_space_external),  \
   ADDR_SPACE_KEYWORD("__eds__", pic30_space_eds),            \
+  ADDR_SPACE_KEYWORD("__const__", pic30_space_const),        \
   ADDR_SPACE_KEYWORD("__pack_upper_byte", pic30_space_packed)
 
 enum pic30_set_psv_results {
@@ -3026,6 +3045,9 @@ enum pic30_fp_support_modes {
 }; 
 
 extern enum pic30_fp_support_modes pic30_fp_round_p(void);
+#ifndef bool
+#define bool char
+#endif
 extern bool pic30_fp_inline_p(void);
 
 #define CORCON_SET_SATA (1<<7)
@@ -3068,31 +3090,31 @@ extern int pic30_type_suffix(tree type, int* is_long);
 #define PIC30_LL(X) JOIN2(X,LL)
                                 /* 0x1000000 */
 #define SECTION_READ_ONLY       (PIC30_LL(SECTION_MACH_DEP))          /* 24 */
-#define SECTION_XMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 1)     /* 26 */
-#define SECTION_YMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 2)     /* 27 */
-#define SECTION_NEAR            (PIC30_LL(SECTION_MACH_DEP) << 3)     /* 28 */
-#define SECTION_PERSIST         (PIC30_LL(SECTION_MACH_DEP) << 4)     /* 29 */
-#define SECTION_PSV             (PIC30_LL(SECTION_MACH_DEP) << 5)     /* 30 */
-#define SECTION_EEDATA          (PIC30_LL(SECTION_MACH_DEP) << 6)     /* 31 */
-#define SECTION_NOLOAD          (PIC30_LL(SECTION_MACH_DEP) << 7)     /* 32 */
-#define SECTION_REVERSE         (PIC30_LL(SECTION_MACH_DEP) << 8)     /* 33 */
-#define SECTION_INFO            (PIC30_LL(SECTION_MACH_DEP) << 9)     /* 34 */
-#define SECTION_ADDRESS         (PIC30_LL(SECTION_MACH_DEP) << 10)    /* 35 */
-#define SECTION_ALIGN           (PIC30_LL(SECTION_MACH_DEP) << 11)    /* 36 */
-#define SECTION_DMA             (PIC30_LL(SECTION_MACH_DEP) << 12)    /* 37 */
-#define SECTION_PMP             (PIC30_LL(SECTION_MACH_DEP) << 13)    /* 38 */
-#define SECTION_EXTERNAL        (PIC30_LL(SECTION_MACH_DEP) << 14)    /* 39 */
-#define SECTION_EDS             (PIC30_LL(SECTION_MACH_DEP) << 15)    /* 41 */
-#define SECTION_PAGE            (PIC30_LL(SECTION_MACH_DEP) << 16)    /* 42 */
-#define SECTION_AUXFLASH        (PIC30_LL(SECTION_MACH_DEP) << 17)    /* 43 */
-#define SECTION_AUXPSV          (PIC30_LL(SECTION_MACH_DEP) << 18)    /* 44 */
-#define SECTION_PACKEDFLASH     (PIC30_LL(SECTION_MACH_DEP) << 19)    /* 45 */
-#define SECTION_KEEP            (PIC30_LL(SECTION_MACH_DEP) << 20)    /* 46 */
-#define SECTION_CONST_NAME      (PIC30_LL(SECTION_MACH_DEP) << 21)    /* 47 */
-#define SECTION_CO_SHARED       (PIC30_LL(SECTION_MACH_DEP) << 22)    /* 48 */
-#define SECTION_PRESERVED       (PIC30_LL(SECTION_MACH_DEP) << 23)    /* 49 */
-#define SECTION_PRIORITY        (PIC30_LL(SECTION_MACH_DEP) << 24)    /* 50 */
-#define SECTION_UPDATE          (PIC30_LL(SECTION_MACH_DEP) << 25)    /* 51 */
+#define SECTION_XMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 1)     /* 25 */
+#define SECTION_YMEMORY         (PIC30_LL(SECTION_MACH_DEP) << 2)     /* 26 */
+#define SECTION_NEAR            (PIC30_LL(SECTION_MACH_DEP) << 3)     /* 27 */
+#define SECTION_PERSIST         (PIC30_LL(SECTION_MACH_DEP) << 4)     /* 28 */
+#define SECTION_PSV             (PIC30_LL(SECTION_MACH_DEP) << 5)     /* 29 */
+#define SECTION_EEDATA          (PIC30_LL(SECTION_MACH_DEP) << 6)     /* 30 */
+#define SECTION_NOLOAD          (PIC30_LL(SECTION_MACH_DEP) << 7)     /* 31 */
+#define SECTION_REVERSE         (PIC30_LL(SECTION_MACH_DEP) << 8)     /* 32 */
+#define SECTION_INFO            (PIC30_LL(SECTION_MACH_DEP) << 9)     /* 33 */
+#define SECTION_ADDRESS         (PIC30_LL(SECTION_MACH_DEP) << 10)    /* 34 */
+#define SECTION_ALIGN           (PIC30_LL(SECTION_MACH_DEP) << 11)    /* 35 */
+#define SECTION_DMA             (PIC30_LL(SECTION_MACH_DEP) << 12)    /* 36 */
+#define SECTION_PMP             (PIC30_LL(SECTION_MACH_DEP) << 13)    /* 37 */
+#define SECTION_EXTERNAL        (PIC30_LL(SECTION_MACH_DEP) << 14)    /* 38 */
+#define SECTION_EDS             (PIC30_LL(SECTION_MACH_DEP) << 15)    /* 39 */
+#define SECTION_PAGE            (PIC30_LL(SECTION_MACH_DEP) << 16)    /* 40 */
+#define SECTION_AUXFLASH        (PIC30_LL(SECTION_MACH_DEP) << 17)    /* 41 */
+#define SECTION_AUXPSV          (PIC30_LL(SECTION_MACH_DEP) << 18)    /* 42 */
+#define SECTION_PACKEDFLASH     (PIC30_LL(SECTION_MACH_DEP) << 19)    /* 43 */
+#define SECTION_KEEP            (PIC30_LL(SECTION_MACH_DEP) << 20)    /* 44 */
+#define SECTION_CONST_NAME      (PIC30_LL(SECTION_MACH_DEP) << 21)    /* 45 */
+#define SECTION_CO_SHARED       (PIC30_LL(SECTION_MACH_DEP) << 22)    /* 46 */
+#define SECTION_PRESERVED       (PIC30_LL(SECTION_MACH_DEP) << 23)    /* 47 */
+#define SECTION_PRIORITY        (PIC30_LL(SECTION_MACH_DEP) << 24)    /* 48 */
+#define SECTION_UPDATE          (PIC30_LL(SECTION_MACH_DEP) << 25)    /* 49 */
 
 /* Add macros for code coverage */
 #define TARGET_XCCOV_LIBEXEC_PATH "/bin/"
@@ -3108,7 +3130,6 @@ extern char *pic30_cover_insn(unsigned bitno);
 
 #undef TARGET_XCCOV_LICENSED
 #define TARGET_XCCOV_LICENSED pic30_licensed_xccov_p
-
 
 #endif
 
@@ -3126,3 +3147,4 @@ rtx pic30_get_set_psv_value(rtx x);
 
 #define CONDITIONAL_REGISTER_USAGE pic30_conditional_register_usage()
 
+#define LIBGCC2_UNITS_PER_WORD 2

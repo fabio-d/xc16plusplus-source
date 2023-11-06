@@ -545,9 +545,13 @@ void pic30_add_section_attributes(asection *sec,
   static int warned = 0;
   int warning = 0;
 
-  if (pic30_debug)
+  if (pic30_debug) {
     printf("---> pic30_add_section_attributes(%s,\"%s\",\"%s\",\"%s\")\n",
            sec->name, data_attrs, code_attrs, const_attrs);
+    printf("     file: %s generated %d linked %d\n",
+           sec->owner ? sec->owner->filename : "?", sec->linker_generated,
+           sec->linked);
+  }
 
   if (sec->linker_generated) return;
   if (sec->linked) return;

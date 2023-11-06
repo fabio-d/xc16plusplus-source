@@ -1159,6 +1159,11 @@
 
 (define_predicate "pic30_string_operand"
   (match_code "const_string"))
+
+(define_predicate "pic30_reg_or_mem_operand"
+  (ior (match_operand 0 "pic30_register_operand")
+       (match_operand 0 "pic30_move_operand")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_mode_iterator M32BIT [SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF])
@@ -1299,6 +1304,8 @@
   (UNSPEC_MAX                  117)
   (UNSPEC_MAXV                 118)
   (UNSPEC_MAXV2                119)
+  (UNSPEC_BTSC                 120)
+  (UNSPEC_BTSS                 121)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -7266,7 +7273,6 @@
   ""
   "
    if (TARGET_TRACK_PSVPAG) {
-     extern int set_psv_called;
      set_psv_called=1;
      emit_insn(
        gen_set_nvpsv(operand0)
@@ -7326,7 +7332,7 @@
    ""
    "*
     {
-      if (pic30_eds_target()) return \"mov _DSRPAG,%0\";
+      if (pic30_eds_target() || pic30_isav4_target()) return \"mov _DSRPAG,%0\";
       return \"mov _PSVPAG,%0\";
     }"
   [
@@ -32915,7 +32921,7 @@
 
 (define_insn "bfins"
   [(set (zero_extract:HI    
-          (match_operand    0 "pic30_mode2_or_near_operand" "+U, Rr,Rr,U")
+          (match_operand:HI 0 "pic30_mode2_or_near_operand" "+U, Rr,Rr,U")
           (match_operand:HI 1 "immediate_operand"           " i, i, i, i")
           (match_operand:HI 2 "immediate_operand"           " i, i, i, i"))
         (match_operand:HI 3 "pic30_reg_or_lit8"             " r, r, i, ???i"))
@@ -33337,7 +33343,8 @@
      (clobber (match_dup 0))]
   ""
   "*
-   {
+   { static char buffer[128];
+
      /*
      ** See if there is anything between us and the jump table
      ** If we could be sure there never was, then the 'clobber'
@@ -33345,6 +33352,7 @@
      */
      register rtx p;
      int fDisjoint = FALSE;
+     int table_lable_ladle = CODE_LABEL_NUMBER(operands[1]);
      for (p = NEXT_INSN (insn); p != operands[1]; p = NEXT_INSN (p)) {
        if (INSN_P(p)) {
          fDisjoint = TRUE;
@@ -33352,20 +33360,26 @@
        }
      }
      if (fDisjoint) {
-       if (which_alternative == 0)
-         return \"add #(%1-$)/4,%0\;\"
-                \"bra %0\";
-       else
-         return \"mov [%0], %2\;\"
-                \"add #(%1-$)/4,%2\;\"
-                \"bra %2\";
+       if (which_alternative == 0) {
+         sprintf(buffer,\"add #(%%1-$)/4,%%0\n\"
+                        \".SS%d:\t\"
+                        \"bra %%0\", table_lable_ladle);
+       } else {
+         sprintf(buffer,\"mov [%%0], %%2\n\t\"
+                        \"add #(%%1-$)/4,%%2\n\"
+                        \".SS%d:\t\"
+                        \"bra %%2\", table_lable_ladle);
+       }
      } else {
-       if (which_alternative == 0)
-         return \"bra %0\";
-       else
-         return \"mov %0, %2\;\"
-                \"bra %2\";
+       if (which_alternative == 0) {
+         sprintf(buffer,\"\n.SS%d:\tbra %%0\", table_lable_ladle);
+       } else {
+         sprintf(buffer,\"mov %%0, %%2\n\"
+                        \".SS%d:\t\"
+                        \"bra %%2\", table_lable_ladle);
+       }
      }
+     return buffer;
    }"
   [
     (set_attr "type" "etc,use")
@@ -33433,10 +33447,13 @@
      if ((set_psv == pic30_set_nothing) && (TARGET_TRACK_PSVPAG) &&
          TARGET_CONST_IN_CODE) {
        set_psv = pic30_set_for_tracking;
-     }
-     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
+     } 
+     psv_page = NULL_RTX;
+     if (set_psv == pic30_set_for_tracking) {
+       // set the PSV to the current page
        psv_page = pic30_get_set_psv_value(0);
-
+     } 
+     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
        if (psv_page == 0) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
          psv_page = gen_reg_rtx(HImode);
@@ -33446,6 +33463,7 @@
            )
          );
        } 
+       set_psv_called = 1;
        record_psv_tracking(0,0,
          emit(
            gen_set_nvpsv(psv_page)
@@ -33453,35 +33471,24 @@
        );
      }
      emit(
-       set_psv == pic30_set_for_tracking ?
+       set_psv != pic30_set_nothing ?
        gen_call_value_helper_apsv(operands[0], operands[1], operands[2]) :
        gen_call_value_helper(operands[0], operands[1], operands[2])
      );
      if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
-       if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
-                            DECL_ATTRIBUTES(current_function_decl))) {
-         sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
-       } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
-                                   DECL_ATTRIBUTES(current_function_decl))) {
-         sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
-       } else DONE;
-       psv_page = gen_reg_rtx(HImode);
-#if 1
-       record_psv_tracking(0,0,
+       psv_page = pic30_get_set_psv_value(0);
+       if (psv_page == NULL_RTX) {
+         sfr = pic30_get_psv_value();
+         psv_page = gen_reg_rtx(HImode);
          emit(
-           gen_save_const_psv(psv_page, sfr)
-         )
-       );
+            gen_movhi_address(psv_page,sfr)
+         );
+       }
        record_psv_tracking(0,0,
          emit(
            gen_set_nvpsv(psv_page)
          )
        );
-#else
-       emit(
-         gen_set_const_psv(sfr)
-       );
-#endif
      }    
      
      if (save_variable_list) {
@@ -33659,9 +33666,12 @@
           TARGET_CONST_IN_CODE) {
        set_psv = pic30_set_for_tracking;
      }
-     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
+     psv_page = NULL_RTX;
+     if (set_psv == pic30_set_for_tracking) {
+       // set the PSV to the current page
        psv_page = pic30_get_set_psv_value(0);
-
+     }
+     if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
        if (psv_page == 0) {
          sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
          psv_page = gen_reg_rtx(HImode);
@@ -33671,6 +33681,7 @@
            )
          );
        }
+       set_psv_called = 1;
        record_psv_tracking(0,0,
          emit(
            gen_set_nvpsv(psv_page)
@@ -33678,24 +33689,19 @@
        );
      }
      emit(
-       set_psv == pic30_set_for_tracking ?
+       set_psv != pic30_set_nothing ?
        gen_call_void_helper_apsv(operands[0], operands[1]) :
        gen_call_void_helper(operands[0], operands[1])
      );
      if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
-       if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
-                            DECL_ATTRIBUTES(current_function_decl))) {
-         sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
-       } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
-                                   DECL_ATTRIBUTES(current_function_decl))) {
-         sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
-       } else DONE;
-       psv_page = gen_reg_rtx(HImode);
-       record_psv_tracking(0,0,
+       psv_page = pic30_get_set_psv_value(0);
+       if (psv_page == NULL_RTX) {
+         sfr = pic30_get_psv_value();
+         psv_page = gen_reg_rtx(HImode);
          emit(
-           gen_save_const_psv(psv_page, sfr)
-         )
-       );
+           gen_movhi_address(psv_page,sfr)
+         );
+       }
        record_psv_tracking(0,0,
          emit(
            gen_set_nvpsv(psv_page)
@@ -33869,14 +33875,20 @@
     }
   }
 
+  /* pic30_set_on_call => must set to .const , and pic30_set_on_return */
+  /* pic30_set_on_return => must restore after call */
+
   security = pic30_boot_secure_access(operands[0],&slot,&set_psv);
   if ((set_psv == pic30_set_nothing) && (TARGET_TRACK_PSVPAG) &&
        TARGET_CONST_IN_CODE) {
     set_psv = pic30_set_for_tracking;
   }
-  if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
+  psv_page = NULL_RTX;
+  if (set_psv == pic30_set_for_tracking) {
+    // set the PSV to the current page
     psv_page = pic30_get_set_psv_value(0);
-
+  }
+  if ((set_psv == pic30_set_on_call) || (set_psv == pic30_set_for_tracking)){
     if (psv_page == 0) {
       sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
       psv_page = gen_reg_rtx(HImode);
@@ -33886,6 +33898,7 @@
         )
       );
     }
+    set_psv_called = 1;
     record_psv_tracking(0,0,
       emit(
         gen_set_nvpsv(psv_page)
@@ -33893,24 +33906,19 @@
     );
   }
   emit(
-    set_psv == pic30_set_for_tracking ?
+    set_psv != pic30_set_nothing ?
     gen_call_void_helper_apsv(operands[0], operands[1]) :
     gen_call_void_helper(operands[0], operands[1])
   );
   if ((set_psv) && (set_psv != pic30_set_for_tracking)) {
-    if (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
-                         DECL_ATTRIBUTES(current_function_decl))) {
-      sfr = gen_rtx_SYMBOL_REF(HImode,\"_bootconst_psvpage\");
-    } else if (lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
-                                DECL_ATTRIBUTES(current_function_decl))) {
-      sfr = gen_rtx_SYMBOL_REF(HImode,\"_secureconst_psvpage\");
-    } else DONE;
-    psv_page = gen_reg_rtx(HImode);
-    record_psv_tracking(0,0,
+    psv_page = pic30_get_set_psv_value(0);
+    if (psv_page == NULL_RTX) {
+      sfr = pic30_get_psv_value();
+      psv_page = gen_reg_rtx(HImode);
       emit(
-        gen_save_const_psv(psv_page, sfr)
-      )
-    );
+        gen_movhi_address(psv_page,sfr)
+      );
+    }
     record_psv_tracking(0,0,
       emit(
         gen_set_nvpsv(psv_page)
@@ -50481,20 +50489,22 @@
    mov %1,%0\;mov %d1,%0+2"
 )
 
-(define_mode_iterator QRELOADS [QI HI SI DI SF DF QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA])
+(define_mode_iterator QRELOADS [QI HI SI SF QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA])
+
+(define_mode_iterator QRELOADS_SCRATCH [DF DI])
 
 ; reloads because the displacement is too large
 
 (define_insn "Qreloaddisp_out<mode>"
   [(set
-      (match_operand:QRELOADS  0 "pic30_any_QR_operand"    "= R, X")
+      (match_operand:QRELOADS  0 "pic30_any_QR_operand"    "= Q, R")
       (match_operand:QRELOADS  1 "pic30_register_operand"  "  r, r"))
-   (clobber (match_operand:HI  2 "pic30_register_operand"  "=&r,&r"))
+   (clobber (match_operand:HI  2 "pic30_register_operand"  "= &r, X"))
   ]
   ""
   "*
   { 
-    if (which_alternative == 1) {
+    if (which_alternative == 0) {
       rtx inner;
       rtx lhs,rhs;
       int offset;
@@ -50544,6 +50554,82 @@
       } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
         return \"mov %1,%I0\;mov %d1,%D0\";
       } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+        gcc_assert(0);
+        return \"mov %r0,%2\;\"
+               \"mov %1,[%2++]\;mov %d1,[%2++]\;mov %t1,[%2]\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+        gcc_assert(0);
+        return \"mov %r0,%2\;\"
+               \"mov %1,[%2++]\;mov %d1,[%2++]\;mov %t1,[%2++]\;mov %q1,[%2]\";
+      } else gcc_assert(0);
+      return \"nop\";
+    }
+  }
+  "
+)
+
+(define_insn "Qreloaddisp_out<mode>"
+  [(set
+      (match_operand:QRELOADS_SCRATCH  0 "pic30_any_QR_operand"    "= R, X")
+      (match_operand:QRELOADS_SCRATCH  1 "pic30_register_operand"  "  r, r"))
+   (clobber (match_operand:HI  2 "pic30_register_operand"          "= &r,&r"))
+  ]
+  ""
+  "*
+  { 
+    if (which_alternative == 1) {
+      rtx inner;
+      rtx lhs,rhs;
+      int offset;
+      static char result[256];
+
+      gcc_assert(MEM_P(operands[0]));
+      inner = XEXP(operands[0],0);
+      gcc_assert((GET_CODE(inner) == PLUS) || (GET_CODE(inner) == MINUS));
+      lhs = XEXP(inner,0);
+      rhs = XEXP(inner,1);
+      gcc_assert(REG_P(lhs));
+      gcc_assert(GET_CODE(rhs) == CONST_INT);
+      offset = INTVAL(rhs);
+      if (GET_CODE(inner) == MINUS) offset = -1*offset;
+      
+      if (GET_MODE_SIZE(<MODE>mode) == 1) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"mov.b %%1,[%s+%%2]\", 
+                offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"mov %%1,[%s+%%2]\",
+                offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                        \"mov %%1,[%%2++]\;mov %%d1,[%%2]\",
+                offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                        \"mov %%1,[%%2++]\;mov %%d1,[%%2++]\;mov %%t1,[%%2]\",
+               offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                        \"mov %%1,[%%2++]\;mov %%d1,[%%2++]\;\"
+                        \"mov %%t1,[%%2++]\;mov %%q1,[%%2]\", 
+              offset, reg_names[REGNO(lhs)]);
+      } else gcc_assert(0);
+      return result;
+    } else {
+      if (GET_MODE_SIZE(<MODE>mode) == 1) {
+        gcc_assert(0);
+        return \"mov.b %1,%0\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+        gcc_assert(0);
+        return \"mov %1,%0\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+        gcc_assert(0);
+        return \"mov %1,%I0\;mov %d1,%D0\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
         return \"mov %r0,%2\;\"
                \"mov %1,[%2++]\;mov %d1,[%2++]\;mov %t1,[%2]\";
       } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
@@ -50559,8 +50645,157 @@
 (define_insn "Qreloaddisp_in<mode>"
   [(set
      (match_operand:QRELOADS  0 "pic30_register_operand" "= r, r")
-     (match_operand:QRELOADS  1 "pic30_any_QR_operand"   "  R, X"))
-   (clobber (match_operand:HI 2 "pic30_register_operand" "=&r,&r"))
+     (match_operand:QRELOADS  1 "pic30_any_QR_operand"   "  Q, R"))
+   (clobber (match_operand:HI 2 "pic30_register_operand" "= &r, X"))
+  ]
+  ""
+  "*
+  {
+    if (which_alternative == 0) {
+      rtx inner;
+      rtx lhs,rhs;
+      int offset;
+      static char result[256];
+
+      gcc_assert(MEM_P(operands[1]));
+      inner = XEXP(operands[1],0);
+      gcc_assert((GET_CODE(inner) == PLUS) || (GET_CODE(inner) == MINUS));
+      lhs = XEXP(inner,0);
+      rhs = XEXP(inner,1);
+      gcc_assert(REG_P(lhs));
+      gcc_assert(GET_CODE(rhs) == CONST_INT);
+      offset = INTVAL(rhs);
+      if (GET_CODE(inner) == MINUS) offset = -1*offset;
+      
+      if (GET_MODE_SIZE(<MODE>mode) == 1) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"mov.b [%s+%%2],%%0\",
+               offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"mov [%s+%%2],%%0\",
+               offset, reg_names[REGNO(lhs)]);
+      } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=1;
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"\nop\;\"
+                          \"mov [%%2],%%d0\",
+               offset, reg_names[REGNO(lhs)]);
+        } else {
+          sprintf(result, \"mov #%d,%%2\;\"
+                          \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"mov [%%2],%%d0\",
+                 offset, reg_names[REGNO(lhs)]);
+        }
+      } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=2;
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"nop\;\"
+                          \"mov [%%2++],%%d0\;\"
+                          \"nop\;\"
+                          \"mov [%%2],%%t0\",
+               offset, reg_names[REGNO(lhs)]);
+        } else {
+          sprintf(result, \"mov #%d,%%2\;\"
+                          \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"mov [%%2++],%%d0\;\"
+                          \"mov [%%2],%%t0\",
+                 offset, reg_names[REGNO(lhs)]);
+        }
+      } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=3;
+        sprintf(result, \"mov #%d,%%2\;\"
+                        \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"nop\;\"
+                          \"mov [%%2++],%%d0\;\"
+                          \"nop\;\"
+                          \"mov [%%2++],%%t0\;\"
+                          \"nop\;\"
+                          \"mov [%%2],%%q0\",
+               offset, reg_names[REGNO(lhs)]);
+        } else {
+          sprintf(result, \"mov #%d,%%2\;\"
+                          \"add %s,%%2,%%2\;\"
+                          \"mov [%%2++],%%0\;\"
+                          \"mov [%%2++],%%d0\;\"
+                          \"mov [%%2++],%%t0\;\"
+                          \"mov [%%2],%%q0\",
+                 offset, reg_names[REGNO(lhs)]);
+        }
+      } else gcc_assert(0);
+      return result;
+    } else {
+      if (GET_MODE_SIZE(<MODE>mode) == 1) {
+        return \"mov.b %1,%0\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+        return \"mov %1,%0\";
+      } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=1;
+          return \"mov %I1,%0\;\"
+                 \"nop\;\"
+                 \"mov %D1,%d0\";
+        } else {
+          return \"mov %I1,%0\;\"
+                 \"mov %D1,%d0\";
+        }
+      } else if (GET_MODE_SIZE(<MODE>mode) == 6) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=2;
+        gcc_assert(0);
+        return \"mov %r1,%2\;\"
+                 \"nop\;\"
+                 \"mov [%2++],%0\;\"
+                 \"nop\;\"
+                 \"mov [%2++],%d0\;\"
+                 \"nop\;\"
+                 \"mov [%2],%t0\";
+        } else {
+          return \"mov %r1,%2\;\"
+                 \"mov [%2++],%0\;\"
+                 \"mov [%2++],%d0\;\"
+                 \"mov [%2],%t0\";
+        }
+      } else if (GET_MODE_SIZE(<MODE>mode) == 8) {
+        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+          pic30_rtx_nops+=3;
+        gcc_assert(0);
+        return \"mov %r1,%2\;\"
+                 \"mov [%2++],%0\;\"
+                 \"nop\;\"
+                 \"mov [%2++],%d0\;\"
+                 \"nop\;\"
+                 \"mov [%2++],%t0\;\"
+                 \"nop\;\"
+                 \"mov [%2],%q0\";
+        } else {
+          return \"mov %r1,%2\;\"
+                 \"mov [%2++],%0\;\"
+                 \"mov [%2++],%d0\;\"
+                 \"mov [%2++],%t0\;\"
+                 \"mov [%2],%q0\";
+        }
+      } else gcc_assert(0);
+    }
+  }
+  "
+)
+
+(define_insn "Qreloaddisp_in<mode>"
+  [(set
+     (match_operand:QRELOADS_SCRATCH  0 "pic30_register_operand" "= r, r")
+     (match_operand:QRELOADS_SCRATCH  1 "pic30_any_QR_operand"   "  R, X"))
+   (clobber (match_operand:HI 2 "pic30_register_operand"         "=&r,&r"))
   ]
   ""
   "*
@@ -50650,10 +50885,13 @@
       return result;
     } else {
       if (GET_MODE_SIZE(<MODE>mode) == 1) {
+        gcc_assert(0);
         return \"mov.b %1,%0\";
       } else if (GET_MODE_SIZE(<MODE>mode) == 2) {
+        gcc_assert(0);
         return \"mov %1,%0\";
       } else if (GET_MODE_SIZE(<MODE>mode) == 4) {
+        gcc_assert(0);
         if (pic30_psrd_psrd_errata(operands[1],NULL)) {
           pic30_rtx_nops+=1;
           return \"mov %I1,%0\;\"
@@ -51001,4 +51239,222 @@
   [
     (set_attr "cc" "clobber")
   ]
+)
+
+(define_mode_iterator CCMODES [QI HI])
+
+(define_insn_and_split "skipclrop2<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 0))
+          (match_operator:CCMODES 3 "pic30_skip2_operator" 
+            [
+              (match_operand:CCMODES 4 "pic30_reg_or_near_operand" "rU")
+              (match_operand:CCMODES 5 "pic30_reg_or_imm_operand"  "ri")
+            ])
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSC))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn_and_split "skipclrop1<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 0))
+          (match_operator:CCMODES 3 "pic30_skip1_operator"
+            [
+              (match_operand:CCMODES 4 "general_operand"        "")
+            ])
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSC))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn_and_split "skipclrop0<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 0))
+            (match_operand:CCMODES 3 "pic30_reg_or_mem_operand" "g")
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSS))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "btsc<mode>"
+  [(set (cc0)
+        (unspec_volatile:CCMODES [
+          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
+          (match_operand 1 "immediate_operand"          "i") 
+        ] UNSPEC_BTSC))
+  ]
+  ""
+  "btsc %0,#%1"
+)
+
+(define_insn_and_split "skipsetop2<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 1))
+          (match_operator         3 "pic30_skip2_operator" 
+            [
+              (match_operand:CCMODES 4 "pic30_reg_or_near_operand" "rU")
+              (match_operand:CCMODES 5 "pic30_reg_or_imm_operand"  "ri")
+            ])
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSS))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn_and_split "skipsetop1<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 1))
+          (match_operator         3 "pic30_skip1_operator" 
+            [
+              (match_operand:CCMODES 4 "general_operand"        "")
+            ])
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSS))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn_and_split "skipsetop0<mode>"
+  [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
+        (if_then_else:CCMODES
+          (compare
+            (zero_extract
+                 (match_operand   1 "pic30_reg_or_near_operand" "rU")
+                 (const_int 1)
+                 (match_operand   2 "immediate_operand"         "i"))
+            (const_int 1))
+            (match_operand:CCMODES 3 "pic30_reg_or_mem_operand" "g")
+          (match_dup 0)
+        ))
+  ]
+  ""
+  "#"
+  "reload_completed"
+  [(set (cc0)
+        (unspec_volatile: CCMODES [
+           (match_dup 1)
+           (match_dup 2)
+         ] UNSPEC_BTSS))
+       (set (match_dup 0)
+            (match_dup 3))
+  ]
+  ""
+  [
+    (set_attr "cc" "clobber")
+  ]
+)
+
+(define_insn "btss<mode>"
+  [(set (cc0)
+        (unspec_volatile:CCMODES [
+          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
+          (match_operand 1 "immediate_operand"          "i") 
+        ] UNSPEC_BTSS))
+  ]
+  ""
+  "btss %0,#%1"
 )

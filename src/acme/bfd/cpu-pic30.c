@@ -96,8 +96,8 @@ bfd_vma pic30_codeguard_setting_address(void *);
 int pic30_add_selected_codeguard_option(void *);
 void pic30_dump_selected_codeguard_options(FILE *);
 char * pic30_unique_selected_configword_names(void);
-int pic30_decode_CG_settings(char *, bfd_vma, unsigned short, int);
-unsigned short pic30_encode_CG_settings(char *);
+int pic30_decode_CG_settings(char *, bfd_vma, unsigned int, int);
+unsigned int pic30_encode_CG_settings(char *);
 void pic30_get_aivt_settings(const bfd_arch_info_type *, int);
 bfd_boolean pic30_has_GSSK(void);
 void pic30_get_ivt(const bfd_arch_info_type *, int);
@@ -196,6 +196,7 @@ static struct pic30_resource_info arch_flags_head[] = {
 static int pic30_tool_version;
 char *pic30_resource_version;
 
+char *version_string;
 static char *version_part1;
 
 unsigned int aivtdis_bit_ptr = 0;
@@ -360,6 +361,7 @@ void pic30_update_resource(const char *resource) {
   }
   get_resource_path(resource);
   process_resource_file(ARCH_TABLE, 0, 0);
+  version_string = version_part1;
 }
 
 char *get_next_dir_entry(char *d) {
@@ -957,7 +959,7 @@ char * pic30_unique_selected_configword_names(void)
 **   1 = valid settings found (and no errors)
 **   0 = no valid settings found
 */
-int pic30_decode_CG_settings(char *name, bfd_vma address, unsigned short value, int debug)
+int pic30_decode_CG_settings(char *name, bfd_vma address, unsigned int value, int debug)
 {
   codeguard_setting_type *s;
   fuse_setting_type *f;
@@ -1018,11 +1020,11 @@ bfd_boolean pic30_has_GSSK(void)
   return FALSE;
 }
 
-unsigned short pic30_encode_CG_settings(char *name)
+unsigned int pic30_encode_CG_settings(char *name)
 {
   codeguard_select_list_type *s;
-  unsigned short result = ~0;
-  unsigned short mask = 0;
+  unsigned int result = ~0;
+  unsigned int mask = 0;
 
   if (!CG_select) return result;
 

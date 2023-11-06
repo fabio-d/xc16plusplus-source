@@ -93,6 +93,7 @@ extern const char * pic30_section_name(rtx op);
 extern const char *pic30_strip_name_encoding_helper(const char *symbol_name);
 extern const char *pic30_strip_name_encoding(const char *symbol_name);
 extern bool pic30_check_section_flags(SECTION_FLAGS_INT, SECTION_FLAGS_INT);
+extern char *pic30_report_section_flags_info(SECTION_FLAGS_INT);
 extern const char *pic30_strip_name_encoding_helper(const char *symbol_name);
 extern bool pic30_legitimate_address_p(enum machine_mode, rtx, bool);
 extern enum machine_mode pic30_addr_space_pointer_mode(addr_space_t);
@@ -103,6 +104,8 @@ extern bool pic30_addr_space_legitimate_address_p(enum machine_mode, rtx,
 extern rtx pic30_addr_space_legitimize_address(rtx, rtx, enum machine_mode,
                                                addr_space_t);
 extern bool pic30_addr_space_subset_p(addr_space_t, addr_space_t);
+extern addr_space_t pic30_addr_space_adjust(addr_space_t from, tree type, 
+                                            tree obj);
 extern rtx pic30_addr_space_convert(rtx, tree, tree);
 
 
@@ -389,6 +392,12 @@ extern int pic30_modek_APSV_operand_helper(rtx op, enum machine_mode mode);
 extern int pic30_mode3_APSV_operand_helper(rtx op, enum machine_mode mode);
 extern int pic30_sfr_operand_helper(rtx op);
 
+#define TARGET_SKIP_OPERATOR pic30_skip_operator
+int pic30_skip_operator(rtx op, enum machine_mode);
+int pic30_skip2_operator(rtx op, enum machine_mode);
+int pic30_skip1_operator(rtx op, enum machine_mode);
+int pic30_skip0_operator(rtx op, enum machine_mode);
+
 #endif /* RTX_CODE */
 
 extern int pic30_validate_config_setting(struct mchp_config_specification *,
@@ -457,6 +466,8 @@ extern int pic30_modes_tieable(enum machine_mode mode1,
 
 extern char *pic30_repeat_errata_push_init(void);
 extern char *pic30_repeat_errata_pop_init(void);
+rtx pic30_get_psv_value(void);
+extern int set_psv_called;
 
 #ifdef GCC_C_PRAGMA_H
 #endif

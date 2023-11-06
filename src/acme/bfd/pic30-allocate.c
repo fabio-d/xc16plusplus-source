@@ -44,8 +44,12 @@
 #define NEXT_PROG_PAGE(a)      (((a) & ~ PROG_OFFSET_BITS) + PROG_BOUNDARY)
 #define PREV_PROG_PAGE(a)       ((a) & ~ PROG_OFFSET_BITS)
 
-#define VALID_X(addr, len)    ((bfd_vma)(addr)+(len) <= ydata_base)
-#define VALID_Y(addr, len)    ((bfd_vma)(addr) >= ydata_base)
+#define VALID_X(addr, len)    (((bfd_vma)(addr)+(len) <= ydata_base) || \
+                               ((ydata_end == 0) || \
+                                (((bfd_vma)(addr)+(len)) > ydata_end)))
+#define VALID_Y(addr, len)    (((bfd_vma)(addr) >= ydata_base) && \
+                               ((ydata_end == 0) || \
+                                (((bfd_vma)(addr)+(len)) <= ydata_end)))
 #define VALID_NEAR(addr, len) ((bfd_vma)(addr)+(len) <= NEAR_BOUNDARY)
 #define VALID_PSV(addr, len)  (((addr)+(len)) <= NEXT_PSV_PAGE(addr))
 #define VALID_EDS_PAGE(addr, len)  (((addr)+(len)) <= NEXT_EDS_PAGE(addr))
@@ -76,6 +80,7 @@
 /* message strings */
 static const char *str1 = "%X Link Error: The used device does not support DPSRAM \n";
 static const char *str2 = "__YDATA_BASE";
+static const char *str2e = "__YDATA_END";
 static const char *str3 = "__DMA_BASE";
 static const char *str4 = "__DMA_END";
 
@@ -108,6 +113,12 @@ enum {
 extern struct pic30_memory *program_memory_free_blocks;
 extern struct pic30_memory *auxflash_memory_free_blocks;
 extern struct pic30_memory *aivt_free_blocks;
+
+struct usable_region_list {
+  struct memory_region_struct *region;
+  struct pic30_memory *free_blocks;
+  struct usable_region_list *next;
+};
 
 /* External function prototypes */
 extern int pic30_is_ecore_machine(const bfd_arch_info_type *);
@@ -445,6 +456,9 @@ allocate_program_memory() {
   unsigned int has_mask = code|psv|packedflash;
   unsigned int hasnot_mask = auxflash;
   int result = 0;
+  struct usable_region_list *usable_regions = NULL, *tail = NULL;
+  struct usable_region_list *entry;
+  struct pic30_memory *mem_block;
 
   if (pic30_debug)
     printf("\nBuilding allocation list for region \"program\"\n"
@@ -455,8 +469,29 @@ allocate_program_memory() {
   if (pic30_section_list_length(alloc_section_list) == 0)
     return result;
 
-  region = region_lookup ("program");
-  build_free_block_list(region, has_mask,hasnot_mask);
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    /* look for data region */
+    if ((region->flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY)) {
+       if (pic30_debug)
+         printf("\nUsing '%s' as program region\n", region->name);
+       build_free_block_list(region, has_mask, hasnot_mask);
+       entry = xmalloc(sizeof(struct usable_region_list));
+       if (entry == NULL) { // FAIL
+         return 1;
+       }
+       entry->region = region;
+       entry->free_blocks = free_blocks;
+       free_blocks = NULL;
+       entry->next = NULL;
+       if (usable_regions) {
+         tail->next = entry;
+       } else {
+         usable_regions = entry;
+       }
+       tail = entry;
+    }
+  }
 
   /* save the region index because CodeGuard needs it later */
   alloc_region_index = FLASHx;
@@ -471,15 +506,59 @@ allocate_program_memory() {
     pic30_print_section_list(unassigned_sections, "unassigned");
 #endif
 
+#define FOR_EACH_USABLE_PROGRAM_REGION(X)                            \
+  for (entry = usable_regions; entry; entry = entry->next) {         \
+    if (pic30_debug)                                                 \
+      printf("\nAllocating in region '%s'\n",entry->region->name);   \
+    free_blocks = entry->free_blocks;                                \
+    region = entry->region;                                          \
+    X;                                                               \
+    entry->free_blocks = free_blocks;                                \
+  }
+
   reset_locate_options();
-  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
-  result |= locate_sections(psv, 0, 0, region);       /* :                 */
-  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
+  FOR_EACH_USABLE_PROGRAM_REGION(
+    /* most restrictive */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(address, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_PROGRAM_REGION(
+    /* :                 */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(psv, 0, 0, region,(entry->next != NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_PROGRAM_REGION(
+    /* least restrictive */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(all_attr, 0, 0, region,(entry->next != NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* save the free blocks list */
-  program_memory_free_blocks = free_blocks;
-  free_blocks = 0;
+  program_memory_free_blocks = 0;
+  mem_block = 0;
+  FOR_EACH_USABLE_PROGRAM_REGION(
+    if (free_blocks && free_blocks->next) {
+      if (program_memory_free_blocks == 0) {
+        program_memory_free_blocks = free_blocks;
+        mem_block = free_blocks;
+      } else {
+        mem_block->next = free_blocks->next;
+      }
+      while (mem_block->next) {
+        mem_block = mem_block->next;
+        if (pic30_debug) {
+          printf("Attaching %x (%x bytes) from region '%s'\n",
+                 mem_block->addr, mem_block->size,
+                 region->name);
+        }
+      }
+    }
+  )
 
+  free_blocks = 0;
 
   return result;
 } /* allocate_program_memory() */
@@ -532,8 +611,8 @@ allocate_auxflash_memory() {
 #endif
 
   reset_locate_options();
-  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
-  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
+  result |= locate_sections(address, 0, 0, region,0);   /* most restrictive  */
+  result |= locate_sections(all_attr, 0, 0, region,0);  /* least restrictive */
 
 /* save the free blocks list */
   auxflash_memory_free_blocks = free_blocks;
@@ -587,6 +666,9 @@ allocate_data_memory() {
   int result = 0;
   bfd_vma max_stack = get_max_stack();
   bfd_vma max_heap;
+  struct usable_region_list *usable_regions = NULL, *tail = NULL;
+  struct usable_region_list *entry;
+  struct pic30_memory *mem_block;
 
   /* heap */
   if (has_unified_data_model) {
@@ -596,15 +678,37 @@ allocate_data_memory() {
   } else max_heap = DATA_BUS_LIMIT;
 
   if (pic30_debug)
-    printf("\nBuilding allocation list for region \"data\"\n"
+    printf("\nBuilding allocation list for data type regions\n"
            "  attribute has_mask = 0x%x "
            " hasnot_mask = 0x%x\n", has_mask, hasnot_mask);
 
   build_alloc_section_list(has_mask, hasnot_mask);
-  region = region_lookup ("data");
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    /* look for data region */
+    if ((region->flags & SEC_ALLOC) && 
+        ((region->not_flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY))) {
 
-  build_free_block_list(region, has_mask, hasnot_mask);
-
+       if (pic30_debug)
+         printf("\nUsing '%s' as data region\n", region->name);
+       build_free_block_list(region, has_mask, hasnot_mask);
+       entry = xmalloc(sizeof(struct usable_region_list));
+       if (entry == NULL) { // FAIL
+         return 1;
+       }
+       entry->region = region;
+       entry->free_blocks = free_blocks;
+       free_blocks = NULL;
+       entry->next = NULL;
+       if (usable_regions) {
+         tail->next = entry;
+       } else {
+         usable_regions = entry;
+       }
+       tail = entry;
+    }
+  }
+   
   /*
   ** an initially empty list of blocks that can be shared in data memory
   */
@@ -619,32 +723,92 @@ allocate_data_memory() {
     report_codeguard_segment_activity(RAMx);
     pic30_print_section_list(alloc_section_list, "allocation");
   }
+
+#define FOR_EACH_USABLE_DATA_REGION(X)                               \
+  for (entry = usable_regions; entry; entry = entry->next) {         \
+    if (pic30_debug)                                                 \
+      printf("\nAllocating in region '%s'\n",entry->region->name);   \
+    free_blocks = entry->free_blocks;                                \
+    region = entry->region;                                          \
+    X;                                                               \
+    entry->free_blocks = free_blocks;                                \
+  }
+    
   
   reset_locate_options();
-  result |= locate_sections(all_attr, 0, 1, region);   /* preserved         */
-  result |= locate_sections(address, 0, 0, region);    /* most restrictive  */
-  result |= locate_sections(dma, 0, 0, region);        /* :                 */
-  result |= locate_sections(near, 0, 0, region);
-  result |= locate_sections(xmemory,0, 0,  region);    /* :                 */
-  result |= locate_sections(ymemory, 0, 0, region);    /* :                 */
-         /* less restrictive  */
-  result |= locate_sections(all_attr, eds|stack|heap, 0, region);
+  FOR_EACH_USABLE_DATA_REGION(
+    /* preserved         */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(all_attr, 0, 1, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_DATA_REGION(
+    /* most restrictive  */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(address, 0, 0, region, (entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_DATA_REGION(
+    /* :                 */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(dma, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(near, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_DATA_REGION(
+    /* :                 */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(xmemory,0, 0,  region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  FOR_EACH_USABLE_DATA_REGION(
+    /* :                 */
+    int tmp_result = 0;
+    tmp_result |= locate_sections(ymemory, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
+  /* less restrictive  */
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(all_attr, eds|stack|heap, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* user-defined heap */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_heap);
-  result |= locate_sections(heap, 0, 0, region);
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(heap, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* user-defined stack */
   set_locate_options(has_psvpag_reference ? EXCLUDE_HIGH_ADDR : 0, max_stack);
-  result |= locate_sections(stack, 0, 0, region);
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(stack, 0, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* EDS, first pass */
   set_locate_options(EXCLUDE_LOW_ADDR, max_stack);
-  result |= locate_sections(all_attr, stack|heap, 0, region);
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(all_attr, stack|heap, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* EDS, second pass */
   set_locate_options(FAVOR_HIGH_ADDR, 0);
-  result |= locate_sections(all_attr, stack|heap, 0, region);
+  FOR_EACH_USABLE_DATA_REGION(
+    int tmp_result = 0;
+    tmp_result |= locate_sections(all_attr, stack|heap, 0, region,(entry->next!=NULL));
+    if (entry->next == NULL) result |= tmp_result;
+  )
 
   /* if any not previously linked sections are left in the allocation list,
      report an error */
@@ -653,8 +817,30 @@ allocate_data_memory() {
     if (report_allocation_error(s->next)) result |= 1; 
   }
 
-  /* save the free blocks list */
-  data_memory_free_blocks = free_blocks;
+  /* save the free blocks list, concat all regions together */
+  if (pic30_debug) {
+    printf("\nCreating unified free block list...\n");
+  }
+  mem_block = 0;
+  data_memory_free_blocks = 0;
+  FOR_EACH_USABLE_DATA_REGION(
+    if (free_blocks && free_blocks->next) {
+      if (data_memory_free_blocks == 0) {
+        data_memory_free_blocks = free_blocks;
+        mem_block = free_blocks;
+      } else {
+        mem_block->next = free_blocks->next;
+      }
+      while (mem_block->next) {
+        mem_block = mem_block->next;
+        if (pic30_debug) {
+          printf("Attaching %x (%x bytes) from region '%s'\n",
+                 mem_block->addr, mem_block->size,
+                 region->name);
+        }
+      }
+    }
+  )
   free_blocks = 0;
 
   return result;
@@ -781,8 +967,8 @@ allocate_eedata_memory() {
   }
 
   reset_locate_options();
-  result |= locate_sections(address, 0, 0, region);   /* most restrictive  */
-  result |= locate_sections(all_attr, 0, 0, region);  /* least restrictive */
+  result |= locate_sections(address, 0, 0, region,0);   /* most restrictive  */
+  result |= locate_sections(all_attr, 0, 0, region,0);  /* least restrictive */
 
   return result;
 } /* allocate_eedata_memory() */
@@ -893,8 +1079,8 @@ allocate_user_memory() {
     }
   
     reset_locate_options();
-    result |= locate_sections(address, 0, 0, &temp_region);
-    result |= locate_sections(all_attr, 0, 0, &temp_region);
+    result |= locate_sections(address, 0, 0, &temp_region,0);
+    result |= locate_sections(all_attr, 0, 0, &temp_region,0);
   }
 
   return result;
@@ -989,7 +1175,8 @@ group_section_alignment(struct pic30_section *g)
  
  static int
  locate_group_section(struct pic30_section *s,
-                        struct memory_region_struct *region) {
+                        struct memory_region_struct *region,
+                        int more_regions_to_scan) {
 
   struct pic30_memory *b;
   bfd_vma len = group_section_size(s);
@@ -1067,11 +1254,11 @@ group_section_alignment(struct pic30_section *g)
     update_group_section_info(addr, s, region);  /* falls outside region */
   }
   else {                          /* locate using free_blocks list */
-    b = select_free_block(s, len, align, region);
+    b = select_free_block(s, len, align, region,more_regions_to_scan);
     if (b) {
       addr = b->addr + b->offset;
       update_group_section_info(addr,s,region);
-      create_remainder_blocks(free_blocks, b, len, region);
+      create_remainder_blocks(free_blocks, b, len, region,s);
       remove_free_block(b);
     } else {
       if (locate_options != NO_LOCATE_OPTION) {
@@ -1105,7 +1292,8 @@ group_section_alignment(struct pic30_section *g)
  
  static int
  locate_single_section(struct pic30_section *s,
-                       struct memory_region_struct *region) {
+                       struct memory_region_struct *region,
+                       int more_regions_to_scan) {
 
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   bfd_vma len;
@@ -1179,11 +1367,11 @@ group_section_alignment(struct pic30_section *g)
     update_section_info(addr, s, region);  /* falls outside region */
   }
   else {                          /* locate using free_blocks list */
-    b = select_free_block(s, len, align, region);
+    b = select_free_block(s, len, align, region,more_regions_to_scan);
     if (b) {
       addr = b->addr + b->offset;
       update_section_info(addr,s,region);
-      create_remainder_blocks(free_blocks, b, len, region);
+      create_remainder_blocks(free_blocks, b, len, region, s);
 #ifdef PIC30ELF
       if (PIC30_IS_SHARED_ATTR(s->sec) && PIC30_IS_ABSOLUTE_ATTR(s->sec)) {
         pic30_add_to_memory_list(shared_data_memory_blocks,
@@ -1201,9 +1389,11 @@ group_section_alignment(struct pic30_section *g)
     }
   }
 
-  if (pic30_debug)
-    printf("    removing from allocation list\n");
-  pic30_remove_from_section_list(alloc_section_list,s);
+  if ((result == 0) || (more_regions_to_scan == 0)) {
+    if (pic30_debug)
+      printf("    removing from allocation list\n");
+    pic30_remove_from_section_list(alloc_section_list,s);
+  }
 
   return result;
 } /* locate_single_section() */
@@ -1378,7 +1568,7 @@ static void locate_preserved_section(struct pic30_section *s,
       s->sec->lma = section_lma;
       PIC30_SET_ABSOLUTE_ATTR(s->sec);
       s->sec->linker_generated = 1;
-      locate_single_section(s, region);
+      locate_single_section(s, region, 0);
     }
   }
   return;
@@ -1409,7 +1599,8 @@ static void locate_preserved_section(struct pic30_section *s,
  */
 static int
 locate_sections(unsigned int mask, unsigned int block,
-                unsigned int preserved, struct memory_region_struct *region) {
+                unsigned int preserved, struct memory_region_struct *region,
+                int more_regions_to_scan) {
 
   unsigned int opb = bfd_octets_per_byte (output_bfd);
   struct pic30_section *s,*next;
@@ -1446,9 +1637,9 @@ locate_sections(unsigned int mask, unsigned int block,
         }
       
         if (is_group_section(s->sec))
-          result |= locate_group_section(s, region);
+          result |= locate_group_section(s, region, more_regions_to_scan);
         else
-          result |= locate_single_section(s, region);
+          result |= locate_single_section(s, region, more_regions_to_scan);
       }
     }
   }
@@ -1536,7 +1727,8 @@ confirm_dma_range_defined() {
 
 static struct pic30_memory *
 select_free_block(struct pic30_section *s, unsigned int len,
-                  unsigned int align, struct memory_region_struct *region) {
+                  unsigned int align, struct memory_region_struct *region,
+                  int more_regions_to_scan) {
 
   unsigned int align_power = align;
 
@@ -1639,6 +1831,14 @@ select_free_block(struct pic30_section *s, unsigned int len,
     }
     else
       einfo(_(str1), str2);
+    /* its OKAY for __YDATA_END to not be defined; if this is the case then
+       XMEMORY ends at __YDATA_BASE ... */
+    h = bfd_pic30_is_defined_global_symbol(str2e);
+    if (h) {
+      ydata_end = h->u.def.value;
+    } else {
+      ydata_end = 0;
+    }
   }
 
   /*
@@ -1682,14 +1882,43 @@ select_free_block(struct pic30_section *s, unsigned int len,
     if (b->size < len)
       continue;
 
-    /* qualify X with leftmost position in free block */
-    if (PIC30_IS_XMEMORY_ATTR(s->sec) && !VALID_X(b->addr, len))
-      continue;
+    if (PIC30_IS_XMEMORY_ATTR(s->sec)) {
+      /* do we have len bytes worth of X memory in this block??? */
+      int block_len1 = 0, block_len2 = 0;
+ 
+      if (b->addr < ydata_base) {
+        if (b->addr + b->size < ydata_base) block_len1 = b->size;
+        else {
+          block_len1 = ydata_base - b->addr;
+          if ((ydata_end) && (b->addr + b->size > ydata_end)) {
+            block_len2 = b->addr+b->size - ydata_end;
+          }
+        }
+      } else if (ydata_end) { 
+        if (ydata_end <= b->addr) {
+          block_len1 = b->size;
+        } else block_len1 = b->addr+b->size - ydata_end;
+      }
+      if ((len > block_len1) && (len > block_len2)) continue;
+    }
 
-    /* qualify Y with rightmost position in free block */
-    if (PIC30_IS_YMEMORY_ATTR(s->sec) &&
-        !VALID_Y((b->addr + b->size - len), len))
-      continue;
+    if (PIC30_IS_YMEMORY_ATTR(s->sec)) {
+      /* do we have len bytes worth of Y memory in this block??? */
+      bfd_vma ystart, yend;
+
+      if (b->addr < ydata_base) {
+        ystart = ydata_base;
+        if (ystart > b->addr + b->size) continue;
+      } else ystart = b->addr;
+
+      if (ydata_end) {
+        if (b->addr + b->size < ydata_end) 
+          yend = b->addr + b->size;
+        if (b->size + b->size >= ydata_end) 
+          yend = ydata_end;
+      } else yend = b->addr+b->size;
+      if (yend-ystart < len) continue;
+    }
 
     /* qualify NEAR with leftmost position in free block */
     if (PIC30_IS_NEAR_ATTR(s->sec) && !VALID_NEAR(b->addr, len))
@@ -2162,6 +2391,7 @@ select_free_block(struct pic30_section *s, unsigned int len,
 
     return b;
   }
+  if (more_regions_to_scan) return NULL;
 
   /* If we get here, a suitable block could not be found */
   if (locate_options != NO_LOCATE_OPTION)
@@ -2439,16 +2669,21 @@ update_group_section_info(bfd_vma alloc_addr,
 static void
 create_remainder_blocks(struct pic30_memory *lst,
                         struct pic30_memory *b, unsigned int len,
-                        struct memory_region_struct *region)
+                        struct memory_region_struct *region,
+                        struct pic30_section *s)
 {
 
   bfd_vma remainder;
 
-  if ((strcmp(region->name,"program") == 0) && aivt_base) {
+  if ((strcmp(region->name,"program") == 0) && aivt_base && 
+      (s->sec->linker_generated == 0)) {
     /* if we create a block that uses part of the aivt, then fill the rest...*/
     if ((b->addr + b->offset >= aivt_base) &&
         (b->addr + b->offset + len <= aivt_base + aivt_len)) {
-      len = aivt_base + aivt_len - b->addr - b->offset;
+      unsigned int updated_len;
+
+      updated_len = aivt_base + aivt_len - b->addr - b->offset;
+      if (updated_len <= b->size) len = updated_len;
     }
   }
   remainder = b->size - (len + b->offset);
@@ -2660,8 +2895,10 @@ build_free_block_list(struct memory_region_struct *region,
 #endif
 
   /* consume rest of aivt space, if required */
-  if ((dot >= aivt_base) && (dot < aivt_base + aivt_len)) {
-    dot = aivt_base + aivt_len;
+  if ((region->flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY)) {
+    if ((dot >= aivt_base) && (dot < aivt_base + aivt_len)) {
+      dot = aivt_base + aivt_len;
+    }
   }
 
   /* add a block for any free space remaining in this region */

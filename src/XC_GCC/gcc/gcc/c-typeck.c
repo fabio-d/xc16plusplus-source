@@ -81,7 +81,7 @@ static int require_constant_elements;
 static bool null_pointer_constant_p (const_tree);
 static tree qualify_type (tree, tree);
 static int tagged_types_tu_compatible_p (const_tree, const_tree, bool *);
-static int comp_target_types (location_t, tree, tree);
+static int comp_target_types (location_t, tree, tree, tree, tree);
 static int function_types_compatible_p (const_tree, const_tree, bool *);
 static int type_lists_compatible_p (const_tree, const_tree, bool *);
 static tree lookup_field (tree, tree);
@@ -291,23 +291,31 @@ c_type_promotes_to (tree type)
 static bool
 addr_space_superset (addr_space_t as1, addr_space_t as2, addr_space_t *common)
 {
+  bool result = false;
   if (as1 == as2)
     {
       *common = as1;
-      return true;
+      result = true;
     }
   else if (targetm.addr_space.subset_p (as1, as2))
     {
       *common = as2;
-      return true;
+      result = true;
     }
   else if (targetm.addr_space.subset_p (as2, as1))
     {
       *common = as1;
-      return true;
+      result = true;
     }
   else
     return false;
+
+#ifdef _BUILD_C30_
+  if (result) {
+    if (*common == pic30_space_const) *common = ADDR_SPACE_GENERIC;
+  }
+#endif
+  return result;
 }
 
 /* Return a variant of TYPE which has all the type qualifiers of LIKE
@@ -1167,7 +1175,7 @@ comptypes_internal (const_tree type1, const_tree type2, bool *enum_and_int_p)
    subset of the other.  */
 
 static int
-comp_target_types (location_t location, tree ttl, tree ttr)
+comp_target_types (location_t location, tree ttl, tree ttr, tree lhs, tree rhs)
 {
   int val;
   tree mvl = TREE_TYPE (ttl);
@@ -1177,6 +1185,10 @@ comp_target_types (location_t location, tree ttl, tree ttr)
   addr_space_t as_common;
   bool enum_and_int_p;
 
+#ifdef _BUILD_C30_
+  asl = pic30_addr_space_adjust(asl, ttl, lhs);
+  asr = pic30_addr_space_adjust(asr, ttr, rhs);
+#endif
   /* Fail if pointers point to incompatible address spaces.  */
   if (!addr_space_superset (asl, asr, &as_common))
     return 0;
@@ -3197,6 +3209,10 @@ pointer_diff (location_t loc, tree op0, tree op1)
   tree con0, con1, lit0, lit1;
   tree orig_op1 = op1;
 
+#ifdef _BUILD_C30_
+  as0 = pic30_addr_space_adjust(as0, TREE_TYPE(TREE_TYPE(op0)), op0);
+  as1 = pic30_addr_space_adjust(as1, TREE_TYPE(TREE_TYPE(op1)), op1);
+#endif
   /* If the operands point into different address spaces, we need to
      explicitly convert them to pointers into the common address space
      before we can subtract the numerical address values.  */
@@ -4175,7 +4191,12 @@ build_conditional_expr (location_t colon_loc, tree ifexp, bool ifexp_bcp,
       addr_space_t as2 = TYPE_ADDR_SPACE (TREE_TYPE (type2));
       addr_space_t as_common;
 
-      if (comp_target_types (colon_loc, type1, type2))
+#ifdef _BUILD_C30_
+      as1 = pic30_addr_space_adjust(as1, TREE_TYPE(type1), op1);
+      as2 = pic30_addr_space_adjust(as2, TREE_TYPE(type2), op2);
+#endif
+
+      if (comp_target_types (colon_loc, type1, type2, op1, op2))
 	result_type = common_pointer_type (type1, type2);
       else if (null_pointer_constant_p (orig_op1))
 	result_type = type2;
@@ -4563,6 +4584,11 @@ build_c_cast (location_t loc, tree type, tree expr)
 	  addr_space_t as_to = TYPE_ADDR_SPACE (TREE_TYPE (type));
 	  addr_space_t as_from = TYPE_ADDR_SPACE (TREE_TYPE (otype));
 	  addr_space_t as_common;
+
+#ifdef _BUILD_C30_
+          as_to = pic30_addr_space_adjust(as_to, TREE_TYPE(type), NULL_TREE);
+          as_from = pic30_addr_space_adjust(as_from, TREE_TYPE(otype), value);
+#endif
 
 	  if (!addr_space_superset (as_to, as_from, &as_common))
 	    {
@@ -5134,7 +5160,7 @@ convert_for_assignment (location_t location, tree type, tree rhs,
 		 Meanwhile, the lhs target must have all the qualifiers of
 		 the rhs.  */
 	      if (VOID_TYPE_P (ttl) || VOID_TYPE_P (ttr)
-		  || comp_target_types (location, memb_type, rhstype))
+		  || comp_target_types (location, memb_type, rhstype, NULL_TREE, rhs))
 		{
 		  /* If this type won't generate any warnings, use it.  */
 		  if (TYPE_QUALS (ttl) == TYPE_QUALS (ttr)
@@ -5256,6 +5282,10 @@ convert_for_assignment (location_t location, tree type, tree rhs,
 #ifdef _BUILD_C30_
       /* To me (CW) it make sense that we check for the right hand side
          being the subset of the left hand side - not the other way round */
+      if (((fundecl) && !DECL_BUILT_IN(fundecl)) || (!fundecl)) {
+        asl = pic30_addr_space_adjust(asl, ttl, NULL_TREE);
+        asr = pic30_addr_space_adjust(asr, ttr, rhs);
+      }
       if (!null_pointer_constant_p (rhs)
 	  && asr != asl && !targetm.addr_space.subset_p (asl, asr))
 #else
@@ -5284,6 +5314,10 @@ convert_for_assignment (location_t location, tree type, tree rhs,
 	    default:
 	      gcc_unreachable ();
 	    }
+#ifdef _BUILD_C30_
+          inform(location, 
+                 "Unable to convert from\n\t%T\nto type\n\t%T", rhstype, type);
+#endif
 	  return error_mark_node;
 	}
 
@@ -5324,7 +5358,7 @@ convert_for_assignment (location_t location, tree type, tree rhs,
 	 and vice versa; otherwise, targets must be the same.
 	 Meanwhile, the lhs target must have all the qualifiers of the rhs.  */
       if (VOID_TYPE_P (ttl) || VOID_TYPE_P (ttr)
-	  || (target_cmp = comp_target_types (location, type, rhstype))
+	  || (target_cmp = comp_target_types (location, type, rhstype, NULL_TREE, rhs))
 	  || is_opaque_pointer
 	  || (c_common_unsigned_type (mvl)
 	      == c_common_unsigned_type (mvr)))
@@ -9320,7 +9354,7 @@ build_binary_op (location_t location, enum tree_code code,
       /* Subtraction of two similar pointers.
 	 We must subtract them as integers, then divide by object size.  */
       if (code0 == POINTER_TYPE && code1 == POINTER_TYPE
-	  && comp_target_types (location, type0, type1))
+	  && comp_target_types (location, type0, type1, op0, op1))
 	{
 	  ret = pointer_diff (location, op0, op1);
 	  goto return_build_binary_op;
@@ -9550,10 +9584,14 @@ build_binary_op (location_t location, enum tree_code code,
 	  addr_space_t as1 = TYPE_ADDR_SPACE (tt1);
 	  addr_space_t as_common = ADDR_SPACE_GENERIC;
 
+#ifdef _BUILD_C30_
+          as0 = pic30_addr_space_adjust(as0, tt0, orig_op0);
+          as1 = pic30_addr_space_adjust(as1, tt1, orig_op1);
+#endif
 	  /* Anything compares with void *.  void * compares with anything.
 	     Otherwise, the targets must be compatible
 	     and both must be object or both incomplete.  */
-	  if (comp_target_types (location, type0, type1))
+	  if (comp_target_types (location, type0, type1, op0, op1))
 	    result_type = common_pointer_type (type0, type1);
 	  else if (null_pointer_constant_p (orig_op0))
 	    result_type = type1;
@@ -9636,7 +9674,11 @@ build_binary_op (location_t location, enum tree_code code,
 	  addr_space_t as1 = TYPE_ADDR_SPACE (TREE_TYPE (type1));
 	  addr_space_t as_common;
 
-	  if (comp_target_types (location, type0, type1))
+#ifdef _BUILD_C30_
+          as0 = pic30_addr_space_adjust(as0, TREE_TYPE(type0), orig_op0);
+          as1 = pic30_addr_space_adjust(as1, TREE_TYPE(type1), orig_op1);
+#endif
+	  if (comp_target_types (location, type0, type1, op0, op1))
 	    {
 	      result_type = common_pointer_type (type0, type1);
 	      if (!COMPLETE_TYPE_P (TREE_TYPE (type0))

@@ -110,6 +110,9 @@ mep*-*-*)
 mips*-*-*)
 	cpu_type=mips
 	;;
+pic30-*-*)
+        cpu_type=pic30
+        ;;
 pic32*-*-*)
 	cpu_type=mips
 	;;
@@ -457,6 +460,8 @@ moxie-*-*)
 	;;
 pdp11-*-*)
 	;;
+pic30-*-*)
+        ;;
 pic32mx-*-elf*)
 	;;
 picochip-*-*)

@@ -242,6 +242,16 @@ Target Var(mchp_skip_license_check) Undocumented
 mpsrd-psrd-check
 Target Var(pic30_psrd_psrd_check) Undocumented
 
+fif-conversion-skip
+Target Var(flag_if_conversion_skip) Init(1)
+Allow conversions of if statements to appropriate skip instructions
+
+mexpand-pragma-config
+Target Var(pic30_expand_pragma_config)
+Enable macro expansion in pragma config value
+
+mallow-complex
+Target Var(pic30_allow_complex) Init(0) Undocumented
 
 ;
 ; **************************** CAUTION
@@ -316,3 +326,4 @@ Select device data from a Device Family Pack (DFP).
 mcodecov=
 Target Joined RejectNegative Var(mchp_codecov) VarExists
 Enable code coverage instrumentation
+

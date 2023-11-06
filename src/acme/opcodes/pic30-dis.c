@@ -203,11 +203,17 @@ pic30_disassemble_call_goto_insn (opcode, insn_word1, insn_word2, info)
    unsigned long LSB = ((insn_word1 & 0xFFFF));
    unsigned long MSB = ((insn_word2 & 0xFFFF) << 16);
    unsigned long addr = (MSB | LSB);
+   struct pic30_private_data *private_data;
 
+   private_data = info->private_data;
    info->flags_to_match = SEC_CODE;
    (*info->fprintf_func) (info->stream, "%-10s0x", opcode->name);
    (*info->print_address_func) (addr, info);
    info->flags_to_match = 0;
+   info->target = addr;
+   if (private_data) {
+     private_data->reg[0] = addr;
+   }
 }
 
 /******************************************************************************/

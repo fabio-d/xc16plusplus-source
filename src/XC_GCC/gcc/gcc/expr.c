@@ -7542,6 +7542,12 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	   have been implemented via CONVERT_EXPR / NOP_EXPR.  */
 	gcc_assert (as_to != as_from);
 
+#if defined(_BUILD_C30_)
+        as_to = pic30_addr_space_adjust(as_to, TREE_TYPE(type), NULL_TREE);
+        as_from = pic30_addr_space_adjust(as_from, TREE_TYPE(treeop0_type), 
+                                          treeop0);
+#endif
+
         /* Ask target code to handle conversion between pointers
 	   to overlapping address spaces.  */
 	if (targetm.addr_space.subset_p (as_to, as_from)

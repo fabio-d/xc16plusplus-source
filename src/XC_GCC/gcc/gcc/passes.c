@@ -1051,6 +1051,9 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_stack_adjustments);
 	  NEXT_PASS (pass_peephole2);
 	  NEXT_PASS (pass_if_after_reload);
+#if defined(_BUILD_C30_)
+	  NEXT_PASS (pass_split_for_xc16);
+#endif
 	  NEXT_PASS (pass_regrename);
 	  NEXT_PASS (pass_cprop_hardreg);
 	  NEXT_PASS (pass_fast_rtl_dce);

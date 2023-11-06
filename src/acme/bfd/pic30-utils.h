@@ -523,6 +523,7 @@ extern void pic30_add_section_attributes(asection *, char *, char *, char *);
 
 extern char *pic30_dfp;
 extern char *pic30_requested_processor;
+extern char *version_string;
 
 extern int pic30_is_dsp_machine(const bfd_arch_info_type *);
 extern int pic30_is_eedata_machine(const bfd_arch_info_type *);

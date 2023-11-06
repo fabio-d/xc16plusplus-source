@@ -148,34 +148,35 @@ complex_same_phi_args_p (basic_block bb1, basic_block bb1_dest,
   edge e2 = find_edge (bb2, bb2_dest);
   gimple_stmt_iterator gsi1;
   gimple_stmt_iterator gsi2;
-  gimple_stmt_iterator *gsi;
-  gimple phi;
+  gimple phi1,phi2;
   int capacity;
   
 
   gsi1 = gsi_start_phis(bb1_dest);
   gsi2 = gsi_start_phis(bb2_dest);
+
   if ((gsi1.ptr == NULL) && (gsi2.ptr == NULL)) return true;
-  gsi = &gsi1;
-  if (gsi1.ptr == NULL) {
-    gsi = &gsi2;
-  }
-  for (; !gsi_end_p (*gsi); gsi_next (gsi))
+  if ((gsi1.ptr == NULL) || (gsi2.ptr == NULL)) return false;
+  for (; !gsi_end_p (gsi1) && !gsi_end_p(gsi2); 
+         gsi_next (&gsi1), gsi_next(&gsi2))
     {
-      phi = gsi_stmt (*gsi);
-      capacity = gimple_phi_capacity(phi);
-      if ((e1->dest_idx > capacity) ||
-          (e2->dest_idx > capacity)) {
+      phi1 = gsi_stmt (gsi1);
+      phi2 = gsi_stmt (gsi2);
+      if ((e1->dest_idx > gimple_phi_capacity(phi1)) ||
+          (e2->dest_idx > gimple_phi_capacity(phi2))) {
         return false;
       }
       tree d1, d2;
-      d1 = PHI_ARG_DEF_FROM_EDGE (phi, e1);
-      d2 =  PHI_ARG_DEF_FROM_EDGE (phi, e2);
+
+      d1 = PHI_ARG_DEF_FROM_EDGE (phi1, e1);
+      d2 =  PHI_ARG_DEF_FROM_EDGE (phi2, e2);
       if ((d1 == NULL_TREE) || (d2 == NULL_TREE) || !operand_equal_p (d1,d2, 0))
         return false;
     }
 
-  return true;
+  if (gsi_end_p(gsi1) && gsi_end_p(gsi2))
+    return true;
+  return false;
 }
 
 /* Return the best representative SSA name for CANDIDATE which is used
@@ -707,6 +708,7 @@ tree_ssa_ifcombine (void)
   int i;
 
   bbs = blocks_in_phiopt_order ();
+  calculate_dominance_info(CDI_DOMINATORS);
 
   for (i = 0; i < n_basic_blocks - NUM_FIXED_BLOCKS; ++i)
     {

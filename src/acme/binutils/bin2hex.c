@@ -358,7 +358,7 @@ write_image_file(char *name, bfd *abfd) {
 // here
   time(&current_time);
 
-  filename = xmalloc(strlen(name)+2);
+  filename = xmalloc(strlen(name)+3);
   if (filename == 0) {
     printf("Error: could not create file\n");
     return 0;
@@ -424,7 +424,7 @@ write_image_file(char *name, bfd *abfd) {
   }
 
   fclose(fp);
-
+  free(filename);
   return 1;
 }
 

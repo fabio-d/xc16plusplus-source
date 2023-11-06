@@ -152,8 +152,8 @@ extern bfd_vma pic30_codeguard_setting_address(void *s);
 extern int pic30_add_selected_codeguard_option(void *);
 extern void pic30_dump_selected_codeguard_options(FILE *);
 extern char * pic30_unique_selected_configword_names(void);
-extern int pic30_decode_CG_settings(char *, bfd_vma, unsigned short, int);
-extern unsigned short pic30_encode_CG_settings(char *);
+extern int pic30_decode_CG_settings(char *, bfd_vma, unsigned int, int);
+extern unsigned int pic30_encode_CG_settings(char *);
 extern void pic30_set_extended_attributes(asection *,
                                           unsigned int, unsigned char );
 extern void pic30_get_aivt_settings(const bfd_arch_info_type *, int);
@@ -222,7 +222,7 @@ static int allocate_user_memory
 
 static int locate_sections
   PARAMS ((unsigned int, unsigned int, unsigned int, 
-           struct memory_region_struct *));
+           struct memory_region_struct *, int more));
 
 static bfd_vma next_aligned_address
   PARAMS (( bfd_vma, unsigned int));
@@ -479,6 +479,7 @@ static bfd *heap_bfd, *stack_bfd;
 
 /* X/Y boundary info */
 static bfd_vma ydata_base = 0;
+static bfd_vma ydata_end = 0;
 static bfd_boolean ydata_base_defined = FALSE;
 
 /* Memory Reporting Info */
@@ -726,7 +727,7 @@ static void print_output_section_statement
 
 static struct pic30_memory * select_free_block
   PARAMS ((struct pic30_section *, unsigned int, unsigned int,
-          struct memory_region_struct *));
+          struct memory_region_struct *, int more));
 
 static void remove_free_block
   PARAMS ((struct pic30_memory *));
@@ -744,7 +745,7 @@ static void update_group_section_info
 
 static void create_remainder_blocks
   PARAMS ((struct pic30_memory *, struct pic30_memory *, unsigned int,
-           struct memory_region_struct *));
+           struct memory_region_struct *, struct pic30_section *));
 
 /*
 ** BFD Utility Routines
@@ -780,30 +781,110 @@ static void create_remainder_blocks
 
 static bfd_vma
 program_base_address(void) {
+#if 0
   lang_memory_region_type *region =
     region_lookup("program");
   return region->origin;
+#else 
+  static bfd_vma base_address;
+  static int base_address_found = 0;
+  struct memory_region_struct *region;
+
+  if (base_address_found) return base_address;
+
+  base_address = 0xFFFFFFFF;
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    if ((region->flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY)) {
+      /* an executable region */
+      base_address_found = 1;
+      if (region->origin < base_address) base_address = region->origin;
+    }
+  }
+  return base_address;
+#endif
 }
 
 static bfd_vma
 program_end_address(void) {
+#if 0
   lang_memory_region_type *region =
     region_lookup("program");
   return region->origin + region->length - 2;
+#else
+  static bfd_vma end_address;
+  static int end_address_found = 0;
+  struct memory_region_struct *region;
+
+  if (end_address_found) return end_address;
+
+  end_address = 0;
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    if ((region->flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY)) {
+      /* an executable region */
+      end_address_found = 1;
+      if (region->origin + region->length - 2 > end_address) 
+        end_address = region->origin + region->length - 2;
+    }
+  }
+  return end_address;
+#endif
 }
 
 static bfd_vma
 data_base_address(void) {
+#if 0
   lang_memory_region_type *region =
     region_lookup("data");
   return region->origin;
+#else
+  static bfd_vma base_address;
+  static int base_address_found = 0;
+  struct memory_region_struct *region;
+
+  if (base_address_found) return base_address;
+
+  base_address = 0xFFFFFFFF;
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    if ((region->flags & SEC_ALLOC) &&
+        ((region->not_flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY))) {
+      /* a data writable region */
+      base_address_found = 1;
+      if (region->origin < base_address) base_address = region->origin;
+    }
+  }
+  return base_address;
+#endif
 }
 
 static bfd_vma
 data_end_address(void) {
+#if 0
   lang_memory_region_type *region =
     region_lookup("data");
   return region->origin + region->length - 1;
+#else
+  static bfd_vma end_address;
+  static int end_address_found = 0;
+  struct memory_region_struct *region;
+
+  if (end_address_found) return end_address;
+
+  end_address = 0;
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    if ((region->flags & SEC_ALLOC) &&
+        ((region->not_flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY))) {
+      /* a data writable region */
+      end_address_found = 1;
+      if (region->origin + region->length - 1 > end_address) 
+        end_address = region->origin + region->length - 1;
+    }
+  }
+  return end_address;
+#endif
 }
 
 static bfd_vma
@@ -2805,7 +2886,7 @@ bfd_pic30_create_user_init_bfd  (bfd *parent)
 **   symptr
 */
 static bfd *
-bfd_pic30_create_config_word_bfd  (char *name, unsigned short val)
+bfd_pic30_create_config_word_bfd  (char *name, unsigned int val)
 {
   bfd_size_type size;
   bfd *abfd;
@@ -2844,8 +2925,15 @@ bfd_pic30_create_config_word_bfd  (char *name, unsigned short val)
 
   /* fill it with config word value (16 valid bits, padded to 32) */
   d = sec_data;
-  *d++ = val & 0xFF; *d++ = val >> 8;
-  *d++ = 0; *d++ = 0;
+  *d++ = val & 0xFF;
+  *d++ = val >> 8;
+  *d++ = val >> 16;
+  *d++ = 0;
+
+  /* Old code where we assumed 16-23 are 0
+   * *d++ = val & 0xFF; *d++ = val >> 8;
+   * *d++ = 0; *d++ = 0;
+   */
 
   /* create global label at offset zero */
   bfd_pic30_create_symbol (abfd, sec_name, sec, BSF_GLOBAL, 0);
@@ -4929,8 +5017,10 @@ bfd_pic30_finish(void)
   }
 
   /* if heap is required, make sure one is specified */
-  if (pic30_heap_required && !heap_section_defined && !pic30_has_heap_option)
-      einfo("%P%X Error: A heap is required, but has not been specified\n");
+  if (pic30_heap_required && !heap_section_defined && !pic30_has_heap_option
+      && !pic30_mno_info_linker) {
+      einfo(_("Info: Heap not specified, using heap size of 0. Refer to \"Heap Allocation\" in MPLAB XC16 Assembler, Linker and Utilities User's Guide.\n"));
+  }
     
   /*
   ** Check for user-defined stack
@@ -6358,7 +6448,7 @@ void pic30_pad_flash() {
               printf("after_open: section %s not found\n", sec->name);
 
            update_section_info(addr, s, region);
-           create_remainder_blocks(program_memory_free_blocks, b, len, region);
+           create_remainder_blocks(program_memory_free_blocks, b, len,region,s);
            pic30_remove_from_memory_list(program_memory_free_blocks, b);
            next = program_memory_free_blocks->next;
          }
@@ -6832,9 +6922,9 @@ gld${EMULATION_NAME}_after_open()
 
         if (sec && (is_valid_config_word_section(sec->vma) || 
                     is_valid_config_word_section_name(sec->name))) {
-          unsigned short val;
+          unsigned int val;
 
-          if (!bfd_get_section_contents((is)->the_bfd, sec, &val, 0, 2))
+          if (!bfd_get_section_contents((is)->the_bfd, sec, &val, 0, 4))
             einfo(_("%P%F: Could not read data from section \'%s\'" ),
                   sec->name);
 
@@ -6911,7 +7001,7 @@ gld${EMULATION_NAME}_after_open()
   ** Encode CodeGuard settings
   */
   {
-    unsigned short val;
+    unsigned int val;
     bfd *abfd;
     char *p,*lst = pic30_unique_selected_configword_names();
 

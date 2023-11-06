@@ -43,6 +43,7 @@ extern bfd_boolean pic30_has_allocate_option;
 extern bfd_boolean pic30_report_mem;
 extern bfd_boolean pic30_mafrlcsj;
 extern bfd_boolean pic30_mafrlcsj2;
+extern bfd_boolean pic30_mno_info_linker;
 extern bfd_boolean pic30_isr;
 extern bfd_boolean pic30_has_isr_option;
 extern bfd_boolean pic30_has_fill_upper_option;
@@ -203,7 +204,8 @@ enum pic30_options {
   ADD_CONST_FLAGS,
   PIC30_DFP,
   PIC30_SLAVE_ID,
-  PIC30_SLAVE_ID_LOCATION
+  PIC30_SLAVE_ID_LOCATION,
+  PIC30_MNO_INFO_LINKER
 };
 
 static struct option longopts[] = 
@@ -264,8 +266,11 @@ static struct option longopts[] =
   { "add-flags-const", required_argument, NULL, ADD_CONST_FLAGS },
   { "mdfp", required_argument, NULL, PIC30_DFP },
 #ifdef PIC30ELF
+  { "msecondary-id", optional_argument, NULL, PIC30_SLAVE_ID },
+  { "msecondary-id-location", required_argument, NULL, PIC30_SLAVE_ID_LOCATION},
   { "mslave-id", optional_argument, NULL, PIC30_SLAVE_ID },
   { "mslave-id-location", required_argument, NULL, PIC30_SLAVE_ID_LOCATION },
 #endif
+  { "mno-info-linker", no_argument, NULL, PIC30_MNO_INFO_LINKER },
   { NULL,        no_argument,       NULL, 0                } 
 }; 

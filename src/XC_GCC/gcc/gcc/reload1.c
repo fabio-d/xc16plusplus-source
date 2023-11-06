@@ -7940,6 +7940,8 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
                  (which is what make_memloc did) */
             changes = update_pseudos_in(&new_pat, 0, 0);
             if (changes) validate_change(p,&PATTERN(p),new_pat,0);
+            /* fix for xc16-1478 */
+            note_stores(PATTERN(p), forget_old_reloads_1, NULL);
           }
       }
 #endif

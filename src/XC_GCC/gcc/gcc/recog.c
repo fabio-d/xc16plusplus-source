@@ -3733,3 +3733,31 @@ struct rtl_opt_pass pass_split_for_shorten_branches =
   TODO_dump_func | TODO_verify_rtl_sharing /* todo_flags_finish */
  }
 };
+
+#ifdef _BUILD_C30_
+static bool
+gate_do_xc16_split (void)
+{
+  return optimize > 0;
+} 
+
+struct rtl_opt_pass pass_split_for_xc16 =
+{
+ {
+  RTL_PASS,
+  "xc16",                               /* name */
+  gate_do_xc16_split,                   /* gate */
+  split_all_insns_noflow,               /* execute */
+  NULL,                                 /* sub */
+  NULL,                                 /* next */
+  0,                                    /* static_pass_number */
+  TV_NONE,                              /* tv_id */
+  0,                                    /* properties_required */
+  0,                                    /* properties_provided */
+  0,                                    /* properties_destroyed */
+  0,                                    /* todo_flags_start */
+  TODO_dump_func | TODO_verify_rtl_sharing /* todo_flags_finish */
+ }
+};
+#endif
+

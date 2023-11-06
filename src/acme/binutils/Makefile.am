@@ -96,7 +96,7 @@ CFILES = \
 	rdcoff.c rddbg.c readelf.c rename.c \
 	resbin.c rescoff.c resrc.c resres.c \
 	size.c srconv.c stabs.c strings.c sysdump.c version.c \
-	windres.c winduni.c wrstabs.c bin2hex.c
+	windres.c winduni.c wrstabs.c bin2hex.c stackanalysis.c
 
 GENERATED_CFILES = \
 	arparse.c arlex.c sysroff.c sysinfo.c syslex.c \
@@ -175,11 +175,14 @@ strip_new_SOURCES = objcopy.c is-strip.c rename.c $(WRITE_DEBUG_SRCS) $(BULIBS)
 
 nm_new_SOURCES = nm.c budemang.c $(BULIBS)
 
-objdump_SOURCES = objdump.c budemang.c prdbg.c $(DEBUG_SRCS) $(BULIBS)
+objdump_SOURCES = objdump.c budemang.c prdbg.c stackanalysis.c $(DEBUG_SRCS) $(BULIBS)
 objdump_LDADD = $(OPCODES) $(BFDLIB) $(LIBIBERTY) $(INTLLIBS)
 
 objdump.o:objdump.c
 	$(COMPILE) -c $(OBJDUMP_DEFS) $(srcdir)/objdump.c
+
+stackanalysis.o:stackanalysis.c
+	$(COMPILE) -c $(OBJDUMP_DEFS) $(srcdir)/stackanalysis.c
 
 bin2hex_SOURCES = bin2hex.c $(BULIBS)
 bin2hex_LDADD = $(BFDLIB) $(LIBIBERTY) $(INTLLIBS)

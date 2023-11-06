@@ -23,6 +23,7 @@ BUILD64=0
 export ABI=32
 
 BUGURL="https://www.microchip.com/technical-support"
+BUILD="expat gmp cloog libelf zlib"
 
 # What is the native host?
 export NATIVE=
@@ -126,8 +127,8 @@ if [ "$INSTALL" != "" ]; then
   INSTALL_DIR="${INSTALL}-${TARGET_OS}${SUFFIX}"
 fi
 
-if [ "$BUILD" = "" ]; then
-  BUILD="expat gmp cloog libelf zlib gcc"
+if ( ! echo $BUILD | grep -q "g++" ); then
+  BUILD="$BUILD gcc"
 fi
 
 if [ -f $SRC_DIR/../c30_resource/src/c30/resource_info.h ]; then
@@ -388,9 +389,43 @@ mkdir -p gcc
   echo "}"
 
   CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure ${CROSS} ${BUILD_OPTION} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
-
-
   
+  make 
+  )
+fi
+
+
+if ( echo $BUILD | grep -q -i g++ ); then
+echo
+echo "*********** G++"
+echo 
+
+mkdir -p gcc
+(
+  cd gcc
+
+  if [ -d $C30_RESOURCE_DIR ]; then
+    EXTRA_OPTS="$EXTRA_OPTS -I $C30_RESOURCE_DIR"
+  else
+    echo "***** cannot find c30_resource"
+    exit 1
+  fi
+
+  case $SUFFIX in
+    "-nolm") ;;
+  esac
+
+  DWARF=""
+  if [ "$OMF" = "elf" ]; then
+    DWARF="--with-dwarf2"
+  fi
+
+  echo "{"
+  echo "  CXXFLAGS=\"$EXTRA_CFLAGS $OPT\" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS=\"$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}\" $SRC_DIR/gcc/configure ${CROSS} ${BUILD_OPTION} --enable-coverage --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c,c++ --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl=\"${BUGURL}\" --with-host-libstdcxx=\"$STATIC\" "
+  echo "}"
+
+  CXXFLAGS="$EXTRA_CFLAGS $OPT" GCC_FOR_TARGET='pic30-gcc' CC_FOR_TARGET='pic30-gcc' AS_FOR_TARGET=$PIC30_CD/bin/pic30-as LD_FOR_TARGET=$PIC30_CD/bin/pic30-ld CFLAGS="$EXTRA_CFLAGS $OPT -DLONG_MODIFIER -D_BUILD_C30_ -D_BUILD_MCHP_ ${EXTRA_OPTS} ${EXTRA_DEFINES}" $SRC_DIR/gcc/configure ${CROSS} ${BUILD_OPTION} --target=pic30-$OMF $LTO --disable-threads --disable-libmudflap --disable-libssp --disable-libstdcxx-pch --disable-hosted-libstdcxx --with-gnu-as --with-gnu-ld --enable-languages=c,c++ --disable-nls --disable-libgomp --without-headers --disable-libffi --disable-bootstrap --prefix=${INSTALL}/bin --libexecdir=${INSTALL}/bin --program-prefix=pic30- --with-libelf=${WORKING_DIR}/host-libs/ $DWARF --with-gmp=$WORKING_DIR/host-libs --with-ppl=$WORKING_DIR/host-libs --with-cloog=$WORKING_DIR/host-libs --with-zlib=$WORKING_DIR/host-libs --with-bugurl="${BUGURL}" --with-host-libstdcxx="$STATIC"
+
   make 
   )
 fi
@@ -414,8 +449,16 @@ if [ "$INSTALL_DIR" != "" ]; then
     cp -v gcc/gcc/xgcc${EXE}  $INSTALL_DIR/bin/bin/$OMF-gcc${EXE}
   fi
 
+  if [ -f gcc/gcc/g++${EXE} ]; then
+    cp -v gcc/gcc/g++${EXE}  $INSTALL_DIR/bin/bin/$OMF-g++${EXE}
+  fi
+
   if [ -f gcc/gcc/cc1${EXE} ]; then
     cp -v gcc/gcc/cc1${EXE}  $INSTALL_DIR/bin/bin/$OMF-cc1${EXE}
+  fi
+
+  if [ -f gcc/gcc/cc1plus${EXE} ]; then
+    cp -v gcc/gcc/cc1plus${EXE}  $INSTALL_DIR/bin/bin/$OMF-cc1plus${EXE}
   fi
 
   if [ -f gcc/gcc/cpp${EXE} ]; then

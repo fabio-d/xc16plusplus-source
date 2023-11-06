@@ -858,9 +858,9 @@ static int pic30_const_in_code_tree_p(tree exp);
 static unsigned int pic30_case_values_threshold(void);
 static cheap_rtx_list *pic30_adjust_frame_remap_insn = 0;
 static tree constant_string(rtx x);
-       const char *pic30_set_constant_section_helper(const char **name,
-                                                     SECTION_FLAGS_INT *flags,
-                                                     tree *decl, int set);
+const char *pic30_set_constant_section_helper(const char **name,
+                                              SECTION_FLAGS_INT *flags,
+                                              tree *decl, int set);
 static void push_cheap_rtx(cheap_rtx_list **l, rtx x, tree t, int flag);
 static rtx pop_cheap_rtx(cheap_rtx_list **l, tree *t, int *flag);
 
@@ -1041,6 +1041,9 @@ static enum reg_class pic30_secondary_reload(bool in_p, rtx x,
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE pic30_can_eliminate
 
+#undef TARGET_SKIP_OPERATOR
+#define TARGET_SKIP_OPERATOR pic30_skip_operator
+
 /* Initialize new attribute table structure */
 /* -1 for max args implies no upper limit */
 
@@ -1194,12 +1197,12 @@ void pic30_validate_resource_data(const char *field,unsigned int flags) {
   }
   if ((flags & RECORD_TYPE_MASK) == IS_CODEGUARD_ID) {
     if (masked_flag > ALL_CODEGUARD_ID_FLAGS) {
-      warn_unrecognized_device_info = 1;
+      warn_unrecognized_device_info = 2;
     }
   }
   if ((flags & RECORD_TYPE_MASK) == IS_MEM_ID) {
     if (masked_flag > ALL_MEM_ID_FLAGS) {
-      warn_unrecognized_device_info = 1;
+      warn_unrecognized_device_info = 4;
     }
   }
   if ((warn_unrecognized_device_info) && (!already_warned)) {
@@ -1352,8 +1355,10 @@ unsigned int validate_target_id(char *id, char **matched_id) {
     int isr_names_max=0;
     int isr_names_idx=0;
 
+// #define read_value(X,Y) gcc_assert(read_value(X,Y) != 0)
+
     for (record = 0; move_to_record(record); record++) {
-      read_value(rik_string, &d);
+      if (read_value(rik_string, &d) == 0) break;
       read_value(rik_int, &d1);
       if ((TARGET_PRINT_DEVICES) &&
           ((d1.v.i & RECORD_TYPE_MASK) == IS_DEVICE_ID)) {
@@ -1384,7 +1389,7 @@ unsigned int validate_target_id(char *id, char **matched_id) {
     if (generic_device_matched) return mask;
 
     for (record = 0; move_to_record(record); record++) {
-      read_value(rik_string, &d);
+      if (read_value(rik_string, &d) == 0) break;
       {
         char *match;
         int flags;
@@ -2019,6 +2024,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
       switch (as) {
 
         default:
+        case pic30_space_const:
         case ADDR_SPACE_GENERIC:
           break; /* no required space attributes */
  
@@ -3986,6 +3992,9 @@ void pic30_override_options(void) {
     }
   }
   if (mchp_codecov) {
+    if (!pic30_obj_elf_p()) {
+      error("Code Coverage is not supported when using COFF.");
+    }
     if (strncasecmp(mchp_codecov,"near",4)==0) {
       pic30_codecov_near = 1;
     } else if (strncasecmp(mchp_codecov, "far-opt", 7)==0) {
@@ -4662,7 +4671,7 @@ static void pic30_init_builtins(void) {
   /*
   ** builtins for tblpage(), psvpage(), tbloffset(), psvoffset(), dmaoffset()
   */
-  fn_type = build_function_type(unsigned_type_node,NULL_TREE);
+  fn_type = build_function_type(unsigned_type_node, NULL_TREE);
 
   add_builtin_function_public("__builtin_edspage", fn_type,
           PIC30_BUILTIN_EDSPAGE, BUILT_IN_MD, NULL, NULL_TREE);
@@ -5642,6 +5651,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return NULL_RTX;
 
     case PIC30_BUILTIN_TBLADDRESS:
+      if (!arglist) {
+        error("too few arguments to function '__builtin_tbladdress'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_tblpsv_arg_p(arg0, r0))
@@ -5658,6 +5671,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return target;
 
     case PIC30_BUILTIN_EDSPAGE:  {
+      if (!arglist) {
+        error("too few arguments to function '__builtin_edspage'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_eds_arg_p(arg0,r0))
@@ -5675,6 +5692,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     }
 
     case PIC30_BUILTIN_EDSOFFSET: {
+      if (!arglist) {
+        error("too few arguments to function '__builtin_edsoffset'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_eds_arg_p(arg0,r0))
@@ -5692,6 +5713,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     }
 
     case PIC30_BUILTIN_TBLPAGE:
+      if (!arglist) {
+        error("too few arguments to function '__builtin_tblpage'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_tblpsv_arg_p(arg0, r0))
@@ -5715,13 +5740,27 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 
     case PIC30_BUILTIN_DATAFLASHOFFSET:
     case PIC30_BUILTIN_TBLOFFSET:
+      if (!arglist) {
+        if (fcode == PIC30_BUILTIN_DATAFLASHOFFSET) {
+          error("too few arguments to function '__builtin_dataflashoffset'");
+        } else {
+          error("too few arguments to function '__builtin_tbloffset'");
+        }
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_tblpsv_arg_p(arg0, r0))
       {
-        error("Argument to __builtin_tbloffset() is not the address\n"
-              "of an object in a code, psv, or eedata section;\n"
-              "the object must not be qualified with any form of index");
+        if (fcode == PIC30_BUILTIN_DATAFLASHOFFSET) {
+          error("Argument to __builtin_dataflashoffset() is not the address\n"
+                "of an object in a dataflash space;\n"
+                "the object must not be qualified with any form of index");
+        } else {
+          error("Argument to __builtin_tbloffset() is not the address\n"
+                "of an object in a code, psv, or eedata section;\n"
+                "the object must not be qualified with any form of index");
+        }
       }
       if (!target || !register_operand(target, HImode))
       {
@@ -5731,6 +5770,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return target;
 
     case PIC30_BUILTIN_PSVPAGE:
+      if (!arglist) {
+        error("too few arguments to function '__builtin_psvpage'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_tblpsv_arg_p(arg0, r0)) {
@@ -5752,6 +5795,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return target;
 
     case PIC30_BUILTIN_PSVOFFSET:
+      if (!arglist) {
+        error("too few arguments to function '__builtin_psvoffset'");
+        return NULL_RTX;
+      }
       arg0 = TREE_VALUE(arglist);
       r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       if (!pic30_builtin_tblpsv_arg_p(arg0, r0))
@@ -5770,6 +5817,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     case PIC30_BUILTIN_DMAPAGE:
      if (!(pic30_device_mask & HAS_DMAV2)) {
         error("__builtin_dmapage() is not supported on this target");
+        return NULL_RTX;
+      }
+      if (!arglist) {
+        error("too few arguments to function '__builtin_dmapage'");
         return NULL_RTX;
       }
       arg0 = TREE_VALUE(arglist);
@@ -5791,6 +5842,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     case PIC30_BUILTIN_DMAOFFSET:
       if (!(pic30_device_mask & (HAS_DMA | HAS_DMAV2))) {
         error("__builtin_dmaoffset() is not supported on this target");
+        return NULL_RTX;
+      }
+      if (!arglist) {
+        error("too few arguments to function '__builtin_dmaoffset'");
         return NULL_RTX;
       }
       arg0 = TREE_VALUE(arglist);
@@ -12853,7 +12908,7 @@ tree pic30_get_save_variable_decl(tree vl, int *pnwords, int *pnoffset) {
         decl = TREE_OPERAND(decl, 0);
     }
     if (TREE_CODE(decl) == IDENTIFIER_NODE) {
-      decl = c_identifier_binding(decl);
+      decl = lookup_name(decl);
     }
     if (!DECL_RTL_SET_P(decl)) make_decl_rtl(decl);
     if (TREE_CODE(decl) == VAR_DECL)
@@ -13235,14 +13290,13 @@ void pic30_expand_prologue(void) {
                        DECL_ATTRIBUTES(current_function_decl))) {
     psv_model = psv_no_auto_psv;
   }
-
-  if (is_boot_fn || is_secure_fn) {
-    if (psv_model != psv_unspecified) {
-       warning_at(0,0,"%D ignoring PSV model for Codeguard function",
-               current_function_decl);
-    }
-    psv_model = psv_unspecified;
-  } else if ((fInterrupt) && (psv_model == psv_unspecified)) {
+  if ((is_boot_fn) && (psv_model == psv_unspecified)) {
+    psv_model = psv_auto_psv;
+  }
+  if ((is_secure_fn) && (psv_model == psv_unspecified)) {
+    psv_model = psv_auto_psv;
+  }
+  if ((fInterrupt) && (psv_model == psv_unspecified)) {
     warning_at(0,0,"%D PSV model not specified for '%s';\nassuming 'auto_psv' "
             "this may affect latency", current_function_decl,
             IDENTIFIER_POINTER(DECL_NAME(current_function_decl)));
@@ -13470,7 +13524,7 @@ void pic30_expand_prologue(void) {
       rtx reg;
 
       /* we do not save the previous value if we are tracking the psv page */
-      if ((is_boot_fn) || (is_secure_fn) || (psv_model == psv_auto_psv)) {
+      if (psv_model == psv_auto_psv) {
         /* preserve current PSVPAG */
         sp = stack_pointer_rtx;
         sp = gen_rtx_POST_INC(HImode, sp);
@@ -13506,24 +13560,25 @@ void pic30_expand_prologue(void) {
           emit_insn(gen_set_vdsw(reg));
         }
       }
-
-      if (is_boot_fn)
-        sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
-      else if (is_secure_fn)
-        sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
-      else
-        sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
-      if (scratch_regno == -1) {
-        scratch_regno = WR8_REGNO;
-        pop_scratch_regno = 1;
-        reg = gen_rtx_REG(HImode, WR8_REGNO);
-        insn = pic30_expand_pushhi(WR8_REGNO);
-      } else reg = gen_rtx_REG(HImode, scratch_regno);
-      emit_insn(gen_movhi_address(reg,sfr));
-      if (0 && TARGET_TRACK_PSVPAG && TARGET_CONST_IN_CODE) {
-         emit_insn(gen_set_psv(reg));
-      } else {
-         emit_insn(gen_set_vpsv(reg));
+      if (psv_model != psv_no_auto_psv) {
+        if (is_boot_fn)
+          sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
+        else if (is_secure_fn)
+          sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
+        else
+          sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
+        if (scratch_regno == -1) {
+          scratch_regno = WR8_REGNO;
+          pop_scratch_regno = 1;
+          reg = gen_rtx_REG(HImode, WR8_REGNO);
+          insn = pic30_expand_pushhi(WR8_REGNO);
+        } else reg = gen_rtx_REG(HImode, scratch_regno);
+        emit_insn(gen_movhi_address(reg,sfr));
+        if (0 && TARGET_TRACK_PSVPAG && TARGET_CONST_IN_CODE) {
+           emit_insn(gen_set_psv(reg));
+        } else {
+           emit_insn(gen_set_vpsv(reg));
+        }
       }
     }
     if (df_regs_ever_live_p(CORCON)) {
@@ -13709,11 +13764,13 @@ void pic30_expand_epilogue(void) {
                        DECL_ATTRIBUTES(current_function_decl))) {
     psv_model = psv_no_auto_psv;
   }
-  if (is_boot_fn || is_secure_fn) {
-    if (psv_model != psv_unspecified) {
-      psv_model = psv_unspecified;
-    }
-  } else if ((fInterrupt) && (psv_model == psv_unspecified)) {
+  if ((is_boot_fn) && (psv_model == psv_unspecified)) {
+    psv_model = psv_auto_psv;
+  }
+  if ((is_secure_fn) && (psv_model == psv_unspecified)) {
+    psv_model = psv_auto_psv;
+  }
+  if ((fInterrupt) && (psv_model == psv_unspecified)) {
     psv_model = psv_auto_psv;
   }
 
@@ -13801,7 +13858,7 @@ void pic30_expand_epilogue(void) {
       insn = pic30_expand_pop(HImode, regno);
       fScratch = 0;
     }
-    if ((psv_model == psv_auto_psv) || (is_boot_fn || is_secure_fn)) {
+    if (psv_model == psv_auto_psv) {
       if (pic30_eds_target()) {
         sp = stack_pointer_rtx;
         sp = gen_rtx_PRE_DEC(HImode, sp);
@@ -13834,7 +13891,7 @@ void pic30_expand_epilogue(void) {
       insn = emit_insn(gen_iorhi3_sfr0( addr, w0, addr ));
       insn = pic30_expand_pop(HImode, WR0_REGNO);
     }
-  } else if ((psv_model == psv_auto_psv) || is_boot_fn || is_secure_fn) {
+  } else if (psv_model == psv_auto_psv) {
     /* if not an interrupt routine we may need to recover a scratch register
        (it has already been recovered if we are an isr) */
     int fScratch;
@@ -15306,7 +15363,7 @@ static int pic30_valid_machine_decl_save(tree fcnargs) {
             }
         }
         else if (TREE_CODE(v) == IDENTIFIER_NODE) {
-            decl = c_identifier_binding(v);
+            decl = lookup_name(v);
             if (decl) {
               TREE_VALUE(fcnargs) = decl;
             }
@@ -16547,11 +16604,34 @@ void pic30_encode_section_info(tree decl, rtx rtl,
   if ((prefix[0] != 0) == 0) fNear = 0;
   {
     const char *str = XSTR(XEXP (rtl, 0), 0);
-    int len = strlen(str);
+    int len=0, qlib=0; 
 
-    newstr = (char *)xmalloc(len + strlen(prefix) + 1);
-    sprintf(newstr, "%s%s", prefix, str);
-    XSTR(XEXP(rtl, 0), 0) = newstr;
+    /* if we have already encoded section information once, forget it...
+     *    we might be calling again after 'merge decls' except for 
+     *    PIC30_QLIBFN_FLAG, because we cheat for that and strip it later for
+     *    specific function calls.
+     */
+    if (PIC30_HAS_NAME_P(str, PIC30_QLIBFN_FLAG)) {
+      qlib=1;
+    }
+    while (str[0] == PIC30_EXTENDED_FLAG[0]) {
+      for (str++; *str != PIC30_EXTENDED_FLAG[0]; str++);
+      str++;
+    }
+
+    if (qlib) {
+      len = strlen(str) + sizeof(PIC30_QLIBFN_FLAG);
+
+      newstr = (char *)xmalloc(len + strlen(prefix) + 1);
+      sprintf(newstr, "%s%s%s", prefix, PIC30_QLIBFN_FLAG, str);
+      XSTR(XEXP(rtl, 0), 0) = newstr;
+    } else {
+      len = strlen(str);
+
+      newstr = (char *)xmalloc(len + strlen(prefix) + 1);
+      sprintf(newstr, "%s%s", prefix, str);
+      XSTR(XEXP(rtl, 0), 0) = newstr;
+    }
   }
 }
 
@@ -16642,6 +16722,19 @@ section *pic30_select_section (tree decl, int reloc,
   SECTION_FLAGS_INT flags = 0;
   section *sect;
   tree attr;
+  int is_boot_fn = 0;
+  int is_secure_fn = 0;
+  section *current_const_section = const_section;
+  if (current_function_decl) {
+    is_boot_fn = (lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
+                                   DECL_ATTRIBUTES(current_function_decl)) != 0);
+
+    is_secure_fn = (lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
+                                     DECL_ATTRIBUTES(current_function_decl))!= 0);
+  }
+  if (TARGET_CONST_IN_AUXCODE) current_const_section = aux_const_section;
+  if (is_boot_fn) current_const_section = boot_const_section;
+  if (is_secure_fn) current_const_section = secure_const_section;
 
   if ((TREE_CODE(decl) == VAR_DECL) || (TREE_CODE(decl) == FUNCTION_DECL)) {
     attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identDeprecatedDef[0]),
@@ -16729,8 +16822,7 @@ section *pic30_select_section (tree decl, int reloc,
           return get_section(name_,flags_,decl_);
 
         if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
-          if (TARGET_CONST_IN_AUXCODE) return aux_const_section;
-          return const_section;
+          return current_const_section;
         } else if (bNear) {
           return ndconst_section;
         } else {
@@ -16739,8 +16831,7 @@ section *pic30_select_section (tree decl, int reloc,
       }
     } else {
       if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
-        if (TARGET_CONST_IN_AUXCODE) return aux_const_section;
-        return const_section;
+        return current_const_section;
       } else {
         return dconst_section;
       }
@@ -17610,6 +17701,8 @@ void pic30_asm_output_case_label(FILE *file, char *prefix, int num,
   fprintf(file, "\t.set\t___PA___,%d\n", 0);
   ASM_GENERATE_INTERNAL_LABEL(buffer, prefix, num);
   ASM_OUTPUT_INTERNAL_LABEL(file, buffer);
+  ASM_GENERATE_INTERNAL_LABEL(buffer, "SH", num);
+  ASM_OUTPUT_INTERNAL_LABEL(file, buffer);
 }
 
 /*
@@ -17620,7 +17713,11 @@ void pic30_asm_output_case_label(FILE *file, char *prefix, int num,
 */
 void pic30_asm_output_case_end(FILE *file, int num ATTRIBUTE_UNUSED,
                                rtx table ATTRIBUTE_UNUSED) {
+  char buffer[80];
+
   fprintf(file, "\t.set\t___PA___,%d\n", !pic30_asm_function_p(FALSE));
+  ASM_GENERATE_INTERNAL_LABEL(buffer, "SE", num);
+  ASM_OUTPUT_INTERNAL_LABEL(file, buffer);
 }
 
 /*
@@ -19084,11 +19181,15 @@ enum machine_mode pic30_addr_space_pointer_mode(addr_space_t address_space) {
     case pic30_space_data_flash:
       /* report an error ? */
       return VOIDmode;
+
+    case pic30_space_const:
+      return ptr_mode;
   }
 }
 
 enum machine_mode pic30_addr_space_address_mode(addr_space_t address_space) {
   switch (address_space) {
+    case pic30_space_const:
     case ADDR_SPACE_GENERIC:
       return HImode;
 
@@ -19103,6 +19204,7 @@ bool pic30_addr_space_valid_pointer_mode(enum machine_mode mode,
        gcc_unreachable();
        return 0;
 
+    case pic30_space_const:
     case ADDR_SPACE_GENERIC:
        return pic30_valid_pointer_mode(mode);
 
@@ -19173,17 +19275,34 @@ bool pic30_addr_space_subset_p(addr_space_t superset, addr_space_t subset) {
   switch (superset) {
     default: return 0;
 
+    case ADDR_SPACE_GENERIC:
+      switch (subset) {
+        default: break;
+        case pic30_space_const:
+          return 1;
+      }
+      return 0;
+
     case pic30_space_data_flash: return 0;
 
     case pic30_space_packed: return 0;
+
+    // only possible if -mconst-in-code is set
+    //   in which case a GENERIC address space is compatible
+    case pic30_space_const:   
+      switch (subset) {
+        default: break;
+        case ADDR_SPACE_GENERIC: return 1;
+      }
+      return 0;
 
     case pic30_space_psv:
     case pic30_space_prog:
       switch (subset) {
         default: break;
+        case pic30_space_const:
         case pic30_space_psv:
         case pic30_space_prog:
-        case ADDR_SPACE_GENERIC:
           return 1;
       }
       return 0;
@@ -19194,11 +19313,80 @@ bool pic30_addr_space_subset_p(addr_space_t superset, addr_space_t subset) {
         case ADDR_SPACE_GENERIC:
         case pic30_space_psv:
         case pic30_space_prog:
+        case pic30_space_const:
           return 1;
       }
       return 0;
   }
   return 0;
+}
+
+rtx pic30_decl_rtl(tree decl) {
+  /* sometimes we don't have a rtl and we need to make it.
+   * somethings don't get a rtl
+   */
+  if (!DECL_RTL_SET_P(decl)) {
+    /* Check that we are not being given an automatic variable.  */
+    if (TREE_CODE (decl) != PARM_DECL && TREE_CODE (decl) != RESULT_DECL) {
+      /* A weak alias has TREE_PUBLIC set but not the other bits.  */
+      if (TREE_CODE (decl) != VAR_DECL
+          || TREE_STATIC (decl)
+          || TREE_PUBLIC (decl)
+          || DECL_EXTERNAL (decl)
+          || DECL_REGISTER (decl)) {
+        /* And that we were not given a type or a label.  */
+        if (TREE_CODE (decl) != TYPE_DECL && TREE_CODE (decl) != LABEL_DECL) {
+          return DECL_RTL(decl);
+        }
+      }
+    }
+  } else return DECL_RTL(decl);
+  return NULL_RTX;
+}
+
+addr_space_t pic30_addr_space_adjust(addr_space_t from, tree type, tree obj) {
+  /* pic30_space_const isn't a real address space; but we need to
+   * distinguish between something that can be converted to a psv/prog space
+   * and something that cannot 
+  */
+  /* For XC16-1371, we should prevent converting a generic address space
+   *   to PSV but,
+   *     allow a 'const' generic address space... 
+   *     allow an object with a PSV-type space attribute
+  */
+    
+  addr_space_t result = from;
+  
+  if (TARGET_CONST_IN_CODE) {
+    if ((from == ADDR_SPACE_GENERIC) && (TYPE_READONLY(type))) {
+      return pic30_space_const;
+    }
+  } 
+  if (obj) {
+    tree sym = obj;
+    if (TREE_CODE(sym) == ADDR_EXPR) {
+      /* What are we taking the address of? */
+      sym = TREE_OPERAND(obj,0);
+      if (TREE_CODE(sym) == VAR_DECL) {
+        rtx mem = pic30_decl_rtl(sym);
+        rtx decl = NULL_RTX;
+        if (mem) {
+          decl= XEXP(mem,0);
+          if (pic30_has_space_operand_p(decl, PIC30_PSV_FLAG)) 
+            result = pic30_space_psv;
+          if (pic30_has_space_operand_p(decl, PIC30_PROG_FLAG)) 
+            result = pic30_space_prog;
+        }
+      } else if (TREE_CODE(sym) == STRING_CST) {
+        if (TARGET_CONST_IN_CODE) result = pic30_space_const;
+      }
+    } else if (TREE_CODE(sym) == NOP_EXPR) {
+      /* What are we casting? */
+      tree orig_obj = TREE_OPERAND(obj,0);
+      result = pic30_addr_space_adjust(from, TREE_TYPE(orig_obj), orig_obj);
+    }
+  }
+  return result;
 }
 
 /*
@@ -19304,6 +19492,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
         switch (from_as) {
           default: break;
 
+          case pic30_space_const:
           case ADDR_SPACE_GENERIC:
           case pic30_space_prog:
           case pic30_space_psv:
@@ -19354,6 +19543,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
 
         default:  break;
 
+        case pic30_space_const:
         case ADDR_SPACE_GENERIC:
         case pic30_space_prog:
         case pic30_space_psv:
@@ -19857,8 +20047,8 @@ rtx pic30_convert_mode(enum machine_mode newmode ATTRIBUTE_UNUSED,
  *  pic30_set_on_return  :  restore after call only
  */
 char *pic30_boot_secure_access(rtx call, int *slot, int *set_psv) {
-  tree fndecl = 0;
-  tree fndecl_attr;
+  tree fndecl = NULL_TREE;
+  tree fndecl_attr = NULL_TREE;
   rtx x;
   const char *security = 0;
   int this_is_boot_fn, this_is_secure_fn;
@@ -19881,27 +20071,25 @@ char *pic30_boot_secure_access(rtx call, int *slot, int *set_psv) {
     }
     default: break;
   }
-  if (fndecl == 0) {
-    if ((set_psv) && (this_is_boot_fn || this_is_secure_fn)) *set_psv = 1;
-    return 0;
-  }
-  fndecl_attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
+  if (fndecl) {
+    fndecl_attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identBoot[0]),
                                  DECL_ATTRIBUTES(fndecl));
-  if (fndecl_attr) {
-    if (this_is_boot_fn) {
-       /* both functions marked as boot, just use a normal call */
-       return 0;
-    }
-    security = SECTION_ATTR_BOOT;
-  } else {
-    fndecl_attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
-                                   DECL_ATTRIBUTES(fndecl));
     if (fndecl_attr) {
-      if (this_is_secure_fn) {
-        /* both functions marked as secure, just use a normal call */
-        return 0;
+      if (this_is_boot_fn) {
+         /* both functions marked as boot, just use a normal call */
+         return 0;
       }
-      security = SECTION_ATTR_SECURE;
+      security = SECTION_ATTR_BOOT;
+    } else {
+      fndecl_attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSecure[0]),
+                                     DECL_ATTRIBUTES(fndecl));
+      if (fndecl_attr) {
+        if (this_is_secure_fn) {
+          /* both functions marked as secure, just use a normal call */
+          return 0;
+        }
+        security = SECTION_ATTR_SECURE;
+      }
     }
   }
   if (fndecl_attr) {
@@ -22094,6 +22282,67 @@ bool pic30_check_section_flags(SECTION_FLAGS_INT flag1,
   return (flag1 & (~IGNORE)) != (flag2 & (~IGNORE));
 }
 
+char *pic30_report_section_flags_info(SECTION_FLAGS_INT flags) {
+
+  /* Find out the mis matching flags and give the user an understandable 
+   * error
+   */
+  char* list_flags= xmalloc(500); 
+  int i=0;
+  volatile static SECTION_FLAGS_INT IGNORE = (SECTION_CONST_NAME | \
+        SECTION_DECLARED | \
+        SECTION_ADDRESS | \
+        SECTION_REVERSE | \
+        SECTION_ALIGN);
+  static struct {
+    SECTION_FLAGS_INT flag;
+    char *message;
+  } list_of_flags[] = {
+    { SECTION_CODE,        "code"},
+    { SECTION_SMALL,       "small"},
+    { SECTION_BSS,         "bss"},
+    { SECTION_STRINGS,     "strings"},
+    { SECTION_COMMON,      "common"},
+    { SECTION_READ_ONLY,   "read only"},
+    { SECTION_XMEMORY,     "x memory"},
+    { SECTION_YMEMORY,     "y memory"},
+    { SECTION_NEAR,        "near"},
+    { SECTION_PERSIST,     "persist"},
+    { SECTION_PSV,         "psv"},
+    { SECTION_EEDATA,      "eedata"},
+    { SECTION_NOLOAD,      "noload"},
+    { SECTION_REVERSE,     "reverse"},
+    { SECTION_INFO,        "info"},
+    { SECTION_ADDRESS,     "address"},
+    { SECTION_ALIGN,       "align"},
+    { SECTION_DMA,         "dma"},
+    { SECTION_PMP,         "pmp"},
+    { SECTION_EXTERNAL,    "external"},
+    { SECTION_EDS,         "eds"},
+    { SECTION_PAGE,        "page"},
+    { SECTION_AUXFLASH,    "auxflash"},
+    { SECTION_AUXPSV,      "auxpsv"},
+    { SECTION_PACKEDFLASH, "packed flash"},
+    { SECTION_KEEP,        "keep"},
+    { SECTION_CO_SHARED,   "co shared"},
+    { SECTION_PRESERVED,   "preserved"},
+    { SECTION_PRIORITY,    "priority"},
+    { SECTION_UPDATE,      "update"},
+    {0, 0}
+  };
+  strcpy(list_flags,"");
+  for (i=0; list_of_flags[i].flag; i++) {
+    if (flags & (~IGNORE) & list_of_flags[i].flag) {
+      if (strcmp(list_flags, "") == 0) {
+      } else {
+        strcat(list_flags, ", ");
+      }
+      strcat(list_flags, list_of_flags[i].message);
+    }
+  }
+  return list_flags;
+}
+
 void pic30_apply_pragmas(tree decl) {
 
   int relayout=0;
@@ -22289,6 +22538,7 @@ tree pic30_target_pointer_sizetype(tree for_type) {
       gcc_unreachable();
       break;
 
+    case pic30_space_const:
     case ADDR_SPACE_GENERIC:
       return sizetype;
 
@@ -22399,38 +22649,44 @@ rtx pic30_get_set_psv_value(rtx set) {
   return pic30_psv_value;
 }
 
-void pic30_expand_to_rtl_hook(int end) {
-  rtx sfr;
-  rtx reg;
+rtx pic30_get_psv_value(void) {
   int is_secure_fn, is_boot_fn;
   static char bootconst[] = "_bootconst_psvpage";
   static char secureconst[] = "_secureconst_psvpage";
   static char constconst[] = "_const_psvpage";
-  
+  const char *name;
+  rtx sfr;
+
+  /* If const-in-code is enabled, we come into the function with PSVPAG set
+     for constants - but we don't know this */
+  name = IDENTIFIER_POINTER(DECL_NAME(current_function_decl));
+
+  is_boot_fn = (lookup_attribute(
+                    IDENTIFIER_POINTER(pic30_identBoot[0]),
+                    DECL_ATTRIBUTES(current_function_decl)) != 0);
+  is_secure_fn = (lookup_attribute(
+                    IDENTIFIER_POINTER(pic30_identSecure[0]),
+                    DECL_ATTRIBUTES(current_function_decl))!= 0);
+
+  if (is_boot_fn)
+    sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
+  else if (is_secure_fn)
+    sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
+  else
+    sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
+  return sfr;
+}
+
+void pic30_expand_to_rtl_hook(int end) {
   if (end == 0) {
+    rtx reg;
+    rtx sfr;
+
     pic30_psv_value = 0;
     if (TARGET_TRACK_PSVPAG && TARGET_CONST_IN_CODE) {
-      const char *name;
-
-      /* If const-in-code is enabled, we come into the function with PSVPAG set
-         for constants - but we don't know this */
-      name = IDENTIFIER_POINTER(DECL_NAME(current_function_decl));
-  
-      is_boot_fn = (lookup_attribute(
-                        IDENTIFIER_POINTER(pic30_identBoot[0]),
-                        DECL_ATTRIBUTES(current_function_decl)) != 0);
-      is_secure_fn = (lookup_attribute(
-                        IDENTIFIER_POINTER(pic30_identSecure[0]),
-                        DECL_ATTRIBUTES(current_function_decl))!= 0);
-
-      if (is_boot_fn)
-        sfr = gen_rtx_SYMBOL_REF(HImode, bootconst);
-      else if (is_secure_fn)
-        sfr = gen_rtx_SYMBOL_REF(HImode, secureconst);
-      else
-        sfr = gen_rtx_SYMBOL_REF(HImode, constconst);
+      sfr = pic30_get_psv_value();
       reg = gen_reg_rtx(HImode);
-      record_psv_tracking(0, 0, 
+      record_psv_tracking(0, 0,
         emit(
           gen_movhi_address(reg,sfr)
         )
@@ -22441,7 +22697,7 @@ void pic30_expand_to_rtl_hook(int end) {
           gen_set_psv(reg)
         )
       );
-      set_psv_called=0;
+      set_psv_called = 0;
     }
   } else {
     /* expand_to_rtl_hook called at the end, too */
@@ -23030,3 +23286,109 @@ struct rtl_opt_pass pass_PSV_PSV_count =
 };
 
 /*END********************************************************************/
+
+void debug_real(REAL_VALUE_TYPE *r) {
+  char s[60];
+  FILE *outfile=stderr;
+
+  real_to_decimal (s, r, sizeof (s), 0, 1);
+  fprintf (outfile, "value: %s", s);
+  real_to_hexadecimal (s, r, sizeof (s), 0, 1);
+  fprintf (outfile, " [%s]\n", s);
+}
+
+
+struct valid_operator {
+  int insn_code;
+  char *mnemonic;
+};
+
+/* 2 operand skip operators */
+struct valid_operator valid_skip2_operators[] = {
+  { IOR,         "ior" },
+  { AND,         "and" },
+  { XOR,         "xor" },
+  { MINUS,       "sub" },
+  { PLUS,        "add" },
+  { 0, 0 }
+};
+
+/* 1 operand skip operators */
+struct valid_operator valid_skip1_operators[] = {
+  { NEG,         "neg" },
+  { SIGN_EXTEND, "se" },
+  { ZERO_EXTEND, "ze" },
+  { 0, 0 }
+};
+
+/* 0 operand skip operators */
+struct valid_operator valid_skip0_operators[] = {
+  { REG,         "mov" },
+  { MEM,         "mov" },
+  { 0, 0 }
+};
+
+int pic30_skip2_operator(rtx op, enum machine_mode mode) {
+  int code = GET_CODE(op);
+  int i;
+
+  switch (mode) {
+    default: return FALSE;
+    case QImode:
+    case HImode: break;
+  }
+  if (flag_if_conversion_skip == 0) return FALSE;
+  for (i = 0; valid_skip2_operators[i].mnemonic; i++) {
+    if (valid_skip2_operators[i].insn_code == code) return i+1;
+  }
+  return FALSE;
+}
+
+int pic30_skip1_operator(rtx op, enum machine_mode mode) {
+  int code = GET_CODE(op);
+  int i;
+
+  switch (mode) {
+    default: return FALSE;
+    case QImode:
+    case HImode: break;
+  }
+  if (flag_if_conversion_skip == 0) return FALSE;
+  for (i = 0; valid_skip1_operators[i].mnemonic; i++) {
+    if (valid_skip1_operators[i].insn_code == code) return i+1;
+  }
+  return FALSE;
+}
+
+int pic30_skip0_operator(rtx op, enum machine_mode mode) {
+  int code = GET_CODE(op);
+  int i;
+
+  switch (mode) {
+    default: return FALSE;
+    case QImode:
+    case HImode: break;
+  }
+  if (flag_if_conversion_skip == 0) return FALSE;
+  for (i = 0; valid_skip0_operators[i].mnemonic; i++) {
+    if (valid_skip0_operators[i].insn_code == code) return i+1;
+  }
+  return FALSE;
+}
+
+int pic30_skip_operator(rtx op, enum machine_mode mode) {
+  return pic30_skip2_operator(op,mode) || pic30_skip1_operator(op,mode) ||
+         pic30_skip0_operator(op,mode);
+}
+
+#if 0
+// debug
+int pic30_trap_qualifier(int val) {
+   if (val & 0xFF00) {
+     int as = (val >> 8) & 0xFF;
+     fprintf(stderr,"address space %d\n", as);
+   }
+   return val;
+}
+#endif
+

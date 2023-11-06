@@ -54,8 +54,13 @@ extern enum error_codes resource_error;
 extern int resource_data_size(struct resource_data *);
 extern char *resource_pack_string(char *s);
 extern struct resource_introduction_block *read_rib(const char *name);
+#if defined(TARGET_IS_PIC32MX)
+extern struct resource_introduction_block *read_device_rib(const char *name,
+                                                           const char * device);
+#else
 extern struct resource_introduction_block *read_device_rib(const char *name,
                                                            char * device);
+#endif
 extern void close_rib(void);
 extern int read_byte(unsigned char *byte);
 extern int read_value(enum resource_information_kind kind,

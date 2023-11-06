@@ -807,6 +807,16 @@ mchp_handle_config_pragma (struct cpp_reader *pfile)
             snprintf(value_name, MAX_VALUE_NAME_LENGTH, "%d", i);
             #undef MAX_VALUE_NAME_LENGTH
           }
+          else
+          {
+            error ("config-setting value must be a valid integer constant");
+            break;
+          }
+        }
+      else
+        {
+          error ("config-setting value must be a name or a constant integer");
+          break;
         }
       mchp_handle_configuration_setting (setting_name, value_name);
 

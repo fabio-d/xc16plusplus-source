@@ -20,7 +20,7 @@
   (PIC30_IS_CODE_ATTR(s) || PIC30_IS_PSV_ATTR(s) || PIC30_IS_PACKEDFLASH_ATTR(s))
 
 #define REPORT_AS_DATA(s) \
-  (PIC30_SECTION_IN_DATA_MEMORY(s) || PIC30_IS_MEMORY_ATTR(s))
+  (PIC30_SECTION_IN_DATA_MEMORY(s))
 
 #define REPORT_AS_EEDATA(s) \
   (PIC30_IS_EEDATA_ATTR(s))
@@ -550,7 +550,8 @@ bfd_pic30_report_memory_usage (FILE *fp) {
   /* Check the data_memory_used and see if small-data model is sufficient
    */
   if ((data_memory_used < (8192 - pic30_mem_info.sfr[0])) 
-      && (large_data_scalar == 1)) {
+      && (large_data_scalar == 1)
+      && (!pic30_mno_info_linker)) {
     fprintf(fp,
             "Info: Project is using a large data memory model when small data memory model is sufficient.\n\n"); 
   }

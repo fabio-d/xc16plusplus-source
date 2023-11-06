@@ -94,8 +94,9 @@ pic30_list_options (file)
   fprintf (file, _("  --add-flags-code       Add section flags to a code section on link\n"));
   fprintf (file, _("  --add-flags-data       Add section flags to a data section on link\n"));
 #if PIC30ELF
-  fprintf (file, _("  --mslave-id[=id]       Add unique identifier to slave image\n"));
-  fprintf (file, _("  --mslave-id-location=  Modify the __SLAVE_ID address\n"));
+  fprintf (file, _("  --msecondary-id[=id]   Add unique identifier to secondary image\n"));
+  fprintf (file, _("  --msecondary-id-location=\n"));
+  fprintf (file, _("                         Modify the address used to store the seconary id\n"));
   fprintf (file, _("                         [default last program memory location]\n"));
 #endif
 
@@ -808,10 +809,10 @@ pic30_parse_args (argc, argv)
           char *end;
           value = strtol(optarg, &end, 0);
           if (*end) {
-            einfo(_("%P%F: Error: Invalid argument to --mslave-id\n"));
+            einfo(_("%P%F: Error: Invalid argument to --msecondary-id\n"));
             value = 0xFFFFFFFF;
           } else if (value & 0xFF000000) {
-            einfo(_("%P%F: Error: Invalid argument to --mslave-id\n"));
+            einfo(_("%P%F: Error: Invalid argument to --msecondary-id\n"));
             value = 0xFFFFFFFF;
           }
         }
@@ -827,12 +828,17 @@ pic30_parse_args (argc, argv)
 
         pic30_slave_id_location = strtol(optarg,&end,0);
         if (*end) {
-          einfo(_("%P%F: Error: Invalid argument to --mslave-id-location\n"));
+          einfo(_("%P%F: Error: Invalid argument to --msecondary-id-location\n"));
           pic30_slave_id_location = 0;
         }
       }
       break;
 #endif
+    case PIC30_MNO_INFO_LINKER:
+      {
+        pic30_mno_info_linker = TRUE;
+      }
+      break;
     }
   return 1; 
 } /* static int pic30_parse_args ()*/
