@@ -791,9 +791,10 @@ exp_fold_tree (tree, current_section, allocation_done, dot, dotp)
                        * which has the effect of adding the ABS vma in (0)
                        */
 
-		      if (result.section == abs_output_section)
+              if ((result.section == abs_output_section) &&
+                  (result.value > current_section->bfd_section->vma))
 			nextdot = result.value;
-		      else 
+            else
 #endif
 			nextdot = (result.value
 				+ current_section->bfd_section->vma);

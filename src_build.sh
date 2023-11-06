@@ -14,19 +14,19 @@ case $OS in
   Darwin)  OS="OS/X"
              CC="gcc"
              EXTRA_CFLAGS=""
-             ACME_CONFIGURE="--target=pic30-@omf --host=i386-darwin"
+             ACME_CONFIGURE="--target=pic30-@omf --host=x86_64-darwin"
              EXE=""
              ;;
   CYGWIN*) OS="Windows/Cygwin"
-             CC="i686-pc-mingw32-gcc"
+             CC="i686-pc-mingw64-gcc"
              EXTRA_CFLAGS=""
-             ACME_CONFIGURE="--target=pic30-@omf --host=i386-pc-mingw32"
+             ACME_CONFIGURE="--target=pic30-@omf --host=x86_64-pc-mingw32"
              EXE=".exe"
              ;;
   *)       OS="Linux/Unknown"
              CC="gcc"
              EXTRA_CFLAGS=""
-             ACME_CONFIGURE="--target=pic30-@omf --host=i386-linux"
+             ACME_CONFIGURE="--target=pic30-@omf --host=x86_64-linux"
              EXE=""
              ;;
 esac
@@ -41,7 +41,7 @@ mkdir bin
 (
   cd bin
 
-  for OMF in elf coff; do
+  for OMF in elf; do
     mkdir acme-${OMF}-native
     ( 
        cd acme-${OMF}-native
@@ -62,7 +62,7 @@ mkdir bin
     (
        cd gcc-${OMF}-native
        export EXTRA_CFLAGS
-       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=i686-pc-mingw32-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v0_00
+       $THIS_DIR/build_XC16_451 -user -src=$SRC -omf=$OMF -cross=i686-pc-mingw64-nolm  -D_FORTIFY_SOURCE=0 -DMCHP_VERSION=v0_00
        cp gcc/gcc/xgcc${EXE} ${install_dir}/bin/bin/${OMF}-gcc${EXE}
        cp gcc/gcc/cc1${EXE} ${install_dir}/bin/bin/${OMF}-cc1${EXE}
        cp gcc/gcc/cpp${EXE} ${install_dir}/bin/bin/${OMF}-cpp${EXE}

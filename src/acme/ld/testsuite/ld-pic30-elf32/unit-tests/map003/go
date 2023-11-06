@@ -37,7 +37,7 @@ fi
 
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o --report-mem -L $GLD --script=p30F6014.gld > temp
+$GLD30 -o t.exe t1.o --report-mem -L $GLD --script=p30F6014.gld > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
@@ -52,9 +52,9 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
-grep "Total program memory used" temp > test.out
+grep 'Total "program" memory used' temp > test.out
 grep "Total data EEPROM used" temp >> test.out
-grep "Total data memory used" temp >> test.out
+grep 'Total "data" memory used' temp >> test.out
 
 echo
 echo `head -1 info.txt`

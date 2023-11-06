@@ -7,7 +7,7 @@ __t2:
         addc.b    #symB2, w2
         addc.b    #symB3, w3
 
-        .equiv  symB2, -128
+        ;;.equiv  symB2, -128 ;; does not work after v1.50
         .equiv  symB3, 255
 
         .global symB2,symB3

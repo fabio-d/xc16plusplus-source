@@ -1524,7 +1524,7 @@ void pic30_defer_archive(carsym *symdef,
   pic30_deferred = m;
 }
 
-void pic30_remove_archive(carsym *symdef, asymbol *sym) {
+void pic30_remove_archive(carsym *symdef, asymbol *sym, bfd *abfd) {
   struct pic30_deferred_archive_members *m,*last = 0, *next;
   const char *name;
   bfd *removed_bfd = 0;
@@ -1558,7 +1558,7 @@ void pic30_remove_archive(carsym *symdef, asymbol *sym) {
   /* each bfd may have multiple symbols */
   for (m = pic30_deferred; m; m = next) {
     next = m->next;
-    if (m->abfd == removed_bfd) {
+    if ((m->abfd == removed_bfd) || (m->abfd == abfd)) {
       if (pic30_debug)
         printf("...removed %s\n", m->abfd->filename);
       /* Since we are removing m do not update last to m
@@ -1628,3 +1628,18 @@ void pic30_clear_deferred(void) {
   }
   pic30_deferred = NULL;
 }
+
+void debug_deferred_archive_members() {
+  struct pic30_deferred_archive_members *m,*next = 0;
+  int i = 0;
+  
+  for (m = pic30_deferred; m; m = next) {
+    next = m->next;
+    printf("%4.4d) %s [file:%s] [%d,%d]\n",
+           i++, m->symdef ? m->symdef->name : m->sym->name, 
+           m->abfd->filename,
+           m->new_mask_bits, m->new_set_bits);
+  }
+}
+    
+ 

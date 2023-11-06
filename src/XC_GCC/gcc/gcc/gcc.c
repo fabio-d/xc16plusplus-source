@@ -1536,11 +1536,15 @@ translate_options (int *argcp, const char *const **argvp)
 
 #ifdef _BUILD_MCHP_
       else if (strcmp(argv[i],"-legacy-libc") == 0) {
-        newv[newindex++] = "-mlegacy-libc";
+        error("warning: -legacy-libc is deprecated");
         i++;
         legacy_specified = 1;
       } else if (strcmp(argv[i],"-no-legacy-libc") == 0) {
-        newv[newindex++] = "-mno-legacy-libc";
+        error("warning: -no-legacy-libc is deprecated");
+        i++;
+        legacy_specified = 1;
+      } else if (strcmp(argv[i],"-musl-libc") == 0) {
+        newv[newindex++] = "-mmusl-libc";
         i++;
         legacy_specified = 1;
       }
@@ -1585,10 +1589,12 @@ translate_options (int *argcp, const char *const **argvp)
 	newv[newindex++] = argv[i++];
     }
 
-#ifdef _BUILD_MCHP_
+#ifdef _BUILD_MCHP_ 
+#if 0
    if (!legacy_specified) {
      newv[newindex++] = "-mlegacy-libc";
    }
+#endif
 #endif
 
   newv[newindex] = 0;
@@ -3725,21 +3731,11 @@ process_command (int argc, const char **argv)
 				const char *) = NULL;
 #ifdef _BUILD_C30_
   enum pic30_lib_specs {
-    pls_default,
-    pls_fast_math = 1,
-    pls_legacy_libc = 2,
-    pls_relaxed_math = 4
-  } pic30_which_spec = pls_legacy_libc;
+    pls_default
+  } pic30_which_spec = pls_default;
 
   char *libspecs[] = {
-    LIB_SPEC,         // 0 default
-    ALT_FM_LIB_SPEC,  // 1 pls_fast_math
-    ALT_LC_LIB_SPEC,  // 2 pls_legacy_libc
-    ALT_FMLC_LIB_SPEC, // 3 pls_fast_math | pls_legacy_libc
-    ALT_RM_LIB_SPEC,  // 4 pls_relaxed_math
-    ALT_RM_LIB_SPEC,  // 5 pls_relaxed_math, relaxed overrides fast
-    ALT_RMLC_LIB_SPEC,// 6 pls_relaxed_math | pls_legacy_libc
-    ALT_RMLC_LIB_SPEC,// 7 pls_relaxed_math | pls_legacy_libc
+    ALT_C99_LIB_SPEC         // 0 default
   };
 #endif
 
@@ -4075,6 +4071,7 @@ process_command (int argc, const char **argv)
               if (!strncmp(argv[i], "-merrata=", sizeof("-merrata=")-1))
                 {
                    temp = DEFAULT_ERRATA_LIB_PATH;
+
                 }
             }
            if (temp == 0) temp = DEFAULT_LIB_PATH;
@@ -4219,20 +4216,28 @@ process_command (int argc, const char **argv)
 #ifdef _BUILD_C30_
 #if defined(MCHP_VERSION) && defined(ALT_LIB_SPECS)
       else if (strcmp (argv[i], "-fast-math") == 0) {
-        pic30_which_spec |= pls_fast_math;
+        pic30_which_spec |= pls_default;
+	error ("warning: -fast-math is deprecated");
         lib_spec = libspecs[pic30_which_spec];
       } else if (strcmp (argv[i], "-relaxed-math") == 0) {
-        pic30_which_spec |= pls_relaxed_math;
+        pic30_which_spec |= pls_default;
+	error ("warning: -relaxed-math is deprecated");
         lib_spec = libspecs[pic30_which_spec];
       } else if (strcmp (argv[i], "-mlegacy-libc") == 0) {
         n_switches++;
-        pic30_which_spec |= pls_legacy_libc;
+        pic30_which_spec |= pls_default;
+	error ("warning: -mlegacy-libc is deprecated");
         lib_spec = libspecs[pic30_which_spec];
       } else if (strcmp (argv[i], "-mno-legacy-libc") == 0) {
         n_switches++;
-        pic30_which_spec &= ~pls_legacy_libc;
+        pic30_which_spec |= pls_default;
+	error ("warning: -mno-legacy-libc is deprecated");
         lib_spec = libspecs[pic30_which_spec];
-      }
+      } else if (strcmp (argv[i], "-mmusl-libc") == 0) {
+        n_switches++;
+        pic30_which_spec |= pls_default;
+        lib_spec = libspecs[pic30_which_spec];
+      } 
 #endif
 #endif
       else if (strcmp (argv[i], "-fversion") == 0)

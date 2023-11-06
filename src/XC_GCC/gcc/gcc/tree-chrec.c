@@ -93,6 +93,13 @@ chrec_fold_poly_cst (enum tree_code code,
 
 /* Fold the addition of two polynomial functions.  */
 
+/* sizetype for extended pointers may not be sizetype */
+#ifdef _BUILD_C30_
+#define TARGET_SIZETYPE(X) pic30_target_pointer_sizetype(X)
+#else
+#define TARGET_SIZETYPE(X) sizetype
+#endif
+
 static inline tree
 chrec_fold_plus_poly_poly (enum tree_code code,
 			   tree type,
@@ -102,14 +109,16 @@ chrec_fold_plus_poly_poly (enum tree_code code,
   tree left, right;
   struct loop *loop0 = get_chrec_loop (poly0);
   struct loop *loop1 = get_chrec_loop (poly1);
-  tree rtype = code == POINTER_PLUS_EXPR ? sizetype : type;
+  tree this_sizetype = TARGET_SIZETYPE(TREE_TYPE(poly0));
+
+  tree rtype = code == POINTER_PLUS_EXPR ? this_sizetype : type;
 
   gcc_assert (poly0);
   gcc_assert (poly1);
   gcc_assert (TREE_CODE (poly0) == POLYNOMIAL_CHREC);
   gcc_assert (TREE_CODE (poly1) == POLYNOMIAL_CHREC);
   if (POINTER_TYPE_P (chrec_type (poly0)))
-    gcc_assert (chrec_type (poly1) == sizetype);
+    gcc_assert (chrec_type (poly1) == this_sizetype);
   else
     gcc_assert (chrec_type (poly0) == chrec_type (poly1));
   gcc_assert (type == chrec_type (poly0));
@@ -269,7 +278,8 @@ static tree
 chrec_fold_plus_1 (enum tree_code code, tree type,
 		   tree op0, tree op1)
 {
-  tree op1_type = code == POINTER_PLUS_EXPR ? sizetype : type;
+  tree this_sizetype = TARGET_SIZETYPE(TREE_TYPE(op0));
+  tree op1_type = code == POINTER_PLUS_EXPR ? this_sizetype : type;
 
   if (automatically_generated_chrec_p (op0)
       || automatically_generated_chrec_p (op1))
@@ -801,10 +811,11 @@ reset_evolution_in_loop (unsigned loop_num,
 			 tree chrec,
 			 tree new_evol)
 {
+  tree this_sizetype = TARGET_SIZETYPE(chrec_type (chrec));
   struct loop *loop = get_loop (loop_num);
 
   if (POINTER_TYPE_P (chrec_type (chrec)))
-    gcc_assert (sizetype == chrec_type (new_evol));
+    gcc_assert (this_sizetype == chrec_type (new_evol));
   else
     gcc_assert (chrec_type (chrec) == chrec_type (new_evol));
 
@@ -1144,7 +1155,28 @@ convert_affine_scev (struct loop *loop, tree type,
   bool enforce_overflow_semantics;
   bool must_check_src_overflow, must_check_rslt_overflow;
   tree new_base, new_step;
+#if defined(_BUILD_C30_) 
+  /* hmmm... if we are stepping an object 'base', then shouldn't we base
+     the sizetype on the type of this object? */
+  tree base_type = TREE_TYPE(*base);
   tree step_type = POINTER_TYPE_P (type) ? sizetype : type;
+
+#if 0
+  if (POINTER_TYPE_P(base_type)) {
+    if (!ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(base_type))) {
+      step_type = TARGET_SIZETYPE(base_type);
+    }
+  }
+#else
+  if (POINTER_TYPE_P(type)) {
+    if (!ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(TREE_TYPE(type)))) {
+      step_type = TARGET_SIZETYPE(type);
+    }
+  }
+#endif
+#else
+  tree step_type = POINTER_TYPE_P (type) ? sizetype : type;
+#endif
 
   /* In general,
      (TYPE) (BASE + STEP * i) = (TYPE) BASE + (TYPE -- sign extend) STEP * i,
@@ -1237,7 +1269,7 @@ tree
 chrec_convert_rhs (tree type, tree chrec, gimple at_stmt)
 {
   if (POINTER_TYPE_P (type))
-   type = sizetype;
+   type = TARGET_SIZETYPE(type);
   return chrec_convert (type, chrec, at_stmt);
 }
 
@@ -1362,7 +1394,7 @@ chrec_convert_aggressive (tree type, tree chrec)
   if (TYPE_PRECISION (type) > TYPE_PRECISION (inner_type))
     return NULL_TREE;
 
-  rtype = POINTER_TYPE_P (type) ? sizetype : type;
+  rtype = POINTER_TYPE_P (type) ? TARGET_SIZETYPE(type) : type;
 
   left = CHREC_LEFT (chrec);
   right = CHREC_RIGHT (chrec);

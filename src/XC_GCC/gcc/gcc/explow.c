@@ -872,7 +872,12 @@ adjust_stack (rtx adjust)
   if (CONST_INT_P (adjust))
     stack_pointer_delta -= INTVAL (adjust);
 
+#ifdef _BUILD_C30_
+  temp = expand_binop (STACK_Pmode,
+#else /*_BUILD_C30_*/
   temp = expand_binop (Pmode,
+#endif /*_BUILD_C30_*/
+
 #ifdef STACK_GROWS_DOWNWARD
 		       add_optab,
 #else
@@ -901,7 +906,12 @@ anti_adjust_stack (rtx adjust)
   if (CONST_INT_P (adjust))
     stack_pointer_delta += INTVAL (adjust);
 
+#ifdef _BUILD_C30_
+  temp = expand_binop (STACK_Pmode,
+#else /*_BUILD_C30_*/
   temp = expand_binop (Pmode,
+#endif /*_BUILD_C30_*/
+
 #ifdef STACK_GROWS_DOWNWARD
 		       sub_optab,
 #else
@@ -934,6 +944,16 @@ round_push (rtx size)
     }
   else
     {
+#ifdef _BUILD_C30_
+      /* CEIL_DIV_EXPR needs to worry about the addition overflowing,
+	 but we know it can't.  So add ourselves and then do
+	 TRUNC_DIV_EXPR.  */
+      size = expand_binop (STACK_Pmode, add_optab, size, GEN_INT (align - 1),
+			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
+      size = expand_divmod (0, TRUNC_DIV_EXPR, STACK_Pmode, size, GEN_INT (align),
+			    NULL_RTX, 1);
+      size = expand_mult (STACK_Pmode, size, GEN_INT (align), NULL_RTX, 1);
+#else /*_BUILD_C30_*/
       /* CEIL_DIV_EXPR needs to worry about the addition overflowing,
 	 but we know it can't.  So add ourselves and then do
 	 TRUNC_DIV_EXPR.  */
@@ -942,6 +962,7 @@ round_push (rtx size)
       size = expand_divmod (0, TRUNC_DIV_EXPR, Pmode, size, GEN_INT (align),
 			    NULL_RTX, 1);
       size = expand_mult (Pmode, size, GEN_INT (align), NULL_RTX, 1);
+#endif /*_BUILD_C30_*/
     }
 
   return size;
@@ -1134,8 +1155,13 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
   cfun->calls_alloca = 1;
 
   /* Ensure the size is in the proper mode.  */
+#ifdef _BUILD_C30_
+  if (GET_MODE (size) != VOIDmode && GET_MODE (size) != STACK_Pmode)
+    size = convert_to_mode (STACK_Pmode, size, 1);
+#else /*_BUILD_C30_*/
   if (GET_MODE (size) != VOIDmode && GET_MODE (size) != Pmode)
     size = convert_to_mode (Pmode, size, 1);
+#endif /*_BUILD_C30_*/
 
   /* We can't attempt to minimize alignment necessary, because we don't
      know the final value of preferred_stack_boundary yet while executing
@@ -1196,22 +1222,40 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
 	}
       else
 	{
+#ifdef _BUILD_C30_
+	  /* Since we know overflow is not possible, we avoid using
+	     CEIL_DIV_EXPR and use TRUNC_DIV_EXPR instead.  */
+	  size = expand_divmod (0, TRUNC_DIV_EXPR, STACK_Pmode, size,
+				GEN_INT (align), NULL_RTX, 1);
+	  size = expand_mult (STACK_Pmode, size,
+			      GEN_INT (align), NULL_RTX, 1);
+#else /*_BUILD_C30_ */
 	  /* Since we know overflow is not possible, we avoid using
 	     CEIL_DIV_EXPR and use TRUNC_DIV_EXPR instead.  */
 	  size = expand_divmod (0, TRUNC_DIV_EXPR, Pmode, size,
 				GEN_INT (align), NULL_RTX, 1);
 	  size = expand_mult (Pmode, size,
 			      GEN_INT (align), NULL_RTX, 1);
+#endif /*_BUILD_C30_ */
 	}
     }
   else
     {
+#ifdef _BUILD_C30_
+      rtx dynamic_offset
+	= expand_binop (STACK_Pmode, sub_optab, virtual_stack_dynamic_rtx,
+			stack_pointer_rtx, NULL_RTX, 1, OPTAB_LIB_WIDEN);
+
+      size = expand_binop (STACK_Pmode, add_optab, size, dynamic_offset,
+			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
+#else /*_BUILD_C30_ */
       rtx dynamic_offset
 	= expand_binop (Pmode, sub_optab, virtual_stack_dynamic_rtx,
 			stack_pointer_rtx, NULL_RTX, 1, OPTAB_LIB_WIDEN);
 
       size = expand_binop (Pmode, add_optab, size, dynamic_offset,
 			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
+#endif /*_BUILD_C30_ */
     }
 #endif /* SETJMP_VIA_SAVE_AREA */
 
@@ -1254,10 +1298,17 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
     probe_stack_range (STACK_CHECK_PROTECT, size);
 
   /* Don't use a TARGET that isn't a pseudo or is the wrong mode.  */
+#ifdef _BUILD_C30_
+  if (target == 0 || !REG_P (target)
+      || REGNO (target) < FIRST_PSEUDO_REGISTER
+      || GET_MODE (target) != STACK_Pmode)
+    target = gen_reg_rtx (STACK_Pmode);
+#else /*_BUILD_C30_ */
   if (target == 0 || !REG_P (target)
       || REGNO (target) < FIRST_PSEUDO_REGISTER
       || GET_MODE (target) != Pmode)
     target = gen_reg_rtx (Pmode);
+#endif /*_BUILD_C30_*/
 
   mark_reg_pointer (target, known_align);
 
@@ -1295,6 +1346,19 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
 	{
 	  rtx available;
 	  rtx space_available = gen_label_rtx ();
+#ifdef _BUILD_C30_
+#ifdef STACK_GROWS_DOWNWARD
+	  available = expand_binop (STACK_Pmode, sub_optab,
+				    stack_pointer_rtx, stack_limit_rtx,
+				    NULL_RTX, 1, OPTAB_WIDEN);
+#else
+	  available = expand_binop (STACK_Pmode, sub_optab,
+				    stack_limit_rtx, stack_pointer_rtx,
+				    NULL_RTX, 1, OPTAB_WIDEN);
+#endif
+	  emit_cmp_and_jump_insns (available, size, GEU, NULL_RTX, STACK_Pmode, 1,
+				   space_available);
+#else /*_BUILD_C30_*/
 #ifdef STACK_GROWS_DOWNWARD
 	  available = expand_binop (Pmode, sub_optab,
 				    stack_pointer_rtx, stack_limit_rtx,
@@ -1306,6 +1370,8 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
 #endif
 	  emit_cmp_and_jump_insns (available, size, GEU, NULL_RTX, Pmode, 1,
 				   space_available);
+#endif /*_BUILD_C30_*/
+
 #ifdef HAVE_trap
 	  if (HAVE_trap)
 	    emit_insn (gen_trap ());
@@ -1328,6 +1394,20 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
 
   if (MUST_ALIGN)
     {
+#ifdef _BUILD_C30_
+      /* CEIL_DIV_EXPR needs to worry about the addition overflowing,
+	 but we know it can't.  So add ourselves and then do
+	 TRUNC_DIV_EXPR.  */
+      target = expand_binop (STACK_Pmode, add_optab, target,
+			     GEN_INT (BIGGEST_ALIGNMENT / BITS_PER_UNIT - 1),
+			     NULL_RTX, 1, OPTAB_LIB_WIDEN);
+      target = expand_divmod (0, TRUNC_DIV_EXPR, STACK_Pmode, target,
+			      GEN_INT (BIGGEST_ALIGNMENT / BITS_PER_UNIT),
+			      NULL_RTX, 1);
+      target = expand_mult (STACK_Pmode, target,
+			    GEN_INT (BIGGEST_ALIGNMENT / BITS_PER_UNIT),
+			    NULL_RTX, 1);
+#else /*_BUILD_C30_*/
       /* CEIL_DIV_EXPR needs to worry about the addition overflowing,
 	 but we know it can't.  So add ourselves and then do
 	 TRUNC_DIV_EXPR.  */
@@ -1340,6 +1420,7 @@ allocate_dynamic_stack_space (rtx size, rtx target, int known_align)
       target = expand_mult (Pmode, target,
 			    GEN_INT (BIGGEST_ALIGNMENT / BITS_PER_UNIT),
 			    NULL_RTX, 1);
+#endif /*_BUILD_C30_*/
     }
 
   /* Record the new stack level for nonlocal gotos.  */
@@ -1399,25 +1480,50 @@ emit_stack_probe (rtx address)
 void
 probe_stack_range (HOST_WIDE_INT first, rtx size)
 {
+#ifdef _BUILD_C30_
+  /* First ensure SIZE is Pmode.  */
+  if (GET_MODE (size) != VOIDmode && GET_MODE (size) != STACK_Pmode)
+    size = convert_to_mode (STACK_Pmode, size, 1);
+#else /*_BUILD_C30_*/
   /* First ensure SIZE is Pmode.  */
   if (GET_MODE (size) != VOIDmode && GET_MODE (size) != Pmode)
     size = convert_to_mode (Pmode, size, 1);
+#endif /*_BUILD_C30_*/
 
   /* Next see if we have a function to check the stack.  */
   if (stack_check_libfunc)
     {
+#ifdef _BUILD_C30_
+      rtx addr = memory_address (STACK_Pmode,
+				 gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+					         stack_pointer_rtx,
+					         plus_constant (size, first)));
+      emit_library_call (stack_check_libfunc, LCT_NORMAL, VOIDmode, 1, addr,
+			 STACK_Pmode);
+#else /*_BUILD_C30_*/
       rtx addr = memory_address (Pmode,
 				 gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 					         stack_pointer_rtx,
 					         plus_constant (size, first)));
       emit_library_call (stack_check_libfunc, LCT_NORMAL, VOIDmode, 1, addr,
 			 Pmode);
+#endif /*_BUILD_C30_*/
     }
 
   /* Next see if we have an insn to check the stack.  */
 #ifdef HAVE_check_stack
   else if (HAVE_check_stack)
     {
+#ifdef _BUILD_C30_
+      rtx addr = memory_address (STACK_Pmode,
+				 gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+					         stack_pointer_rtx,
+					         plus_constant (size, first)));
+      insn_operand_predicate_fn pred
+	= insn_data[(int) CODE_FOR_check_stack].operand[0].predicate;
+      if (pred && !((*pred) (addr, STACK_Pmode)))
+	addr = copy_to_mode_reg (STACK_Pmode, addr);
+#else /*_BUILD_C30_*/
       rtx addr = memory_address (Pmode,
 				 gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 					         stack_pointer_rtx,
@@ -1426,6 +1532,7 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 	= insn_data[(int) CODE_FOR_check_stack].operand[0].predicate;
       if (pred && !((*pred) (addr, Pmode)))
 	addr = copy_to_mode_reg (Pmode, addr);
+#endif /*_BUILD_C30_*/
 
       emit_insn (gen_check_stack (addr));
     }
@@ -1443,15 +1550,27 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 	 generate any code.  Then probe at FIRST + SIZE.  */
       for (i = PROBE_INTERVAL; i < isize; i += PROBE_INTERVAL)
 	{
+#ifdef _BUILD_C30_
+	  addr = memory_address (STACK_Pmode,
+				 plus_constant (stack_pointer_rtx,
+				 		STACK_GROW_OFF (first + i)));
+#else /*_BUILD_C30_*/
 	  addr = memory_address (Pmode,
 				 plus_constant (stack_pointer_rtx,
 				 		STACK_GROW_OFF (first + i)));
+#endif /*_BUILD_C30_*/
 	  emit_stack_probe (addr);
 	}
 
+#ifdef _BUILD_C30_
+      addr = memory_address (STACK_Pmode,
+			     plus_constant (stack_pointer_rtx,
+					    STACK_GROW_OFF (first + isize)));
+#else /*_BUILD_C30_*/
       addr = memory_address (Pmode,
 			     plus_constant (stack_pointer_rtx,
 					    STACK_GROW_OFF (first + isize)));
+#endif /*_BUILD_C30_*/
       emit_stack_probe (addr);
     }
 
@@ -1468,7 +1587,25 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 
 
       /* Step 1: round SIZE to the previous multiple of the interval.  */
+#ifdef _BUILD_C30_
+      /* ROUNDED_SIZE = SIZE & -PROBE_INTERVAL  */
+      rounded_size
+	= simplify_gen_binary (AND, STACK_Pmode, size, GEN_INT (-PROBE_INTERVAL));
+      rounded_size_op = force_operand (rounded_size, NULL_RTX);
 
+
+      /* Step 2: compute initial and final value of the loop counter.  */
+
+      /* TEST_ADDR = SP + FIRST.  */
+      test_addr = force_operand (gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+					 	 stack_pointer_rtx,
+					 	 GEN_INT (first)), NULL_RTX);
+
+      /* LAST_ADDR = SP + FIRST + ROUNDED_SIZE.  */
+      last_addr = force_operand (gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+						 test_addr,
+						 rounded_size_op), NULL_RTX);
+#else /*_BUILD_C30_*/
       /* ROUNDED_SIZE = SIZE & -PROBE_INTERVAL  */
       rounded_size
 	= simplify_gen_binary (AND, Pmode, size, GEN_INT (-PROBE_INTERVAL));
@@ -1486,7 +1623,7 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
       last_addr = force_operand (gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 						 test_addr,
 						 rounded_size_op), NULL_RTX);
-
+#endif /*_BUILD_C30_*/
 
       /* Step 3: the loop
 
@@ -1500,16 +1637,24 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 	 until it is equal to ROUNDED_SIZE.  */
 
       emit_label (loop_lab);
+#ifdef _BUILD_C30_
+      /* Jump to END_LAB if TEST_ADDR == LAST_ADDR.  */
+      emit_cmp_and_jump_insns (test_addr, last_addr, EQ, NULL_RTX, STACK_Pmode, 1,
+			       end_lab);
 
+      /* TEST_ADDR = TEST_ADDR + PROBE_INTERVAL.  */
+      temp = expand_binop (STACK_Pmode, STACK_GROW_OPTAB, test_addr,
+			   GEN_INT (PROBE_INTERVAL), test_addr,
+			   1, OPTAB_WIDEN);
+#else /*_BUILD_C30_*/
       /* Jump to END_LAB if TEST_ADDR == LAST_ADDR.  */
       emit_cmp_and_jump_insns (test_addr, last_addr, EQ, NULL_RTX, Pmode, 1,
 			       end_lab);
-
       /* TEST_ADDR = TEST_ADDR + PROBE_INTERVAL.  */
       temp = expand_binop (Pmode, STACK_GROW_OPTAB, test_addr,
 			   GEN_INT (PROBE_INTERVAL), test_addr,
 			   1, OPTAB_WIDEN);
-
+#endif /*_BUILD_C30_*/
       gcc_assert (temp == test_addr);
 
       /* Probe at TEST_ADDR.  */
@@ -1522,28 +1667,46 @@ probe_stack_range (HOST_WIDE_INT first, rtx size)
 
       /* Step 4: probe at FIRST + SIZE if we cannot assert at compile-time
 	 that SIZE is equal to ROUNDED_SIZE.  */
-
+#ifdef _BUILD_C30_
+      /* TEMP = SIZE - ROUNDED_SIZE.  */
+      temp = simplify_gen_binary (MINUS, STACK_Pmode, size, rounded_size);
+#else /*_BUILD_C30_*/
       /* TEMP = SIZE - ROUNDED_SIZE.  */
       temp = simplify_gen_binary (MINUS, Pmode, size, rounded_size);
+#endif /*_BUILD_C30_*/
       if (temp != const0_rtx)
 	{
 	  rtx addr;
 
 	  if (GET_CODE (temp) == CONST_INT)
 	    {
-	      /* Use [base + disp} addressing mode if supported.  */
+	      /* Use [base + disp] addressing mode if supported.  */
 	      HOST_WIDE_INT offset = INTVAL (temp);
+#ifdef _BUILD_C30_
+	      addr = memory_address (STACK_Pmode,
+				     plus_constant (last_addr,
+						    STACK_GROW_OFF (offset)));
+#else /*_BUILD_C30_*/
 	      addr = memory_address (Pmode,
 				     plus_constant (last_addr,
 						    STACK_GROW_OFF (offset)));
+#endif /*_BUILD_C30_*/
 	    }
 	  else
 	    {
+#ifdef _BUILD_C30_
+	      /* Manual CSE if the difference is not known at compile-time.  */
+	      temp = gen_rtx_MINUS (STACK_Pmode, size, rounded_size_op);
+	      addr = memory_address (STACK_Pmode,
+				     gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+						     last_addr, temp));
+#else /*_BUILD_C30_*/
 	      /* Manual CSE if the difference is not known at compile-time.  */
 	      temp = gen_rtx_MINUS (Pmode, size, rounded_size_op);
 	      addr = memory_address (Pmode,
 				     gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 						     last_addr, temp));
+#endif /*_BUILD_C30_*/
 	    }
 
 	  emit_stack_probe (addr);
@@ -1564,9 +1727,15 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
      area at the botton of the stack.  */
   const int dope = 4 * UNITS_PER_WORD;
 
+#ifdef _BUILD_C30_
+  /* First ensure SIZE is STACK_Pmode.  */
+  if (GET_MODE (size) != VOIDmode && GET_MODE (size) != STACK_Pmode)
+    size = convert_to_mode (STACK_Pmode, size, 1);
+#else /*_BUILD_C30_*/
   /* First ensure SIZE is Pmode.  */
   if (GET_MODE (size) != VOIDmode && GET_MODE (size) != Pmode)
     size = convert_to_mode (Pmode, size, 1);
+#endif /*_BUILD_C30_*/
 
   /* If we have a constant small number of probes to generate, that's the
      easy case.  */
@@ -1611,10 +1780,16 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
 
 
       /* Step 1: round SIZE to the previous multiple of the interval.  */
-
+#ifdef _BUILD_C30_
+      /* ROUNDED_SIZE = SIZE & -PROBE_INTERVAL  */
+      rounded_size
+	= simplify_gen_binary (AND, STACK_Pmode, size, GEN_INT (-PROBE_INTERVAL));
+#else /*_BUILD_C30_*/
       /* ROUNDED_SIZE = SIZE & -PROBE_INTERVAL  */
       rounded_size
 	= simplify_gen_binary (AND, Pmode, size, GEN_INT (-PROBE_INTERVAL));
+#endif /*_BUILD_C30_*/
+
       rounded_size_op = force_operand (rounded_size, NULL_RTX);
 
 
@@ -1623,10 +1798,17 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
       /* SP = SP_0 + PROBE_INTERVAL.  */
       anti_adjust_stack (GEN_INT (PROBE_INTERVAL + dope));
 
+#ifdef _BUILD_C30_
+      /* LAST_ADDR = SP_0 + PROBE_INTERVAL + ROUNDED_SIZE.  */
+      last_addr = force_operand (gen_rtx_fmt_ee (STACK_GROW_OP, STACK_Pmode,
+						 stack_pointer_rtx,
+						 rounded_size_op), NULL_RTX);
+#else /*_BUILD_C30_*/
       /* LAST_ADDR = SP_0 + PROBE_INTERVAL + ROUNDED_SIZE.  */
       last_addr = force_operand (gen_rtx_fmt_ee (STACK_GROW_OP, Pmode,
 						 stack_pointer_rtx,
 						 rounded_size_op), NULL_RTX);
+#endif /*_BUILD_C30_*/
 
 
       /* Step 3: the loop
@@ -1642,9 +1824,15 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
 
       emit_label (loop_lab);
 
+#ifdef _BUILD_C30_
+      /* Jump to END_LAB if SP == LAST_ADDR.  */
+      emit_cmp_and_jump_insns (stack_pointer_rtx, last_addr, EQ, NULL_RTX,
+			       STACK_Pmode, 1, end_lab);
+#else /*_BUILD_C30_*/
       /* Jump to END_LAB if SP == LAST_ADDR.  */
       emit_cmp_and_jump_insns (stack_pointer_rtx, last_addr, EQ, NULL_RTX,
 			       Pmode, 1, end_lab);
+#endif /*_BUILD_C30_*/
 
       /* SP = SP + PROBE_INTERVAL and probe at SP.  */
       anti_adjust_stack (GEN_INT (PROBE_INTERVAL));
@@ -1658,8 +1846,13 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
       /* Step 4: adjust SP and probe to PROBE_INTERVAL + SIZE if we cannot
 	 assert at compile-time that SIZE is equal to ROUNDED_SIZE.  */
 
+#ifdef _BUILD_C30_
       /* TEMP = SIZE - ROUNDED_SIZE.  */
       temp = simplify_gen_binary (MINUS, Pmode, size, rounded_size);
+#else /*_BUILD_C30_*/
+      /* TEMP = SIZE - ROUNDED_SIZE.  */
+      temp = simplify_gen_binary (MINUS, Pmode, size, rounded_size);
+#endif /*_BUILD_C30_*/
       if (temp != const0_rtx)
 	{
 	  /* Manual CSE if the difference is not known at compile-time.  */

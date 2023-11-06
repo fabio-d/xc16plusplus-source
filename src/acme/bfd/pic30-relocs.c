@@ -16,6 +16,10 @@
 #define PIC30_TBLPAGE(value)  ((value) >> 16)
 #define PIC30_PSVPAGE(value)  ((value) >> 15)
 #define PIC30_HANDLE(value) ((value) & 0xFFFF)
+#define PIC30_UNIFIED_LO(value)         ((((value) & 0x7FFF) << 1) || \
+                                         (((value) & 0xFFF8000) != 0))
+#define PIC30_UNIFIED_HI(value)         (((value) >> 15) & 0xFFFF)
+
 
 /*
 ** range checking macros
@@ -478,8 +482,15 @@ pic30_reloc_range_check (howto, relocation, error_msg)
         break;
       case R_PIC30_DSP_6:
         /* valid range is [-16..16] */
-        if ((relocation > 0x10) && ~(relocation | 0xF))
-          rc = reloc_overflow;
+        if ((relocation & 0xFFFFFFE) == 0) {
+          /* is positive */
+          if (relocation > (bfd_vma) 16)
+            rc == bfd_reloc_overflow;
+        } else {
+          /* is negative */
+          if (abs( (signed long) (relocation & 0x3F)) > 16)
+            rc == bfd_reloc_overflow;
+        }
         break;
    }
 

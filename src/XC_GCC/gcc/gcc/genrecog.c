@@ -1003,10 +1003,12 @@ add_to_sequence (rtx pattern, struct decision_head *last, const char *position,
 		else
 		  code = pred->singleton;
 	      }
-	    else
+	    else {
+              test->u.pred.data = 0;
 	      message_with_line (pattern_lineno,
 			"warning: unknown predicate '%s' in '%s' expression",
 			pred_name, GET_RTX_NAME (was_code));
+            }
 	  }
 
 	/* Can't enforce a mode if we allow const_int.  */

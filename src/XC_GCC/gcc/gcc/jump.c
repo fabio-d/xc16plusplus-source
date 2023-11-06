@@ -1030,6 +1030,15 @@ mark_jump_label_1 (rtx x, rtx insn, bool in_mem, bool is_target)
 
   switch (code)
     {
+#ifdef _BUILD_C30_
+    case EDSPAGE:
+    case EDSOFFSET:
+    case PSVPAGE:
+    case PSVOFFSET:
+    case TBLPAGE:
+    case TBLOFFSET:
+#endif
+
     case PC:
     case CC0:
     case REG:

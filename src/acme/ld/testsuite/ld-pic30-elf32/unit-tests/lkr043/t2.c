@@ -7,5 +7,5 @@ int main()
   i++;
   printf("The value of 3 is %d\n", i);
   i++;
-  printf("The value of 4.0 is %f\n", (float) i);
+  printf("The value of 4 is %d\n", i);
 }

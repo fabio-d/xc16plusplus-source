@@ -107,6 +107,18 @@ gen_addr_rtx (enum machine_mode address_mode,
 	      rtx *addr, rtx **step_p, rtx **offset_p)
 {
   rtx act_elem;
+#ifdef _BUILD_C30_
+  // for address spaces or other address modes,
+  //   determine the correct mode to do arithmetic (not sizetype)
+  enum machine_mode base_mode = address_mode;
+
+  if (base) {
+    base_mode = GET_MODE(base);
+  }
+  if (symbol) {
+    base_mode = GET_MODE(symbol);
+  }
+#endif
 
   *addr = NULL_RTX;
   if (step_p)
@@ -125,6 +137,16 @@ gen_addr_rtx (enum machine_mode address_mode,
 	    *step_p = &XEXP (act_elem, 1);
 	}
 
+#ifdef _BUILD_C30_
+        /* unless const int (VOIDmode), we should convert to the base_mode */
+        if ((GET_MODE(act_elem) != VOIDmode) &&
+            (GET_MODE(act_elem) != base_mode)) {
+          // TARGET_MEM_REF says index/step & co will be in sizetype mode...
+          //   but we need to convert it to the pointer mode so that we can
+          //   properly offset based on the format of the target pointer
+          act_elem = gen_rtx_ZERO_EXTEND(base_mode, act_elem);
+        }
+#endif
       *addr = act_elem;
     }
 
@@ -146,6 +168,15 @@ gen_addr_rtx (enum machine_mode address_mode,
 	  if (offset_p)
 	    *offset_p = &XEXP (act_elem, 1);
 
+#ifdef _BUILD_C30_
+          if (GET_MODE(act_elem) != base_mode) {
+            // TARGET_MEM_REF says index/step & co will be in sizetype mode...
+            //   but we need to convert it to the pointer mode so that we can
+            //   properly offset based on the format of the target pointer
+            act_elem = gen_rtx_ZERO_EXTEND(base_mode, act_elem);
+          }
+#endif
+
 	  if (GET_CODE (symbol) == SYMBOL_REF
 	      || GET_CODE (symbol) == LABEL_REF
 	      || GET_CODE (symbol) == CONST)
@@ -164,6 +195,14 @@ gen_addr_rtx (enum machine_mode address_mode,
 	  *addr = gen_rtx_PLUS (address_mode, *addr, offset);
 	  if (offset_p)
 	    *offset_p = &XEXP (*addr, 1);
+#ifdef _BUILD_C30_
+          if (GET_MODE(*addr) != base_mode) {
+            // TARGET_MEM_REF says index/step & co will be in sizetype mode...
+            //   but we need to convert it to the pointer mode so that we can
+            //   properly offset based on the format of the target pointer
+            *addr = gen_rtx_ZERO_EXTEND(base_mode, *addr);
+          }
+#endif
 	}
       else
 	{

@@ -104,7 +104,8 @@ create_iv (tree base, tree step, tree var, struct loop *loop,
       if (TREE_CODE (base) == ADDR_EXPR)
 	mark_addressable (TREE_OPERAND (base, 0));
 #ifdef _BUILD_C30_
-      if (TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(base))) != ADDR_SPACE_GENERIC)
+      if ((TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(base))) != ADDR_SPACE_GENERIC) ||
+          (TYPE_MODE(TREE_TYPE(base)) != HImode))
         step = fold_convert (TREE_TYPE(base), step);
       else
 #endif

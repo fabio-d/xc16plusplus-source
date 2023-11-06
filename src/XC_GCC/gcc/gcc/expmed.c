@@ -5450,6 +5450,7 @@ emit_store_flag_1 (rtx target, enum rtx_code code, rtx op0, rtx op1,
   /* If we are comparing a double-word integer with zero or -1, we can
      convert the comparison into one involving a single word.  */
   if (GET_MODE_BITSIZE (mode) == BITS_PER_WORD * 2
+      && (!targetm.valid_pointer_mode(mode))
       && GET_MODE_CLASS (mode) == MODE_INT
       && (!MEM_P (op0) || ! MEM_VOLATILE_P (op0)))
     {

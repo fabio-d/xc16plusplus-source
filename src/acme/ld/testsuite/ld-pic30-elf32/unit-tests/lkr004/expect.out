@@ -1,17 +1,16 @@
 
 t.exe:     file format elf32-pic30
-
 Sections:
 Idx Name          Size      VMA       LMA       File off  Algn
   0 .reset        00000004  00000000  00000000  000000b4  2**1
                   CONTENTS, ALLOC, LOAD, CODE, ABSOLUTE
-  1 .ndata        0000000a  00000800  00000800  00000174  2**1
+  1 .ndata        0000000a  00000800  00000800  00000170  2**1
                   CONTENTS, ALLOC, DATA, NEVER_LOAD, NEAR
-  2 .ndconst      0000000a  0000080a  0000080a  00000188  2**1
+  2 .ndconst      0000000a  0000080a  0000080a  00000184  2**1
                   CONTENTS, ALLOC, DATA, NEVER_LOAD, NEAR
-  3 .data         0000000a  00000814  00000814  0000019c  2**1
+  3 .data         0000000a  00000814  00000814  00000198  2**1
                   CONTENTS, ALLOC, DATA, NEVER_LOAD
-  4 .dconst       0000000a  0000081e  0000081e  000001b0  2**1
+  4 .dconst       0000000a  0000081e  0000081e  000001ac  2**1
                   CONTENTS, ALLOC, DATA, NEVER_LOAD
   5 .const        0000000a  00008100  00000100  000000bc  2**1
                   CONTENTS, ALLOC, LOAD, READONLY, PSV, ABSOLUTE
@@ -21,11 +20,8 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, ALLOC, LOAD, CODE, ABSOLUTE
   8 .isr          00000004  00000156  00000156  00000168  2**1
                   CONTENTS, ALLOC, LOAD, CODE, ABSOLUTE
-  9 .shared.dinit 00000002  0000015a  0000015a  00000170  2**1
-                  CONTENTS, ALLOC, LOAD, CODE, ABSOLUTE
 
 t.exe:     file format elf32-pic30
-
 Contents of section .reset:
  0000 4c0104 000000                L.....      
 Contents of section .ndata:
@@ -47,11 +43,9 @@ Contents of section .dinit:
  0132 323300 343500 363700 383900  23.45.67.89.
  013a 1e0800 0a0000 010000 505100  .........PQ.
  0142 525300 545500 565700 585900  RS.TU.VW.XY.
- 014a 5a0180                       Z..         
+ 014a 000000                       ...         
 Contents of section .text:
  014c 101100 121300 141500 161700  ............
  0154 181900                       ...         
 Contents of section .isr:
  0156 0040da 0000fe                .@....      
-Contents of section .shared.dinit:
- 015a 000000                       ...         

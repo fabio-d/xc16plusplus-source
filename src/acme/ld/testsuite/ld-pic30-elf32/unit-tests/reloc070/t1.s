@@ -14,10 +14,10 @@ __reset:
         addc.b    #symB5, w5
 
         .equiv  symA1, 0x01
-        .equiv  symA2, -128
+        ;;.equiv  symA2, -128 ;; does not work after v1.41
         .equiv  symA3, 127
         .equiv  symA4, 0
-        .equiv  symA5, -1
+        ;;.equiv  symA5, -1
                 
         .global symA1,symA2,symA3,symA4,symA5
  

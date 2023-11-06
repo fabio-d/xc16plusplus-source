@@ -400,6 +400,20 @@ assign_stack_local_1 (enum machine_mode mode, HOST_WIDE_INT size,
   if (BYTES_BIG_ENDIAN && mode != BLKmode && GET_MODE_SIZE (mode) < size)
     bigend_correction = size - GET_MODE_SIZE (mode);
 
+#ifdef _BUILD_C30_
+  /* If we have already instantiated virtual registers, return the actual
+     address relative to the frame pointer.  */
+  if (virtuals_instantiated)
+    addr = plus_constant (frame_pointer_rtx,
+			  trunc_int_for_mode
+			  (frame_offset + bigend_correction
+			   + STARTING_FRAME_OFFSET, STACK_Pmode));
+  else
+    addr = plus_constant (virtual_stack_vars_rtx,
+			  trunc_int_for_mode
+			  (frame_offset + bigend_correction,
+			   STACK_Pmode));
+#else /*_BUILD_C30_*/
   /* If we have already instantiated virtual registers, return the actual
      address relative to the frame pointer.  */
   if (virtuals_instantiated)
@@ -412,6 +426,7 @@ assign_stack_local_1 (enum machine_mode mode, HOST_WIDE_INT size,
 			  trunc_int_for_mode
 			  (frame_offset + bigend_correction,
 			   Pmode));
+#endif /*_BUILD_C30_*/
 
   if (!FRAME_GROWS_DOWNWARD)
     frame_offset += size;
@@ -2459,13 +2474,27 @@ assign_parm_find_stack_rtl (tree parm, struct assign_parm_data_one *data)
     offset_rtx = ARGS_SIZE_RTX (data->locate.offset);
 
   stack_parm = crtl->args.internal_arg_pointer;
+#ifdef _BUILD_C30_
+  if (offset_rtx != const0_rtx)
+    stack_parm = gen_rtx_PLUS (STACK_Pmode, stack_parm, offset_rtx);
+#else /*_BUILD_C30_*/
   if (offset_rtx != const0_rtx)
     stack_parm = gen_rtx_PLUS (Pmode, stack_parm, offset_rtx);
+#endif /*_BUILD_C30_*/
   stack_parm = gen_rtx_MEM (data->promoted_mode, stack_parm);
 
   if (!data->passed_pointer)
     {
       set_mem_attributes (stack_parm, parm, 1);
+#ifdef _BUILD_C30_
+      if ((TARGET_EDS) & (TARGET_EDS_MODE==P32UMMmode)) {
+        // unless already set by set_mem_attributes
+        if (MEM_ADDR_SPACE(stack_parm) == ADDR_SPACE_GENERIC) {
+          set_mem_addr_space(stack_parm,pic30_space_stack);
+        }
+      }
+#endif
+
       /* set_mem_attributes could set MEM_SIZE to the passed mode's size,
 	 while promoted mode's size is needed.  */
       if (data->promoted_mode != BLKmode
@@ -2677,6 +2706,15 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
       if (GET_MODE_SIZE (GET_MODE (entry_parm)) == size)
 	PUT_MODE (stack_parm, GET_MODE (entry_parm));
       set_mem_attributes (stack_parm, parm, 1);
+#ifdef _BUILD_C30_
+      if ((TARGET_EDS) & (TARGET_EDS_MODE==P32UMMmode)) {
+        // unless already set by set_mem_attributes
+        if (MEM_ADDR_SPACE(stack_parm) == ADDR_SPACE_GENERIC) {
+          set_mem_addr_space(stack_parm,pic30_space_stack);
+        }
+      }
+#endif
+
     }
 
   /* If a BLKmode arrives in registers, copy it to a stack slot.  Handle
@@ -2825,6 +2863,15 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
     {
       rtx x = gen_rtx_MEM (TYPE_MODE (TREE_TYPE (data->passed_type)), parmreg);
       set_mem_attributes (x, parm, 1);
+#ifdef _BUILD_C30_
+      if ((TARGET_EDS) & (TARGET_EDS_MODE==P32UMMmode)) {
+        // unless already set by set_mem_attributes
+        if (MEM_ADDR_SPACE(x) == ADDR_SPACE_GENERIC) {
+          set_mem_addr_space(x,pic30_space_stack);
+        }
+      }
+#endif
+
       SET_DECL_RTL (parm, x);
     }
   else
@@ -3038,6 +3085,15 @@ assign_parm_setup_stack (struct assign_parm_data_all *all, tree parm,
 				  GET_MODE_SIZE (GET_MODE (data->entry_parm)),
 				  align);
 	  set_mem_attributes (data->stack_parm, parm, 1);
+#ifdef _BUILD_C30_
+          if ((TARGET_EDS) & (TARGET_EDS_MODE==P32UMMmode)) {
+            // unless already set by set_mem_attributes
+            if (MEM_ADDR_SPACE(data->stack_parm) == ADDR_SPACE_GENERIC) {
+              set_mem_addr_space(data->stack_parm,pic30_space_stack);
+            }
+          }
+#endif
+
 	}
 
       dest = validize_mem (data->stack_parm);
@@ -3108,6 +3164,15 @@ assign_parms_unsplit_complex (struct assign_parm_data_all *all,
 		 pseudos.  Move them to memory.  */
 	      tmp = assign_stack_local (DECL_MODE (parm), size, align);
 	      set_mem_attributes (tmp, parm, 1);
+#ifdef _BUILD_C30_
+              if ((TARGET_EDS) & (TARGET_EDS_MODE==P32UMMmode)) {
+                // unless already set by set_mem_attributes
+                if (MEM_ADDR_SPACE(tmp) == ADDR_SPACE_GENERIC) {
+                  set_mem_addr_space(tmp,pic30_space_stack);
+                }
+              }
+#endif
+
 	      rmem = adjust_address_nv (tmp, inner, 0);
 	      imem = adjust_address_nv (tmp, inner, GET_MODE_SIZE (inner));
 	      push_to_sequence2 (all->first_conversion_insn,

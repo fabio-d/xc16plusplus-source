@@ -46,10 +46,10 @@ fi
 
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o  2>test.out
+$GLD30 -o t.exe t1.o t2.o --defsym symB1=-32767 --defsym symB2=-32768 --defsym symB3=-32769 2>test.out
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GLD30 -o t.exe t1.o t2.o  2>test.out"
+    echo "$GLD30 -o t.exe t1.o t2.o -defsym symB1=-32767 --defsym symB2=-32768 --defsym symB3=-32769 2>test.out"
     echo $err
 fi
 

@@ -13,6 +13,10 @@ extern int pic30_adjustable_against_section (unsigned short);
 #define PIC30_HANDLE(value) ((value) & 0xFFFF)
 #define PIC30_PSVPTR(value) ((((value) & 0xFFFF8000) << 1) | \
         (((value) & 0x7FFF) << 1) | 0x1 )
+#define PIC30_UNIFIED_LO(value)         ((((value) & 0x7FFF) << 1) || \
+                                         (((value) & 0xFFF8000) != 0))
+#define PIC30_UNIFIED_HI(value)         (((value) >> 15) & 0xFFFF)
+
 
 #define PIC30_DATA_WINDOW_BASE 0x8000
 

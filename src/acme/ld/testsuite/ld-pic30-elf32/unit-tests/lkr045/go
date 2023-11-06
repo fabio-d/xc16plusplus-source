@@ -34,12 +34,10 @@ if [ $vflag = "on" ]; then
     cat temp
 fi
 
-SIZE1=`perl -n -e 'if (/\.dinit\s+\w+\s+0x(\w+)/) {print $1}' temp`
-SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' temp`
+SIZE=`perl -n -e 'if (/Total "data" memory used \(bytes\):\s+(\w+)/) {print $1}' temp`
 
 {
-echo "size of section .dinit (should be 2):    $SIZE1"
-echo "total data memory used (should be 0):    $SIZE2"
+echo "total data memory used (should be 0):    $SIZE"
 } > test.out
 
 echo

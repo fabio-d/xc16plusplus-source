@@ -3,7 +3,6 @@
 */
 
 #include <stdio.h>
-#define __dsPIC30F6014__
 #include <p30F6014.h>
 
 int evals[] __attribute__((section(".eedata,r"))) =

@@ -78,6 +78,10 @@
 ;; 
 ;; pic30_general_operand does not accept any for the funky C30 pointer modes
 ;;
+(define_predicate "pic30_invalid_immediate_operand"
+  (and (match_code "const_int")
+       (match_test "(immediate_operand(op,mode) == 0)")))
+
 (define_predicate "pic30_general_operand"
   (match_operand 0 "general_operand")
 {
@@ -86,7 +90,8 @@
 
     if ((GET_MODE(inner) == P24PROGmode) || (GET_MODE(inner) == P24PSVmode) ||
         (GET_MODE(inner) == P16PMPmode) || (GET_MODE(inner) == P32EXTmode) ||
-        (GET_MODE(inner) == P32EDSmode) || (GET_MODE(inner) == P32PEDSmode)) {
+        (GET_MODE(inner) == P32EDSmode) || (GET_MODE(inner) == P32PEDSmode) ||
+        (GET_MODE(inner) == P32UMMmode)) {
       /* a de-reference of an extended pointer - not general */
       return 0;
     }
@@ -102,7 +107,8 @@
 
 (define_predicate "pic30_pushhi_operand"
   (ior (match_code "reg")
-       (match_test "pic30_T_constraint(op,mode)")
+       (and (match_test "pic30_T_constraint(op,mode)")
+            (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode"))
        (and (match_code "mem")
             (match_test "GET_CODE(XEXP(op,0)) == REG")
             (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode"))
@@ -147,6 +153,10 @@
 (define_predicate "pic30_df_operand"
   (and (match_test "pic30_extended_pointer_operand(op, mode)")
        (match_code "post_inc,pre_dec,pre_inc,post_dec,reg,subreg,plus,symbol_ref,const")))
+
+(define_predicate "pic30_umm_operand"
+  (and (match_test "pic30_extended_pointer_operand(op, P32UMMmode)")
+       (match_code "reg,subreg,plus,symbol_ref,const")))
 
 ;;  { "pic30_tbl_operand", { MEM }}, 
 ;;  unused
@@ -211,6 +221,10 @@
   (and (match_test "pic30_mode1MinMax_operand(op,mode,-31,31)")
        (match_code "subreg,reg,mem,const_int")))
 
+(define_predicate "pic30_mode1PN_UMM_operand"
+  (and (match_test "pic30_mode1MinMax_operand(op,mode,-15,15)")
+       (match_code "subreg,reg,mem,const_int")))
+
 (define_predicate "pic30_mode1PN_APSV_operand"
   (and (match_test "pic30_mode1MinMax_APSV_operand(op,mode,-31,31)")
        (match_code "subreg,reg,mem,const_int")))
@@ -264,18 +278,35 @@
 
 (define_predicate "pic30_indirect_mem_operand"
   (and (match_code "mem")
-       (match_code "post_inc,post_dec,pre_inc,pre_dec,reg" "0")
-       (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
+       (match_code "post_inc,post_dec,pre_inc,pre_dec,reg,subreg" "0")
+       (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode"))
+{
+  int return_value;
+  enum rtx_code code;
+ 
+  return_value = FALSE;
+  code = GET_CODE(XEXP(op,0));
+  switch (code) {
+    case SUBREG:
+      return_value = pic30_register_operand(XEXP(op,0), machine_Pmode);
+      break;
+    case POST_INC:
+    case POST_DEC:
+    case PRE_INC:
+    case PRE_DEC:
+    case REG:
+      return_value = TRUE;
+      break;
+    default:
+      break;
+  }
+  return return_value;
+})
 
 (define_predicate "pic30_DI_indirect_mem_operand"
   (and (match_code "mem")
        (match_code "post_inc,reg" "0")
        (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
-
-(define_predicate "pic30_unified_indirect_mem_operand"
-  (and (match_code "mem")
-       (match_code "post_inc,post_dec,pre_inc,pre_dec,reg" "0")
-       (match_test "GET_MODE(XEXP(op,0)) == Pmode")))
 
 (define_predicate "pic30_APSV_indirect_mem_operand"
   (and (match_code "mem")
@@ -287,11 +318,7 @@
 
 (define_predicate "pic30_mode3_operand"
   (and (match_code "subreg,reg,mem")
-       (match_test "pic30_mode3_operand_helper(op,mode,0)")))
-
-(define_predicate "pic30_unified_mode3_operand"
-  (and (match_code "subreg,reg,mem")
-       (match_test "pic30_mode3_operand_helper(op,mode,1)")))
+       (match_test "pic30_mode3_operand_helper(op,mode)")))
 
 (define_predicate "pic30_mode3_APSV_operand"
   (and (match_code "subreg,reg,mem")
@@ -301,11 +328,7 @@
 
 (define_predicate "pic30_modek_operand"
   (and (match_code "subreg,mem")
-       (match_test "pic30_modek_operand_helper(op,mode,0)")))
-
-(define_predicate "pic30_unified_modek_operand"
-  (and (match_code "subreg,mem")
-       (match_test "pic30_modek_operand_helper(op,mode,1)")))
+       (match_test "pic30_modek_operand_helper(op,mode)")))
 
 (define_predicate "pic30_modek_APSV_operand"
   (and (match_code "subreg,mem")
@@ -315,17 +338,14 @@
 
 (define_predicate "pic30_data_operand"
   (and (match_test "GET_MODE(op) != QImode")
-       (match_test "pic30_T_constraint(op,mode)")))
+       (match_test "pic30_T_constraint(op,mode)")
+       (match_test "GET_MODE(XEXP(op,0)) == machine_Pmode")))
 
 ;;  { "pic30_move2_operand", { SUBREG, REG, MEM }}, 
 
 (define_predicate "pic30_move2_operand"
   (ior (match_operand 0 "pic30_mode3_operand")
        (match_operand 0 "pic30_modek_operand")))
-
-(define_predicate "pic30_unified_move2_operand"
-  (ior (match_operand 0 "pic30_unified_mode3_operand")
-       (match_operand 0 "pic30_unified_modek_operand")))
 
 (define_predicate "pic30_move2_APSV_operand"
   (ior (match_operand 0 "pic30_mode3_APSV_operand")
@@ -393,7 +413,7 @@
   return fMode2Operand;
 })
 
-(define_predicate "pic30_unified_mode2_operand"
+(define_predicate "pic30_DI_mode2k_operand"
   (match_code "subreg,reg,mem")
 {
   int fMode2Operand;
@@ -415,7 +435,8 @@
                         (REGNO(op) >= FIRST_PSEUDO_REGISTER)));
       break;
     case MEM:
-      fMode2Operand = pic30_unified_indirect_mem_operand(op,mode);
+      fMode2Operand = pic30_DI_indirect_mem_operand(op,mode) |
+                      pic30_modek_operand(op,mode);
       break;
     default:
         break;
@@ -710,10 +731,14 @@
 ;;  { "pic30_R_operand", { MEM }},
 
 (define_predicate "pic30_R_operand"
-  (match_test "pic30_R_constraint(op)"))
+  (and (match_code "mem")
+       (match_test "(GET_MODE(XEXP(op,0)) == machine_Pmode)")
+       (match_test "pic30_R_constraint(op)")))
 
 (define_predicate "pic30_R_APSV_operand"
-  (match_test "pic30_R_constraint(op)"))
+  (and (match_code "mem")
+       (match_test "(GET_MODE(XEXP(op,0)) == machine_Pmode)")
+       (match_test "pic30_R_constraint(op)")))
 
 ;;  { "pic30_reg_or_R_operand", { SUBREG, REG, MEM }}, 
 
@@ -892,8 +917,10 @@
 {
   switch (GET_CODE(op)) {
     default: return FALSE;
+    case REG: return (mode != machine_Pmode);
     case MEM: return pic30_invalid_address_operand(XEXP(op,0), mode);
     case LABEL_REF:  return 0;
+    case PLUS: return pic30_invalid_address_operand(XEXP(op,0),mode);
     case SYMBOL_REF:
       if ((PIC30_HAS_NAME_P(XSTR(op,0), PIC30_PROG_FLAG)) ||
           (PIC30_HAS_NAME_P(XSTR(op,0), PIC30_AUXFLASH_FLAG))) {
@@ -991,6 +1018,9 @@
         if ((mode == P16PMPmode) || (mode == VOIDmode)) {
           if (pic30_has_space_operand_p(op,PIC30_PMP_FLAG)) return TRUE;
         }
+        if ((mode == P32UMMmode) || (mode == VOIDmode)) {
+          if (pic30_eds_space_operand_p(op)) return TRUE;
+        }
         if ((mode == P32EDSmode) ||
             (mode == P32PEDSmode) ||
             (mode == VOIDmode)) {
@@ -1041,6 +1071,127 @@
   return FALSE;
 })
 
+(define_special_predicate "pic30_positive_symbolic_address_operand"
+  (match_test "1")
+{
+  int done;
+
+  do {
+    rtx lhs,rhs;
+    done = 1;
+    switch (GET_CODE (op)) {
+      case SUBREG:
+        if (GET_MODE(op) != mode) break;
+        op = XEXP(op,0);
+        /* allow the cast from modes that do not require special handling */
+        switch (GET_CODE(op)) {
+          case SYMBOL_REF:
+          case LABEL_REF: 
+            switch (GET_MODE(op)) {
+              default:  /* the outer type must match */
+                        break;
+              case QImode:
+              case HImode:
+              case SImode:
+              case DImode:
+              case SFmode:
+              case DFmode:
+              case P16APSVmode:
+                mode = VOIDmode;
+                break;
+            }
+            break;
+          default:
+            /* other operations do not require special handling, regardless of
+               mode */
+	    mode = VOIDmode;
+            break;
+        }
+        done = 0;
+        break;
+      case SYMBOL_REF:
+      case LABEL_REF:
+        if ((mode == P24PSVmode) ||
+            (mode == P24PROGmode) ||
+            (mode == VOIDmode)) {
+          int string_constant = 0;
+
+          if (GET_CODE(op) == SYMBOL_REF) {
+            tree exp;
+            exp = SYMBOL_REF_DECL(op);
+
+            /* I assume this can only happen in there is no SYMBOL_REF
+               which means that this is coming from IV cost anaylis? */
+            if (exp == 0) return TRUE;
+
+            string_constant = ((TREE_CODE(exp) == STRING_CST) &&
+                               (TARGET_CONST_IN_CODE || TARGET_CONST_IN_PSV));
+          }
+          if (((mode == VOIDmode) || (GET_MODE(op) == mode)) &&
+              (string_constant || pic30_builtin_tblpsv_arg_p(NULL,op)))
+            return TRUE;
+        }
+        if ((mode == P16APSVmode) || (mode == VOIDmode)) {
+          if (pic30_has_space_operand_p(op,PIC30_APSV_FLAG)) return TRUE;
+          if (pic30_data_space_operand_p(GET_MODE(op),op,0)) return TRUE;
+        }
+        if ((mode == P32DFmode) || (mode == VOIDmode)) {
+          if (pic30_has_space_operand_p(op,PIC30_PACKEDFLASH_FLAG)) return TRUE;
+        }
+        if ((mode == P32EXTmode) || (mode == VOIDmode)) {
+          if (pic30_has_space_operand_p(op,PIC30_EXT_FLAG)) return TRUE;
+        }
+        if ((mode == P16PMPmode) || (mode == VOIDmode)) {
+          if (pic30_has_space_operand_p(op,PIC30_PMP_FLAG)) return TRUE;
+        }
+        if ((mode == P32UMMmode) || (mode == VOIDmode)) {
+          if (pic30_eds_space_operand_p(op)) return TRUE;
+        }
+        if ((mode == P32EDSmode) ||
+            (mode == P32PEDSmode) ||
+            (mode == VOIDmode)) {
+          /* these pointers are compatible with a multitude of spaces */
+          if (pic30_eds_space_operand_p(op)) return TRUE;
+        }
+        if (mode == STACK_Pmode) return TRUE;
+        if (mode == FN_Pmode) return TRUE;
+        if (mode == Pmode) return TRUE;
+        break;
+      case CONST:
+        op = XEXP (op, 0);
+        if (GET_CODE(op) == PLUS) {
+          rhs = XEXP(op,1);
+          if (GET_CODE(rhs) == CONST_INT) {
+            if (INTVAL(rhs) < 0) return FALSE;
+            if (INTVAL(rhs) > 32768) return FALSE;
+          }
+        }
+        if ((mode == P24PSVmode) ||
+            (mode == P24PROGmode) ||
+            (mode == VOIDmode)) {
+          if (((GET_CODE (XEXP (op, 0)) == SYMBOL_REF ||
+                    GET_CODE (XEXP (op, 0)) == LABEL_REF) &&
+                   ((mode == VOIDmode) || (GET_MODE(XEXP(op,0)) == mode)) &&
+                   (pic30_builtin_tblpsv_arg_p(NULL,op))) &&
+                  GET_CODE (XEXP (op, 1)) == CONST_INT) return TRUE;
+        }
+        if ((mode == P16PMPmode) || (mode == P32EXTmode) || 
+            (mode == P32DFmode)) {
+          op = XEXP(op,0);
+          done = 0;
+          break;
+        } else {
+          return (((GET_CODE (XEXP (op, 0)) == SYMBOL_REF ||
+                    GET_CODE (XEXP (op, 0)) == LABEL_REF)) &&
+                  GET_CODE (XEXP (op, 1)) == CONST_INT);
+        }
+      default:
+        break;
+    }
+  } while (!done);
+  return FALSE;
+})
+
 ;;  { "pic30_call_address_operand", { SYMBOL_REF, LABEL_REF, CONST, REG }}, 
 
 (define_predicate "pic30_call_address_operand"
@@ -1049,12 +1200,12 @@
 
 (define_predicate "pic30_reg_or_symbolic_address"
   (ior (match_operand 0 "pic30_register_operand")
-       (match_operand 0 "pic30_symbolic_address_operand")))
+       (match_operand 0 "pic30_positive_symbolic_address_operand")))
 
 (define_predicate "pic30_reg_or_symbolic_address_or_immediate"
   (ior (match_operand 0 "pic30_register_operand")
        (ior (match_operand 0 "immediate_operand")
-            (match_operand 0 "pic30_symbolic_address_operand"))))
+            (match_operand 0 "pic30_positive_symbolic_address_operand"))))
 
 ;;  { "pic30_reg_or_zero_operand", { SUBREG, REG, CONST_INT }}, 
 
@@ -1094,7 +1245,7 @@
 
 (define_special_predicate "pic30_reg_or_P_operand"
   (ior (match_operand 0 "pic30_register_operand")
-       (match_operand 0 "pic30_N_operand")))
+       (match_operand 0 "pic30_P_operand")))
 
 ;;  { "pic30_rR_or_JN_operand", { MEM, SUBREG, REG, CONST_INT }}, 
 
@@ -1140,7 +1291,13 @@
  */
 (define_predicate "pic30_memory_operand"
   (and (match_code "mem")
-       (match_test "MEM_ADDR_SPACE(op) == ADDR_SPACE_GENERIC")
+       (ior (match_test "MEM_ADDR_SPACE(op) == ADDR_SPACE_GENERIC")
+            (match_test "MEM_ADDR_SPACE(op) == pic30_space_stack"))
+       (match_operand 0 "memory_operand")))
+
+(define_predicate "pic30_umm_memory_operand"
+  (and (match_code "mem")
+       (match_test "pic30_extended_pointer_operand(XEXP(op,0), P32UMMmode)")
        (match_operand 0 "memory_operand")))
 
 (define_predicate "pic30_RTU_operand"
@@ -1149,9 +1306,9 @@
             (match_operand 0 "pic30_near_operand")
             (match_operand 0 "pic30_data_operand"))))
 
-(define_predicate "pic30_unified_mode2k_operand"
-  (ior (match_operand 0 "pic30_unified_mode2_operand")
-       (match_operand 0 "pic30_unified_modek_operand")))
+(define_predicate "pic30_mode2k_operand"
+  (ior (match_operand 0 "pic30_mode2_operand")
+       (match_operand 0 "pic30_modek_operand")))
   
 (define_predicate "new_pic30_inc_imm_operand"
   (and (match_operand 0 "immediate_operand")
@@ -1164,10 +1321,31 @@
   (ior (match_operand 0 "pic30_register_operand")
        (match_operand 0 "pic30_move_operand")))
 
+; do not allow things other than const int
+(define_special_predicate "pic30_immediate_operand"
+  (match_test "1")
+{
+  rtx x;
+
+  x = op;
+  while(GET_CODE(x) == CONST) x = XEXP(x,0);
+  if (GET_CODE(x) == CONST_INT) return immediate_operand(op,mode);
+  return FALSE;
+})
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define_mode_iterator M32BIT [SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF])
-(define_mode_iterator M64BIT [DI DF])
+; G<mode> for general operations
+; S<mode> for special operations (odd address spaces)
+(define_mode_iterator GM16BIT [HI P16APSV P16PMP])
+(define_mode_iterator SM16BIT [HI QQ HQ UQQ UHQ P16APSV P16PMP])
+(define_mode_iterator GM32BIT [SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF P32UMM])
+(define_mode_iterator SM32BIT [SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF SQ DQ TQ USQ UDQ UTQ P32UMM])
+(define_mode_iterator SM48BIT [HA SA DA TA UHA USA UDA UTA])
+(define_mode_iterator GM64BIT [DI DF])
+(define_mode_iterator SM64BIT [DI DF])
+(define_mode_iterator ANY_ADDR [HI P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF P32UMM])
+(define_mode_iterator ALLRDMODES [QI HI QQ HQ UQQ UHQ P16APSV P16PMP SI SF P24PSV P24PROG P32EDS P32PEDS P32EXT P32DF SQ DQ TQ USQ UDQ UTQ P32UMM HA SA DA TA UHA USA UDA UTA DI DF])
 
 ;; Uses of UNSPEC in this file:
 
@@ -1306,6 +1484,17 @@
   (UNSPEC_MAXV2                119)
   (UNSPEC_BTSC                 120)
   (UNSPEC_BTSS                 121)
+  (UNSPECV_EDSDIVMODSD         122) ; __builtin_divmodsd
+  (UNSPECV_EDSDIVMODUD         123) ; __builtin_divmodud
+  (UNSPECV_EDSMOD              124) ; __builtin_divmodud
+  (UNSPECV_PEDSBTG             125) ;  PEDS bit toggle
+  (UNSPEC_FLIMV                126) ; distinguish FLIM from FLIMV
+  (UNSPEC_UNIFIED_PUSH         127) ; not a builtin... used in prologue
+  (UNSPEC_UNIFIED_POP          128) ; not a builtin... used in epilogue
+  (UNSPEC_UNIFIED_WT           129)
+  (UNSPEC_UNIFIED_RD           130)
+  (UNSPEC_UMMPAGE              131)
+  (UNSPEC_UMMOFFSET            132)
   (UNSPECV_TEMP                199)
  ]
 )
@@ -2570,9 +2759,48 @@
   "
 )  
 
+(define_insn "movhi_accumulator_umm"
+   [(set (match_operand:QI      0 "pic30_accumulator_operand"    "=w,w,w, w,w")
+         (unspec:QI [
+           (match_operand:QI    1 "pic30_mem_umm_operand"  " R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI  2                          "=X,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ] 
+  ""
+  "*{
+        /* lac %1, %0 */
+        error(\"Automatic generation of DSP instructions not yet supported; \"
+              \"use __builtin_lac() instead\");
+        return \"cannot generate instruction\";
+    }
+  "
+)  
+
 (define_insn "movhi_accumulator2"
   [(set (match_operand:HI 0 "general_operand" "")
         (match_operand:HI 1 "pic30_accumulator_operand" "w"))]
+  ""
+  "*
+    /* sac %1, #0, %0 */
+    {
+     error(\"Automatic generation of DSP instructions not yet supported; \"
+           \"use __builtin_sac() instead\");
+     return \"cannot generate instruction\";
+    }
+  "
+)
+
+(define_insn "movhi_accumulator2_umm"
+   [(set (match_operand:HI      0 "pic30_mem_umm_operand"  "=R,QSUT")
+         (unspec:HI [
+           (match_operand:HI    1 "pic30_accumulator_operand" "w,w")
+           (clobber              
+              (match_scratch:HI 2                         "=&r,&r"))
+         ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]    
   ""
   "*
     /* sac %1, #0, %0 */
@@ -2916,7 +3144,7 @@
   ]
 )
 
-(define_mode_iterator MODES32 [SI SF P32PEDS P32EDS P24PSV P24PROG P32EXT])
+(define_mode_iterator MODES32 [SI SF P32PEDS P32EDS P24PSV P24PROG P32EXT P32UMM])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; stackpush
@@ -2927,7 +3155,7 @@
         (match_operand:QI 1 "pic30_general_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov %1,[w15++]\";
    } else {
      return \"mov %1,[w15++]\";
@@ -2944,7 +3172,7 @@
                 (subreg:HI (match_operand:QI 0 "register_operand" "r") 0))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push %0\";
    } else {
      return \"push %0\";
@@ -2961,7 +3189,7 @@
 	(const_int -1))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;setm %0\";
    } else {
      return \"setm %0\";
@@ -2989,7 +3217,7 @@
         (match_operand:HI 1 "pic30_pushhi_operand" "r,R>,O,T"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
   
@@ -3028,7 +3256,7 @@
                 (match_operand:SI 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\";
    } else {
      return \"push.d %0\";
@@ -3045,7 +3273,7 @@
         (match_operand:MODES32 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\";
@@ -3062,7 +3290,7 @@
                 (match_operand:DI 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\;push.d %t0\";
    } else {
      return \"push.d %0\;push.d %t0\";
@@ -3079,7 +3307,7 @@
         (match_operand:DI 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
    } else { 
      return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
@@ -3096,7 +3324,7 @@
                 (match_operand:SF 0 "register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;push.d %0\";
    } else {
      return \"push.d %0\";
@@ -3113,7 +3341,7 @@
         (match_operand:SF 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\";
@@ -3141,7 +3369,7 @@
         (match_operand:DF 1 "pic30_register_operand" "r"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSWPAG\;mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
    } else {
      return \"mov.d %1,[w15++]\;mov.d %t1,[w15++]\";
@@ -3191,7 +3419,7 @@
         (match_operand:QI 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov %1,%0\";
    } else {
      return \"mov %1,%0\";
@@ -3208,7 +3436,7 @@
         (match_operand:HI 1 "pop_operand"    " <,<,<,<"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 0: return \"movpag #1,DSRPAG\;mov %1,%0\";
@@ -3240,7 +3468,7 @@
   ]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 0: return \"movpag #1,DSRPAG\;mov [--w15],%0\";
@@ -3266,7 +3494,7 @@
   ]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%0\";
@@ -3283,7 +3511,7 @@
         (match_operand:DI 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%t0\;mov.d %1,%0\";
@@ -3291,7 +3519,8 @@
   "
   [
    (set_attr "cc" "change0")
-   (set_attr "type" "defuse")
+   ; (set_attr "type" "defuse")
+   (set_attr "type" "use")
   ]
 )
 
@@ -3300,7 +3529,7 @@
         (match_operand:SF 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%0\";
@@ -3317,7 +3546,7 @@
         (match_operand:DF 1 "pop_operand"       "<"))]
   ""
   "*
-   if (pic30_eds_target() && TARGET_EDS) {
+   if ((pic30_ecore_target()||pic30_isav4_target()) && TARGET_EDS) {
      return \"movpag #1,DSRPAG\;mov.d %1,%t0\;mov.d %1,%0\";
    } else {
      return \"mov.d %1,%t0\;mov.d %1,%0\";
@@ -3528,8 +3757,28 @@
          (pic30_errata_mask & repeat_nstdis_errata)) {
        FAIL;
      } else {
+       rtx dst = operands[0];
+       rtx src = operands[1];
+       if (GET_MODE(XEXP(dst,0)) == P32UMMmode) {
+         if (can_create_pseudo_p()) {
+           dst = gen_reg_rtx(machine_Pmode);
+           emit(
+             gen_p32umm_writemem(dst, operands[0])
+           );
+           dst = gen_rtx_MEM(GET_MODE(operands[0]),dst);
+         } else FAIL;
+       }
+       if (GET_MODE(XEXP(src,0)) == P32UMMmode) {
+         if (can_create_pseudo_p()) {
+           src = gen_reg_rtx(machine_Pmode);
+           emit(
+             gen_p32umm_readmem(src, operands[1])
+           );
+           src = gen_rtx_MEM(GET_MODE(operands[1]),src);
+         } else FAIL;
+       }
        emit_insn(
-         gen_movmemhi_helper(operands[0],operands[1],operands[2],operands[3])
+         gen_movmemhi_helper(dst,src,operands[2],operands[3])
        );
        DONE;
      }
@@ -3836,13 +4085,13 @@
   ]
 )
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Block clear.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Argument 0 is the destination
-;; Argument 1 is the length
-;; Argument 2 is the alignment
+;; opnd 0 is the destination
+;; opnd 2 is the value
+;; opnd 1 is the length
+;; opnd 3 is the alignment
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define_expand "setmemhi"
   [
@@ -3854,18 +4103,26 @@
   ]
   ""
   "{
-     if ((pic30_errata_mask & repeat_gie_errata) ||
-         (pic30_errata_mask & repeat_nstdis_errata)) {
-       FAIL;
-     } else {
+     {
+       rtx dst = operands[0];
+       if (GET_MODE(XEXP(dst,0)) == P32UMMmode) {
+         if (can_create_pseudo_p()) {
+           dst = gen_reg_rtx(machine_Pmode); 
+           emit(
+             gen_p32umm_writemem(dst, operands[0])
+           );
+           dst = gen_rtx_MEM(GET_MODE(operands[0]),dst);
+         } else FAIL;
+       }
        emit_insn(
-         gen_setmemhi_helper(operands[0],operands[1],operands[2],operands[3])
+         gen_setmemhi_helper(dst,operands[1],operands[2],operands[3])
        );
        DONE;
      }
   }
   "
 )
+
 (define_insn "setmemhi_helper"
   [
    (set (match_operand:BLK 0 "pic30_memory_operand"  "=R,m,R,m,R,m,R,m,R,m,R,m")
@@ -4072,6 +4329,174 @@
   ]
 )
 
+(define_insn "setmemhip32umm_helper"
+  [
+   (set (match_operand:BLK 0 "pic30_umm_memory_operand" "=R,m,R,m,R,m,R,m,R,m,R,m")
+        (match_operand     2 "pic30_reg_or_imm_operand" 
+                                                     "O,O,O,O,i,i,i,i,r,r,r,r"))
+   (use (match_operand:HI 1 "immediate_operand" "J,J,i,i,J,J,i,i,J,J,i,i"))
+   (use (match_operand:HI 3 "const_int_operand" ""))
+   (clobber (reg:HI RCOUNT))
+   (clobber (reg:HI DSWPAG))
+   (clobber (match_scratch:HI 4  "=&r,&r,&r,&r,&r,&r,&r,&r,&r,&r,&r,&r"))
+   (clobber (match_scratch:HI 5  "=X,X,X,&r,X,X,X,&r,X,X,X,&r"))
+   (clobber (match_scratch:HI 6  "=X,X,X,X,&r,&r,&r,&r,&r,&r,&r,&r"))
+  ]
+  ""
+  "*
+   { /* my calculation says maximum string size is ~120 
+      * Now add for repeat errata */
+     static char buffer[260];
+     char *c = buffer;
+     char *op0 = \"[%4++]\";
+     char *op1 = \"\";
+     char *repeat_errata_push = pic30_repeat_errata_push_init();
+     char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+     char *sub_value = 0;  /* != 0 => use register */
+     unsigned char byte;
+     int repeat_repeat;
+     int repeat_count;
+     char *set_instr = \"mov\";
+     int word_size = INTVAL(operands[3]);
+     int regno;
+
+     repeat_count = INTVAL(operands[1]);
+     if (const_int_operand(operands[2],VOIDmode)) {
+       if (INTVAL(operands[2]) == 0) {
+         set_instr = \"clr\";
+       } else {
+         /* the middle four are the same as the bottom four, just that we don't
+            need a clobber register for the value */
+         gcc_assert(which_alternative > 3);
+         which_alternative -= 4;
+         if (INTVAL(operands[3]) != 1) {
+           /* repeat bytes */
+           /* first convert char to unsigned char */
+           /* since we are doing bit operations */
+           byte = INTVAL(operands[2]) & 0xFF;
+           c += sprintf(c,\"mov #%ld,%%6\;\", (byte << 8) + byte);
+         } else {
+           c += sprintf(c,\"mov #%ld,%%6\;\", INTVAL(operands[2]));
+         }
+         op1=\"%6,\";
+       }
+     } else {
+       /* register already */
+       /* the top four are the same as the bottom four, just that we don't
+          need a clobber register for the value */
+       gcc_assert(which_alternative > 7);
+       which_alternative -= 8;
+       op1 = \"%2,\";
+       if (repeat_count < 4) {
+         word_size = 1;
+       } else {
+         c += sprintf(c,\"sl %%2,#8,%%6\;ior.b %%2,%%6,%%6\;\");
+         op1=\"%6,\";
+       }
+     }
+
+     switch (which_alternative) {
+     default: break;
+     case 2:
+     case 0:  /* op0 is register */
+              /* literal <= 10 bits */
+              regno = REGNO(XEXP(operands[0],0));
+              if (pic30_eds_target()) {
+                c += sprintf(c,\"mov w%d,DSWPAG\;\",regno+1);
+              }
+              c += sprintf(c,\"rrnc %%r0,%%4\;\");
+              break;
+     case 3:
+     case 1:  /* op0 is memory, take its address */
+              /* literal <= 10 bits */
+              if (pic30_T_constraint(operands[0],VOIDmode) ||
+                  pic30_U_constraint(operands[0],VOIDmode)) {
+                if (pic30_eds_target()) {
+                  c += sprintf(c,\"mov #unifed_hi(%%0),%%4\;\");
+                  c += sprintf(c,\"mov %%4,DSWPAG\;\");
+                }
+                c += sprintf(c,\"mov #addr_lo(%%0),%%4\;\");
+              } else if (pic30_S_constraint(operands[0]) ||
+                         pic30_Q_constraint(operands[0])) {
+                /* [Wn + X] */
+                rtx Wn, X;
+
+                Wn = XEXP(XEXP(operands[0],0),0);
+                X = XEXP(XEXP(operands[0],0),1);
+                if (pic30_eds_target()) {
+                  c += sprintf(c,\"mov w%d,DSWPAG\;\",REGNO(Wn)+1);
+                }
+                {
+                  if (REG_P(X)) {
+                    c += sprintf(c,\"add w%d,w%d,%%4\;\", REGNO(Wn), REGNO(X));
+                    c += sprintf(c,\"rrnc %%4,%%4\;\");
+                  } else {
+                    c += sprintf(c,\"rrnc %%r0,%%4\;\");
+                    if (CONST_OK_FOR_LETTER_P(INTVAL(X),'P')) {
+                      c += sprintf(c,\"add %%4,#%ld,%%4\;\",INTVAL(X));
+                    } else if (CONST_OK_FOR_LETTER_P(INTVAL(X),'N')) {
+                      c += sprintf(c,\"sub %%4,#%ld,%%4\;\", -1*INTVAL(X));
+                    } else {
+                      if (INTVAL(X) < 0)
+                        c += sprintf(c,\"sub #%ld,%%4\;\",-1*INTVAL(X));
+                      else c += sprintf(c,\"add #%ld,%%4\;\",INTVAL(X));
+                    }
+                  }
+                  op0 = \"[%4++]\";
+                }
+              } else {
+                gcc_assert(0);
+              } 
+              break;
+     }
+     
+     switch (word_size) 
+     {
+       case 1:
+         /* 
+         ** Byte operation
+         */
+         repeat_repeat =  repeat_count - 16383;
+         if (repeat_repeat < 0) repeat_repeat = 0;
+	 if (repeat_repeat) {
+           c += sprintf(c, \"%s\;repeat #16383-1\;%s.b %s%s\;\", 
+                           repeat_errata_push,set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s.b %s%s\;%s\", 
+                           repeat_count, set_instr, op1, op0,repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;%s.b %s%s\;%s\", 
+                             repeat_errata_push,repeat_count, set_instr, op1,
+                             op0, repeat_errata_pop);
+         break;
+       default: {
+         int repeat_remainder;
+	 /* 
+	 ** Word operation
+	 */
+         /* repeat count is expressed in bytes */
+         repeat_remainder = (repeat_count & 1);
+         repeat_count = repeat_count / 2;
+         repeat_repeat =  repeat_count - 16383;
+         if (repeat_repeat < 0) repeat_repeat = 0;
+	 if (repeat_repeat) {
+           c += sprintf(c,\"%s\;repeat #16383-1\;%s %s%s\;\", 
+                           repeat_errata_push,set_instr, op1, op0);
+           c += sprintf(c,\"repeat #%d-1\;%s %s%s\;%s\", 
+                        repeat_count, set_instr, op1, op0,repeat_errata_pop);
+         } else c += sprintf(c,\"%s\;repeat #%d-1\;%s %s%s\;%s\", 
+                             repeat_errata_push, repeat_count, set_instr, op1, 
+                             op0, repeat_errata_pop);
+         if (repeat_remainder) 
+           c += sprintf(c,\"\;%s.b %s%s\", set_instr, op1, op0);
+         break;
+       }
+     }
+     return buffer;
+   } "
+  [
+     (set_attr "type" "use")
+  ]
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; compare instructions.
@@ -4090,7 +4515,7 @@
   [(set_attr "cc" "unchanged")]
 )
 
-(define_mode_iterator CMPMODES [QI HI SI DI QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA])
+(define_mode_iterator CMPMODES [QI HI SI DI QQ HQ UQQ UHQ SQ USQ DQ UDQ TQ UTQ HA UHA SA USA DA UDA TA UTA P32UMM])
 
 (define_expand "cbranch<mode>4"
  [(set (cc0)
@@ -4103,10 +4528,21 @@
                      (pc)))]
   ""
   { /* The optimizer will coalesce this if possible, right? */
+    enum machine_mode mode2 = GET_MODE(operands[2]);
+    if (mode2 == VOIDmode) mode2 = GET_MODE(operands[1]);
     rtx reg_1 = force_reg (GET_MODE(operands[1]), operands[1]);
+    rtx reg_2 = operands[2];
+
+    if (TARGET_EDS) {
+      /* this change was made here 
+       * http://fossil.microchip.com/repos.cgi/XC_GCC/info/485c8c9bffc661b6
+       * its bad for non-unified cases 
+       */
+      reg_2 = force_reg (mode2, operands[2]);
+    }
 
     emit(
-      gen_cmp<mode>(reg_1,operands[2])
+      gen_cmp<mode>(reg_1,reg_2)
     );
     emit(
       gen_any_branch(operands[0], operands[3])
@@ -4919,7 +5355,8 @@
   "ze %1,%0\;clr %d0\;mul.uu %t0,#0,%t0"
   [
     (set_attr "cc" "clobber")
-    (set_attr "type" "def,defuse")
+    ; (set_attr "type" "def,defuse")
+    (set_attr "type" "etc,use")
   ]
 )
 
@@ -4953,28 +5390,30 @@
 )
 
 (define_insn "zero_extendhip32eds2"
-  [(set (match_operand:P32EDS 0 "pic30_register_operand"      "=r,r")
+  [(set (match_operand:P32EDS 0 "pic30_register_operand"      "=r,r,r")
         (zero_extend:P32EDS 
-          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " r,q")))
+          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " 0,r,qs")))
   ]
   ""
   "@
-   lsr %1,#15,%d0\;mov %1,%0\;bclr %0,#15
-   mov #edsoffset(%1), %0\;mov #edspage(%1), %d0"
+   asr %1,#15,%d0\;bclr %0,#15
+   mov %1,%0\;asr %0,#15,%d0\;bclr %0,#15
+   mov #edsoffset(%1),%0\;mov #edspage(%1),%d0"
   [
     (set_attr "type" "def")
   ]
 )
 
 (define_insn "zero_extendhip32peds2"
-  [(set (match_operand:P32PEDS 0 "pic30_register_operand"     "=r,r")
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand"     "=r,r,r")
         (zero_extend:P32PEDS
-          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " r,q")))
+          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " 0,r,qs")))
   ]
   ""
   "@
-   lsr %1,#15,%d0\;mov %1,%0\;bclr %0,#15
-   mov #edsoffset(%1), %0\;mov #edspage(%1), %d0"
+   asr %1,#15,%d0\;bclr %0,#15
+   mov %1,%0\;asr %0,#15,%d0\;bclr %0,#15
+   mov #edsoffset(%1),%0\;mov #edspage(%1),%d0"
   [
     (set_attr "type" "def")
   ]
@@ -4983,12 +5422,12 @@
 (define_insn "zero_extendsip32eds2"
   [(set (match_operand:P32EDS 0 "pic30_register_operand"   "=r,r")
         (zero_extend:P32EDS
-          (match_operand:SI 1 "pic30_register_operand"      "r,0")))
+          (match_operand:SI 1 "pic30_register_operand"      "0,r")))
   ]
   ""
   "@
-   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15
-   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15"
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -4996,12 +5435,14 @@
 )
 
 (define_insn "zero_extendsip32peds2"
-  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r")
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r,r")
         (zero_extend:P32PEDS
-          (match_operand:SI 1 "pic30_register_operand"     "r")))
+          (match_operand:SI 1 "pic30_register_operand"     "0,r")))
   ]
   ""
-  "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
+  "@
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -5011,12 +5452,12 @@
 (define_insn "extendsip32eds2"
   [(set (match_operand:P32EDS 0 "pic30_register_operand" "=r,r")
         (sign_extend:P32EDS
-          (match_operand:SI 1 "pic30_register_operand"    "r,0")))
+          (match_operand:SI 1 "pic30_register_operand"    "0,r")))
   ]
   ""
   "@
-   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15
-   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15"
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -5024,12 +5465,14 @@
 )
 
 (define_insn "extendsip32peds2"
-  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r")
+  [(set (match_operand:P32PEDS 0 "pic30_register_operand" "=r,r")
         (sign_extend:P32PEDS
-          (match_operand:SI 1 "pic30_register_operand"     "r")))
+          (match_operand:SI 1 "pic30_register_operand"     "0,r")))
   ]
   ""
-  "rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
+  "@
+   rlc %1,[w15]\;rlc %d1,%d0\;bclr %0,#15
+   rlc %1,[w15]\;rlc %d1,%d0\;mov %1,%0\;bclr %0,#15"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
@@ -5227,7 +5670,8 @@
   "se %1,%0\;asr %0,#15,%d0\;mul.su %d0,#1,%t0"
   [
     (set_attr "cc" "clobber")
-    (set_attr "type" "def,defuse")
+    ; (set_attr "type" "def,defuse")
+    (set_attr "type" "etc,use")
   ]
 )
 
@@ -5350,7 +5794,7 @@
 (define_insn "extendhip32eds2_const"
   [(set (match_operand: P32EDS 0 "pic30_register_operand"         "=r,r")
         (unspec: P32EDS [
-          (match_operand:HI 1    "pic30_reg_or_symbolic_address"  " r,q")
+          (match_operand:HI 1    "pic30_reg_or_symbolic_address"  " r,qs")
         ] UNSPEC_EDSCONSTADDR))]
   ""
   "@
@@ -5393,7 +5837,8 @@
    mul.su %1,#1,%0\;mul.su %d0,#1,%t0"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   ; (set_attr "type" "def")
+   (set_attr "type" "use")
   ]
 )
 
@@ -5409,7 +5854,8 @@
    mov.d %1,%0\;asr %d0,#15,%t0\;mov %t0,%q0"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   ; (set_attr "type" "def")
+   (set_attr "type" "etc")
   ]
 )
 
@@ -5425,7 +5871,8 @@
    mul.uu %1,#1,%0\;mul.uu %t0,#0,%t0"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   ; (set_attr "type" "def")
+   (set_attr "type" "etc")
   ]
 )
 
@@ -5502,7 +5949,8 @@
   }"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def,def,defuse,defuse,defuse")
+   ; (set_attr "type" "def,def,defuse,defuse,defuse")
+   (set_attr "type" "etc,etc,use,use,use")
   ]
 )
 
@@ -5880,6 +6328,68 @@
    }
 ")
 
+(define_insn "*movhi_invalid_7"
+  [(set (match_operand:HI     0 "general_operand" "")
+        (mem:HI 
+          (plus:HI 
+            (reg:HI SPREG)
+            (match_operand    1 "immediate_operand" ""))))]
+  "(INTVAL(operands[1]) & 1)"
+  "*
+   {
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+   }
+  "
+)
+
+(define_insn "*movhi_invalid_8"
+  [(set 
+        (mem:HI 
+          (plus:HI 
+            (reg:HI SPREG)
+            (match_operand    0 "immediate_operand" "")))
+        (match_operand:HI     1 "general_operand" ""))
+  ]
+  "(INTVAL(operands[0]) & 1)"
+  "*
+   {
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+   }
+  "
+)
+
+(define_insn "*movhi_invalid9"
+  [(set (match_operand:HI  0  "general_operand" "")
+        (match_operand:HI  1  "pic30_invalid_immediate_operand" ""))]
+  ""
+  "*
+   {
+     if (INSN_LOCATOR(insn) && insn_file(insn)) {
+       error_at(RTL_LOCATION(insn),
+                \"Literal value over/underflows register\");
+       inform(RTL_LOCATION(insn),
+              \"This likely signifies overflow in pointer increment.\");
+     } else {
+       error(\"Literal value over/underflows register\n\");
+     }
+   }
+  "
+)
+  
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 16-bit moves
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5969,7 +6479,7 @@
 (define_insn "movqi_address"
   [(set (match_operand:QI 0 "pic30_register_operand"              "=r")
         (subreg:QI
-          (match_operand:HI 1 "pic30_symbolic_address_operand"    " q") 0))
+          (match_operand:HI 1 "pic30_symbolic_address_operand"    " qs") 0))
   ]
   ""
   "mov #%1,%0"
@@ -5981,7 +6491,7 @@
 
 (define_insn "movhi_address"
   [(set (match_operand:HI 0 "pic30_register_operand"         "=r")
-        (match_operand:HI 1 "pic30_reg_or_symbolic_address"  " rq"))
+        (match_operand:HI 1 "pic30_reg_or_symbolic_address"  " rqs"))
   ]
   ""
   "*
@@ -6034,7 +6544,7 @@
 
 (define_insn "movp16apsv_address"
   [(set (match_operand:P16APSV 0 "pic30_register_operand"         "=r")
-        (match_operand:P16APSV 1 "pic30_symbolic_address_operand" " rq"))]
+        (match_operand:P16APSV 1 "pic30_symbolic_address_operand" " rqs"))]
   ""
   "*
 { rtx sym;
@@ -6163,7 +6673,7 @@
 (define_insn "tbladdress"
   [(set (match_operand:SI 0 "pic30_register_operand"          "=r")
         (unspec:SI [
-          (match_operand:HI 1 "pic30_symbolic_address_operand" "q")
+          (match_operand:HI 1 "pic30_symbolic_address_operand" "")
          ] UNSPECV_TBLADDRESS))
   ]
   ""
@@ -6177,7 +6687,7 @@
 (define_expand "tblpage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (tblpage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
      rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
@@ -6212,7 +6722,7 @@
 (define_expand "edspage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (edspage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "q")
+           (match_operand 1 "pic30_symbolic_address_operand" "qs")
            (match_operand 2 "immediate_operand" "i")))]
   ""
   "{ char *t = pic30_section_base(operands[1],1,0);
@@ -6228,7 +6738,7 @@
 (define_insn "movpag"
   [(set (reg:HI PSVPAG)
         (edspage:HI
-           (match_operand 0 "pic30_reg_or_symbolic_address" "r,q")
+           (match_operand 0 "pic30_reg_or_symbolic_address" "r,qs")
            (match_operand 1 "immediate_operand"             "i,i")))]
   "pic30_ecore_target() || pic30_isav4_target()"
   "*
@@ -6287,7 +6797,7 @@
 (define_expand "edsoffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (edsoffset:HI
-           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "qs")))]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
      rtx opnd = gen_rtx_CONST_STRING(Pmode, t);
@@ -6321,7 +6831,7 @@
 (define_insn "tbloffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (tbloffset:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "q")))]
+           (match_operand 1 "pic30_symbolic_address_operand" "qs")))]
   ""
   "mov #tbloffset(%1),%0"
   [
@@ -6333,7 +6843,7 @@
 (define_expand "psvpage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (psvpage:HI 
-           (match_operand 1 "pic30_symbolic_address_operand" "q")))
+           (match_operand 1 "pic30_symbolic_address_operand" "qs")))
   ]
   ""
   "{ char *t = pic30_section_base(operands[1],0,0);
@@ -6368,7 +6878,7 @@
 (define_insn "psvoffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (psvoffset:HI  
-           (match_operand 1 "pic30_symbolic_address_operand" "q")))
+           (match_operand 1 "pic30_symbolic_address_operand" "qs")))
   ]
   ""
   "mov #psvoffset(%1),%0"
@@ -6381,7 +6891,7 @@
 (define_insn "dmaoffset"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (dmaoffset:HI 
-          (match_operand  1 "pic30_symbolic_address_operand" "q")))
+          (match_operand  1 "pic30_symbolic_address_operand" "qs")))
   ]
   ""
   "mov #dmaoffset(%1),%0"
@@ -6394,7 +6904,7 @@
 (define_insn "dmapage"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
         (dmapage:HI 
-          (match_operand  1 "pic30_symbolic_address_operand" "q")))
+          (match_operand  1 "pic30_symbolic_address_operand" "qs")))
   ]
   ""
   "mov #dmapage(%1),%0"
@@ -6407,7 +6917,7 @@
 (define_insn "addr_low"
   [(set (match_operand:HI 0 "pic30_register_operand"       "=r,r")
         (addr_low:HI
-           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+           (match_operand 1 "pic30_reg_or_symbolic_address" "qs,r")))]
   ""
   "@
    mov #addr_lo(%1),%0
@@ -6421,7 +6931,7 @@
 (define_insn "addr_high"
   [(set (match_operand:HI 0 "pic30_register_operand"       "=r,r")
         (addr_high:HI
-           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+           (match_operand 1 "pic30_reg_or_symbolic_address" "qs,r")))]
   ""
   "@
    mov #addr_hi(%1),%0
@@ -6435,7 +6945,7 @@
 (define_insn "addr_long"
   [(set (match_operand:SI 0 "pic30_register_operand"       "=r,r")
         (addr_long:SI
-           (match_operand 1 "pic30_reg_or_symbolic_address" "q,r")))]
+           (match_operand 1 "pic30_reg_or_symbolic_address" "qs,r")))]
   ""
   "@
    mov #addr_lo(%1),%0\;mov #addr_hi(%1),%d0
@@ -6465,11 +6975,11 @@
 )
 
 
-(define_insn "movhi_gen"
-  [(set (match_operand:HI 0 
-           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a,U")
-        (match_operand:HI 1
-	   "pic30_move_operand" " RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U,U"))
+(define_insn "mov<mode>_gen"
+  [(set (match_operand:GM16BIT 0 
+           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a,U,Ur")
+        (match_operand:GM16BIT 1
+	   "pic30_move_operand" " RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U,a,Ur"))
   ]
   ""
   "*
@@ -6486,6 +6996,7 @@
        \"mov %1,%0\",
        \"mov %1,%0\",
        \"mov %1,WREG\",
+       \"mov WREG,%0\",
        \"push %1\;pop %0\" 
      };
 
@@ -6511,17 +7022,17 @@
    }"
   [
     (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,change0")
+              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move,move,change0")
    (set_attr "type" 
-             "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def,etc")
+             "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def,etc,etc")
   ]
 )
 
-(define_insn "movhi_gen_APSV"
-  [(set (match_operand:HI 0 
+(define_insn "mov<mode>_gen_APSV"
+  [(set (match_operand:SM16BIT 0 
              "pic30_move_operand"      "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
-        (unspec:HI [
-          (match_operand:HI 1
+        (unspec:SM16BIT [
+          (match_operand:SM16BIT 1
 	     "pic30_move_APSV_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U")
           (reg:HI PSVPAG)] UNSPECV_USEPSV))
   ]
@@ -6582,57 +7093,57 @@
 ;  "mov %2,%0\;mov [%1+%0],%0"
 ;)
          
-(define_insn "movP16PMP_gen"
-  [(set (match_operand:P16PMP 0
-           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
-        (match_operand:P16PMP 1
-           "pic30_move_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U"))]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,WREG"
-  [
-    (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" 
-              "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
-  ])
-
-(define_insn "movP16PMP_gen_APSV"
-  [(set (match_operand:P16PMP 0
-           "pic30_move_operand"      "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
-        (unspec:P16PMP [
-          (match_operand:P16PMP 1
-           "pic30_move_APSV_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U")
-          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,WREG"
-  [
-    (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" 
-              "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
-  ])
+; (define_insn "movP16PMP_gen"
+;   [(set (match_operand:P16PMP 0
+;            "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
+;         (match_operand:P16PMP 1
+;            "pic30_move_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U"))]
+;   ""
+;   "@
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,WREG"
+;   [
+;     (set_attr "cc"
+;               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
+;     (set_attr "type" 
+;               "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
+;   ])
+; 
+; (define_insn "movP16PMP_gen_APSV"
+;   [(set (match_operand:P16PMP 0
+;            "pic30_move_operand"      "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
+;         (unspec:P16PMP [
+;           (match_operand:P16PMP 1
+;            "pic30_move_APSV_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U")
+;           (reg:HI PSVPAG)] UNSPECV_USEPSV))]
+;   ""
+;   "@
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,%0
+;    mov %1,WREG"
+;   [
+;     (set_attr "cc"
+;               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
+;     (set_attr "type" 
+;               "defuse,use,def,etc,etc,use,etc,defuse,def,etc,def")
+;   ])
 
 
 ;; If one of the operands is immediate and the other is not a register,
@@ -6653,110 +7164,110 @@
   { int result = pic30_emit_move_sequence(operands, HImode);
 
     if (result > 0) DONE;
-  }"
-)
-
-(define_insn "movp16apsv_gen"
-  [(set (match_operand:P16APSV 0 
-           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
-        (match_operand:P16APSV 1
-	   "pic30_move_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U"))]
-  ""
-  "*
-   { 
-     char *format[] = {
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,WREG\" 
-     };
-
-     #define IDENT_EXTERNAL(t) \
-       ((t) == pic30_identExternal[0] || (t) == pic30_identExternal[1])
-
-     if ((which_alternative == 8) || (which_alternative == 10)) {
-       tree decl = 0;
-       if (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)
-         decl = SYMBOL_REF_DECL(XEXP(operands[1],0));
-       if (decl) {
-         tree attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
-                                      DECL_ATTRIBUTES(decl));
-         if (attr &&
-             (TREE_CODE(TREE_VALUE(TREE_VALUE(attr))) == CALL_EXPR)) {
-           tree id;
-
-           id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(attr))),0);
-           if (IDENT_EXTERNAL(DECL_NAME(id))) return \"mov #%1,%0\";
-         }
-       }
-     }
-     return format[which_alternative];
    }"
-  [
-    (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-    (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
-  ]
 )
 
-(define_insn "movp16apsv_gen_APSV"
-  [(set (match_operand:P16APSV 0 
-           "pic30_move_operand"      "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
-        (unspec:P16APSV [
-          (match_operand:P16APSV 1
-	   "pic30_move_APSV_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U")
-          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-  ""
-  "*
-   { 
-     char *format[] = {
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,%0\",
-       \"mov %1,WREG\" 
-     };
+;(define_insn "movp16apsv_gen"
+;  [(set (match_operand:P16APSV 0 
+;           "pic30_move_operand" "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
+;        (match_operand:P16APSV 1
+;	   "pic30_move_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U"))]
+;  ""
+;  "*
+;   { 
+;     char *format[] = {
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,%0\",
+;       \"mov %1,WREG\" 
+;     };
+;
+;     #define IDENT_EXTERNAL(t) \
+;       ((t) == pic30_identExternal[0] || (t) == pic30_identExternal[1])
+;
+;     if ((which_alternative == 8) || (which_alternative == 10)) {
+;       tree decl = 0;
+;       if (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)
+;         decl = SYMBOL_REF_DECL(XEXP(operands[1],0));
+;       if (decl) {
+;         tree attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
+;                                      DECL_ATTRIBUTES(decl));
+;         if (attr &&
+;             (TREE_CODE(TREE_VALUE(TREE_VALUE(attr))) == CALL_EXPR)) {
+;           tree id;
+;
+;           id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(attr))),0);
+;           if (IDENT_EXTERNAL(DECL_NAME(id))) return \"mov #%1,%0\";
+;         }
+;       }
+;     }
+;     return format[which_alternative];
+;   }"
+;  [
+;    (set_attr "cc"
+;              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
+;    (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
+;  ]
+;)
 
-     #define IDENT_EXTERNAL(t) \
-       ((t) == pic30_identExternal[0] || (t) == pic30_identExternal[1])
-
-     if ((which_alternative == 8) || (which_alternative == 10)) {
-       tree decl = 0;
-       if (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)
-         decl = SYMBOL_REF_DECL(XEXP(operands[1],0));
-       if (decl) {
-         tree attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
-                                      DECL_ATTRIBUTES(decl));
-         if (attr &&
-             (TREE_CODE(TREE_VALUE(TREE_VALUE(attr))) == CALL_EXPR)) {
-           tree id;
-
-           id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(attr))),0);
-           if (IDENT_EXTERNAL(DECL_NAME(id))) return \"mov #%1,%0\";
-         }
-       }
-     }
-     return format[which_alternative];
-   }"
-  [
-    (set_attr "cc"
-              "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
-     (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
-  ]
-)
+; (define_insn "movp16apsv_gen_APSV"
+;   [(set (match_operand:P16APSV 0 
+;            "pic30_move_operand"      "=r<>, R,   r<>,R,S,S,  Q,r,r,T,a")
+;         (unspec:P16APSV [
+;           (match_operand:P16APSV 1
+; 	   "pic30_move_APSV_operand"  "RS<>,RS<>,r,  r,r,<>R,r,Q,T,r,U")
+;           (reg:HI PSVPAG)] UNSPECV_USEPSV))]
+;   ""
+;   "*
+;    { 
+;      char *format[] = {
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,%0\",
+;        \"mov %1,WREG\" 
+;      };
+; 
+;      #define IDENT_EXTERNAL(t) \
+;        ((t) == pic30_identExternal[0] || (t) == pic30_identExternal[1])
+; 
+;      if ((which_alternative == 8) || (which_alternative == 10)) {
+;        tree decl = 0;
+;        if (GET_CODE(XEXP(operands[1],0)) == SYMBOL_REF)
+;          decl = SYMBOL_REF_DECL(XEXP(operands[1],0));
+;        if (decl) {
+;          tree attr = lookup_attribute(IDENTIFIER_POINTER(pic30_identSpace[0]),
+;                                       DECL_ATTRIBUTES(decl));
+;          if (attr &&
+;              (TREE_CODE(TREE_VALUE(TREE_VALUE(attr))) == CALL_EXPR)) {
+;            tree id;
+; 
+;            id = TREE_OPERAND(CALL_EXPR_FN(TREE_VALUE(TREE_VALUE(attr))),0);
+;            if (IDENT_EXTERNAL(DECL_NAME(id))) return \"mov #%1,%0\";
+;          }
+;        }
+;      }
+;      return format[which_alternative];
+;    }"
+;   [
+;     (set_attr "cc"
+;               "change0,change0,change0,change0,change0,change0,change0,change0,change0,change0,move")
+;      (set_attr "type" "defuse,use,def,use,use,use,use,defuse,def,etc,def")
+;   ]
+; )
 
 (define_expand "movp16apsv"
   [(set (match_operand:P16APSV 0 "pic30_move_operand" "")
@@ -6813,7 +7324,7 @@
 (define_expand "movp24prog_address"
   [(set 
      (match_operand:P24PROG 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-     (match_operand:P24PROG 1 "pic30_symbolic_address_operand" " q,q,q ,q"))
+     (match_operand:P24PROG 1 "pic30_symbolic_address_operand" " qs,qs,qs ,qs"))
   ]
   ""
   "
@@ -6843,15 +7354,16 @@
 ;   would not cause a stall
 ;
 (define_insn_and_split "movp24psv_address"
-  [(set (match_operand:P24PSV 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P24PSV 1 "pic30_symbolic_address_operand" " q,q,q,q")
+  [(set (match_operand:P24PSV 0 "pic30_move_operand"             "=r,R,<>,Q,TU")
+        (match_operand:P24PSV 1 "pic30_symbolic_address_operand" " qs,qs,qs,qs,qs")
    )
-   (clobber (match_scratch:HI 2                                  "=X,&r,&r,&r"))]
+   (clobber (match_scratch:HI 2                                  "=X,&r,&r,&r,&r"))]
   ""
   "@
    mov #tbloffset(%1),%0\;mov #tblpage(%1),%d0
    mov #tbloffset(%1),%2\;mov %2,%I0\;mov #tblpage(%1),%2\;mov %2,%D0
    mov #tbloffset(%1),%2\;mov %2,%0\;mov #tblpage(%1),%2\;mov %2,%0
+   mov #tbloffset(%1),%2\;mov %2,%0\;mov #tblpage(%1),%2\;mov %2,%Q0
    mov #tbloffset(%1),%2\;mov %2,%0\;mov #tblpage(%1),%2\;mov %2,%0+2"
   "reload_completed && REG_P(operands[0])"
   [(set (match_operand:HI 3 "pic30_register_operand" "=r")
@@ -6863,7 +7375,7 @@
                                       pic30_section_base(operands[1],1,0));
    operands[5] = gen_rtx_REG(HImode, REGNO(operands[0]));"
   [
-    (set_attr "type" "def,etc,etc,etc")
+    (set_attr "type" "def,etc,etc,etc,etc")
   ]
 )  
 
@@ -6873,7 +7385,7 @@
 ;
 (define_insn "movp16pmp_address"
   [(set (match_operand:P16PMP 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P16PMP 1 "pic30_symbolic_address_operand" " q,q,q ,q"))
+        (match_operand:P16PMP 1 "pic30_symbolic_address_operand" " qs,qs,qs ,qs"))
    (clobber (match_scratch:HI 2                                  "=X,&r,&r,&r"))
   ]
   ""
@@ -6991,7 +7503,7 @@
 
 (define_expand "movp32eds_address"
   [(set (match_operand:P32EDS 0 "pic30_move_operand"             "=r,R,<>,QSTU")
-        (match_operand:P32EDS 1 "pic30_symbolic_address_operand" " q,q,q ,q")
+        (match_operand:P32EDS 1 "pic30_symbolic_address_operand" " qs,qs,qs ,qs")
    )
   ]
   ""
@@ -7025,7 +7537,7 @@
 
 (define_expand "movp32peds_address"
   [(set (match_operand:P32PEDS 0 "pic30_move_operand"            "=r,R,<>,QSTU")
-        (match_operand:P32PEDS 1 "pic30_symbolic_address_operand" "q,q,q, q")
+        (match_operand:P32PEDS 1 "pic30_symbolic_address_operand" "qs,qs,qs, qs")
    )
   ]
   ""
@@ -7050,7 +7562,7 @@
 
 (define_insn "movp32df_address"
   [(set (match_operand:P32DF 0 "pic30_move_operand"             "=r")
-        (match_operand:P32DF 1 "pic30_symbolic_address_operand"  "q")
+        (match_operand:P32DF 1 "pic30_symbolic_address_operand"  "qs")
    )
   ]
   ""
@@ -7062,7 +7574,7 @@
 
 (define_expand "movp32ext_address"
   [(set (match_operand:P32EXT 0 "pic30_move_operand"             "=rR<>QSTU")
-        (match_operand:P32EXT 1 "pic30_symbolic_address_operand" " q"))]
+        (match_operand:P32EXT 1 "pic30_symbolic_address_operand" " qs"))]
   ""
   "{
      if (pic30_address_of_external(operands[0],operands[1])) {
@@ -7071,6 +7583,99 @@
    }
   "
 )
+
+(define_expand "movp32umm_address"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"         "=r")
+        (match_operand:P32UMM 1 "pic30_symbolic_address_operand"  "qs")
+   )
+  ]
+  ""
+  "{
+     rtx x = operands[1];
+     rtx val = operands[1];
+     rtx offset = NULL_RTX;
+     while (GET_CODE(x) == CONST) x = XEXP(x,0);
+     if (GET_CODE(x) == PLUS) {
+       // ensure we are adding a positive value
+       // relocations cannot be negative
+       offset = XEXP(x,1);
+ 
+       if ((GET_CODE(offset) == CONST_INT) && 
+           ((INTVAL(offset) < 0) || (INTVAL(offset) > 32768))) {
+         gcc_assert(!(reload_in_progress || reload_completed));
+         val = XEXP(x,0);
+         x = gen_reg_rtx(P32UMMmode);
+         emit(
+           gen_movp32umm_sym_address(x,val)
+         );
+         emit(
+           gen_addp32umm3(operands[0],x,offset)
+         );
+         DONE;
+       }
+     }
+     emit(
+       gen_movp32umm_sym_address(operands[0],operands[1])
+     );
+     DONE;
+   }"
+)
+
+(define_insn "reload_large_addrp32umm"
+ [
+  (set (match_operand:P32UMM 0 "pic30_register_operand"        "=&r")
+       (match_operand:P32UMM 1 "pic30_symbolic_address_operand" " qs"))
+  (clobber (match_operand:HI 2 "pic30_register_operand"        "=&r"))
+ ]
+ ""
+ "*
+  rtx val,offset,x = operands[1];
+  static char buffer[128];
+  char *c;
+  char *sym;
+  int offset_val;
+
+  while (GET_CODE(x) == CONST) x = XEXP(x,0);
+  if (GET_CODE(x) == PLUS) {
+    offset = XEXP(x,1);
+    offset_val = INTVAL(offset);
+
+    val = XEXP(x,0);
+    sym = pic30_strip_name_encoding(XSTR(val,0));
+    if ((GET_CODE(offset) == CONST_INT) &&
+        ((offset_val < 0) || (offset_val > 32768))) {
+      c = buffer;
+      c += sprintf(c,\"mov #unified_lo(_%s),%%0\;\"
+                     \"mov #unified_hi(_%s),%%d0\;\"
+                     \"mov #%d,%%2\;\"
+                     \"add %%0,%%2,%%0\;\"
+                     \"mov #%d,%%2\;\"
+                     \"bset _SR,#1\;\"
+                     \"addc %%d0,%%2,%%d0\;\"
+                     \"btss _SR,#1\;\"
+                     \"bset %%0,#0\",
+                   sym,sym,
+                   (offset_val << 1) & 0xFFFF,
+                   (offset_val >> 15) & 0xFFFF);
+      return buffer;
+    }
+  }
+  return \"mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0\";
+ "
+)
+
+(define_insn "movp32umm_sym_address"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"                  "=r")
+        (match_operand:P32UMM 1 "pic30_positive_symbolic_address_operand"  "qs")
+   )
+  ]
+  ""
+  "mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
 
 ;(define_insn "movP32DF_gen"
 ;  [(set (match_operand:P32DF 0 "pic30_move_operand" "=r,r,  R<>,Q,r, TU,r")
@@ -7183,6 +7788,16 @@
   "
   {
     if (pic30_emit_move_sequence(operands, P32EXTmode)) DONE;
+  }"
+)
+
+(define_expand "movp32umm"
+  [(set (match_operand:P32UMM 0 "pic30_general_operand" "")
+        (match_operand:P32UMM 1 "pic30_general_operand" ""))]
+  ""
+  "
+  {
+    if (pic30_emit_move_sequence(operands, P32UMMmode)) DONE;
   }"
 )
 
@@ -7683,9 +8298,9 @@
 )
 
 (define_insn "unpack_MPSV_DATA"
-   [(set (match_operand:SI 0 "pic30_mode2_operand"       "=r,R,r,r,R,R")
+   [(set (match_operand:SI 0 "pic30_mode2_operand"       "=r,R,r,&r,R,R")
          (unspec_volatile:SI 
-           [(match_operand:P24PSV 1 "pic30_mode2_operand" "0,0,r,R,r,R")] 
+           [(match_operand:P24PSV 1 "pic30_mode2_operand" "0,0,r, R,r,R")] 
              UNSPECV_UNPACKMPSV))]
    ""
    "@
@@ -7702,9 +8317,9 @@
 )
 
 (define_insn "unpack_MPSV_APSV"
-   [(set (match_operand:SI 0 "pic30_mode2_operand"            "=r,R,r,r,R,R")
+   [(set (match_operand:SI 0 "pic30_mode2_operand"            "=r,R,r,&r,R,R")
          (unspec_volatile:SI 
-           [(match_operand:P24PSV 1 "pic30_mode2_APSV_operand" "0,0,r,R,r,R")] 
+           [(match_operand:P24PSV 1 "pic30_mode2_APSV_operand" "0,0,r, R,r,R")] 
              UNSPECV_UNPACKMPSV))]
    ""
    "@
@@ -7736,9 +8351,9 @@
 }")
 
 (define_insn "unpack_MPROG_DATA"
-   [(set (match_operand:SI 0 "pic30_mode2_operand"        "=r,R,r,r,R,R")
+   [(set (match_operand:SI 0 "pic30_mode2_operand"        "=r,R,r,&r,R,R")
          (unspec_volatile:SI 
-           [(match_operand:P24PROG 1 "pic30_mode2_operand" "0,0,r,R,r,R")] 
+           [(match_operand:P24PROG 1 "pic30_mode2_operand" "0,0,r, R,r,R")] 
              UNSPECV_UNPACKMPROG))]
    ""
    "@
@@ -7755,9 +8370,9 @@
 )
 
 (define_insn "unpack_MPROG_APSV"
-   [(set (match_operand:SI 0 "pic30_mode2_operand"             "=r,R,r,r,R,R")
+   [(set (match_operand:SI 0 "pic30_mode2_operand"             "=r,R,r,&r,R,R")
          (unspec_volatile:SI 
-           [(match_operand:P24PROG 1 "pic30_mode2_APSV_operand" "0,0,r,R,r,R")] 
+           [(match_operand:P24PROG 1 "pic30_mode2_APSV_operand" "0,0,r, R,r,R")] 
              UNSPECV_UNPACKMPROG))]
    ""
    "@
@@ -7813,42 +8428,10 @@
   ]
 )
 
-(define_insn "P24PROGread_hi"
-  [(set (match_operand:HI 0 "pic30_mode2_operand"              "=r,R<>")
-        (unspec_volatile:HI
-          [(mem:HI (match_operand:HI 1 "pic30_register_operand" "r,r"))
-           (reg:HI PSVPAG)]
-          UNSPECV_PSVRDPROG))
-  ]
-  ""
-  "@
-   mov [%1],%0
-   mov [%1],%0"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-(define_insn "P24PROGread_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_mode2_operand"              "=r,R<>")
-        (unspec_volatile:P16APSV
-          [(mem:P16APSV (match_operand:HI 1 "pic30_register_operand" "r,r"))
-           (reg:HI PSVPAG)]
-          UNSPECV_PSVRDPROG))
-  ]
-  ""
-  "@
-   mov [%1],%0
-   mov [%1],%0"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-(define_insn "P24PROGread_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_mode2_operand"              "=r,R<>")
-        (unspec_volatile:P16PMP
-          [(mem:P16PMP (match_operand:HI 1 "pic30_register_operand" "r,r"))
+(define_insn "P24PROGread_<mode>"
+  [(set (match_operand:SM16BIT 0 "pic30_mode2_operand"              "=r,R<>")
+        (unspec_volatile:SM16BIT
+          [(mem:SM16BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
            (reg:HI PSVPAG)]
           UNSPECV_PSVRDPROG))
   ]
@@ -7862,9 +8445,9 @@
 )
 
 (define_insn "P24PSVread_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand"             "=&r,R")
-        (unspec_volatile:M32BIT
-          [(mem:M32BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM32BIT
+          [(mem:SM32BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
            (reg:HI PSVPAG)]
           UNSPECV_PSVRDPSV))
   ]
@@ -7894,9 +8477,9 @@
 )
 
 (define_insn "P24PROGread_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand"             "=&r,R")
-        (unspec_volatile:M32BIT
-          [(mem:M32BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM32BIT
+          [(mem:SM32BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
            (reg:HI PSVPAG)]
           UNSPECV_PSVRDPROG))
    (clobber (reg:HI PSVPAG))
@@ -7927,9 +8510,45 @@
 )
 
 (define_insn "P24PROGread_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_mode2_operand"             "=&r,R")
-        (unspec_volatile:M64BIT
-          [(mem:M64BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+  [(set (match_operand:SM48BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM48BIT
+          [(mem:SM48BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+           (reg:HI PSVPAG)]
+          UNSPECV_PSVRDPROG))
+   (clobber (reg:HI PSVPAG))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     char *results[] = {
+                       \"mov [%1++],%0\;btss %1,#15\;inc _PSVPAG\;\"
+                           \"bset %1,#15\;mov [%1++],%d0\;btss %1,#15\;\"
+                           \"inc _PSVPAG\;bset %1,#15\;mov [%1],%t0\",
+                       \"mov [%1++],%I0\;btss %1,#15\;inc _PSVPAG\;\"
+                           \"bset %1,#15\;mov [%1++],%I0\;btss %1,#15\;\"
+                           \"inc _PSVPAG\;bset %1,#15\;mov [%1],%0\"
+                     };
+     char *edsresults[] = {
+                       \"mov [%1++],%0\;btss %1,#15\;inc _DSRPAG\;\"
+                           \"bset %1,#15\;mov [%1++],%d0\;btss %1,#15\;\"
+                           \"inc _DSRPAG\;bset %1,#15\;mov [%1],%t0\",
+                       \"mov [%1++],%I0\;btss %1,#15\;inc _DSRPAG\;\"
+                           \"bset %1,#15\;mov [%1++],%I0\;btss %1,#15\;\"
+                           \"inc _DSRPAG\;bset %1,#15\;mov [%1],%0\"
+                     };
+     if (pic30_eds_target()) return edsresults[which_alternative];
+     return results[which_alternative];
+   }"
+  [
+    (set_attr "type" "defuse,use")
+  ]
+)
+
+(define_insn "P24PROGread_<mode>"
+  [(set (match_operand:SM64BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM64BIT
+          [(mem:SM64BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
            (reg:HI PSVPAG)]
           UNSPECV_PSVRDPROG))
    (clobber (reg:HI PSVPAG))
@@ -7969,9 +8588,42 @@
 )
 
 (define_insn "P24PSVread_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_mode2_operand"             "=&r,R")
-        (unspec_volatile:M64BIT
-          [(mem:M64BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+  [(set (match_operand:SM48BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM48BIT
+          [(mem:SM48BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
+           (reg:HI PSVPAG)]
+          UNSPECV_PSVRDPSV))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     static char *patterns[] = {
+       \"mov [%1++],%0\;mov [%1++],%d0\;mov [%1],%t0\"
+       \"mov [%1++],%I0\;mov [%1++],%I0\;mov [%1],%0\"
+     };
+
+     static char *psv_psv_patterns[] = {
+       \"mov [%1++],%0\;nop\;mov [%1++],%d0\;nop\;mov [%1],%t0\",
+       \"mov [%1++],%I0\;nop\;mov [%1++],%I0\;nop\;mov [%1],%I\"
+     };
+
+     if (pic30_errata_mask & psrd_psrd_errata) {
+       pic30_rtx_nops += 3;
+       return psv_psv_patterns[which_alternative];
+     } else {
+       return patterns[which_alternative];
+     }
+   }"
+  [
+    (set_attr "type" "defuse,use")
+  ]
+)
+
+(define_insn "P24PSVread_<mode>"
+  [(set (match_operand:SM64BIT 0 "pic30_mode2_operand"             "=&r,R")
+        (unspec_volatile:SM64BIT
+          [(mem:SM64BIT (match_operand:HI 1 "pic30_register_operand" "r,r"))
            (reg:HI PSVPAG)]
           UNSPECV_PSVRDPSV))
    (clobber (match_dup 1))
@@ -8021,46 +8673,10 @@
   ]
 )
 
-(define_insn "P32EDSread_hi"
-  [(set (match_operand:HI 0 "pic30_mode2_operand"   "=r,r,  R<>,R<>")
-        (unspec_volatile:HI
-          [(match_operand:HI 1 "pic30_mode2_operand" "r,R<>,r,  R<>")
-           (reg:HI PSVPAG)]
-          UNSPECV_EDSRD))
-  ]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0"
-  [
-    (set_attr "type" "def,defuse,use,use")
-  ]
-)
-
-(define_insn "P32EDSread_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_mode2_operand"   "=r,r,  R<>,R<>")
-        (unspec_volatile:P16APSV
-          [(match_operand:P16APSV 1 "pic30_mode2_operand" "r,R<>,r,  R<>")
-           (reg:HI PSVPAG)]
-          UNSPECV_EDSRD))
-  ]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0
-   mov %1,%0"
-  [
-    (set_attr "type" "def,defuse,use,use")
-  ]
-)
-
-(define_insn "P32EDSread_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_mode2_operand"   "=r,r,  R<>,R<>")
-        (unspec_volatile:P16PMP
-          [(match_operand:P16PMP 1 "pic30_mode2_operand" "r,R<>,r,  R<>")
+(define_insn "P32EDSread_<mode>"
+  [(set (match_operand:SM16BIT 0 "pic30_mode2_operand"   "=r,r,  R<>,R<>")
+        (unspec_volatile:SM16BIT
+          [(match_operand:SM16BIT 1 "pic30_mode2_operand" "r,R<>,r,  R<>")
            (reg:HI PSVPAG)]
           UNSPECV_EDSRD))
   ]
@@ -8090,8 +8706,8 @@
 ;
 
 (define_insn "P32EDSread_eds_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand"      "=&r,R")
-        (unspec_volatile:M32BIT
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand"      "=&r,R")
+        (unspec_volatile:SM32BIT
           [(match_operand:HI 1 "pic30_register_operand" " r,r")
            (reg:HI PSVPAG)]
           UNSPECV_EDSRD))
@@ -8118,8 +8734,8 @@
 )
 
 (define_insn "P32EDSread_noeds_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand"      "=&r,R")
-        (unspec_volatile:M32BIT
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand"      "=&r,R")
+        (unspec_volatile:SM32BIT
           [(match_operand:HI 1 "pic30_register_operand" " r,r")
            (reg:HI PSVPAG)]
           UNSPECV_NOEDSRD))
@@ -8146,9 +8762,9 @@
 )
 
 (define_expand "P32EDSread_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand" "=&r,R")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_R_operand" " R,R")
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand" "=&r,R")
+        (unspec_volatile:SM32BIT
+          [(match_operand:SM32BIT 1 "pic30_R_operand" " R,R")
            (reg:HI PSVPAG)]
           UNSPECV_EDSRD))]
   ""
@@ -8163,8 +8779,99 @@
 }")
 
 (define_insn "P32EDSread_eds_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_register_operand"   "=&r")
-        (unspec_volatile:M64BIT
+  [(set (match_operand:SM48BIT 0 "pic30_register_operand"   "=&r")
+        (unspec_volatile:SM48BIT
+          [(match_operand:HI 1 "pic30_register_operand" " r")
+           (reg:HI PSVPAG)]
+          UNSPECV_EDSRD))
+   (clobber (reg:HI PSVPAG))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     char *edsresults[] = {
+                     \"mov [%1],%0\;inc2 %1,%1\;bra nc,.L1_%=\;\"
+                         \"bset %1,#15\;inc _DSRPAG\;\"
+                         \".L1_%=: \"
+                     \"mov [%1],%d0\;inc2 %1,%1\;bra nc,.L2_%=\;\"
+                         \"bset %1,#15\;inc _DSRPAG\;\"
+                         \".L2_%=: \"
+                     \"mov [%1],%t0\",
+                     \"mov [%1],%I0\;inc2 %1,%1\;bra nc,.L1_%=\;\"
+                         \"bset %1,#15\;inc _DSRPAG\;\"
+                         \".L1_%=: \"
+                     \"mov [%1],%I0\;inc2 %1,%1\;bra nc,.L2_%=\;\"
+                         \"bset %1,#15\;inc _DSRPAG\;\"
+                         \".L2_%=: \"
+                     \"mov [%1],%0\"
+                   };
+
+     return edsresults[0];
+   }"
+   [
+      (set_attr "type" "defuse")
+   ]
+)
+
+(define_insn "P32EDSread_noeds_<mode>"
+  [(set (match_operand:SM48BIT 0 "pic30_register_operand"   "=&r")
+        (unspec_volatile:SM48BIT
+          [(match_operand:HI 1 "pic30_register_operand" " r")
+           (reg:HI PSVPAG)]
+          UNSPECV_NOEDSRD))
+   (clobber (reg:HI PSVPAG))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     char *results[] = {
+                     \"mov [%1],%0\;inc2 %1,%1\;bra nc,.L1_%=\;\"
+                         \"bset %1,#15\;inc _PSVPAG\;\"
+                         \".L1_%=: \"
+                     \"mov [%1],%d0\;inc2 %1,%1\;bra nc,.L2_%=\;\"
+                         \"bset %1,#15\;inc _PSVPAG\;\"
+                         \".L2_%=: \"
+                     \"mov [%1],%t0\",
+                     \"mov [%1],%I0\;inc2 %1,%1\;bra nc,.L1_%=\;\"
+                         \"bset %1,#15\;inc _PSVPAG\;\"
+                         \".L1_%=: \"
+                     \"mov [%1],%I0\;inc2 %1,%1\;bra nc,.L2_%=\;\"
+                         \"bset %1,#15\;inc _PSVPAG\;\"
+                         \".L2_%=: \"
+                     \"mov [%1],%0\"
+                   };
+
+     return results[0];
+   }"
+  [
+    (set_attr "type" "defuse")
+  ]
+)
+
+(define_expand "P32EDSread_<mode>"
+  [(set (match_operand:SM48BIT 0 "pic30_register_operand" "=&r")
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_R_operand" " R")
+           (reg:HI PSVPAG)]
+          UNSPECV_EDSRD))
+  ]
+  ""
+  "
+{
+   if (pic30_eds_target()) {
+     emit(gen_P32EDSread_eds_<mode>(operands[0],XEXP(operands[1],0)));
+   } else {
+     emit(gen_P32EDSread_noeds_<mode>(operands[0],XEXP(operands[1],0)));
+   }
+   DONE;
+}"
+)
+
+(define_insn "P32EDSread_eds_<mode>"
+  [(set (match_operand:SM64BIT 0 "pic30_register_operand"   "=&r")
+        (unspec_volatile:SM64BIT
           [(match_operand:HI 1 "pic30_register_operand" " r")
            (reg:HI PSVPAG)]
           UNSPECV_EDSRD))
@@ -8205,8 +8912,8 @@
 )
 
 (define_insn "P32EDSread_noeds_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_register_operand"   "=&r")
-        (unspec_volatile:M64BIT
+  [(set (match_operand:SM64BIT 0 "pic30_register_operand"   "=&r")
+        (unspec_volatile:SM64BIT
           [(match_operand:HI 1 "pic30_register_operand" " r")
            (reg:HI PSVPAG)]
           UNSPECV_NOEDSRD))
@@ -8247,9 +8954,9 @@
 )
 
 (define_expand "P32EDSread_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_register_operand" "=&r")
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_R_operand" " R")
+  [(set (match_operand:SM64BIT 0 "pic30_register_operand" "=&r")
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_R_operand" " R")
            (reg:HI PSVPAG)]
           UNSPECV_EDSRD))
   ]
@@ -8280,38 +8987,11 @@
     (set_attr "type" "use")
   ]
 )
-(define_insn "P32EDSwrite_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_R_operand" "=R")
-        (unspec_volatile:P16PMP
-          [(match_operand:P16PMP 1 "pic30_mode2_operand" "rR<>")
-           (reg:HI DSWPAG)]
-          UNSPECV_EDSWT))
-  ]
-  ""
-  "mov %1,%0"
-  [
-    (set_attr "type" "use")
-  ]
-)
 
-(define_insn "P32EDSwrite_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_R_operand" "=R")
-        (unspec_volatile:P16APSV
-          [(match_operand:P16APSV 1 "pic30_mode2_operand" "rR<>")
-           (reg:HI DSWPAG)]
-          UNSPECV_EDSWT))
-  ]
-  ""
-  "mov %1,%0"
-  [
-    (set_attr "type" "use")
-  ]
-)
-
-(define_insn "P32EDSwrite_hi"
-  [(set (match_operand:HI 0 "pic30_R_operand" "=R")
-        (unspec_volatile:HI
-          [(match_operand:HI 1 "pic30_mode2_operand" "rR<>")
+(define_insn "P32EDSwrite_<mode>"
+  [(set (match_operand:SM16BIT 0 "pic30_R_operand" "=R")
+        (unspec_volatile:SM16BIT
+          [(match_operand:SM16BIT 1 "pic30_mode2_operand" "rR<>")
            (reg:HI DSWPAG)]
           UNSPECV_EDSWT))
   ]
@@ -8323,9 +9003,9 @@
 )
 
 (define_insn "P32EDSwrite_eds_<mode>"
-  [(set (mem:M32BIT (match_operand:HI 0 "pic30_register_operand" "r,r"))
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_mode2_operand" "r,R")
+  [(set (mem:SM32BIT (match_operand:HI 0 "pic30_register_operand" "r,r"))
+        (unspec_volatile:SM32BIT
+          [(match_operand:SM32BIT 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_EDSWT))
    (clobber (reg:HI DSWPAG))
@@ -8350,9 +9030,9 @@
 )
 
 (define_insn "P32EDSwrite_noeds_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_R_operand" "=R,R")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_mode2_operand" "r,R")]
+  [(set (match_operand:SM32BIT 0 "pic30_R_operand" "=R,R")
+        (unspec_volatile:SM32BIT
+          [(match_operand:SM32BIT 1 "pic30_mode2_operand" "r,R")]
           UNSPECV_EDSWT))
    (clobber (reg:HI DSWPAG))
   ]
@@ -8378,9 +9058,9 @@
 )
 
 (define_expand "P32EDSwrite_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_R_operand" "=R,R")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_mode2_operand" "r,R")
+  [(set (match_operand:SM32BIT 0 "pic30_R_operand" "=R,R")
+        (unspec_volatile:SM32BIT
+          [(match_operand:SM32BIT 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_EDSWT))
   ]
@@ -8397,9 +9077,99 @@
 )
 
 (define_insn "P32EDSwrite_eds_<mode>"
-  [(set (mem:M64BIT (match_operand:HI 0 "pic30_register_operand" "r,r"))
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_mode2_operand"         "r,R")
+  [(set (mem:SM48BIT (match_operand:HI 0 "pic30_register_operand" "r,r"))
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_mode2_operand"         "r,R")
+           (reg:HI DSWPAG)]
+          UNSPECV_EDSWT))
+   (clobber (reg:HI DSWPAG))
+   (clobber (match_dup 0))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     char *edsresults[] = {
+                     \"mov %1,[%0]\;inc2 %0,%0\;bra nc,.L1_%=\;\"
+                         \"bset %0,#15\;inc _DSWPAG\;\"
+                         \".L1_%=: \"
+                     \"mov %d1,[%0]\;inc2 %0,%0\;bra nc,.L2_%=\;\"
+                         \"bset %0,#15\;inc _DSWPAG\;\"
+                         \".L2_%=: \"
+                     \"mov %t1,[%0]\",
+                     \"mov %I1,[%0]\;inc2 %0,%0\;bra nc,.L1_%=\;\"
+                         \"bset %0,#15\;inc _DSWPAG\;\"
+                         \".L1_%=: \"
+                     \"mov %I1,[%0]\;inc2 %0,%0\;bra nc,.L2_%=\;\"
+                         \"bset %0,#15\;inc _DSWPAG\;\"
+                         \".L2_%=: \"
+                     \"mov %I1,[%0]\"
+                   };
+
+     return edsresults[which_alternative];
+  }"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
+(define_insn "P32EDSwrite_noeds_<mode>"
+  [(set (match_operand:SM48BIT 0 "pic30_R_operand"       "=R,R")
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_mode2_operand" "r,R")]
+          UNSPECV_EDSWT))
+   (clobber (reg:HI DSWPAG))
+   (clobber (match_dup 0))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     char *results[] ={ 
+        \"mov.d %1,%I0\;mov.w %t1,%0\",
+        \"mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\"
+     };
+
+     char *psv_psv_results[] ={ 
+        \"mov.d %1,%I0\;mov.d %t1,%D0\",
+        \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\"
+     };
+
+     if (pic30_psrd_psrd_errata(operands[0],NULL)) {
+       pic30_rtx_nops+=3;
+       return psv_psv_results[which_alternative];
+     } else {
+       return results[which_alternative];
+     }
+   }"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
+(define_expand "P32EDSwrite_<mode>"
+  [(set (match_operand:SM48BIT 0 "pic30_R_operand" "=R,R")
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_mode2_operand" "r,R")
+           (reg:HI DSWPAG)]
+          UNSPECV_EDSWT))
+  ]
+  ""
+  "
+  {
+    if (pic30_eds_target()) {
+      emit(gen_P32EDSwrite_eds_<mode>(XEXP(operands[0],0),operands[1]));
+    } else {
+      emit(gen_P32EDSwrite_noeds_<mode>(operands[0],operands[1]));
+    }
+    DONE;
+  }"
+)
+
+(define_insn "P32EDSwrite_eds_<mode>"
+  [(set (mem:SM64BIT (match_operand:HI 0 "pic30_register_operand" "r,r"))
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_mode2_operand"         "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_EDSWT))
    (clobber (reg:HI DSWPAG))
@@ -8440,9 +9210,9 @@
 )
 
 (define_insn "P32EDSwrite_noeds_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_R_operand"       "=R,R")
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_mode2_operand" "r,R")]
+  [(set (match_operand:SM64BIT 0 "pic30_R_operand"       "=R,R")
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_mode2_operand" "r,R")]
           UNSPECV_EDSWT))
    (clobber (reg:HI DSWPAG))
    (clobber (match_dup 0))
@@ -8474,9 +9244,9 @@
 )
 
 (define_expand "P32EDSwrite_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_R_operand" "=R,R")
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_mode2_operand" "r,R")
+  [(set (match_operand:SM64BIT 0 "pic30_R_operand" "=R,R")
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_mode2_operand" "r,R")
            (reg:HI DSWPAG)]
           UNSPECV_EDSWT))
   ]
@@ -8510,58 +9280,10 @@
   ]
 )
 
-(define_insn "P32PEDSread_hi"
-  [(set (match_operand:HI 0 "pic30_mode2_operand" "=r,R<>")
-        (unspec_volatile:HI
-          [(match_operand:HI 1 "pic30_R_operand"   "R,R")
-           (reg:HI PSVPAG)]
-          UNSPECV_PEDSRD))
-  ]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-(define_insn "P32PEDSuread_hi"
-  [(set (match_operand:HI 0 "pic30_mode2_operand"     "=rR<>,r")
-        (unspec_volatile:HI
-          [(match_operand 1 "pic30_unified_mode2k_operand"  "R<>,Q")
-           (reg:HI PSVPAG)]
-          UNSPECV_PEDSRD))
-  ]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-(define_insn "P32PEDSread_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_mode2_operand" "=r,R<>")
-        (unspec_volatile:P16APSV
-          [(match_operand:P16APSV 1 "pic30_R_operand"  " R,R")
-           (reg:HI PSVPAG)]
-          UNSPECV_PEDSRD))
-  ]
-  ""
-  "@
-   mov %1,%0
-   mov %1,%0"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-(define_insn "P32PEDSread_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_mode2_operand" "=r,R<>")
-        (unspec_volatile:P16PMP
-          [(match_operand:P16PMP 1 "pic30_R_operand"   "R,R")
+(define_insn "P32PEDSread_<mode>"
+  [(set (match_operand:SM16BIT    0 "pic30_mode2_operand"   "=rR<>,r")
+        (unspec_volatile:SM16BIT
+          [(match_operand:SM16BIT 1 "pic30_mode2k_operand"  " R,Q")
            (reg:HI PSVPAG)]
           UNSPECV_PEDSRD))
   ]
@@ -8580,42 +9302,9 @@
  
 /*VRT: Need optimized fix for psrd psrd*/
 (define_insn "P32PEDSread_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand" "=&r,R")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_R_operand"    "R,R")
-           (reg:HI PSVPAG)]
-          UNSPECV_PEDSRD))
-  ]
-  ""
-  "*
-   {
-     static char *patterns[] = {
-       \"mov %I1,%0\;mov %D1,%d0\",
-       \"mov %I1,%I0\;mov %D1,%D0\"
-     };
-
-     static char *psv_psv_patterns[] = {
-       \"mov %I1,%0\;mov %D1,%d0\",
-       \"mov %I1,%I0\;nop\;mov %D1,%D0\"
-     };
-     
-     if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-       pic30_rtx_nops++;
-       return psv_psv_patterns[which_alternative];
-     } else {
-       return patterns[which_alternative];
-     }
-   }"
-  [
-    (set_attr "type" "defuse,use")
-  ]
-)
-
-/*VRT: Need optimized fix for psrd psrd*/
-(define_insn "P32PEDSuread_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_mode2_operand"     "=&r,R,&r")
-        (unspec_volatile:M32BIT
-          [(match_operand 1 "pic30_unified_mode2k_operand"  " R,R, Q")
+  [(set (match_operand:SM32BIT 0 "pic30_mode2_operand"     "=&r,R,&r")
+        (unspec_volatile:SM32BIT
+          [(match_operand 1 "pic30_mode2k_operand"  " R,R, Q")
            (reg:HI PSVPAG)]
           UNSPECV_PEDSRD))
   ]
@@ -8646,11 +9335,10 @@
   ]
 )
 
-/*VRT: Need optimized fix for psrd psrd*/
 (define_insn "P32PEDSread_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_mode2_operand" "=&r,R")
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_R_operand"    "R,R")
+  [(set (match_operand:SM48BIT    0 "pic30_mode2_operand"  "=&r,R,r")
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_mode2k_operand" "  R,R,Q")
            (reg:HI PSVPAG)]
           UNSPECV_PEDSRD))
    (clobber (match_dup 1))
@@ -8659,18 +9347,21 @@
   "*
    {
      static char *patterns[] = {
-       \"mov.d %I1,%0\;mov.d %D1,%t0\",
-       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\"
+       \"mov.d %I1,%0\;mov %D1,%t0\",
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %Q1,%d0\;mov %R1,%t0\"
      };
 
      static char *psv_psv_movd_patterns[] = {
-       \"mov %I1,%0\;mov %I1,%d0\;mov %I1,%t0\;mov %1,%q0\"
-       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\"
+       \"mov %I1,%0\;mov %I1,%d0\;mov %1,%t0\",
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %Q1,%d0\;mov %R1,%t0\"
      };
 
      static char *psv_psv_patterns[] = {
-       \"mov.d %I1,%0\;nop\;mov.d %D1,%t0\",
-       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\"
+       \"mov.d %I1,%0\;nop\;mov %1,%t0\",
+       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\",
+       \"mov %1,%0\;nop\;mov %Q1,%d0\;nop\;mov %R1,%t0\"
      };
 
      if (pic30_psrd_psrd_errata_movd(operands[1],NULL)) {
@@ -8683,71 +9374,75 @@
      };
    }"
   [
-    (set_attr "type" "defuse,use")
+    (set_attr "type" "defuse,use,defuse")
+  ]
+)
+
+(define_insn "P32PEDSread_<mode>"
+  [(set (match_operand:SM64BIT    0 "pic30_mode2_operand"  "=&r,R,r")
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_mode2k_operand" "  R,R,Q")
+           (reg:HI PSVPAG)]
+          UNSPECV_PEDSRD))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     static char *patterns[] = {
+       \"mov.d %I1,%0\;mov.d %D1,%t0\",
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %Q1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+     };
+
+     static char *psv_psv_movd_patterns[] = {
+       \"mov %I1,%0\;mov %I1,%d0\;mov %I1,%t0\;mov %1,%q0\",
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %Q1,%d0\;mov %R1,%t0\;mov %S1,%q0\"
+     };
+
+     static char *psv_psv_patterns[] = {
+       \"mov.d %I1,%0\;nop\;mov.d %D1,%t0\",
+       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\",
+       \"mov %1,%0\;nop\;mov %Q1,%d0\;nop\;mov %R1,%t0\;nop\;mov %S1,%q0\"
+     };
+
+     if (pic30_psrd_psrd_errata_movd(operands[1],NULL)) {
+       return psv_psv_movd_patterns[which_alternative];
+     } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+       pic30_rtx_nops+=3;
+       return psv_psv_patterns[which_alternative];
+     } else {
+       return patterns[which_alternative];
+     };
+   }"
+  [
+    (set_attr "type" "defuse,use,defuse")
   ]
 )
 
 ; P32PEDSwrite
 
 (define_insn "P32PEDSwrite_qi"
-  [(set (match_operand:QI 0 "pic30_R_operand"       "=R")
+  [(set (match_operand:QI 0 "pic30_mode2k_operand"       "=R<>, Q")
         (unspec_volatile:QI
-          [(match_operand:QI 1 "pic30_mode2_operand" "rR<>")
+          [(match_operand:QI 1 "pic30_mode2_operand"             "rR<>, r")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
   ]
   ""
-  "mov.b %1,%0"
-  [
-    (set_attr "type" "use")
-  ]
-)
-(define_insn "P32PEDSwrite_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_R_operand"       "=R")
-        (unspec_volatile:P16PMP
-          [(match_operand:P16PMP 1 "pic30_mode2_operand" "rR<>")
-           (reg:HI DSWPAG)]
-          UNSPECV_PEDSWT))
-  ]
-  ""
-  "mov %1,%0"
+  "@
+   mov.b %1,%0
+   mov.b %1,%0"
   [
     (set_attr "type" "use")
   ]
 )
 
-(define_insn "P32PEDSwrite_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_R_operand"       "=R")
-        (unspec_volatile:P16APSV
-          [(match_operand:P16APSV 1 "pic30_mode2_operand" "rR<>")
-           (reg:HI DSWPAG)]
-          UNSPECV_PEDSWT))
-  ]
-  ""
-  "mov %1,%0"
-  [
-    (set_attr "type" "use")
-  ]
-)
-
-(define_insn "P32PEDSwrite_hi"
-  [(set (match_operand:HI 0 "pic30_R_operand"       "=R")
-        (unspec_volatile:HI
-          [(match_operand:HI 1 "pic30_mode2_operand" "rR<>")
-           (reg:HI DSWPAG)]
-          UNSPECV_PEDSWT))
-  ]
-  ""
-  "mov %1,%0"
-  [
-    (set_attr "type" "use")
-  ]
-)
-
-(define_insn "P32PEDSuwrite_hi"
-  [(set (match_operand:HI 0 "pic30_unified_mode2k_operand"  "=R<>, Q")
-        (unspec_volatile:HI
-          [(match_operand:HI 1 "pic30_mode2_operand"        " rR<>,r")
+(define_insn "P32PEDSwrite_<mode>"
+  [(set (match_operand:SM16BIT    0 "pic30_mode2k_operand"  "=R<>, Q")
+        (unspec_volatile:SM16BIT
+          [(match_operand:SM16BIT 1 "pic30_mode2_operand"   " rR<>,r")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
   ]
@@ -8763,41 +9458,9 @@
 ; P32PEDS does not cross a page boundary
 
 (define_insn "P32PEDSwrite_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_R_operand"       "=R,R")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_mode2_operand" "r,R")
-           (reg:HI DSWPAG)]
-          UNSPECV_PEDSWT))
-  ]
-  ""
-  "*
-   {
-     static char *patterns[] = {
-       \"mov.d %1,%0\",
-       \"mov %I1,%I0\;mov %D1,%D0\"
-     };
-
-     static char *psv_psv_patterns[] = {
-       \"mov.d %1,%0\",
-       \"mov %I1,%I0\;nop\;mov %D1,%D0\"
-     };
- 
-     if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-       pic30_rtx_nops++;
-       return psv_psv_patterns[which_alternative];
-     } else {
-       return patterns[which_alternative];
-     }
-   }"
-  [
-    (set_attr "type" "use")
-  ]
-)
-
-(define_insn "P32PEDSuwrite_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_unified_mode2k_operand" "=R,R,Q")
-        (unspec_volatile:M32BIT
-          [(match_operand:M32BIT 1 "pic30_mode2_operand"        " r,R,r")
+  [(set (match_operand:SM32BIT 0 "pic30_mode2k_operand"       "=R,R,Q,R")
+        (unspec_volatile:SM32BIT
+          [(match_operand:SM32BIT 1 "pic30_mode2_operand"     " r,R,r,>")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
   ]
@@ -8807,13 +9470,15 @@
      static char *patterns[] = {
        \"mov.d %1,%0\",
        \"mov %I1,%I0\;mov %D1,%D0\",
-       \"mov %1,%0\;mov %d1,%Q0\"
+       \"mov %1,%0\;mov %d1,%Q0\",
+       \"mov %1,%I0\;mov %1,%D0\"
      };
 
      static char *psv_psv_patterns[] = {
        \"mov.d %1,%0\",
        \"mov %I1,%I0\;nop\;mov %D1,%D0\",
        \"mov %1,%0\;mov %d1,%Q0\"
+       \"mov %1,%I0\;nop\;mov %1,%D0\",
      };
 
      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
@@ -8829,9 +9494,45 @@
 )
 
 (define_insn "P32PEDSwrite_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_R_operand"       "=R,R")
-        (unspec_volatile:M64BIT
-          [(match_operand:M64BIT 1 "pic30_mode2_operand" "r,R")
+  [(set (match_operand:SM48BIT 0 "pic30_mode2k_operand"       "=R,R,Q")
+        (unspec_volatile:SM48BIT
+          [(match_operand:SM48BIT 1 "pic30_mode2_operand" "r,R,r")
+           (reg:HI DSWPAG)]
+          UNSPECV_PEDSWT))
+   (clobber (reg:HI DSWPAG))
+   (clobber (match_dup 1))
+  ]
+  ""
+  "*
+   {
+     static char *patterns[] = {
+       \"mov.d %1,%I0\;mov %t1,%0\",
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %d1,%Q0\;mov %t1,%R0\"
+     };
+
+     static char *psv_psv_patterns[] = {
+       \"mov.d %1,%I0\;mov.w %t1,%0\",
+       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\",
+       \"mov %1,%0\;nop\;mov %d1,%Q0\;nop\;mov %t1,%R0\"
+     };
+
+     if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+       pic30_rtx_nops+=3;
+       return psv_psv_patterns[which_alternative];
+     } else {
+       return patterns[which_alternative];
+     }
+   }"
+  [
+    (set_attr "type" "use")
+  ]
+)
+
+(define_insn "P32PEDSwrite_<mode>"
+  [(set (match_operand:SM64BIT 0 "pic30_mode2k_operand"       "=R,R,Q")
+        (unspec_volatile:SM64BIT
+          [(match_operand:SM64BIT 1 "pic30_mode2_operand" "r,R,r")
            (reg:HI DSWPAG)]
           UNSPECV_PEDSWT))
    (clobber (reg:HI DSWPAG))
@@ -8842,12 +9543,14 @@
    {
      static char *patterns[] = {
        \"mov.d %1,%I0\;mov.d %t1,%D0\",
-       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\" 
+       \"mov %I1,%I0\;mov %I1,%I0\;mov %I1,%I0\;mov %1,%0\",
+       \"mov %1,%0\;mov %d1,%Q0\;mov %t1,%R0\;mov %q1,%S0\"
      };
 
      static char *psv_psv_patterns[] = {
        \"mov.d %1,%I0\;mov.d %t1,%D0\",
-       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\" 
+       \"mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %I1,%I0\;nop\;mov %1,%0\",
+       \"mov %1,%0\;nop\;mov %d1,%Q0\;nop\;mov %t1,%R0\;nop\;mov %q1,%S0\"
      };
 
      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
@@ -8864,30 +9567,37 @@
 
 ;
 ; funky addition
+;  for eds only
 ;   shift up low words first so that we don't have to worry about PSV enable bit
 ;   add
 ;   check for upper word being zero
 ;   zero -> 0 in upper bit 1 otherwise ... set carry 
 ;   shift it in
 
-(define_insn "addp32eds3_lit"
+;
+; NB, here we use add #0,%d0 to both clear the carry and test for Zero
+;     (cp0 %d0 will set the carry)
+;     well - we could do cp0 page; btsc _SR,#3; bclr _SR,#0; rrc offset,offset
+;
+
+(define_insn "addp32eds3_eds_lit"
   [(set (match_operand: P32EDS  0 "pic30_register_operand" "=r,r")
         (plus: P32EDS
           (match_operand:P32EDS 1 "pic30_register_operand" " 0,0")
           (match_operand:P32EDS 2 "pic30_OJM_operand"      " PJ,M")))
    (clobber (match_scratch:HI   3                          "=&r,&r"))
   ]
-  ""
+  "(pic30_eds_target())"
   "@
-   mov %1,%3\;add #%2,%0\;xor %3,%0,%3\;btsc _SR,#3\;bset %0,#15\;rlc %3,%3\;addc #0,%d0
-   mov %1,%3\;sub #%J2,%0\;xor %3,%0,%3\;lsr %3,#15,%3\;sub %d0,%3,%d0\;btss _SR,#1\;bset %0,#15"
+   bclr %0,#15\;add #%2,%0\;sl %0,%0\;btsc _SR,#2\;inc %d0,%d0\;add #0,%d0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
+   bclr %0,#15\;sub #%J2,%0\;sl %0,%0\;btsc _SR,#2\;dec %d0,%d0\;add #0,%d0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
   [
     (set_attr "cc" "clobber")
     (set_attr "type" "def")
   ]
 )
 
-(define_insn "addp32eds3_r"
+(define_insn "addp32eds3_eds_r"
   [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,&r")
         (plus: P32EDS
           (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
@@ -8895,7 +9605,7 @@
    (clobber (match_scratch:HI 3                             "=&r,&r"))
    (clobber (match_scratch:HI 4                             "=&r,&r"))
   ]
-  ""
+  "(pic30_eds_target())"
   "@
    sl %1,%3\;sl %2,%4\;add %3,%4,%0\;bset _SR,#1\;addc %d1,%d2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
    sl %1,%3\;sl %I2,%4\;add %3,%4,%0\;bset _SR,#1\;addc %d1,%D2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
@@ -8904,7 +9614,7 @@
   ]
 )
 
-(define_insn "subp32eds3"
+(define_insn "subp32eds3_eds"
   [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,&r")
         (minus: P32EDS
           (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
@@ -8912,10 +9622,67 @@
    (clobber (match_scratch:HI 3                             "=&r,&r"))
    (clobber (match_scratch:HI 4                             "=&r,&r"))
   ]
-  ""
+  "(pic30_eds_target())"
   "@
    sl %1,%3\;sl %2,%4\;sub %3,%4,%0\;bset _SR,#1\;subb %d1,%d2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0
    sl %1,%3\;sl %I2,%4\;sub %3,%4,%0\;bset _SR,#1\;subb %d1,%D2,%d0\;bclr _SR,#0\;btss _SR,#1\;bset _SR,#0\;rrc %0,%0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+; for non eds we will never overflow into PSV bit set - its either set or not
+;   preverve psv bit
+;   shift up low words first so that we don't have to worry about PSV enable bit
+;   add
+;   shift in psv bit
+
+(define_insn "addp32eds3_noeds_lit"
+  [(set (match_operand: P32EDS  0 "pic30_register_operand" "=r,r")
+        (plus: P32EDS
+          (match_operand:P32EDS 1 "pic30_register_operand" " 0,0")
+          (match_operand:P32EDS 2 "pic30_OJM_operand"      " PJ,M")))
+   (clobber (match_scratch:HI   3                          "=&r,&r"))
+  ]
+  "(!pic30_eds_target())"
+  "@
+   mov %1,%3\;bclr %0,#15\;add #%2,%0\;btsc _SR,#2\;inc %d0,%d0\;sl %0,%0\;sl %3,%3\;rrc %0,%0
+   mov %1,%3\;bclr %0,#15\;sub #%J2,%0\;btsc _SR,#2\;dec %d0,%d0\;sl %0,%0\;sl %3,%3\;rrc %0,%0"
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addp32eds3_noeds_r"
+  [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,r")
+        (plus: P32EDS
+          (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
+          (match_operand:P32EDS  2 "pic30_mode2_operand"    "r,R")))
+   (clobber (match_scratch:HI 3                             "=&r,&r"))
+   (clobber (match_scratch:HI 4                             "=&r,&r"))
+  ]
+  "(!pic30_eds_target())"
+  "@
+   ior %1,%2,%4\;sl %2,%3\;sl %1,%0\;add %3,%0,%0\;addc %d1,%d2,%d0\;sl %4,%4\;rrc %0,%0
+   ior %1,%2,%4\;sl %I2,%3\;sl %1,%0\;add %3,%0,%0\;addc %d1,%D2,%d0\;sl %4,%4\;rrc %0,%0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "subp32eds3_noeds"
+  [(set (match_operand: P32EDS   0 "pic30_register_operand" "=r,r")
+        (minus: P32EDS
+          (match_operand:P32EDS  1 "pic30_register_operand" "%r,0")
+          (match_operand:P32EDS  2 "pic30_mode2_operand"    "r,R")))
+   (clobber (match_scratch:HI 3                             "=&r,&r"))
+   (clobber (match_scratch:HI 4                             "=&r,&r"))
+  ]
+  "(!pic30_eds_target())"
+  "@
+   ior %1,%2,%4\;sl %2,%3\;sl %1,%0\;sub %3,%0,%0\;subb %d1,%d2,%d0\;sl %4,%4\;rrc %0,%0
+   ior %1,%2,%4\;sl %I1,%3\;sl %1,%0\;sub %3,%0,%0\;subb %d1,%D2,%d0\;sl %4,%4\;rrc %0,%0"
   [
     (set_attr "type" "def")
   ]
@@ -8927,7 +9694,13 @@
                       (match_operand:P32EDS 2 "pic30_mode1i_operand" "")))]
   ""
   "
-{  rtx (*gen)(rtx,rtx,rtx) = gen_addp32eds3_r;
+{  rtx (*gen_r)(rtx,rtx,rtx) = gen_addp32eds3_eds_r;
+   rtx (*gen_lit)(rtx,rtx,rtx) = gen_addp32eds3_eds_lit;
+
+   if (!pic30_eds_target()) {
+     gen_r = gen_addp32eds3_noeds_r;
+     gen_lit = gen_addp32eds3_noeds_lit;
+   }
 
    if (GET_CODE(operands[2]) == CONST_INT) {
 #if 0
@@ -8936,20 +9709,37 @@
 #endif
      rtx new_val = operands[2];
      if (pic30_OJM_operand(new_val, HImode)) {
-       emit_insn(gen_addp32eds3_lit(operand0,operand1,operand2));
+       emit_insn(gen_lit(operand0,operand1,operand2));
        DONE;
      } else {
        /* load the immediate separately */
        rtx result = gen_reg_rtx(P32EDSmode);
 
        emit_insn(gen_movp32eds_lit(result, new_val));
-       emit_insn(gen(operand0, operand1, result));
+       emit_insn(gen_r(operand0, operand1, result));
        DONE;
      }
    }
-   emit_insn(gen(operand0,operand1,operand2));
+   emit_insn(gen_r(operand0,operand1,operand2));
    DONE;
 }")
+
+(define_expand "subp32eds3"
+  [(set (match_operand:P32EDS 0 "pic30_register_operand" "")
+        (minus: P32EDS (match_operand:P32EDS 1 "pic30_register_operand" "")
+                       (match_operand:P32EDS 2 "pic30_mode2_operand" "")))]
+  ""
+  "
+{  rtx (*gen_r)(rtx,rtx,rtx) = gen_subp32eds3_eds;
+
+   if (!pic30_eds_target()) {
+     gen_r = gen_subp32eds3_noeds;
+   }
+
+   emit_insn(gen_r(operand0,operand1,operand2));
+   DONE;
+}")
+
 
 ;
 ;  Paged arithmetic doesn't cross a page boundary, add low part only
@@ -9367,92 +10157,10 @@
   DONE;
 }")
 
-(define_expand "P16APSVrd_hi"
-  [(set (match_operand:HI 0 "pic30_move_operand"
-                "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
-        (match_operand:HI 1 "pic30_move2_APSV_operand"
-                 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
-  ]
-  ""
-  "
-{ rtx sfr;
-  rtx psv_page;
-
-  if (TARGET_TRACK_PSVPAG) {
-    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-    psv_page = gen_reg_rtx(HImode);
-    emit_insn(
-      gen_save_const_psv(psv_page, sfr)           /* hopefully optimized away */
-    );
-    emit(
-      gen_set_nvpsv(psv_page)                     /* hopefully optimized away */
-    );
-  }
-  emit_insn(
-    gen_movhi_gen_APSV(operands[0],operands[1])
-  );
-  DONE;
-}")
-
-(define_expand "P16APSVrd_p16apsv"
-  [(set (match_operand:P16APSV 0 "pic30_move_operand"
-                "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
-        (match_operand:P16APSV 1 "pic30_move2_APSV_operand"
-                 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
-  ]
-  ""
-  "
-{ rtx sfr;
-  rtx psv_page;
-
-  if (TARGET_TRACK_PSVPAG) {
-    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-    psv_page = gen_reg_rtx(HImode);
-    emit_insn(
-      gen_save_const_psv(psv_page, sfr)           /* hopefully optimized away */
-    );
-    emit(
-      gen_set_nvpsv(psv_page)                     /* hopefully optimized away */
-    );
-  }
-  emit_insn(
-    gen_movp16apsv_gen_APSV(operands[0],operands[1])
-  );
-  DONE;
-}")
-
-(define_expand "P16APSVrd_p16pmp"
-  [(set (match_operand:P16PMP 0 "pic30_move_operand"
-                "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
-        (match_operand:P16PMP 1 "pic30_move2_APSV_operand"
-                 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
-  ]
-  ""
-  "
-{ rtx sfr;
-  rtx psv_page;
-
-  if (TARGET_TRACK_PSVPAG) {
-    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
-    psv_page = gen_reg_rtx(HImode);
-    emit_insn(
-      gen_save_const_psv(psv_page, sfr)           /* hopefully optimized away */
-    );
-    emit(
-      gen_set_nvpsv(psv_page)                     /* hopefully optimized away */
-    );
-  }
-  emit_insn(
-    gen_movP16PMP_gen_APSV(operands[0],operands[1])
-  );
-  DONE;
-}")
-
-
 (define_expand "P16APSVrd_<mode>"
-  [(set (match_operand:M32BIT 0 "pic30_move_operand"
+  [(set (match_operand:SM16BIT 0 "pic30_move_operand"
                 "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
-        (match_operand:M32BIT 1 "pic30_move2_APSV_operand"
+        (match_operand:SM16BIT 1 "pic30_move2_APSV_operand"
                  "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
   ]
   ""
@@ -9477,9 +10185,63 @@
 }")
 
 (define_expand "P16APSVrd_<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_move_operand"
+  [(set (match_operand:SM32BIT 0 "pic30_move_operand"
                 "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
-        (match_operand:M64BIT 1 "pic30_move2_APSV_operand"
+        (match_operand:SM32BIT 1 "pic30_move2_APSV_operand"
+                 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
+  ]
+  ""
+  "
+{ rtx sfr;
+  rtx psv_page;
+
+  if (TARGET_TRACK_PSVPAG) {
+    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
+    psv_page = gen_reg_rtx(HImode);
+    emit_insn(
+      gen_save_const_psv(psv_page, sfr)           /* hopefully optimized away */
+    );
+    emit(
+      gen_set_nvpsv(psv_page)                     /* hopefully optimized away */
+    );
+  }
+  emit_insn(
+    gen_mov<mode>_gen_APSV(operands[0],operands[1])
+  );
+  DONE;
+}")
+
+(define_expand "P16APSVrd_<mode>"
+  [(set (match_operand:SM48BIT 0 "pic30_move_operand"
+                "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
+        (match_operand:SM48BIT 1 "pic30_move2_APSV_operand"
+                 "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
+  ]
+  ""
+  "
+{ rtx sfr;
+  rtx psv_page;
+
+  if (TARGET_TRACK_PSVPAG) {
+    sfr = gen_rtx_SYMBOL_REF(HImode,\"_const_psvpage\");
+;    psv_page = gen_reg_rtx(HImode);
+    emit_insn(
+      gen_save_const_psv(psv_page, sfr)           /* hopefully optimized away */
+    );
+    emit(
+      gen_set_nvpsv(psv_page)                     /* hopefully optimized away */
+    );
+  }
+  emit_insn(
+    gen_mov<mode>_gen_APSV(operands[0],operands[1])
+  );
+  DONE;
+}")
+
+(define_expand "P16APSVrd_<mode>"
+  [(set (match_operand:SM64BIT 0 "pic30_move_operand"
+                "=r<>,R,r<>, R,   r<>,RS,r<>,RS, Q,r,U,U")
+        (match_operand:SM64BIT 1 "pic30_move2_APSV_operand"
                  "r,  r,<>RS,<>RS,r,  r, R<>,R<>,r,Q,a,r"))
   ]
   ""
@@ -9589,166 +10351,9 @@
    DONE;
 }")
 
-(define_expand "P24PROGrd_hi"
-   [(set (match_operand:HI 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:HI (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
-   ]
-   ""
-   "
-{  rtx op2 = gen_reg_rtx(P24PROGmode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(SImode);
-   rtx op0;
-  
-   op0 = gen_reg_rtx(HImode);
-   pic30_managed_psv = 1;
-   emit_insn(
-     gen_movp24prog_gen(op2, operand1)                   /* copy pointer */
-   );
-   emit_insn(
-     gen_copy_psv(op3)                                   /* preserve PSVPAG */
-   );
-   emit_insn(
-     gen_unpack_MPROG(op1_,op2)                          /* unpack PSV ptr */
-   );
-   emit_insn(
-     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
-   );
-   emit_insn(
-     gen_P24PROGread_hi(op0, 
-                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
-   );
-   emit_insn(
-     gen_set_psv(op3)                                    /* restore PSVPAG */
-   );
-   if (op0 != operand0) {
-     emit_insn(
-       gen_movhi(operand0, op0)
-     );
-   }
-   DONE;
-}")
-
-(define_expand "P24PROGrd_p16apsv"
-   [(set (match_operand:P16APSV 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:P16APSV (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
-   ]
-   ""
-   "
-{  rtx op2 = gen_reg_rtx(P24PROGmode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(SImode);
-   rtx op0;
-  
-   op0 = gen_reg_rtx(GET_MODE(operand0));
-   pic30_managed_psv = 1;
-   emit_insn(
-     gen_movp24prog_gen(op2, operand1)                   /* copy pointer */
-   );
-   emit_insn(
-     gen_copy_psv(op3)                                   /* preserve PSVPAG */
-   );
-   emit_insn(
-     gen_unpack_MPROG(op1_,op2)                          /* unpack PSV ptr */
-   );
-   emit_insn(
-     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
-   );
-   emit_insn(
-     gen_P24PROGread_p16apsv(op0, 
-                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
-   );
-   emit_insn(
-     gen_set_psv(op3)                                    /* restore PSVPAG */
-   );
-   if (op0 != operand0) {
-     emit_move_insn(operand0, op0);
-   }
-   DONE;
-}")
-
-(define_expand "P24PSVrd_hi"
-   [(set (match_operand:HI 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:HI (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
-   ]
-   ""
-   "
-{  rtx op2 = gen_reg_rtx(P24PSVmode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(SImode);
-   rtx op0;
-  
-   op0 = gen_reg_rtx(HImode);
-   pic30_managed_psv = 1;
-   emit_insn(
-     gen_movp24psv_gen(op2, operand1)                   /* copy pointer */
-   );
-   emit_insn(
-     gen_copy_psv(op3)                                   /* preserve PSVPAG */
-   );
-   emit_insn(
-     gen_unpack_MPSV(op1_,op2)                           /* unpack PSV ptr */
-   );
-   emit_insn(
-     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
-   );
-   emit_insn(
-     gen_P24PROGread_hi(op0, 
-                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
-   );
-   emit_insn(
-     gen_set_psv(op3)                                    /* restore PSVPAG */
-   );
-   if (op0 != operand0) {
-     emit_insn(
-       gen_movhi(operand0, op0)
-     );
-   }
-   DONE;
-}")
-
-(define_expand "P24PSVrd_p16apsv"
-   [(set (match_operand:P16APSV 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:HI (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
-   ]
-   ""
-   "
-{  rtx op2 = gen_reg_rtx(P24PSVmode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op1_ = gen_reg_rtx(SImode);
-   rtx op0;
-  
-   op0 = gen_reg_rtx(GET_MODE(operand0));
-   pic30_managed_psv = 1;
-   emit_insn(
-     gen_movp24psv_gen(op2, operand1)                   /* copy pointer */
-   );
-   emit_insn(
-     gen_copy_psv(op3)                                   /* preserve PSVPAG */
-   );
-   emit_insn(
-     gen_unpack_MPSV(op1_,op2)                           /* unpack PSV ptr */
-   );
-   emit_insn(
-     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
-   );
-   emit_insn(
-     gen_P24PROGread_p16apsv(op0, 
-                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
-   );
-   emit_insn(
-     gen_set_psv(op3)                                    /* restore PSVPAG */
-   );
-   if (op0 != operand0) {
-     emit_move_insn(operand0, op0);
-   }
-   DONE;
-}")
-
-
-(define_expand "P24PROGrd_p16pmp"
-   [(set (match_operand:P16PMP 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:P16PMP 
+(define_expand "P24PROGrd_<mode>"
+   [(set (match_operand:SM16BIT 0 "pic30_move_operand"  "=r,R,rR,r,R")
+         (mem:SM16BIT 
            (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
    ]
    ""
@@ -9758,7 +10363,7 @@
    rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
 
-   op0 = gen_reg_rtx(P16PMPmode);
+   op0 = gen_reg_rtx(<MODE>mode);
    pic30_managed_psv = 1;
    emit_insn(
      gen_movp24prog_gen(op2, operand1)                   /* copy pointer */
@@ -9773,7 +10378,7 @@
      gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
    );
    emit_insn(
-     gen_P24PROGread_p16pmp(op0,
+     gen_P24PROGread_<mode>(op0, 
                         gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
    );
    emit_insn(
@@ -9781,15 +10386,15 @@
    );
    if (op0 != operand0) {
      emit_insn(
-       gen_movp16pmp(operand0, op0)
+       gen_mov<mode>(operand0, op0)
      );
    }
    DONE;
 }")
 
-(define_expand "P24PSVrd_p16pmp"
-   [(set (match_operand:P16PMP 0 "pic30_move_operand" "=r,R,rR,r,R")
-         (mem:P16PMP
+(define_expand "P24PSVrd_<mode>"
+   [(set (match_operand:SM16BIT 0 "pic30_move_operand" "=r,R,rR,r,R")
+         (mem:SM16BIT 
            (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,RQ,ST,ST")))
    ]
    ""
@@ -9799,7 +10404,7 @@
    rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
 
-   op0 = gen_reg_rtx(P16PMPmode);
+   op0 = gen_reg_rtx(<MODE>mode);
    pic30_managed_psv = 1;
    emit_insn(
      gen_movp24psv_gen(op2, operand1)                   /* copy pointer */
@@ -9808,13 +10413,13 @@
      gen_copy_psv(op3)                                   /* preserve PSVPAG */
    );
    emit_insn(
-     gen_unpack_MPSV(op1_,op2)                          /* unpack PSV ptr */
+     gen_unpack_MPSV(op1_,op2)                           /* unpack PSV ptr */
    );
    emit_insn(
      gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
    );
    emit_insn(
-     gen_P24PROGread_p16pmp(op0,
+     gen_P24PROGread_<mode>(op0, 
                         gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
    );
    emit_insn(
@@ -9822,15 +10427,15 @@
    );
    if (op0 != operand0) {
      emit_insn(
-       gen_movp16pmp(operand0, op0)
+       gen_mov<mode>(operand0, op0)
      );
    }
    DONE;
 }")
 
 (define_expand "P24PROGrd_<mode>"
-   [(set (match_operand:M32BIT 0 "pic30_move_operand" "=r,R,r,R")
-         (mem:M32BIT (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,R,R")))
+   [(set (match_operand:SM32BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM32BIT (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,R,R")))
    ]
    ""
    "
@@ -9869,8 +10474,8 @@
 }")
 
 (define_expand "P24PSVrd_<mode>"
-   [(set (match_operand:M32BIT 0 "pic30_move_operand" "=r,R,r,R")
-         (mem:M32BIT (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,R,R")))
+   [(set (match_operand:SM32BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM32BIT (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,R,R")))
    ]
    ""
    "
@@ -9909,8 +10514,9 @@
 }")
 
 (define_expand "P24PROGrd_<mode>"
-   [(set (match_operand:M64BIT 0 "pic30_move_operand" "=r,R,r,R")
-         (mem:M64BIT (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,R,R")))
+   [(set (match_operand:SM48BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM48BIT 
+           (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,R,R")))
    ]
    ""
    "
@@ -9919,7 +10525,7 @@
    rtx op1_ = gen_reg_rtx(SImode);
    rtx op0;
   
-   op0 = gen_reg_rtx(DImode);
+   op0 = gen_reg_rtx(<MODE>mode);
    pic30_managed_psv = 1;
    emit_insn(
      gen_movp24prog_gen(op2, operand1)                   /* copy pointer */
@@ -9949,8 +10555,91 @@
 }")
 
 (define_expand "P24PSVrd_<mode>"
-   [(set (match_operand:M64BIT 0 "pic30_move_operand" "=r,R,r,R")
-         (mem:M64BIT (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,R,R")))
+   [(set (match_operand:SM48BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM48BIT 
+           (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,R,R")))
+    (clobber (match_scratch:P24PSV 2 "=r,r,r,r"))
+    (clobber (match_scratch:QI 3 "=r,r,r,r"))
+   ]
+   ""
+   "
+{  rtx op2 = gen_reg_rtx(P24PSVmode);
+   rtx op3 = gen_reg_rtx(HImode);
+   rtx op1_ = gen_reg_rtx(SImode);
+   rtx op0;
+  
+   op0 = gen_reg_rtx(GET_MODE(operand0));
+   pic30_managed_psv = 1;
+   emit_insn(
+     gen_movp24psv_gen(op2, operand1)                   /* copy pointer */
+   );
+   emit_insn(
+     gen_copy_psv(op3)                                   /* preserve PSVPAG */
+   );
+   emit_insn(
+     gen_unpack_MPSV(op1_,op2)                           /* unpack PSV ptr */
+   );
+   emit_insn(
+     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
+   );
+   emit_insn(
+     gen_P24PSVread_<mode>(op0, 
+                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
+   );
+   emit_insn(
+     gen_set_psv(op3)                                    /* restore PSVPAG */
+   );
+   if (op0 != operand0) {
+     emit_insn(
+       gen_mov<mode>(operand0, op0)
+     );
+   }
+   DONE;
+}")
+
+(define_expand "P24PROGrd_<mode>"
+   [(set (match_operand:SM64BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM64BIT (match_operand:P24PROG 1 "pic30_psv_operand" "r,r,R,R")))
+   ]
+   ""
+   "
+{  rtx op2 = gen_reg_rtx(P24PROGmode);
+   rtx op3 = gen_reg_rtx(HImode);
+   rtx op1_ = gen_reg_rtx(SImode);
+   rtx op0;
+  
+   op0 = gen_reg_rtx(<MODE>mode);
+   pic30_managed_psv = 1;
+   emit_insn(
+     gen_movp24prog_gen(op2, operand1)                   /* copy pointer */
+   );
+   emit_insn(
+     gen_copy_psv(op3)                                   /* preserve PSVPAG */
+   );
+   emit_insn(
+     gen_unpack_MPROG(op1_,op2)                           /* unpack PSV ptr */
+   );
+   emit_insn(
+     gen_set_psv(gen_rtx_SUBREG(HImode, op1_, 2))        /* set PSVPAG */
+   );
+   emit_insn(
+     gen_P24PROGread_<mode>(op0, 
+                        gen_rtx_SUBREG(HImode, op1_, 0)) /* read value */
+   );
+   emit_insn(
+     gen_set_psv(op3)                                    /* restore PSVPAG */
+   );
+   if (op0 != operand0) {
+     emit_insn(
+       gen_mov<mode>(operand0, op0)
+     );
+   }
+   DONE;
+}")
+
+(define_expand "P24PSVrd_<mode>"
+   [(set (match_operand:SM64BIT 0 "pic30_move_operand" "=r,R,r,R")
+         (mem:SM64BIT (match_operand:P24PSV 1 "pic30_psv_operand" "r,r,R,R")))
     (clobber (match_scratch:P24PSV 2 "=r,r,r,r"))
     (clobber (match_scratch:QI 3 "=r,r,r,r"))
    ]
@@ -10059,145 +10748,10 @@
    DONE;
 }")
 
-(define_expand "P16PMPrd_hi"
-   [(set (match_operand:HI 0 "pic30_move_operand"       "=rR")
-         (mem:HI
+(define_expand "P16PMPrd_<mode>"
+   [(set (match_operand:SM16BIT 0 "pic30_move_operand"       "=rR")
+         (mem:SM16BIT
            (match_operand:P16PMP 1 "pic30_pmp_operand" "r")))]
-   ""
-   "
-{  rtx result = gen_reg_rtx(GET_MODE(operands[0]));
-   rtx addr;
-
-   addr = gen_reg_rtx(P16PMPmode);
-   if (GET_CODE(operands[1]) == SYMBOL_REF) {
-     emit_insn(
-       gen_movp16pmp_address(addr,operands[1])
-     );
-   } else {
-     emit_move_insn(addr,operands[1]);
-   }
-
-   emit_insn(
-     gen_set_PMADDR(addr)                               /* set up address */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_insn(
-     gen_get_PMDIN1hi(result)                           /* dummy read */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_insn(
-     gen_get_PMDIN1hi(result)                          /* real read */
-   );
-   emit_move_insn(operands[0],result);
-   DONE;
-}")
-
-(define_expand "P16PMPrd_p16apsv"
-   [(set (match_operand:P16APSV 0 "pic30_move_operand"       "=rR")
-         (mem:P16APSV
-           (match_operand:P16PMP 1 "pic30_pmp_operand" "r")))]
-   ""
-   "
-{  rtx result = gen_reg_rtx(GET_MODE(operands[0]));
-   rtx addr;
-
-   addr = gen_reg_rtx(P16PMPmode);
-   if (GET_CODE(operands[1]) == SYMBOL_REF) {
-     emit_insn(
-       gen_movp16pmp_address(addr,operands[1])
-     );
-   } else {
-     emit_move_insn(addr,operands[1]);
-   }
-
-   emit_insn(
-     gen_set_PMADDR(addr)                               /* set up address */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_insn(
-     gen_get_PMDIN1hi(gen_rtx_SUBREG(HImode,result,0)) /* dummy read */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_insn(
-     gen_get_PMDIN1hi(result)                          /* real read */
-   );
-   emit_move_insn(operands[0],result);
-   DONE;
-}")
-
-
-(define_expand "P16PMPwt_hi"
-   [(set (mem:HI (match_operand:P16PMP 0 "pic30_pmp_operand" "r"))
-         (match_operand:HI 1 "pic30_move_operand"       "rR"))]
-   ""
-   "
-{  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
-   rtx addr;
-
-   addr = gen_reg_rtx(P16PMPmode);
-   if (GET_CODE(operands[0]) == SYMBOL_REF) {
-     emit_insn(
-       gen_movp16pmp_address(addr,operands[0])
-     );
-   } else {
-     emit_move_insn(addr,operands[0]);
-   }
-
-   emit_insn(
-     gen_set_PMADDR(addr)                              /* set up address */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_move_insn(result,operands[1]);
-   emit_insn(
-     gen_set_PMDIN1hi(result)                          /* write */
-   );
-   DONE;
-}")
-
-(define_expand "P16PMPwt_p16apsv"
-   [(set (mem:P16APSV (match_operand:P16PMP 0 "pic30_pmp_operand" "r"))
-         (match_operand:P16APSV 1 "pic30_move_operand"       "rR"))]
-   ""
-   "
-{  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
-   rtx addr;
-
-   addr = gen_reg_rtx(P16PMPmode);
-   if (GET_CODE(operands[0]) == SYMBOL_REF) {
-     emit_insn(
-       gen_movp16pmp_address(addr,operands[0])
-     );
-   } else {
-     emit_move_insn(addr,operands[0]);
-   }
-
-   emit_insn(
-     gen_set_PMADDR(addr)                              /* set up address */
-   );
-   emit_insn(
-     gen_while_PMMODE_busy()
-   );
-   emit_move_insn(result,operands[1]);
-   emit_insn(
-     gen_set_PMDIN1hi(gen_rtx_SUBREG(HImode,result,0)) /* write */
-   );
-   DONE;
-}")
-
-(define_expand "P16PMPrd_p16pmp"
-   [(set (match_operand:P16PMP 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P16PMP
-           (match_operand:P16PMP 1 "pic30_pmp_operand" "r,r,RQ,ST,ST")))]
    ""
    "
 {  rtx result = gen_reg_rtx(GET_MODE(operands[0]));
@@ -10231,10 +10785,10 @@
    DONE;
 }")
 
-(define_expand "P16PMPwt_p16pmp"
-   [(set (mem:P16PMP 
-           (match_operand:P16PMP 0 "pic30_pmp_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P16PMP 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
+(define_expand "P16PMPwt_<mode>"
+   [(set (mem:SM16BIT 
+           (match_operand:P16PMP 0 "pic30_pmp_operand" "r"))
+         (match_operand:SM16BIT 1 "pic30_move_operand"       "rR"))]
    ""
    "
 {  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
@@ -10250,7 +10804,7 @@
    }
 
    emit_insn(
-     gen_set_PMADDR(addr)                               /* set up address */
+     gen_set_PMADDR(addr)                              /* set up address */
    );
    emit_insn(
      gen_while_PMMODE_busy()
@@ -10262,10 +10816,9 @@
    DONE;
 }")
 
-
 (define_expand "P16PMPrd_<mode>"
-   [(set (match_operand:M32BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:M32BIT
+   [(set (match_operand:SM32BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+         (mem:SM32BIT
            (match_operand:P16PMP 1 "pic30_pmp_operand" "r,r,RQ,ST,ST")))]
    ""
    "
@@ -10313,9 +10866,9 @@
 }")
 
 (define_expand "P16PMPwt_<mode>"
-   [(set (mem:M32BIT 
+   [(set (mem:SM32BIT 
            (match_operand:P16PMP 0 "pic30_pmp_operand" "r,r,RQ,ST,ST"))
-         (match_operand:M32BIT 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
+         (match_operand:SM32BIT 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
    ""
    "
 {  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
@@ -10356,8 +10909,119 @@
 }")
 
 (define_expand "P16PMPrd_<mode>"
-   [(set (match_operand:M64BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:M64BIT
+   [(set (match_operand:SM48BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+         (mem:SM48BIT
+           (match_operand:P16PMP 1 "pic30_pmp_operand" "r,r,RQ,ST,ST")))]
+   ""
+   "
+{  rtx result = gen_reg_rtx(GET_MODE(operands[0]));
+   rtx addr;
+
+   addr = gen_reg_rtx(P16PMPmode);
+   if (GET_CODE(operands[1]) == SYMBOL_REF) {
+     emit_insn(
+       gen_movp16pmp_address(addr,operands[1])
+     );
+   } else {
+     emit_move_insn(addr,operands[1]);
+   }
+
+   emit_insn(
+     gen_bitset_PMMODE(GEN_INT(11))                    /* set auto inc mode */
+   );
+   emit_insn(
+     gen_set_PMADDR(addr)                               /* set up address */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_get_PMDIN1hi(gen_rtx_SUBREG(HImode,result,0)) /* dummy read */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_get_PMDIN1hi(gen_rtx_SUBREG(HImode,result,0)) /* real read, pt1 */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_get_PMDIN1hi(gen_rtx_SUBREG(HImode,result,2)) /* real read, pt2 */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_get_PMDIN1hi(gen_rtx_SUBREG(HImode,result,4)) /* real read, pt3 */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_bitclr_PMMODE(GEN_INT(11))                    /* clr auto inc mode */
+   );
+   emit_move_insn(operands[0],result);
+   DONE;
+}")
+
+
+(define_expand "P16PMPwt_<mode>"
+   [(set (mem:SM48BIT
+           (match_operand:P16PMP 0 "pic30_pmp_operand" "r,r,RQ,ST,ST"))
+         (match_operand:SM48BIT 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
+   ""
+   "
+{  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
+   rtx addr;
+
+   addr = gen_reg_rtx(P16PMPmode);
+   if (GET_CODE(operands[0]) == SYMBOL_REF) {
+     emit_insn(
+       gen_movp16pmp_address(addr,operands[0])
+     );
+   } else {
+     emit_move_insn(addr,operands[0]);
+   }
+
+   emit_insn(
+     gen_set_PMADDR(addr)                               /* set up address */
+   );
+   emit_insn(
+     gen_bitset_PMMODE(GEN_INT(11))                    /* set auto inc mode */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_move_insn(result,operands[1]);
+   emit_insn(
+     gen_set_PMDIN1hi(gen_rtx_SUBREG(HImode,result,0)) /* write */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_set_PMDIN1hi(gen_rtx_SUBREG(HImode,result,2)) /* write */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_set_PMDIN1hi(gen_rtx_SUBREG(HImode,result,4)) /* write */
+   );
+   emit_insn(
+     gen_while_PMMODE_busy()
+   );
+   emit_insn(
+     gen_bitclr_PMMODE(GEN_INT(11))       /* clr auto increment mode */
+   );
+   DONE;
+}")
+
+(define_expand "P16PMPrd_<mode>"
+   [(set (match_operand:SM64BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+         (mem:SM64BIT
            (match_operand:P16PMP 1 "pic30_pmp_operand" "r,r,RQ,ST,ST")))]
    ""
    "
@@ -10418,9 +11082,9 @@
 
 
 (define_expand "P16PMPwt_<mode>"
-   [(set (mem:M64BIT
+   [(set (mem:SM64BIT
            (match_operand:P16PMP 0 "pic30_pmp_operand" "r,r,RQ,ST,ST"))
-         (match_operand:M64BIT 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
+         (match_operand:SM64BIT 1 "pic30_move_operand"       "=r,R,rR,r,R"))]
    ""
    "
 {  rtx result = gen_reg_rtx(GET_MODE(operands[1]));
@@ -10498,9 +11162,18 @@
   
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(1));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10541,9 +11214,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(1));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10558,8 +11240,8 @@
     }"
 )
 
-(define_mode_iterator EXT16BITRD [HI P16APSV P16PMP])
-(define_mode_iterator EXT16BITWT [HI P16APSV P16PMP])
+(define_mode_iterator EXT16BITRD [HI P16APSV P16PMP QQ HQ UQQ UHQ ])
+(define_mode_iterator EXT16BITWT [HI P16APSV P16PMP QQ HQ UQQ UHQ ])
 
 (define_expand "P32EXTrd_<mode>"
    [(set (match_operand:EXT16BITRD 0 "pic30_move_operand"       "=r,R,rR,r,R")
@@ -10583,9 +11265,18 @@
   
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(2));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        }
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10640,9 +11331,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(2));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit( 
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10678,9 +11378,171 @@
     }"
 )
 
-(define_expand "P32EXTrd_p24psv"
-   [(set (match_operand:P24PSV 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P24PSV
+;(define_expand "P32EXTrd_p24psv"
+;   [(set (match_operand:P24PSV 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:P24PSV
+;           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EXTmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_p24psv"
+;   [(set (mem:P24PSV 
+;           (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:P24PSV 1 "pic30_move_operand"  "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32EXTmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTrd_p24prog"
+;   [(set (match_operand:P24PROG 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:P24PROG
+;           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EXTmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_p24prog"
+;   [(set (mem:P24PROG 
+;           (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:P24PROG 1 "pic30_move_operand" "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32EXTmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+
+(define_expand "P32EXTrd_<mode>"
+   [(set (match_operand:SM32BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+         (mem:SM32BIT
            (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
    ""
    "{
@@ -10700,9 +11562,18 @@
 
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(4));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        }
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10712,15 +11583,15 @@
         DONE;
       } else {
         error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
+              \"\tdeclare __read_external or __read_external32\");
       }
     }"
 )
 
-(define_expand "P32EXTwt_p24psv"
-   [(set (mem:P24PSV 
+(define_expand "P32EXTwt_<mode>"
+   [(set (mem:SM32BIT 
            (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P24PSV 1 "pic30_move_operand"  "r,R,rR,r,R"))]
+         (match_operand:SM32BIT   1 "pic30_move_operand" "r,R,rR,r,R"))]
    ""
    "{
       if (pic30_write_externals(pst_32)) {
@@ -10743,9 +11614,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(4));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit( 
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10759,21 +11639,13 @@
     }"
 )
 
-(define_expand "P32EXTrd_p24prog"
-   [(set (match_operand:P24PROG 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P24PROG
+(define_expand "P32EXTrd_<mode>"
+   [(set (match_operand:SM48BIT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+         (mem:SM48BIT
            (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
    ""
    "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EXTmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
+      if (pic30_read_externals(pst_any)) {
         rtx input = gen_reg_rtx(P32EXTmode);
         rtx temp = assign_stack_temp(GET_MODE(operands[0]),
                                      GET_MODE_SIZE(GET_MODE(operands[0])), 0);
@@ -10781,8 +11653,18 @@
 
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
+        emit_move_insn(param3, GEN_INT(6));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
+        emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        }
         emit_move_insn(param2, XEXP(temp,0));
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
@@ -10793,29 +11675,17 @@
         DONE;
       } else {
         error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
+              \"\tdeclare __read_external or __read_external32\");
       }
     }"
 )
-
-(define_expand "P32EXTwt_p24prog"
-   [(set (mem:P24PROG 
+(define_expand "P32EXTwt_<mode>"
+   [(set (mem:SM48BIT 
            (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P24PROG 1 "pic30_move_operand" "r,R,rR,r,R"))]
+         (match_operand:SM48BIT   1 "pic30_move_operand" "r,R,rR,r,R"))]
    ""
    "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32EXTmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
+      if (pic30_write_externals(pst_any)) {
         rtx input = gen_reg_rtx(P32EXTmode);
         rtx temp = assign_stack_temp(GET_MODE(operands[1]),
                                      GET_MODE_SIZE(GET_MODE(operands[1])), 0);
@@ -10824,9 +11694,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
+        emit_move_insn(param3, GEN_INT(6));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit( 
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -10840,408 +11719,328 @@
     }"
 )
 
-(define_expand "P32EXTrd_si"
-   [(set (match_operand:SI 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:SI
-           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
-   ""
-   "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EXTmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
-                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
-        rtx param2,param3;
-
-        emit_move_insn(input, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        emit_move_insn(operands[0], temp);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __read_external or __read_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTwt_si"
-   [(set (mem:SI (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:SI 1 "pic30_move_operand"       "r,R,rR,r,R"))]
-   ""
-   "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32EXTmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
-                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
-        rtx param2,param3;
- 
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(temp, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTrd_p32eds"
-   [(set (match_operand:P32EDS 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P32EDS
-           (match_operand:P32EDS 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
-   ""
-   "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EDSmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EDSmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EDSmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
-                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
-        rtx param2,param3;
-
-        emit_move_insn(input, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EDSmode,
-                          param2, Pmode,
-                          param3, HImode);
-        emit_move_insn(operands[0], temp);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __read_external or __read_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTrd_p32peds"
-   [(set (match_operand:P32PEDS 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P32PEDS
-           (match_operand:P32PEDS 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
-   ""
-   "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32PEDSmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EDSmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32PEDSmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
-                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
-        rtx param2,param3;
-
-        emit_move_insn(input, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32PEDSmode,
-                          param2, Pmode,
-                          param3, HImode);
-        emit_move_insn(operands[0], temp);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __read_external or __read_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTrd_p32ext"
-   [(set (match_operand:P32EXT 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:P32EXT
-           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
-   ""
-   "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EXTmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
-                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
-        rtx param2,param3;
-
-        emit_move_insn(input, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        emit_move_insn(operands[0], temp);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __read_external or __read_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTwt_p32eds"
-   [(set (mem:P32EDS 
-           (match_operand:P32EDS 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P32EDS 1 "pic30_move_operand"  "r,R,rR,r,R"))]
-   ""
-   "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EDSmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32EDSmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EDSmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
-                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
-        rtx param2,param3;
- 
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(temp, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EDSmode,
-                          param2, Pmode,
-                          param3, HImode);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTwt_p32peds"
-   [(set (mem:P32PEDS 
-           (match_operand:P32PEDS 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P32PEDS 1 "pic30_move_operand"  "r,R,rR,r,R"))]
-   ""
-   "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32PEDSmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32PEDSmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32PEDSmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
-                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
-        rtx param2,param3;
- 
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(temp, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32PEDSmode,
-                          param2, Pmode,
-                          param3, HImode);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTwt_p32ext"
-   [(set (mem:P32EXT 
-           (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:P32EXT 1 "pic30_move_operand"  "r,R,rR,r,R"))]
-   ""
-   "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32EXTmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
-                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
-        rtx param2,param3;
- 
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(temp, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTrd_sf"
-   [(set (match_operand:SF 0 "pic30_move_operand"       "=r,R,rR,r,R")
-         (mem:SF
-           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
-   ""
-   "{
-      if (pic30_read_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-
-        emit_move_insn(input, operands[1]);
-        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
-                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
-                          input, P32EXTmode);
-        DONE;
-      } else if (pic30_read_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
-                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
-        rtx param2,param3;
-
-        emit_move_insn(input, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        emit_move_insn(operands[0], temp);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __read_external or __read_external32\");
-      }
-    }"
-)
-
-(define_expand "P32EXTwt_sf"
-   [(set (mem:SF (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
-         (match_operand:SF 1 "pic30_move_operand"            "r,R,rR,r,R"))]
-   ""
-   "{
-      if (pic30_write_externals(pst_32)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
-
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(input1, operands[1]);
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
-                          LCT_NORMAL, VOIDmode, 2,
-                          input, P32EXTmode,
-                          input1, GET_MODE(operands[1]));
-        DONE;
-      } else if (pic30_write_externals(pst_any)) {
-        rtx input = gen_reg_rtx(P32EXTmode);
-        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
-                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
-        rtx param2,param3;
- 
-        emit_move_insn(input, operands[0]);
-        emit_move_insn(temp, operands[1]);
-        param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
-        emit_move_insn(param2, XEXP(temp,0));
-        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
-                          LCT_NORMAL, GET_MODE(operands[0]), 3,
-                          input, P32EXTmode,
-                          param2, Pmode,
-                          param3, HImode);
-        DONE;
-      } else {
-        error(\"Cannot access external memory space;\n\"
-              \"\tdeclare __write_external or __write_external32\");
-      }
-    }"
-)
+;(define_expand "P32EXTrd_p32eds"
+;   [(set (match_operand:P32EDS 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:P32EDS
+;           (match_operand:P32EDS 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EDSmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EDSmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EDSmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EDSmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __read_external or __read_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTrd_p32peds"
+;   [(set (match_operand:P32PEDS 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:P32PEDS
+;           (match_operand:P32PEDS 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32PEDSmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EDSmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32PEDSmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32PEDSmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __read_external or __read_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTrd_p32ext"
+;   [(set (match_operand:P32EXT 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:P32EXT
+;           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EXTmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __read_external or __read_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_p32eds"
+;   [(set (mem:P32EDS 
+;           (match_operand:P32EDS 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:P32EDS 1 "pic30_move_operand"  "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EDSmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32EDSmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EDSmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EDSmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_p32peds"
+;   [(set (mem:P32PEDS 
+;           (match_operand:P32PEDS 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:P32PEDS 1 "pic30_move_operand"  "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32PEDSmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32PEDSmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32PEDSmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32PEDSmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_p32ext"
+;   [(set (mem:P32EXT 
+;           (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:P32EXT 1 "pic30_move_operand"  "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32EXTmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTrd_sf"
+;   [(set (match_operand:SF 0 "pic30_move_operand"       "=r,R,rR,r,R")
+;         (mem:SF
+;           (match_operand:P32EXT 1 "pic30_ext_operand" "r,r,RQ,ST,ST")))]
+;   ""
+;   "{
+;      if (pic30_read_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;
+;        emit_move_insn(input, operands[1]);
+;        emit_library_call_value(XEXP(DECL_RTL(pic30_read_externals(pst_32)),0),
+;                          operands[0], LCT_NORMAL, GET_MODE(operands[0]), 1,
+;                          input, P32EXTmode);
+;        DONE;
+;      } else if (pic30_read_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[0]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[0])), 0);
+;        rtx param2,param3;
+;
+;        emit_move_insn(input, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        emit_move_insn(operands[0], temp);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __read_external or __read_external32\");
+;      }
+;    }"
+;)
+;
+;(define_expand "P32EXTwt_sf"
+;   [(set (mem:SF (match_operand:P32EXT 0 "pic30_ext_operand" "r,r,RQ,ST,ST"))
+;         (match_operand:SF 1 "pic30_move_operand"            "r,R,rR,r,R"))]
+;   ""
+;   "{
+;      if (pic30_write_externals(pst_32)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx input1 = gen_reg_rtx(GET_MODE(operands[1]));
+;
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(input1, operands[1]);
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_32)),0),
+;                          LCT_NORMAL, VOIDmode, 2,
+;                          input, P32EXTmode,
+;                          input1, GET_MODE(operands[1]));
+;        DONE;
+;      } else if (pic30_write_externals(pst_any)) {
+;        rtx input = gen_reg_rtx(P32EXTmode);
+;        rtx temp = assign_stack_temp(GET_MODE(operands[1]),
+;                                     GET_MODE_SIZE(GET_MODE(operands[1])), 0);
+;        rtx param2,param3;
+; 
+;        emit_move_insn(input, operands[0]);
+;        emit_move_insn(temp, operands[1]);
+;        param3 = gen_reg_rtx(HImode);
+;        param2 = gen_reg_rtx(Pmode);
+;        emit_move_insn(param3, GEN_INT(4));
+;        emit_move_insn(param2, XEXP(temp,0));
+;        emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
+;                          LCT_NORMAL, GET_MODE(operands[0]), 3,
+;                          input, P32EXTmode,
+;                          param2, Pmode,
+;                          param3, HImode);
+;        DONE;
+;      } else {
+;        error(\"Cannot access external memory space;\n\"
+;              \"\tdeclare __write_external or __write_external32\");
+;      }
+;    }"
+;)
 
 (define_expand "P32EXTrd_di"
    [(set (match_operand:DI 0 "pic30_move_operand"       "=r,R,rR,r,R")
@@ -11265,9 +12064,18 @@
 
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(8));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        }
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -11307,9 +12115,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(8));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit( 
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -11345,9 +12162,18 @@
 
         emit_move_insn(input, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
-        emit_move_insn(param3, GEN_INT(4));
+        emit_move_insn(param3, GEN_INT(8));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit(
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        }
         emit_library_call(XEXP(DECL_RTL(pic30_read_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -11387,9 +12213,18 @@
         emit_move_insn(input, operands[0]);
         emit_move_insn(temp, operands[1]);
         param3 = gen_reg_rtx(HImode);
-        param2 = gen_reg_rtx(Pmode);
         emit_move_insn(param3, GEN_INT(8));
+        param2 = gen_reg_rtx(machine_Pmode);
+        // if we are in UMM mode, stack slots have a HImode and we need
+        //   to promote it to a full blown UMM reg
         emit_move_insn(param2, XEXP(temp,0));
+        if (GET_MODE(XEXP(temp,0)) != Pmode) {
+           rtx param2a = gen_reg_rtx(Pmode);
+           emit( 
+             gen_zero_extendhip32umm2(param2a, param2)
+           );
+           param2 = param2a;
+        } 
         emit_library_call(XEXP(DECL_RTL(pic30_write_externals(pst_any)),0),
                           LCT_NORMAL, GET_MODE(operands[0]), 3,
                           input, P32EXTmode,
@@ -11444,8 +12279,10 @@
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
      default:
-                  fprintf(stderr, \"Unknown mode: %s\n\",
-                          mode_name[GET_MODE(op0)]);
+/*
+ *                 fprintf(stderr, \"Unknown mode:P32EDSrd: %s\n\",
+ *                         mode_name[GET_MODE(op0)]);
+ */
                   FAIL;
      case QImode: fn = gen_P32EDSread_qi;
                   break;
@@ -11483,6 +12320,53 @@
                   unpack=1;
                   break;
      case P32PEDSmode: fn = gen_P32EDSread_p32peds;
+                  unpack=1;
+                  break;
+     /* Fractional modes */
+     case QQmode: fn = gen_P32EDSread_qq;
+                  break;
+     case HQmode: fn = gen_P32EDSread_hq;
+                  break;
+     case SQmode: fn = gen_P32EDSread_sq;
+                  unpack=1;
+                  break;
+     case DQmode: fn = gen_P32EDSread_dq;
+                  unpack=1;
+                  break;
+     case TQmode: fn = gen_P32EDSread_tq;
+                  unpack=1;
+                  break;
+     case USQmode: fn = gen_P32EDSread_usq;
+                  unpack=1;
+                  break;
+     case UDQmode: fn = gen_P32EDSread_udq;
+                  unpack=1;
+                  break;
+     case UTQmode: fn = gen_P32EDSread_utq;
+                  unpack=1;
+                  break;
+     case HAmode: fn = gen_P32EDSread_ha;
+                  unpack=1;
+                  break;
+     case SAmode: fn = gen_P32EDSread_sa;
+                  unpack=1;
+                  break;
+     case DAmode: fn = gen_P32EDSread_da;
+                  unpack=1;
+                  break;
+     case TAmode: fn = gen_P32EDSread_ta;
+                  unpack=1;
+                  break;
+     case UHAmode: fn = gen_P32EDSread_uha;
+                  unpack=1;
+                  break;
+     case USAmode: fn = gen_P32EDSread_usa;
+                  unpack=1;
+                  break;
+     case UDAmode: fn = gen_P32EDSread_uda;
+                  unpack=1;
+                  break;
+     case UTAmode: fn = gen_P32EDSread_uta;
                   unpack=1;
                   break;
    }
@@ -11626,8 +12510,10 @@
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
      default:
-                  fprintf(stderr, \"Unknown mode: %s\n\",
-                          mode_name[GET_MODE(op0)]);
+/*
+ *                 fprintf(stderr, \"Unknown mode:P32PEDSrd: %s\n\",
+ *                         mode_name[GET_MODE(op0)]);
+ */
                   FAIL;
      case QImode: fn = gen_P32PEDSread_qi;
                   break;
@@ -11655,6 +12541,40 @@
                   break;
      case P32PEDSmode: fn = gen_P32PEDSread_p32peds;
                   break;
+     /* Fractional modes */
+     case QQmode: fn = gen_P32PEDSread_qq;
+                  break;
+     case HQmode: fn = gen_P32PEDSread_hq;
+                  break;
+     case SQmode: fn = gen_P32PEDSread_sq;
+                  break;
+     case DQmode: fn = gen_P32PEDSread_dq;
+                  break;
+     case TQmode: fn = gen_P32PEDSread_tq;
+                  break;
+     case USQmode: fn = gen_P32PEDSread_usq;
+                  break;
+     case UDQmode: fn = gen_P32PEDSread_udq;
+                  break;
+     case UTQmode: fn = gen_P32PEDSread_utq;
+                  break;
+     case HAmode: fn = gen_P32PEDSread_ha;
+                  break;
+     case SAmode: fn = gen_P32PEDSread_sa;
+                  break;
+     case DAmode: fn = gen_P32PEDSread_da;
+                  break;
+     case TAmode: fn = gen_P32PEDSread_ta;
+                  break;
+     case UHAmode: fn = gen_P32PEDSread_uha;
+                  break;
+     case USAmode: fn = gen_P32PEDSread_usa;
+                  break;
+     case UDAmode: fn = gen_P32PEDSread_uda;
+                  break;
+     case UTAmode: fn = gen_P32PEDSread_uta;
+                  break;
+
    }
    if (!pic30_mode2_operand(op0, GET_MODE(op0))) {
      op0 = gen_reg_rtx(GET_MODE(op0));
@@ -11670,12 +12590,12 @@
        case HImode:
          no_copy = 1;
          op2 = XEXP(op1,0);
-         fn = gen_P32PEDSuread_hi;
+         fn = gen_P32PEDSread_hi;
          break;
        case P32PEDSmode:
          no_copy = 1;
          op2 = XEXP(op1,0);
-         fn = gen_P32PEDSuread_p32peds;
+         fn = gen_P32PEDSread_p32peds;
          break;
        default:
          emit_insn(
@@ -11691,12 +12611,12 @@
          case HImode:
            no_copy = 1;
            op2 = XEXP(op1,0);
-           fn = gen_P32PEDSuread_hi;
+           fn = gen_P32PEDSread_hi;
            break;
          case P32PEDSmode:
            no_copy = 1;
            op2 = XEXP(op1,0);
-           fn = gen_P32PEDSuread_p32peds;
+           fn = gen_P32PEDSread_p32peds;
            break;
          default:
            emit_insn(
@@ -11716,6 +12636,7 @@
        emit_insn(
          gen_movEDS_address_offset(offset, opnd)   /* create pointer */
        );
+       offset = gen_rtx_MEM(GET_MODE(op1),offset);
        emit_insn(
          gen_movpag(XEXP(op1,0), GEN_INT(0))
        );
@@ -11744,7 +12665,8 @@
              gen_set_unpsv(op2)                               /* set PSVPAG */
            );
          }
-         offset = operands[1];
+         // operands[1] == MEM:mode (P32PEDS)
+         offset = gen_rtx_MEM(GET_MODE(op1),gen_rtx_SUBREG(HImode,op2,0));
        } else {
          emit_insn(
            gen_P32PEDSumovpage(page,op2)
@@ -11795,8 +12717,10 @@
         write */
      switch (GET_MODE(op0)) {
        default:
-                    fprintf(stderr, \"Unknown mode: %s\n\",
-                            mode_name[GET_MODE(op0)]);
+/*
+ *                   fprintf(stderr, \"Unknown mode:P32EDSwt: %s\n\",
+ *                           mode_name[GET_MODE(op0)]);
+ */
                     FAIL;
        case QImode: fn = gen_movqi;
                     break;
@@ -11824,6 +12748,40 @@
                     break;
        case P32PEDSmode: fn = gen_movp32peds;
                     break;
+       /* Fractional modes */
+       case QQmode: fn = gen_movqq;
+                    break;
+       case HQmode: fn = gen_movhq;
+                    break;
+       case SQmode: fn = gen_movsq;
+                    break;
+       case DQmode: fn = gen_movdq;
+                    break;
+       case TQmode: fn = gen_movtq;
+                    break;
+       case USQmode: fn = gen_movusq;
+                    break;
+       case UDQmode: fn = gen_movudq;
+                    break;
+       case UTQmode: fn = gen_movutq;
+                    break;
+       case HAmode: fn = gen_movha;
+                    break;
+       case SAmode: fn = gen_movsa;
+                    break;
+       case DAmode: fn = gen_movda;
+                    break;
+       case TAmode: fn = gen_movta;
+                    break;
+       case UHAmode: fn = gen_movuha;
+                    break;
+       case USAmode: fn = gen_movusa;
+                    break;
+       case UDAmode: fn = gen_movuda;
+                    break;
+       case UTAmode: fn = gen_movuta;
+                    break;
+
      }
 
      if (fn(gen_rtx_MEM(GET_MODE(op0),
@@ -11835,8 +12793,10 @@
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
      default:
-                  fprintf(stderr, \"Unknown mode: %s\n\",
-                          mode_name[GET_MODE(op0)]);
+/*
+ *                 fprintf(stderr, \"Unknown mode:P32EDSwt(2): %s\n\",
+ *                         mode_name[GET_MODE(op0)]);
+ */
                   FAIL;
      case QImode: fn = gen_P32EDSwrite_qi;
                   break;
@@ -11874,6 +12834,54 @@
      case P32PEDSmode: fn = gen_P32EDSwrite_p32peds;
                   unpack=1;
                   break;
+     /* Fractional modes */
+     case QQmode: fn = gen_P32EDSwrite_qq;
+                  break;
+     case HQmode: fn = gen_P32EDSwrite_hq;
+                  break;
+     case SQmode: fn = gen_P32EDSwrite_sq;
+                  unpack=1;
+                  break;
+     case DQmode: fn = gen_P32EDSwrite_dq;
+                  unpack=1;
+                  break;
+     case TQmode: fn = gen_P32EDSwrite_tq;
+                  unpack=1;
+                  break;
+     case USQmode: fn = gen_P32EDSwrite_usq;
+                  unpack=1;
+                  break;
+     case UDQmode: fn = gen_P32EDSwrite_udq;
+                  unpack=1;
+                  break;
+     case UTQmode: fn = gen_P32EDSwrite_utq;
+                  unpack=1;
+                  break;
+     case HAmode: fn = gen_P32EDSwrite_ha;
+                  unpack=1;
+                  break;
+     case SAmode: fn = gen_P32EDSwrite_sa;
+                  unpack=1;
+                  break;
+     case DAmode: fn = gen_P32EDSwrite_da;
+                  unpack=1;
+                  break;
+     case TAmode: fn = gen_P32EDSwrite_ta;
+                  unpack=1;
+                  break;
+     case UHAmode: fn = gen_P32EDSwrite_uha;
+                  unpack=1;
+                  break;
+     case USAmode: fn = gen_P32EDSwrite_usa;
+                  unpack=1;
+                  break;
+     case UDAmode: fn = gen_P32EDSwrite_uda;
+                  unpack=1;
+                  break;
+     case UTAmode: fn = gen_P32EDSwrite_uta;
+                  unpack=1;
+                  break;
+
    }
    if (!pic30_mode2_operand(op1, GET_MODE(op1))) {
      op1 = gen_reg_rtx(GET_MODE(op1));
@@ -11961,8 +12969,10 @@
    if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
    switch (GET_MODE(op0)) {
      default:
-                  fprintf(stderr, \"Unknown mode: %s\n\", 
-                          mode_name[GET_MODE(op0)]);
+/*
+ *                 fprintf(stderr, \"Unknown mode:P32PEDSwt: %s\n\", 
+ *                         mode_name[GET_MODE(op0)]);
+ */
                   FAIL;
      case QImode: fn = gen_P32PEDSwrite_qi;
                   break;
@@ -11990,6 +13000,40 @@
                   break;
      case P32PEDSmode: fn = gen_P32PEDSwrite_p32peds;
                   break;
+     /* Fractional modes */
+     case QQmode: fn = gen_P32PEDSwrite_qq;
+                  break;
+     case HQmode: fn = gen_P32PEDSwrite_hq;
+                  break;
+     case SQmode: fn = gen_P32PEDSwrite_sq;
+                  break;
+     case DQmode: fn = gen_P32PEDSwrite_dq;
+                  break;
+     case TQmode: fn = gen_P32PEDSwrite_tq;
+                  break;
+     case USQmode: fn = gen_P32PEDSwrite_usq;
+                  break;
+     case UDQmode: fn = gen_P32PEDSwrite_udq;
+                  break;
+     case UTQmode: fn = gen_P32PEDSwrite_utq;
+                  break;
+     case HAmode: fn = gen_P32PEDSwrite_ha;
+                  break;
+     case SAmode: fn = gen_P32PEDSwrite_sa;
+                  break;
+     case DAmode: fn = gen_P32PEDSwrite_da;
+                  break;
+     case TAmode: fn = gen_P32PEDSwrite_ta;
+                  break;
+     case UHAmode: fn = gen_P32PEDSwrite_uha;
+                  break;
+     case USAmode: fn = gen_P32PEDSwrite_usa;
+                  break;
+     case UDAmode: fn = gen_P32PEDSwrite_uda;
+                  break;
+     case UTAmode: fn = gen_P32PEDSwrite_uta;
+                  break;
+
    }
    if (!pic30_mode2_operand(op1, GET_MODE(op1))) {
      op1 = gen_reg_rtx(GET_MODE(op1));
@@ -12009,15 +13053,15 @@
        switch (GET_MODE(op1)) {
          case HImode:
            op2 = XEXP(op0,0);
-           fn = gen_P32PEDSuwrite_hi;
+           fn = gen_P32PEDSwrite_hi;
            break;
          case P32EDSmode:
            op2 = XEXP(op0,0);
-           fn = gen_P32PEDSuwrite_p32eds;
+           fn = gen_P32PEDSwrite_p32eds;
            break;
          case P32PEDSmode:
            op2 = XEXP(op0,0);
-           fn = gen_P32PEDSuwrite_p32peds;
+           fn = gen_P32PEDSwrite_p32peds;
            break;
          default:
            emit_insn(
@@ -12094,6 +13138,2889 @@
 
 ;; unified 
 
+;; read/write pointer will handle the full pointer value
+
+(define_insn "p32umm_offset"
+ [(set (match_operand:HI       0 "pic30_register_operand"       "=r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+ ]
+ "(TARGET_EDS)"
+ "@
+  rrnc %1,%0
+  mov #edsoffset(%1),%0"
+)
+
+(define_insn "p32umm_readpointer"
+ [(set (match_operand:HI       0 "pic30_register_operand"       "=r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  (set (reg:HI PSVPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+ ]
+ "(TARGET_EDS)"
+ "@
+  mov %d1,%u0\;rrnc %1,%0
+  mov #unified_hi(%1),%0\;mov %0,%u0\;mov #edsoffset(%1),%0"
+)
+
+(define_insn "p32umm_writepointer"
+ [(set (match_operand:HI       0 "pic30_register_operand"       "=r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  (set (reg:HI DSWPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+ ]
+ "(TARGET_EDS)"
+ "*
+  if (pic30_ecore_target()||pic30_isav4_target()) {
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:
+        return \"mov %d1,DSWPAG\;\"
+               \"rrnc %1,%0\";
+      case 1:
+        return \"mov #unified_hi(%1),%0\;\"
+               \"mov %0,DSWPAG\;\"
+               \"mov #edsoffset(%1),%0\";
+    }
+  } else {
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:
+        return \"rrnc %1,%0\";
+      case 1:
+        return \"mov #edsoffset(%1),%0\";
+    }
+  }"
+)
+
+(define_insn "p32umm_rwpointer"
+ [(set (match_operand:HI       0 "pic30_register_operand"       "=r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  (set (reg:HI PSVPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+  (set (reg:HI DSWPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+ ]
+ "(TARGET_EDS)"
+ "*
+  if (pic30_ecore_target()||pic30_isav4_target()) {
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:
+        return \"mov %d1,DSWPAG\;\"
+               \"mov %d1,%u0\;\"
+               \"rrnc %1,%0\";
+      case 1:
+        return \"mov #unified_hi(%1),%0\;\"
+               \"mov %0,DSWPAG\;\"
+               \"mov %0,%u0\;\"
+               \"mov #edsoffset(%1),%0\";
+    }
+  } else {
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:
+        return \"mov %d1,%u0\;\"
+               \"rrnc %1,%0\";
+      case 1:
+        return \"mov #unified_hi(%1),%0\;\"
+               \"mov %0,%u0\;\"
+               \"mov #edsoffset(%1),%0\";
+    }
+  }"
+)
+
+; as above, but with a MEM
+
+(define_insn "p32umm_offsetmem"
+ [(set (match_operand:HI       0 "pic30_register_operand" "=r,  r,r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_mem_umm_operand"  " R<>,Q,S,Um")))
+ ]
+ "(TARGET_EDS)"
+ "*
+  { static char buffer[256]; 
+    rtx mem_inner = XEXP(operands[1],0);
+    int val;
+    char *op;
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  /* R<> */
+               return \";rrnc %r1,%0\";
+      case 1:  /* Q */ 
+               val = INTVAL(XEXP(mem_inner,1));
+               op = (val >= 0) ? \"add\" : \"sub\";
+               if (val < 0) val = -val;
+               sprintf(buffer,
+                      \"rrnc %%r1,%%0\;\"
+                      \"%s #%d,%%0\", op, val);
+               return buffer;
+      case 2:  /* S */
+               sprintf(buffer,
+                      \"add %%r1,w%d,%%0\;\"
+                      \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+               return buffer;
+      case 3:  /* UT */
+               return 
+                      \"mov #edsoffset(%1),%0\";
+    }
+  }"
+)
+
+(define_insn "p32umm_updateoffset"
+ [(set (match_operand:P32UMM 0 "pic30_register_operand"  "+r")
+       (unspec:P32UMM [
+          (match_operand:HI  1 "pic30_register_operand"   "r")
+        ] UNSPEC_UMMOFFSET))
+ ]
+ "(TARGET_EDS)"
+ "rlnc %1,%0"
+)
+
+(define_insn "p32umm_readmem"
+ [(set (match_operand:HI       0 "pic30_register_operand" "=r,  r, r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_mem_umm_operand"  " R<>,Q, S,qm")))
+  (set (reg:HI PSVPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+  (clobber (match_scratch:HI   2                          "=X, &r,&r,X"))
+ ]
+ "(TARGET_EDS)"
+ "*
+  { static char buffer[256]; 
+    rtx mem_inner = XEXP(operands[1],0);
+    int val;
+    char *op,*op2;
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  /* R<> */
+               if (pic30_extended_ram_target()) {
+                 /* page == 0, pre-init to 1 */
+                 return \"mov %T1,%u0\;\"
+                        \"btss %r1,#0\;\"
+                        \"inc %u0\;\"
+                        \"rrnc %r1,%0\";
+               } else {
+                 return \"mov %T1,%u0\;rrnc %r1,%0\";
+               }
+      case 1:  /* Q */ 
+               val = INTVAL(XEXP(mem_inner,1));
+               op = (val >= 0) ? \"add\" : \"sub\";
+               op2 = (val >= 0) ? \"addc\" : \"subb\";
+               if (val < 0) val = -val;
+               if (pic30_extended_ram_target()) {
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"bset _SR,#1\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"bset _SR,#1\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                 }
+               } else {
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"mov %%2,%%u0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                 }
+               } 
+               return buffer;
+      case 2:  /* S */
+               if (pic30_extended_ram_target()) {
+                 sprintf(buffer,
+                         \"add %%r1,w%d,%%0\;\"
+                         \"bclr %%0,#0\;\"
+                         \"bset _SR,#1\;\"
+                         \"addc %%T1,w%d,%%2\;\"
+                         \"btss _SR,#1\;\"
+                         \"bset %%0,#0\;\"
+                         \"btsc _SR,#1\;\"
+                         \"inc %%2,%%2\;\"
+                         \"mov %%2,%%u0\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)), 
+                                           REGNO(XEXP(mem_inner,1))+1);
+               } else {
+                 sprintf(buffer,
+                         \"add %%r1,w%d,%%0\;\"
+                         \"bclr %%0,#0\;\"
+                         \"bset _SR,#1\;\"
+                         \"addc %%T1,w%d,%%2\;\"
+                         \"btss _SR,#1\;\"
+                         \"bset %%0,#0\;\"
+                         \"mov %%2,%%u0\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)), 
+                                           REGNO(XEXP(mem_inner,1))+1);
+               }
+               return buffer;
+      case 3:  /* UT */
+               return \"mov #unified_hi(%1),%0\;\"
+                      \"mov %0,%u0\;\"
+                      \"mov #edsoffset(%1),%0\";
+    }
+  }"
+)
+
+(define_insn "p32umm_writemem"
+ [(set (match_operand:HI       0 "pic30_register_operand" "=r,  r,r,r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_mem_umm_operand"  " R<>,Q,S,U,qm")))
+  (set (reg:HI DSWPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+  (clobber (match_scratch:HI   2                          "=X, &r,&r,X,X"))
+ ]
+ "(TARGET_EDS)"
+ "*
+  { static char buffer[256]; 
+    rtx mem_inner = XEXP(operands[1],0);
+    int val;
+    char *op,*op2;
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  /* R<> */
+               if (pic30_extended_ram_target()) {
+                 return \"mov %T1,DSWPAG\;\"
+                        \"btss %r1,#0\;\"
+                        \"inc %u0\;\"
+                        \"rrnc %r1,%0\";
+               } else {
+                  return \"rrnc %r1,%0\";
+               }
+      case 1:  /* Q */
+               val = INTVAL(XEXP(mem_inner,1));
+               op = (val >= 0) ? \"add\" : \"sub\";
+               op2 = (val >= 0) ? \"addc\" : \"subb\";
+               if (val < 0) val = -val;
+               if (pic30_extended_ram_target()) {
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"bset _SR,#1\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2, op2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"bset _SR,#1\;\"
+                           \"%s %%T1,#0,%%2\;\"
+                           \"btsc _SR,#1\;\"
+                           \"inc %%2,%%2\;\"
+                           \"mov %%2,DSWPAG\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op, op2);
+                 }
+               } else {
+                 if ((val * 2) < 31) {
+                   sprintf(buffer,
+                           \"%s %%r1,#%d,%%0\;\"
+                           \"rrnc %%0,%%0\;\", op, val*2);
+                 } else {
+                   sprintf(buffer,
+                           \"mov #%d,%%2\;\"
+                           \"%s %%r1,%%2,%%0\;\"
+                           \"rrnc %%0,%%0\;\", val*2, op);
+                 }
+               } 
+               return buffer;
+      case 2:  /* S */
+               if (pic30_extended_ram_target()) {
+                 sprintf(buffer,
+                         \"add %%r1,w%d,%%0\;\"
+                         \"bclr %%0,#0\;\"
+                         \"bset _SR,#1\;\"
+                         \"addc %%T1,w%d,%%2\;\"
+                         \"btss _SR,#1\;\"
+                         \"bset %%0,#0\;\"
+                         \"btsc _SR,#1\;\"
+                         \"inc %%2,%%2\;\"
+                         \"mov %%2,DSWPAG\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)),
+                                           REGNO(XEXP(mem_inner,1))+1);
+               } else {
+                 sprintf(buffer,
+                         \"add %%r1,w%d,%%0\;\"
+                         \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+               }
+               return buffer;
+      case 3:  /* U */
+               return \"mov #edsoffset(%1),%0\";
+      case 4:  /* T */
+               if (pic30_extended_ram_target()) {
+                 return \"mov #unified_hi(%1),%0\;\"
+                        \"mov %0,DSWPAG\;\"
+                        \"mov #edsoffset(%1),%0\";
+               } else {
+                 return \"mov #edsoffset(%1),%0\";
+               }
+    }
+  }"
+)
+(define_insn "p32umm_rwmem"
+ [(set (match_operand:HI       0 "pic30_register_operand" "=r,  r,r,r,r")
+       (utrunc:HI
+         (match_operand:P32UMM 1 "pic30_mem_umm_operand"  " R<>,Q,S,U,m")))
+  (set (reg:HI PSVPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+  (set (reg:HI DSWPAG)
+         (unspec_volatile:HI [
+            (match_dup 1)
+          ] UNSPEC_UMMPAGE))
+ ]
+ "(TARGET_EDS)"
+ "*
+  { static char buffer[256]; 
+    rtx mem_inner = XEXP(operands[1],0);
+    int val;
+    char *op;
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  /* R<> */
+               if (pic30_eds_target()) {
+                 return \"mov %T1,%u0\;\"
+                        \"mov %T1,DSWPAG\;\"
+                        \"rrnc %r1,%0\";
+               } else {
+                 return \"mov %T1,%u0\;\"
+                        \"rrnc %r1,%0\";
+               }
+      case 1:  /* Q */
+               val = INTVAL(XEXP(mem_inner,1));
+               op = (val >= 0) ? \"add\" : \"sub\";
+               if (val < 0) val = -val;
+               if (pic30_eds_target()) {
+                 sprintf(buffer,
+                        \"mov %%T1,%%u0\;\"
+                        \"mov %%T1,DSWPAG\;\"
+                        \"mov %%T1,%%u0\;\"
+                        \"rrnc %%r1,%%0\;\"
+                        \"%s #%d,%%0\", op, val);
+               } else {
+                 sprintf(buffer,
+                        \"mov %%T1,%%u0\;\"
+                        \"mov %%T1,%%u0\;\"
+                        \"rrnc %%r1,%%0\;\"
+                        \"%s #%d,%%0\", op, val);
+               }
+               return buffer;
+      case 2:  /* S */
+               if (pic30_eds_target()) {
+                 sprintf(buffer,
+                        \"mov %%T1,%%u0\;\"
+                        \"mov %%T1,DSWPAG\;\"
+                        \"add %%r1,w%d,%%0\;\"
+                        \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+               } else {
+                 sprintf(buffer,
+                        \"mov %%T1,%%u0\;\"
+                        \"add %%r1,w%d,%%0\;\"
+                        \"rrnc %%0,%%0\", REGNO(XEXP(mem_inner,1)));
+               }
+               return buffer;
+      case 3:  /* U */
+               return \"mov #unified_hi(%1),%0\;\"
+                      \"mov %0,%u0\;\"
+                      \"mov #edsoffset(%1),%0\";
+      case 4:  /* T */
+               if (pic30_eds_target()) {
+                 return \"mov #unified_hi(%1),%0\;\"
+                        \"mov %0,DSWPAG\;\"
+                        \"mov %0,%u0\;\"
+                        \"mov #edsoffset(%1),%0\";
+               } else {
+                 return \"mov #unified_hi(%1),%0\;\"
+                        \"mov %0,%u0\;\"
+                        \"mov #edsoffset(%1),%0\";
+               }
+    }
+  }"
+)
+
+;; unified conversions
+;;   these require shifting so that we can form a correct integer to 
+;;   add
+
+(define_insn "zero_extendqip32umm2"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"      "=r,r")
+        (uextend:P32UMM 
+          (match_operand:QI 1 "pic30_reg_or_symbolic_address" " r,qs")))
+  ]
+  ""
+  "@
+   ze %1,%0\;mul.uu %0,#2,%0
+   mov #unified_lo(%1), %0\;mov #unified_hi(%1), %d0"
+  [
+    (set_attr "type" "def")
+  ]
+)   
+
+(define_insn "zero_extendhip32umm2"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"      "=r,r")
+        (uextend:P32UMM 
+          (match_operand:HI 1 "pic30_reg_or_symbolic_address" " r,qs")))
+  ]
+  ""
+  "@
+   mul.uu %1,#2,%0
+   mov #unified_lo(%1), %0\;mov #unified_hi(%1), %d0"
+  [
+    (set_attr "type" "def")
+  ]
+)   
+
+(define_insn "zero_extendsip32umm2"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"   "=r")
+        (uextend:P32UMM
+          (match_operand:SI 1 "pic30_register_operand"      "r")))
+  ]
+  ""
+  "sl %1,%0\;rlc %d1,%d0"
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ] 
+)
+
+(define_insn "zero_extenddip32umm2"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand"   "=r")
+        (uextend:P32UMM
+          (match_operand:DI 1 "pic30_register_operand"      "r")))
+  ]
+  ""
+  "sl %1,%0\;rlc %d1,%d0"
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32ummp32eds2"
+  [(set (match_operand:P32EDS   0 "pic30_register_operand"       "=r,r,r")
+        (uextend:P32EDS
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "0,r,qs")))
+  ]
+  ""
+  "@
+   rrnc %0,%0
+   rrnc %1,%0\;mov %d1,%d0
+   mov #edsoffset(%1),%0\;mov #edspage(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32ummp32peds2"
+  [(set (match_operand:P32PEDS  0 "pic30_register_operand"       "=r,r,r")
+        (uextend:P32PEDS
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "0,r,qs")))
+  ]
+  ""
+  "@
+   rrnc %0,%0
+   rrnc %1,%0\;mov %d1,%d0
+   mov #edsoffset(%1),%0\;mov #edspage(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32edsp32umm2"
+  [(set (match_operand:P32UMM   0 "pic30_register_operand"       "=r,r,r")
+        (uextend:P32UMM
+          (match_operand:P32EDS 1 "pic30_reg_or_symbolic_address" "0,r,qs")))
+  ]
+  ""
+  "@
+   rlnc %0,%0
+   rlnc %1,%0\;mov %d1,%d0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32pedsp32umm2"
+  [(set (match_operand:P32UMM    0 "pic30_register_operand"       "=r,r,r")
+        (uextend:P32UMM
+          (match_operand:P32PEDS 1 "pic30_reg_or_symbolic_address" "0,r,qs")))
+  ]
+  ""
+  "@
+   rlnc %0,%0
+   rlnc %1,%0\;mov %d1,%d0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32ummdi2"
+  [(set (match_operand:DI       0 "pic30_register_operand"       "=r,r")
+        (uextend:DI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  ]
+  ""
+  "@
+   mul.uu %q0,#0,%q0\;asr %d1,%d0\;rrc %1,%0
+   mul.uu %q0,#0,%q0\;mov #addr_lo(%1),%0\;mov #addr_hi(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32ummsi2"
+  [(set (match_operand:SI       0 "pic30_register_operand"       "=r,r")
+        (uextend:SI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  ]
+  ""
+  "@
+   asr %d1,%d0\;rrc %1,%0
+   mov #addr_lo(%1),%0\;mov #addr_hi(%1),%d0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "extendp32ummhi2"
+  [(set (match_operand:HI       0 "pic30_register_operand"       "=r,r")
+        (utrunc:HI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  ]
+  ""
+  "@
+   lsr %1,%0
+   mov #%1,%0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+; I am surprised this is requested
+(define_insn "extendp32ummqi2"
+  [(set (match_operand:QI       0 "pic30_register_operand"       "=r,r")
+        (utrunc:QI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address" "r,qs")))
+  ]
+  ""
+  "@
+   lsr.b %1,%0
+   mov.b #%1,%0"
+  [
+   (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "subsip32umm3"
+  [(set(match_operand:SI         0 "pic30_register_operand" "=&r")
+       (minus:SI
+         (utrunc:SI
+           (match_operand:P32UMM 1 "pic30_register_operand" "r"))
+         (utrunc:SI
+           (match_operand:P32UMM 2 "pic30_register_operand" "r"))))  
+  ]
+  ""
+  "sub %1,%2,%0\;subb %d1,%d2,%d0\;asr %d0,%d0\;rrc %0,%0"
+)
+
+(define_insn "subhip32umm3"
+  [(set(match_operand:HI         0 "pic30_register_operand" "=&r")
+       (minus:HI
+         (utrunc:HI
+           (match_operand:P32UMM 1 "pic30_register_operand" "r"))
+         (utrunc:HI
+           (match_operand:P32UMM 2 "pic30_register_operand" "r"))))  
+  ]
+  ""
+  "sub %1,%2,%0\;asr %0,%0"
+)
+
+(define_insn "subp32umm3"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=r")
+        (minus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" " r")
+          (match_operand:P32UMM  2 "pic30_register_operand" " r")))]
+  ""
+  "sub %1,%2,%0\;subb %d1,%d2,%d0"
+)
+
+;; unified operations for unrolling and such
+(define_insn "one_cmplp32umm2"
+  [(set (match_operand:P32UMM   0 "register_operand" "=r")
+        (not:P32UMM 
+          (match_operand:P32UMM 1 "register_operand" " r")))]
+  ""
+  "com %1,%0\;com %d1,%d0"
+)
+
+(define_insn "andp32umm3"
+  [(set (match_operand:P32UMM   0 "register_operand" "=r")
+        (and:P32UMM 
+          (match_operand:P32UMM 1 "register_operand" " r")
+          (match_operand:P32UMM 2 "register_operand" " r")))]
+  ""
+  "and %1,%2,%0\;and %d1,%d2,%d0"
+)
+
+
+;; unified subreg
+;;   On occaision (ie accessing a packed structure) we need to get the raw 
+;;   bits in a different mode do not convert these (hopefully we don't 
+;;   generate them when we don't need to).   pic30_convert_pointer should 
+;;   catch when we are doing real conversions
+;;
+;;   unions and bitfields make these things
+
+(define_insn "read_subreg0P32UMM_hi"
+  [(set (match_operand:HI       0 "pic30_register_operand" "=r,r")
+        (subreg:HI 
+          (match_operand:P32UMM 1 "pic30_register_operand" " 0,r") 0))
+  ]
+  ""
+  "@
+   ; nop
+   mov.w %1,%0"
+)
+
+(define_insn "read_subreg1P32UMM_hi"
+  [(set (match_operand:HI       0 "pic30_register_operand" "=r")
+        (subreg:HI 
+          (match_operand:P32UMM 1 "pic30_register_operand" " r") 2))
+  ]
+  ""
+  "mov.w %d1,%0"
+)
+
+(define_insn "write_subreg0P32UMM_hi"
+  [(set (subreg:HI 
+          (match_operand:P32UMM 0 "pic30_register_operand" "=r,r") 0)
+        (match_operand:HI       1 "pic30_register_operand" " 0,r"))]
+  ""
+  "@
+   ; nop
+   mov.w %1,%0"
+)
+
+(define_insn "write_subreg1P32UMM_hi"
+  [(set (subreg:HI 
+          (match_operand:P32UMM 0 "pic30_register_operand" "=r") 2)
+        (match_operand:HI       1 "pic30_register_operand" " r"))]
+  ""
+  "mov.w %1,%d0"
+)
+
+(define_insn "read_subreg0P32UMM_si"
+  [(set (match_operand:SI       0 "pic30_register_operand"        "=r,r,r,i")
+        (subreg:SI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address_or_immediate" " 0,r,qs,i") 0))
+  ]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0
+   mov #z1,%0\;mov #y1,%0"
+)
+
+(define_insn "write_subreg0P32UMM_si"
+  [(set (subreg:SI
+          (match_operand:P32UMM 0 "pic30_register_operand" "=r,r") 0)
+        (match_operand:SI       1 "pic30_register_operand" " 0,r"))]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0"
+)
+
+(define_insn "read_subreg0si_P32UMM"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand" "=r,r")
+        (subreg:P32UMM
+          (match_operand:SI   1 "pic30_register_operand" " 0,r") 0))
+  ]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0"
+)
+
+(define_insn "write_subreg0si_P32UMM"
+  [(set (subreg:P32UMM
+          (match_operand:SI   0 "pic30_register_operand"        "=r,r,r,r") 0)
+        (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address_or_immediate" " 0,r,qs,i"))]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0
+   mov #z1,%0\;mov #y1,%0"
+)
+
+(define_insn "read_subreg0P32UMM_di"
+  [(set (match_operand:DI       0 "pic30_register_operand"        "=r,r,r,r")
+        (subreg:DI
+          (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address_or_immediate" " 0,r,qs,i") 0))
+  ]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0
+   mov #z1,%0\;mov #y1,%0"
+)
+
+(define_insn "write_subreg0P32UMM_di"
+  [(set (subreg:DI
+          (match_operand:P32UMM 0 "pic30_register_operand" "=r,r") 0)
+        (match_operand:DI       1 "pic30_register_operand" " 0,r"))]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0"
+)
+
+(define_insn "read_subreg0di_P32UMM"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand" "=r,r")
+        (subreg:P32UMM
+          (match_operand:DI   1 "pic30_register_operand" " 0,r") 0))
+  ]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0"
+)
+
+(define_insn "write_subreg0di_P32UMM"
+  [(set (subreg:P32UMM
+          (match_operand:DI   0 "pic30_register_operand"        "=r,r,r,r") 0)
+        (match_operand:P32UMM 1 "pic30_reg_or_symbolic_address_or_immediate" " 0,r,qs,i"))]
+  ""
+  "@
+   ; nop
+   mov.d %1,%0
+   mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0
+   mov #z1,%0\;mov #y1,%0"
+)
+
+
+
+;;; for these patterns I am using a 'unspec' to prevent merging
+;;;   copyprop and the like sometimes tries to change these
+;;;   perhaps a secondary reload would be better, or LO/HI mode for each
+;;;   part of the address 
+
+(define_insn "P32UMMrdr_qi"
+   [(set (match_operand:QI      0 "pic30_mode2_operand"    "=r,  R<>,&r, r,r")
+         (unspec:QI [
+           (match_operand:QI    1 "pic30_mem_umm_operand"  " R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI  2                          "=X,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs = NULL_RTX;
+      rtx rhs = NULL_RTX;
+      rtx addr = XEXP(operands[1],0);
+      static char buffer[255];
+      switch (which_alternative) {
+        case 1: 
+          lhs = operands[2];
+          /* FALLSTHROUGH */
+        case 0:
+          if (lhs == NULL_RTX) lhs = operands[0];
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.b [w%d],%%0\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case PRE_INC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"add #2,%%r1\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.b [w%d],%%0\;\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case PRE_DEC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"sub #2,%%r1\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.b [w%d],%%0\;\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case POST_INC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.b [w%d],%%0\;\"
+                             \"add #2,%%r1\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case POST_DEC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.b [w%d],%%0\;\"
+                             \"sub #2,%%r1\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+          }
+        case 2:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                /* a reg has already been extended */
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"add w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.b [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"sub w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.b [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.b [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+          }
+        case 3:
+          return \"mov %1,%0\";
+        case 4:
+          return \"mov #edspage(%1),%0\;\"
+                 \"mov %0,%u0\;\"
+                 \"mov #edsoffset(%1),%0\;\"
+                 \"mov.b [%0],%0\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+    
+;(define_expand "P32UMMrd_qi"
+;   [(set (match_operand:QI 0 "pic30_register_operand" "=r")
+;         (match_operand:QI 1 "pic30_mem_umm_operand"  " RQS"))]
+; ""
+; "{
+;    rtx op1 = pic30_form_UMM_address(operands[1]);
+;    if (pic30_reg_or_symbolic_address(op1,QImode)) {
+;      emit(
+;        gen_P32UMMrdr_qi(operands[0],op1)
+;      );
+;      DONE;
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(QImode);
+;      emit(
+;        gen_P32UMMrdr_qi(r,op1)
+;      );
+;      emit_move_insn(operands[0],r);
+;      DONE;
+;    }
+;    FAIL;
+; }"
+;)
+
+;;; can be used for repeated pushes in special case, make it an unspec to
+;;; protect it...
+
+(define_insn "P32UMMpushnext_hi"
+   [(set (match_operand:HI        0 "pic30_mode2_operand"    "=rR<>, r")
+         (unspec:HI [
+            (match_operand:P32UMM 1 "pic30_mem_umm_operand"  " R<>,  Q")
+         ] UNSPEC_UNIFIED_PUSH))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "@
+    mov.w %1,%0
+    mov.w %1,%0"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+(define_insn "P32UMMsetuppushaddr"
+  [(unspec:P32UMM [
+      (match_operand:P32UMM 0 "pic30_mem_umm_operand" "<>")
+   ] UNSPEC_UNIFIED_PUSH)
+   (clobber (reg:HI PSVPAG))
+  ]
+  "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+  "mov %T0,%u0\;rrnc %r0,%r0"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+(define_insn "P32UMMrdr_<mode>"
+   [(set (match_operand:SM16BIT   0 "pic30_mode2_operand"    "=r,  R<>,&r, r,r")
+         (unspec:SM16BIT [
+           (match_operand:SM16BIT 1 "pic30_mem_umm_operand"  " R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI    2                          "=X,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ]  
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs = NULL_RTX;
+      rtx rhs = NULL_RTX;
+      rtx addr = XEXP(operands[1],0);
+      static char buffer[255];
+      switch (which_alternative) {
+        case 1: 
+          lhs = operands[2];
+          /* FALLSTHROUGH */
+        case 0:
+          if (lhs == NULL_RTX) lhs = operands[0];
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.w [w%d],%%0\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case PRE_INC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"add #4,%%r1\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.w [w%d],%%0\;\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case PRE_DEC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"sub #4,%%r1\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.w [w%d],%%0\;\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case POST_INC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.w [w%d],%%0\;\"
+                             \"add #4,%%r1\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+            case POST_DEC:
+              sprintf(buffer,\"mov %%T1,%%u0\;\"
+                             \"rrnc %%r1,w%d\;\"
+                             \"mov.w [w%d],%%0\;\"
+                             \"sub #4,%%r1\", REGNO(lhs), REGNO(lhs));
+              return buffer;
+          }
+        case 2:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"add w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.w [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), -val);
+                  return buffer;
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"sub w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.w [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.w [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+          }
+        case 3:
+          return \"mov %1,%0\";
+        case 4:
+          return \"mov #edspage(%1),%0\;\"
+                 \"mov %0,%u0\;\"
+                 \"mov #edsoffset(%1),%0\;\"
+                 \"mov.w [%0],%0\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMrd_<mode>"
+;   [(set (match_operand:SM16BIT 0 "pic30_register_operand" "=r")
+;         (match_operand:SM16BIT 1 "pic30_mem_umm_operand"  " RQST"))]
+; ""
+; "{
+;    rtx op1 = pic30_form_UMM_address(operands[1]);
+;    if (pic30_reg_or_symbolic_address(op1,<MODE>mode)) {
+;      emit(
+;        gen_P32UMMrdr_<mode>(operands[0],op1)
+;      );
+;      DONE;
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit(
+;        gen_P32UMMrdr_<mode>(r,op1)
+;      );
+;      emit_move_insn(operands[0],r);
+;      DONE;
+;    }
+;    FAIL;
+; }"
+;)
+
+(define_insn "P32UMMrdr_<mode>"
+   [(set (match_operand:SM32BIT   0 "pic30_mode2_operand"    "=r,  R,  <>, &r, r,r")
+         (unspec:SM32BIT [
+           (match_operand:SM32BIT 1 "pic30_mem_umm_operand"  " R<>,R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI    2                          "=X,  r,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ]  
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs = NULL_RTX;
+      rtx rhs = NULL_RTX;
+      rtx addr = XEXP(operands[1],0);
+      static char buffer[255];
+      switch (which_alternative) {
+        default: gcc_assert(0);
+        case 0:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%0\;\"
+                      \"mov.d [%0],%0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #8,%r1\;\"
+                      \"rrnc %r1,%d0\;\"
+                      \"mov [%d0++],%0\;\"
+                      \"mov [%d0],%d0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #8,%r1\;\"
+                      \"rrnc %r1,%d0\;\"
+                      \"mov [%d0++],%0\;\"
+                      \"mov [%d0],%d0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%d0\;\"
+                      \"mov [%d0++],%0\;\"
+                      \"mov [%d0],%d0\;\"
+                      \"add #8,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%d0\;\"
+                      \"mov [%d0++],%0\;\"
+                      \"mov [%d0],%d0\;\"
+                      \"sub #8,%r1\";
+          }
+        case 1: 
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%D0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #8,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%D0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #8,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%D0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%D0\;\"
+                      \"add #8,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%Q0\;\"
+                      \"sub #8,%r1\";
+          }
+          break;
+        case 2:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #8,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #8,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"add #8,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #8,%r1\";
+          }
+          break;
+        case 3: 
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"add w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.d [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"sub w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.d [%%0],%%0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add %%0,#%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub %%0,#%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"add #%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%0\;\"
+                                 \"sub #%d,%%0\;\"
+                                 \"mov.d [%%0],%%0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 4: return \"mov %1,%0\;\"
+                       \"mov %1+2,%d0\";
+        case 5: return \"mov #edspage(%1),%0\;\"
+                       \"mov %0,%u0\;\"
+                       \"mov #edsoffset(%1),%0\;\"
+                       \"mov.d [%0],%0\";
+     }
+   }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+(define_expand "P32UMMrd_<mode>"
+   [(set (match_operand:ALLRDMODES 0 "pic30_mode3_operand"   "")
+         (match_operand:ALLRDMODES 1 "pic30_mem_umm_operand" ""))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "
+    if (can_create_pseudo_p()) {
+      rtx read_address = gen_reg_rtx(machine_Pmode);
+      
+      emit(
+        gen_p32umm_readmem(read_address, operands[1])
+      );
+      emit_move_insn(operands[0], 
+                     gen_rtx_MEM(GET_MODE(operands[0]),read_address));
+      DONE;
+    } else {
+      gcc_assert(0);
+      rtx op1 = pic30_form_UMM_address(operands[1]);
+      if (pic30_reg_or_symbolic_address(op1,<MODE>mode)) {
+        emit(
+          gen_P32UMMrdr_<mode>(operands[0],op1)
+        );
+        DONE;
+      } else if (!reload_in_progress) {
+        rtx r = gen_reg_rtx(<MODE>mode);
+        emit(
+          gen_P32UMMrdr_<mode>(r,op1)
+        );
+        emit_move_insn(operands[0],r);
+        DONE;
+      }
+   }
+   FAIL;
+   "
+)
+
+(define_insn "P32UMMrdr_<mode>"
+   [(set (match_operand:SM48BIT   0 "pic30_mode2_operand"    "=r, R,  <>, r, r,r")
+         (unspec:SM48BIT [
+           (match_operand:SM48BIT 1 "pic30_mem_umm_operand"  "R<>,R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI    2                          "=X, r,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ]  
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs = NULL_RTX;
+      rtx rhs = NULL_RTX;
+      int lhs_regno = -1;
+      rtx addr = XEXP(operands[1],0);
+      static char buffer[255];
+      switch (which_alternative) {
+        case 0:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov.d [%t0++],%0\;\"
+                      \"mov.w [%t0],%t0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #12,%r1\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov [%t0++],%0\;\"
+                      \"mov [%t0++],%d0\;\"
+                      \"mov [%t0],%t0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #12,%r1\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov [%t0++],%0\;\"
+                      \"mov [%t0++],%d0\;\"
+                      \"mov [%t0],%t0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov [%t0++],%0\;\"
+                      \"mov [%t0++],%d0\;\"
+                      \"mov [%t0],%t0\;\"
+                      \"add #12,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov [%t0++],%0\;\"
+                      \"mov [%t0++],%d0\;\"
+                      \"mov [%t0],%t0\;\"
+                      \"sub #12,%r1\";
+          }
+        case 1: 
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #4,%r0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #12,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #4,%r0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #12,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #4,%r0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"add #12,%r1\;\"
+                      \"sub #4,%r0\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #4,%r0\;\"
+                      \"sub #12,%r1\";
+          }
+          break;
+        case 2:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #12,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #12,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"add #12,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #12,%r1\";
+          }
+          break;
+        case 3: 
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"add w%d,w%d,%%t0\;\"
+                               \"rrnc %%t0,%%t0\;\"
+                               \"mov.d [%%t0++],%%0\;\"
+                               \"mov.w [%%t0],%%t0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0], %%t0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"sub w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.d [%%t0++],%%0\;\"
+                               \"mov.w [%%t0],%%t0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.w [%%t0],%%t0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 4: return \"mov %1,%0\;\"
+                       \"mov %1+2,%d0\;\"
+                       \"mov %1+4,%t0\";
+        case 5: return \"mov #edspage(%1),%0\;\"
+                       \"mov %0,%u0\;\"
+                       \"mov #edsoffset(%1),%t0\;\"
+                       \"mov.d [%t0++],%0\;\"
+                       \"mov [%t0],%t0\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMrd_<mode>"
+;   [(set (match_operand:SM48BIT 0 "pic30_mode3_operand"   "")
+;         (match_operand:SM48BIT 1 "pic30_mem_umm_operand" ""))
+;   ]
+;   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+;   "rtx op1 = pic30_form_UMM_address(operands[1]);
+;    if (pic30_reg_or_symbolic_address(op1,<MODE>mode)) {
+;      emit(
+;        gen_P32UMMrdr_<mode>(operands[0],op1)
+;      );
+;      DONE;
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit(
+;        gen_P32UMMrdr_<mode>(r,op1)
+;      );
+;      emit_move_insn(operands[0],r);
+;      DONE;
+;    }
+;    FAIL;"
+;)
+
+(define_insn "P32UMMrdr_<mode>"
+   [(set (match_operand:SM64BIT   0 "pic30_mode2_operand"    "=r,  R,  <>, r, r,r")
+         (unspec:SM64BIT [
+           (match_operand:SM64BIT 1 "pic30_mem_umm_operand"  " R<>,R<>,R<>,QS,U,T")
+           (clobber 
+             (match_scratch:HI    2                          "=X,  r,  r,  X, X,X"))
+          ] UNSPEC_UNIFIED_RD))
+    (clobber (reg:HI PSVPAG))
+   ]  
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs = NULL_RTX;
+      int lhs_regno = -1;
+      rtx rhs = NULL_RTX;
+      rtx addr = XEXP(operands[1],0);
+      static char buffer[255];
+      switch (which_alternative) {
+        case 0:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%t0\;\"
+                      \"mov.d [%t0++],%0\;\"
+                      \"mov.d [%t0],%t0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #16,%r1\;\"
+                      \"rrnc %r1,%q0\;\"
+                      \"mov [%q0++],%0\;\"
+                      \"mov [%q0++],%d0\;\"
+                      \"mov [%q0++],%t0\;\"
+                      \"mov [%q0],%q0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #16,%r1\;\"
+                      \"rrnc %r1,%q0\;\"
+                      \"mov [%q0++],%0\;\"
+                      \"mov [%q0++],%d0\;\"
+                      \"mov [%q0++],%t0\;\"
+                      \"mov [%q0],%q0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%q0\;\"
+                      \"mov [%q0++],%0\;\"
+                      \"mov [%q0++],%d0\;\"
+                      \"mov [%q0++],%t0\;\"
+                      \"mov [%q0],%q0\;\"
+                      \"add #16,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%q0\;\"
+                      \"mov [%q0++],%0\;\"
+                      \"mov [%q0++],%d0\;\"
+                      \"mov [%q0++],%t0\;\"
+                      \"mov [%q0],%q0\;\"
+                      \"sub #16,%r1\";
+          }
+        case 1: 
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #6,%r0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #16,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #6,%r0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #16,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #6,%r0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"add #16,%r1\;\"
+                      \"sub #6,%r0\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2++],%I0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #16,%r1\;\"
+                      \"sub #6,%r0\";
+          }
+          break;
+        case 2:
+          switch (GET_CODE(XEXP(operands[1],0))) {
+            default:  gcc_assert(0);
+            case  REG:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"add #16,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case PRE_DEC: 
+              return  \"mov %T1,%u0\;\"
+                      \"sub #16,%r1\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\";
+            case POST_INC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"add #16,%r1\";
+            case POST_DEC:
+              return  \"mov %T1,%u0\;\"
+                      \"rrnc %r1,%2\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2++],%0\;\"
+                      \"mov [%2],%0\;\"
+                      \"sub #16,%r1\";
+          }
+          break;
+        case 3:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"add w%d,w%d,%%t0\;\"
+                               \"rrnc %%t0,%%t0\;\"
+                               \"mov.d [%%t0++],%%0\;\"
+                               \"mov.d [%%t0],%%t0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0], %%t0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(buffer,\"mov %%T1,%%u0\;\"
+                               \"sub w%d,w%d,%%0\;\"
+                               \"rrnc %%0,%%0\;\"
+                               \"mov.d [%%t0++],%%0\;\"
+                               \"mov.d [%%t0],%%t0\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub %%t0,#%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"add #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(buffer,\"mov %%T1,%%u0\;\"
+                                 \"rrnc w%d,%%t0\;\"
+                                 \"sub #%d,%%t0\;\"
+                                 \"mov.d [%%t0++],%%0\;\"
+                                 \"mov.d [%%t0],%%t0\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 4: return \"mov %1,%0\;\"
+                       \"mov %1+2,%d0\;\"
+                       \"mov %1+4,%t0\;\"
+                       \"mov %1+6,%q0\";
+        case 5: return \"mov #edspage(%1),%0\;\"
+                       \"mov %0,%u0\;\"
+                       \"mov #edsoffset(%1),%t0\;\"
+                       \"mov.d [%t0++],%0\;\"
+                       \"mov.d [%t0],%t0\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMrd_<mode>"
+;   [(set (match_operand:SM64BIT 0 "pic30_mode3_operand"   "")
+;         (match_operand:SM64BIT 1 "pic30_mem_umm_operand" ""))
+;   ]
+;   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+;   "rtx op1 = pic30_form_UMM_address(operands[1]);
+;    if (pic30_reg_or_symbolic_address(op1,<MODE>mode)) {
+;      emit(
+;        gen_P32UMMrdr_<mode>(operands[0],op1)
+;      );
+;      DONE;
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit(
+;        gen_P32UMMrdr_<mode>(r,op1)
+;      );
+;      emit_move_insn(operands[0],r);
+;      DONE;
+;    }
+;    FAIL;"
+;)
+
+(define_expand "P32UMMwt_<mode>"
+   [(set (match_operand:ALLRDMODES 0 "pic30_mem_umm_operand"   "")
+         (match_operand:ALLRDMODES 1 "pic30_move_operand" ""))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "
+    if (can_create_pseudo_p()) {
+      rtx write_address = gen_reg_rtx(machine_Pmode);
+
+      emit(
+        gen_p32umm_writemem(write_address, operands[0])
+      );
+      emit_move_insn(gen_rtx_MEM(GET_MODE(operands[0]),write_address),
+                     operands[1]);
+      DONE;
+    } else {
+      gcc_assert(0);
+      rtx op0 = pic30_form_UMM_address(operands[0]);
+      if (pic30_register_operand(operands[1],<MODE>mode)) {
+        emit(
+          gen_P32UMMwtr_<mode>(op0,operands[1])
+        );
+        DONE;
+      } else if (!reload_in_progress) {
+        rtx r = gen_reg_rtx(<MODE>mode);
+        emit_move_insn(r,operands[1]);
+        emit(
+          gen_P32UMMwtr_<mode>(op0,r)
+        );   
+        DONE;
+      }
+    }
+    FAIL;
+   "
+)
+
+(define_insn "P32UMMwtr_qi"
+   [(set (match_operand:QI      0 "pic30_mem_wtumm_operand" "=R,QS,U,T")
+         (unspec:QI [
+           (match_operand:QI    1 "pic30_register_operand"  " r,r, a,r")
+           (clobber 
+              (match_scratch:HI 2                         "=&r,&r,&r,&r"))
+         ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs;
+      rtx rhs;
+      rtx addr = XEXP(operands[0],0);
+      static char buffer[255];
+      char *b = buffer;
+      switch(which_alternative) {
+        default: gcc_assert(0);
+        case 0: if (pic30_eds_target()) {
+                  return \"mov %T0,DSWPAG\;\"
+                         \"rrnc %r0,%2\;\"
+                         \"mov.b %1,[%2]\";
+                } else {
+                  return 
+                         \"rrnc %r0,%2\;\"
+                         \"mov.b %1,[%2]\";
+                }
+        case 1:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          if (pic30_eds_target()) {
+            b += sprintf(b,\"mov %%T0,DSWPAG\;\");
+          }
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"add w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.b %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"sub w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.b %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.b %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 3:
+          /* T */
+          if (pic30_eds_target()) {
+            return \"mov #edspage(%0),%2\;\"
+                   \"mov %2,DSWPAG\;\"
+                   \"mov #edsoffset(%0),%2\;\"
+                   \"mov.b %1,[%2]\";
+          } else {
+            return \"mov #edsoffset(%0),%2\;\"
+                   \"mov.b %1,[%2]\";
+          }
+        case 2:
+          /* U */                
+          return \"mov.b WREG,%0\";  
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMwt_qi"
+;   [(set (match_operand:QI 0 "pic30_mem_wtumm_operand" "")
+;         (match_operand:QI 1 "pic30_register_operand" ""))]
+; ""
+; "{
+;    rtx op0 = pic30_form_UMM_address(operands[0]);
+;    if (pic30_register_operand(operands[1],QImode)) {
+;      emit(
+;        gen_P32UMMwtr_qi(op0,operands[1])
+;      );
+;      DONE; 
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(QImode);
+;      emit_move_insn(r,operands[1]);
+;      emit(
+;        gen_P32UMMwtr_qi(op0,r)
+;      );
+;      DONE;
+;    }
+; }"
+;)
+
+(define_insn "P32UMMpopnext_eds_hi"
+   [(set (match_operand:P32UMM 0 "pic30_mem_umm_operand"  "=R<>Q")
+         (unspec:P32UMM [
+           (match_operand:HI   1 "pic30_mode2_operand"    " <>R")
+         ] UNSPEC_UNIFIED_POP))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode) && pic30_eds_target()"
+   "mov.w %1,%0"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+(define_insn "P32UMMpopnext_noeds_hi"
+   [(set (match_operand:P32UMM 0 "pic30_mem_umm_operand"  "=R<>Q")
+         (unspec:P32UMM [
+           (match_operand:HI 1 "pic30_mode2_operand"  " R<>")
+         ] UNSPEC_UNIFIED_POP))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode) && (pic30_eds_target() == 0)"
+   "mov.w %1,%0"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+(define_expand "P32UMMpopnext_hi"
+   [(set (match_operand:HI 0 "pic30_mem_umm_operand" "")
+         (match_operand:HI 1 "pic30_mode2_operand"   ""))]
+ ""
+ "{
+    rtx (*fn)(rtx,rtx);
+    if (pic30_eds_target()) {
+      fn = gen_P32UMMpopnext_eds_hi;
+    } else {
+      fn = gen_P32UMMpopnext_noeds_hi;
+    }
+    emit(
+       fn(operands[0],operands[1])
+    );
+    DONE;
+  }"
+)
+
+(define_insn "P32UMMwtr_<mode>"
+   [(set (match_operand:SM16BIT   0 "pic30_mem_wtumm_operand" "=R,QS,U,T")
+         (unspec:SM16BIT [
+           (match_operand:SM16BIT 1 "pic30_register_operand" " r,r, r,r")
+           (clobber
+             (match_scratch:HI    2                         "=&r,&r,&r,&r"))
+          ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs;
+      rtx rhs;
+      rtx addr = XEXP(operands[0],0);
+      static char buffer[255];
+      char *b = buffer;
+      switch(which_alternative) {
+        default: gcc_assert(0);
+        case 0: if (pic30_eds_target()) {
+                  return \"mov %T0,DSWPAG\;\"
+                         \"rrnc %r0,%2\;\"
+                         \"mov.w %1,[%2]\";
+                } else {
+                  return 
+                         \"rrnc %r0,%2\;\"
+                         \"mov.w %1,[%2]\";
+                }
+        case 1:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          if (pic30_eds_target()) {
+            b += sprintf(buffer,\"mov %%T0,DSWPAG\;\");
+          }
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"add w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.w %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"sub w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.w %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.w %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 3:
+          /* T */
+          if (pic30_eds_target()) {
+            return \"mov #edspage(%0),%2\;\"
+                   \"mov %2,DSWPAG\;\"
+                   \"mov %1,%0\";
+          } else {
+            return \"mov %1,%0\";
+          }
+        case 2:
+          /* U */
+          return \"mov %1,%0\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMwt_<mode>"
+;   [(set (match_operand:SM16BIT 0 "pic30_mem_wtumm_operand" "")
+;         (match_operand:SM16BIT 1 "pic30_register_operand" ""))]
+; ""
+; "{
+;    rtx op0 = pic30_form_UMM_address(operands[0]);
+;    if (pic30_register_operand(operands[1],<MODE>mode)) {
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,operands[1])
+;      );
+;      DONE; 
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit_move_insn(r,operands[1]);
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,r)
+;      );
+;      DONE;
+;    }
+; }"
+;)
+
+(define_insn "P32UMMwtr_<mode>"
+   [(set (match_operand:SM32BIT   0 "pic30_mem_wtumm_operand" "=R,QS,U,T")
+         (unspec:SM32BIT [
+           (match_operand:SM32BIT 1 "pic30_register_operand" " r,r, r,r")
+           (clobber 
+             (match_scratch:HI    2                         "=&r,&r,&r,&r"))
+          ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs;
+      rtx rhs;
+      rtx addr = XEXP(operands[0],0);
+      static char buffer[255];
+      char *b = buffer;
+      switch(which_alternative) {
+        default: gcc_assert(0);
+        case 0: if (pic30_eds_target()) {
+                  return \"mov %T0,DSWPAG\;\"
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2]\";
+                } else {
+                  return 
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2]\";
+                }
+        case 1:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          if (pic30_eds_target()) {
+            b += sprintf(buffer,\"mov %%T0,DSWPAG\;\");
+          }
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"add w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"sub w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 3:
+          /* T */
+          if (pic30_eds_target()) {
+            return \"mov #edspage(%0),%2\;\"
+                   \"mov %2,DSWPAG\;\"
+                   \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\";
+          } else {
+            return \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\";
+          }
+        case 2:
+          /* U */                
+          return \"mov %1,%0\;\"
+                 \"mov %d1,%0+2\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMwt_<mode>"
+;   [(set (match_operand:SM32BIT 0 "pic30_mem_wtumm_operand" "=RQ")
+;         (match_operand:SM32BIT 1 "pic30_register_operand" " r"))]
+; ""
+; "{
+;    rtx op0 = pic30_form_UMM_address(operands[0]);
+;    if (pic30_register_operand(operands[1],<MODE>mode)) {
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,operands[1])
+;      );
+;      DONE; 
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit_move_insn(r,operands[1]);
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,r)
+;      );
+;      DONE;
+;    }
+; }"
+;)
+
+(define_insn "P32UMMwtr_<mode>"
+   [(set (match_operand:SM48BIT   0 "pic30_mem_wtumm_operand" "=R,QS,U,T")
+         (unspec:SM48BIT [
+           (match_operand:SM48BIT 1 "pic30_register_operand" " r,r, r,r")
+           (clobber
+             (match_scratch:HI    2                         "=&r,&r,&r,&r"))
+          ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs;
+      rtx rhs;
+      rtx addr = XEXP(operands[0],0);
+      static char buffer[255];
+      char *b = buffer;
+      switch(which_alternative) {
+        default: gcc_assert(0);
+        case 0: if (pic30_eds_target()) {
+                  return \"mov %T0,DSWPAG\;\"
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2++]\;\"
+                         \"mov.w %t1,[%2]\";
+                } else {
+                  return 
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2++]\;\"
+                         \"mov.w %t1,[%2]\";
+                }
+        case 1:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          if (pic30_eds_target()) {
+            b += sprintf(buffer,\"mov %%T0,DSWPAG\;\");
+          }
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"add w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2++]\;\"
+                               \"mov.w %%t1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"sub w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2++]\;\"
+                               \"mov.w %%t1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.w %%t1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 3:
+          /* T */
+          if (pic30_eds_target()) {
+            return \"mov #edspage(%0),%2\;\"
+                   \"mov %2,DSWPAG\;\"
+                   \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\";
+          } else {
+            return \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\";
+          }
+        case 2:
+          /* U */                
+            return \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\";
+
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMwt_<mode>"
+;   [(set (match_operand:SM48BIT 0 "pic30_mem_wtumm_operand" "=RQ")
+;         (match_operand:SM48BIT 1 "pic30_register_operand" " r"))]
+; ""
+; "{
+;    rtx op0 = pic30_form_UMM_address(operands[0]);
+;    if (pic30_register_operand(operands[1],<MODE>mode)) {
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,operands[1])
+;      );
+;      DONE; 
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit_move_insn(r,operands[1]);
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,r)
+;      );
+;      DONE;
+;    }
+; }"
+;)
+
+(define_insn "P32UMMwtr_<mode>"
+   [(set (match_operand:SM64BIT   0 "pic30_mem_wtumm_operand" "=R,QS,U,T")
+         (unspec:SM64BIT [
+           (match_operand:SM64BIT 1 "pic30_register_operand" " r,r, r,r")
+           (clobber
+             (match_scratch:HI    2                         "=&r,&r,&r,&r"))
+          ] UNSPEC_UNIFIED_WT))
+    (clobber (reg:HI DSWPAG))
+   ]
+   "(TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode)"
+   "*
+    { rtx lhs;
+      rtx rhs;
+      rtx addr = XEXP(operands[0],0);
+      static char buffer[255];
+      char *b = buffer;
+      switch(which_alternative) {
+        default: gcc_assert(0);
+        case 0: if (pic30_eds_target()) {
+                  return \"mov %T0,DSWPAG\;\"
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2++]\;\"
+                         \"mov.d %t1,[%2]\";
+                } else {
+                  return 
+                         \"rrnc %r0,%2\;\"
+                         \"mov.d %1,[%2++]\;\"
+                         \"mov.d %t1,[%2]\";
+                }
+        case 1:
+          /* QS */
+          lhs = XEXP(addr,0);
+          rhs = XEXP(addr,1);
+          if (pic30_eds_target()) {
+            b += sprintf(buffer,\"mov %%T0,DSWPAG\;\");
+          }
+          switch (GET_CODE(addr)) {
+            default:  gcc_assert(0);
+            case PLUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"add w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2++]\;\"
+                               \"mov.d %%t1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            case MINUS: 
+              if (GET_CODE(rhs) == REG) {
+                sprintf(b,
+                               \"sub w%d,w%d,%%2\;\"
+                               \"rrnc %%2,%%2\;\"
+                               \"mov.d %%1,[%%2++]\;\"
+                               \"mov.d %%t1,[%%2]\", REGNO(lhs), REGNO(rhs));
+                return buffer;
+              } else if (GET_CODE(rhs) == CONST_INT) {
+                int val = INTVAL(rhs);
+                if (CONST_OK_FOR_LETTER_P(val, 'N')) {
+                  // small negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), -val);
+                } else if (CONST_OK_FOR_LETTER_P(val, 'P')) {
+                  // small positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub %%2,#%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), val);
+                } else if (val < 0) {
+                  // negative
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"add #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), -val);
+                } else {
+                  // positive
+                  sprintf(b,
+                                 \"rrnc w%d,%%2\;\"
+                                 \"sub #%d,%%2\;\"
+                                 \"mov.d %%1,[%%2++]\;\"
+                                 \"mov.d %%t1,[%%2]\", REGNO(lhs), val);
+                }
+                return buffer;
+              }
+              gcc_assert(0);
+            }
+        case 3:
+          /* T */
+          if (pic30_eds_target()) {
+            return \"mov #edspage(%0),%2\;\"
+                   \"mov %2,DSWPAG\;\"
+                   \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\;\"
+                   \"mov %q1,%0+6\";
+          } else {
+            return \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\;\";
+                   \"mov %q1,%0+6\";
+          }
+        case 2:
+          /* U */                
+            return \"mov %1,%0\;\"
+                   \"mov %d1,%0+2\;\"
+                   \"mov %t1,%0+4\;\"
+                   \"mov %q1,%0+6\";
+      }
+    }"
+   [ 
+     (set_attr "type" "defuse")
+     (set_attr "cc" "clobber")
+   ]
+)
+
+;(define_expand "P32UMMwt_<mode>"
+;   [(set (match_operand:SM64BIT 0 "pic30_mem_wtumm_operand" "=RQ")
+;         (match_operand:SM64BIT 1 "pic30_register_operand" " r"))]
+; ""
+; "{
+;    rtx op0 = pic30_form_UMM_address(operands[0]);
+;    if (pic30_register_operand(operands[1],<MODE>mode)) {
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,operands[1])
+;      );
+;      DONE; 
+;    } else if (!reload_in_progress) {
+;      rtx r = gen_reg_rtx(<MODE>mode);
+;      emit_move_insn(r,operands[1]);
+;      emit(
+;        gen_P32UMMwtr_<mode>(op0,r)
+;      );
+;      DONE; 
+;    } 
+; }"
+;)
+
 ;; will probably want to convert this to an expand...
 ;(define_insn "umovpagr"
 ;  [(set (reg:HI PSVPAG)
@@ -12120,100 +16047,100 @@
 ;  ]
 ;)
 
-(define_insn "umovpagr"
-  [(set (reg:HI PSVPAG)
-        (uoffset_hi: HI
-           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
-  ""
-  "*
-   {  rtx inner = XEXP(operands[0],0);
-      static char result[256];
-      char *f = result;
-
-      if (which_alternative == 2) {
-        char *t = pic30_section_base(inner,1,0);
-
-        sprintf(result,\"movpag #unified_hi(%s),DSRPAG\", t);
-      } else {
-        if (which_alternative == 1) {
-          gcc_assert(GET_CODE(inner) == PLUS);
-          inner = XEXP(inner,0);
-        }
-        if (((REGNO(inner) == FP_REGNO) &&
-              pic30_frame_pointer_required()) ||
-            (REGNO(inner) == SP_REGNO)) {
-          /* OFFSET doesn't need unpacking, but we need to set page to 1
-              on some devices -
-              ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target() || pic30_isav4_target()) {
-            f += sprintf(f, \"movpag #1,DSRPAG\");
-          }
-        } if (which_alternative == 1) {
-          /* if these aren't paged then we need to add the offset into
-             register value to check for a page overflow  - though
-             I hope we only generate this kind of pattern for stack offsets */
-          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
-        } else {
-          /* a real register pair */
-          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
-        }
-      }
-      return result;
-   }"
-  [
-    (set_attr "cc" "change0")
-    (set_attr "type" "etc")
-  ]
-)
-
-(define_insn "umovpagw"
-  [(set (reg:HI DSWPAG)
-        (uoffset_hi: HI
-           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
-  ""
-  "*
-   {  rtx inner = XEXP(operands[0],0);
-      static char result[256];
-      char *f = result;
-
-      /* non eds/ecore devices don't support this */
-      gcc_assert(pic30_eds_target() || (!pic30_ecore_target()));
- 
-      if (which_alternative == 2) {
-        char *t = pic30_section_base(inner,1,0);
-
-        sprintf(result,\"movpag #unified_hi(%s),DSWPAG\", t);
-      } else {
-        if (which_alternative == 1) {
-          gcc_assert(GET_CODE(inner) == PLUS);
-          inner = XEXP(inner,0);
-        }
-        if (((REGNO(inner) == FP_REGNO) &&
-              pic30_frame_pointer_required()) ||
-            (REGNO(inner) == SP_REGNO)) {
-          /* OFFSET doesn't need unpacking, but we need to set page to 1
-              on some devices -
-              ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target() || pic30_isav4_target()) {
-            f += sprintf(f, \"movpag #1,DSWPAG\");
-          }
-        } if (which_alternative == 1) {
-          /* if these aren't paged then we need to add the offset into
-             register value to check for a page overflow  - though
-             I hope we only generate this kind of pattern for stack offsets */
-          f += sprintf(f, \"movpag %s,DSWPAG\", reg_names[REGNO(inner)+1]);
-        } else { 
-          /* a real register pair */
-          f += sprintf(f, \"movpag %s,DSRWAG\", reg_names[REGNO(inner)+1]);
-        }
-      }
-      return result;
-   }"
-  [
-    (set_attr "cc" "change0")
-    (set_attr "type" "etc")
-  ]
-)
+;(define_insn "umovpagr"
+;  [(set (reg:HI PSVPAG)
+;        (uoffset_hi: HI
+;           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
+;  ""
+;  "*
+;   {  rtx inner = XEXP(operands[0],0);
+;      static char result[256];
+;      char *f = result;
+;
+;      if (which_alternative == 2) {
+;        char *t = pic30_section_base(inner,1,0);
+;
+;        sprintf(result,\"movpag #unified_hi(%s),DSRPAG\", t);
+;      } else {
+;        if (which_alternative == 1) {
+;          gcc_assert(GET_CODE(inner) == PLUS);
+;          inner = XEXP(inner,0);
+;        }
+;        if (((REGNO(inner) == FP_REGNO) &&
+;              pic30_frame_pointer_required()) ||
+;            (REGNO(inner) == SP_REGNO)) {
+;          /* OFFSET doesn't need unpacking, but we need to set page to 1
+;              on some devices -
+;              ecore devices allow the stack to be in page 1, others do not */
+;          if (pic30_ecore_target() || pic30_isav4_target()) {
+;            f += sprintf(f, \"movpag #1,DSRPAG\");
+;          }
+;        } if (which_alternative == 1) {
+;          /* if these aren't paged then we need to add the offset into
+;             register value to check for a page overflow  - though
+;             I hope we only generate this kind of pattern for stack offsets */
+;          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
+;        } else {
+;          /* a real register pair */
+;          f += sprintf(f, \"movpag %s,DSRPAG\", reg_names[REGNO(inner)+1]);
+;        }
+;      }
+;      return result;
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+;
+;(define_insn "umovpagw"
+;  [(set (reg:HI DSWPAG)
+;        (uoffset_hi: HI
+;           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))]
+;  ""
+;  "*
+;   {  rtx inner = XEXP(operands[0],0);
+;      static char result[256];
+;      char *f = result;
+;
+;      /* non eds/ecore devices don't support this */
+;      gcc_assert(pic30_eds_target() || (!pic30_ecore_target()));
+; 
+;      if (which_alternative == 2) {
+;        char *t = pic30_section_base(inner,1,0);
+;
+;        sprintf(result,\"movpag #unified_hi(%s),DSWPAG\", t);
+;      } else {
+;        if (which_alternative == 1) {
+;          gcc_assert(GET_CODE(inner) == PLUS);
+;          inner = XEXP(inner,0);
+;        }
+;        if (((REGNO(inner) == FP_REGNO) &&
+;              pic30_frame_pointer_required()) ||
+;            (REGNO(inner) == SP_REGNO)) {
+;          /* OFFSET doesn't need unpacking, but we need to set page to 1
+;              on some devices -
+;              ecore devices allow the stack to be in page 1, others do not */
+;          if (pic30_ecore_target() || pic30_isav4_target()) {
+;            f += sprintf(f, \"movpag #1,DSWPAG\");
+;          }
+;        } if (which_alternative == 1) {
+;          /* if these aren't paged then we need to add the offset into
+;             register value to check for a page overflow  - though
+;             I hope we only generate this kind of pattern for stack offsets */
+;          f += sprintf(f, \"movpag %s,DSWPAG\", reg_names[REGNO(inner)+1]);
+;        } else { 
+;          /* a real register pair */
+;          f += sprintf(f, \"movpag %s,DSRWAG\", reg_names[REGNO(inner)+1]);
+;        }
+;      }
+;      return result;
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
 
 ;(define_insn "umovpagw"
 ;  [(set (reg:HI DSWPAG)
@@ -12240,655 +16167,510 @@
 ;  ]
 ;)
 
-(define_insn "usetpagr"
-  [(set (reg:HI PSVPAG)
-        (uoffset_hi: HI
-           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
-   (clobber (match_scratch:HI 1                 "=X,r,r"))
-  ]
-  ""
-  "*
-   {  char *page;
-      static char result[80];
-      rtx inner = XEXP(operands[0],0);
-      char *f = result;
-
-      result[0] = 0;
-      if (pic30_eds_target()) 
-        page = \"_DSRPAG\";
-      else page = \"_PSVPAG\";
-      if (which_alternative == 2) {
-        char *t = pic30_section_base(inner,1,0);
-
-        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,%s\", t, page);
-      } else {
-        if (which_alternative == 1) {
-          gcc_assert(GET_CODE(inner) == PLUS);
-          inner = XEXP(inner,0);
-        }
-        if (((REGNO(inner) == FP_REGNO) &&
-              pic30_frame_pointer_needed_p(get_frame_size())) ||
-            (REGNO(inner) == SP_REGNO)) {
-          /* OFFSET doesn't need unpacking, but we need to set page to 1
-              on some devices -
-              ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target() || pic30_isav4_target()) {
-            f += sprintf(f, \"movpag #1,DSRPAG\;\");
-          }
-        } if (which_alternative == 1) {
-          /* if these aren't paged then we need to add the offset into
-             register value to check for a page overflow  - though
-             I hope we only generate this kind of pattern for stack offsets */
-          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)],page);
-        } else {
-          /* a real register pair */
-          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)+1],page);
-        }
-      }
-      return result;
-   }"
-  [
-    (set_attr "cc" "change0")
-    (set_attr "type" "etc")
-  ]
-)
-
-(define_insn "usetpagw"
-  [(set (reg:HI DSWPAG)
-        (uoffset_hi: HI
-           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
-   (clobber (match_scratch:HI 1                 "=X,r,r"))
-  ]
-  ""
-  "*
-   {  static char result[80];
-      rtx inner = XEXP(operands[0],0);
-      char *f = result;
-
-      if (!pic30_eds_target()) return \"; DSWPAG register not rqd\";
-      if (which_alternative == 2) {
-        char *t = pic30_section_base(inner,1,0);
-
-        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,_DSWPAG\", t);
-      } else {
-        if (which_alternative == 1) {
-          gcc_assert(GET_CODE(inner) == PLUS);
-          inner = XEXP(inner,0);
-        }
-        if (((REGNO(inner) == FP_REGNO) &&
-              pic30_frame_pointer_required()) ||
-            (REGNO(inner) == SP_REGNO)) {
-          /* OFFSET doesn't need unpacking, but we need to set page to 1
-              on some devices -
-              ecore devices allow the stack to be in page 1, others do not */
-          if (pic30_ecore_target() || pic30_isav4_target()) {
-            f += sprintf(f, \"movpag #1,DSWPAG\");
-          }
-        } if (which_alternative == 1) {
-          /* if these aren't paged then we need to add the offset into
-             register value to check for a page overflow  - though
-             I hope we only generate this kind of pattern for stack offsets */
-          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)]);
-        } else {
-          /* a real register pair */
-          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)+1]);
-        }
-      }
-      return result;
-   }"
-  [
-    (set_attr "cc" "change0")
-    (set_attr "type" "etc")
-  ]
-)
-
-(define_insn "umovoffset"
-  [(set (match_operand:HI 0    "pic30_register_operand"         "=r,r,r")
-        (uoffset_lo: HI
-           (match_operand 1 "pic30_RTU_operand"                  "R,Q,TU")))]
-  ""
-  "*
-   {  rtx inner = XEXP(operands[1],0);
-      static char result[80];
-     
-      switch (which_alternative) {
-        default: gcc_assert(0);
-
-        case 2: {
-          char *t = pic30_section_base(inner,0,0);
-
-          sprintf(result,\"movpag #unified_lo(%s),%%0\", t);
-          return result;
-        } 
-
-        case 1: {
-          rtx base = XEXP(inner,0);
-          rtx offset = XEXP(inner,1);
-          int i;
-         
-          i = INTVAL(offset);
-          if ((i >= 0) && (i < 32)) {
-            sprintf(result,\"add %s,#%d,%%0\", reg_names[REGNO(base)], i);
-          } else if ((i < 0) && (i > -32)) {
-            sprintf(result,\"sub %s,#%d,%%0\", reg_names[REGNO(base)], -i);
-          } else if ((i >= 0) && (i < 512)) {
-            sprintf(result,\"mov %s,%%0\;add #%d,%%0\", 
-                    reg_names[REGNO(base)], i);
-          } else if ((i < 0) && (i > -512)) {
-            sprintf(result,\"mov %s,%%0\;sub #%d,%%0\", 
-                    reg_names[REGNO(base)], -i);
-          } else gcc_assert(0);
-          return result;
-        }
-
-        case 0: return \"mov %r1,%0\";
-      }
-   }"
-  [
-    (set_attr "cc" "change0")
-    (set_attr "type" "etc")
-  ]
-)
-
-(define_insn "uunpack"
-  [(parallel 
-    [(set (match_operand:HI 0 "pic30_register_operand" "+r")
-          (uunpack:HI (match_dup 0)))
-     (set (match_operand:HI 1 "register_operand" "+r")
-          (uunpack:HI (match_dup 1)))
-     (use (match_operand:HI 2 "pic30_register_operand" "r"))]
-  )]
-  ""
-  "*
-   {  
-     char *page = 0;
-     static char result[256];
-     char *f = result;
-
-     if ((pic30_ecore_target()) || (pic30_eds_target())) {
-       if (REGNO(operands[1]) == PSVPAG) page = \"_DSRPAG\";
-       else if (REGNO(operands[1]) == DSWPAG) page = \"_DSWPAG\";
-     } else {
-       if (REGNO(operands[1]) == PSVPAG) page = \"_PSVPAG\";
-     }
-     f += sprintf(f, \"sl %%0,[w15]\;\");  /* shift up bit 15 */
-     f += sprintf(f, \"rlc %s\;\",page);   /* shift into page */
-     f += sprintf(f, \"bsw.z %%0,%%2\"); /* set bit 15 based on !z */
-     return result;
-   }
-  "
-)
-
-(define_expand "set_offset_and_page_SI"
-  [(set (match_operand:HI 0 "pic30_register_operand"           "=r,r")
-        (uoffset_lo: HI
-           (match_operand 1 "pic30_RTU_operand"                 "R,TU")))
-   (set (match_operand:HI 2 "register_operand"                 "=r,r")
-        (uoffset_hi: HI
-           (match_dup 1)))
-  ]
-  "((REGNO(operands[2]) == PSVPAG) || (REGNO(operands[2]) == DSWPAG))"
-  "
-   { /* set the offset and page for the SI address */
-     static char result[256];
-     char *f = result;
-     char *page = 0;
-     rtx fifteen = gen_reg_rtx(HImode);
-     int unpack = 1;
-
-     {
-       if (REGNO(operands[2]) == PSVPAG) {
-         if (pic30_ecore_target() || pic30_isav4_target()) {
-           emit(
-             gen_umovpagr(operands[1])
-           );
-         } else {
-           emit(
-             gen_usetpagr(operands[1])
-           );
-         }
-       } else if (REGNO(operands[2]) == DSWPAG) {
-         if (pic30_ecore_target() || pic30_isav4_target()) {
-           emit(
-             gen_umovpagw(operands[1])
-           );
-         } else if (pic30_eds_target()) {
-           emit(
-             gen_usetpagw(operands[1])
-           );
-         } else unpack=0;
-       }
-       emit(
-         gen_umovoffset(operands[0], operands[1])
-       );
-  
-       if (unpack) {
-         emit(
-            gen_movhi_imm(fifteen, GEN_INT(15))
-         );
-         emit(
-            gen_uunpack(operands[0], operands[2], fifteen)
-         );
-       }
-       DONE;
-     }
-   }"
-)
-
-(define_expand "P32rd"
-   [(set (match_operand 0 "pic30_reg_or_R_operand"       "=rR")
-         (match_operand 1 "pic30_mem_eds_operand"    " RQST"))]
-   ""
-   "{
-   rtx op2 = gen_reg_rtx(SImode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op0 = operand0;
-   rtx op1 = operand1;
-   rtx page = gen_reg_rtx(HImode);
-   rtx offset = gen_reg_rtx(HImode);
-   rtx (*fn)(rtx, rtx);
-   int indirect_allowed=1;
-
-   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
-   switch (GET_MODE(op0)) {
-     default:
-                  fprintf(stderr, \"Unknown mode: %s\n\",
-                          mode_name[GET_MODE(op0)]);
-                  FAIL;
-     case QImode: fn = gen_P32PEDSread_qi;
-                  break;
-     case HImode: fn = gen_P32PEDSread_hi;
-                  break;
-     case SImode: fn = gen_P32PEDSread_si;
-                  break;
-     case DImode: fn = gen_P32PEDSread_di;
-                  indirect_allowed=0;
-                  break;
-     case SFmode: fn = gen_P32PEDSread_sf;
-                  break;
-     case DFmode: fn = gen_P32PEDSread_df;
-                  indirect_allowed=0;
-                  break;
-     case P16APSVmode: fn = gen_P32PEDSread_p16apsv;
-                  break;
-     case P24PSVmode: fn = gen_P32PEDSread_p24psv;
-                  break;
-     case P24PROGmode: fn = gen_P32PEDSread_p24prog;
-                  break;
-     case P16PMPmode: fn = gen_P32PEDSread_p16pmp;
-                  break;
-     case P32EXTmode: fn = gen_P32PEDSread_p32ext;
-                  break;
-     case P32EDSmode: fn = gen_P32PEDSread_p32eds;
-                  break;
-     case P32PEDSmode: fn = gen_P32PEDSread_p32peds;
-                  break;
-   }
-   if ((indirect_allowed == 0) && (pic30_R_operand(op0, GET_MODE(op0)))) {
-     op0 = gen_reg_rtx(GET_MODE(op0));
-   } else if (!pic30_reg_or_R_operand(op0, GET_MODE(op0))) {
-     op0 = gen_reg_rtx(GET_MODE(op0));
-   }
-   pic30_managed_psv = 1;
-   if (pic30_R_constraint_strict(op1,0) || pic30_Q_constraint(op1) ||
-       pic30_S_constraint_ecore(op1,1)) {
-     if (GET_CODE(XEXP(op1,0)) == PLUS) {
-       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op1,0),0),
-                    XEXP(XEXP(op1,0),1), op2, 1, OPTAB_DIRECT);
-       op2 = gen_rtx_MEM(GET_MODE(op1),op2);
-     } else {
-#if 0
-       emit_insn(
-           gen_movp32eds_gen(op2, XEXP(op1,0)) /* copy pointer */
-       );
-#else
-       // op2 = XEXP(op1,0);  // we may not need to create a copy
-       op2 = op1;
-#endif
-     }
-     emit_insn(
-        gen_set_offset_and_page_SI(offset, op2, gen_rtx_REG(HImode, PSVPAG))
-    );
-   } else {
-     /* create pointer */
-     if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
-         pic30_symbolic_address_operand_offset(XEXP(op1,0)) < 1023) {
-       emit_insn(
-         gen_set_offset_and_page_SI(offset, op1, 
-                                    gen_rtx_REG(HImode, PSVPAG))
-       );
-     } else {
-#if 0 
-       rtx reg = XEXP(op1,0);
-
-       if (!REG_P(reg)) {
-         reg = force_reg(SImode, XEXP(op1,0));
-       } 
-#endif
-       emit_insn(
-         gen_set_offset_and_page_SI(offset, op1, gen_rtx_REG(HImode, PSVPAG))
-       );
-     }
-   }
-   emit_insn(
-     fn(op0, gen_rtx_MEM(GET_MODE(op1),offset))         /* read value */
-   );
-   if (op0 != operand0) {
-     emit_move_insn(operand0, op0);
-   }
-   DONE;
-}")
-
-(define_expand "P32wt"
-   [(set (match_operand 0 "pic30_mem_eds_operand"   "=RQ,ST")
-         (match_operand 1 "pic30_move_operand"       " rR,rR"))]
-   ""
-   "{
-   rtx op2 = gen_reg_rtx(SImode);
-   rtx op3 = gen_reg_rtx(HImode);
-   rtx op1 = operand1;
-   rtx op0 = operand0;
-   rtx page = gen_reg_rtx(HImode);
-   rtx offset = gen_reg_rtx(HImode);
-   rtx (*fn)(rtx, rtx);
-   int eds_target = pic30_eds_target();
-
-   if ((GET_CODE(XEXP(op0,0)) == POST_INC) &&
-       (REGNO(XEXP(XEXP(op0,0),0)) == SP_REGNO)) {
-     /* this is a stack write that can only be generated with -munified
-        (which changes the Pmode to P32EDSmode) - change it back to a normal
-        write */
-     switch (GET_MODE(op0)) {
-       default:
-                    fprintf(stderr, \"Unknown mode: %s\n\",
-                            mode_name[GET_MODE(op0)]);
-                    FAIL;
-       case QImode: fn = gen_movqi;
-                    break;
-       case HImode: fn = gen_movhi;
-                    break;
-       case SImode: fn = gen_movsi;
-                    break;
-       case DImode: fn = gen_movdi;
-                    break;
-       case SFmode: fn = gen_movsf;
-                    break;
-       case DFmode: fn = gen_movdf;
-                    break;
-       case P16APSVmode: fn = gen_movp16apsv;
-                    break;
-       case P24PSVmode: fn = gen_movp24psv;
-                    break;
-       case P24PROGmode: fn = gen_movp24prog;
-                    break;
-       case P16PMPmode: fn = gen_movp16pmp;
-                    break;
-       case P32EXTmode: fn = gen_movp32ext;
-                    break;
-       case P32EDSmode: fn = gen_movp32eds;
-                    break;
-       case P32PEDSmode: fn = gen_movp32peds;
-                    break;
-     }
-
-     if (fn(gen_rtx_MEM(GET_MODE(op0),
-                        gen_rtx_POST_INC(HImode,gen_rtx_REG(HImode, SP_REGNO))),
-            op1))
-       DONE;
-     FAIL;
-   }
-   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
-   switch (GET_MODE(op0)) {
-     default:
-                  fprintf(stderr, \"Unknown mode: %s\n\",
-                          mode_name[GET_MODE(op0)]);
-                  FAIL;
-     case QImode: fn = gen_P32PEDSwrite_qi;
-                  break;
-     case HImode: fn = gen_P32PEDSwrite_hi;
-                  break;
-     case SImode: fn = gen_P32PEDSwrite_si;
-                  break;
-     case DImode: fn = gen_P32PEDSwrite_di;
-                  break;
-     case SFmode: fn = gen_P32PEDSwrite_sf;
-                  break;
-     case DFmode: fn = gen_P32PEDSwrite_df;
-                  break;
-     case P16APSVmode: fn = gen_P32PEDSwrite_p16apsv;
-                  break;
-     case P24PSVmode: fn = gen_P32PEDSwrite_p24psv;
-                  break;
-     case P24PROGmode: fn = gen_P32PEDSwrite_p24prog;
-                  break;
-     case P16PMPmode: fn = gen_P32PEDSwrite_p16pmp;
-                  break;
-     case P32EXTmode: fn = gen_P32PEDSwrite_p32ext;
-                  break;
-     case P32EDSmode: fn = gen_P32PEDSwrite_p32eds;
-                  break;
-     case P32PEDSmode: fn = gen_P32PEDSwrite_p32peds;
-                  break;
-   }
-   if (!pic30_mode2_operand(op1, GET_MODE(op1))) {
-     op1 = gen_reg_rtx(GET_MODE(op1));
-     emit_move_insn(op1, operand1);
-   }
-   if (eds_target) {
-     pic30_managed_psv = 1;
-   }
-   if (pic30_R_constraint_strict(op0,0) || pic30_Q_constraint(op0) ||
-       pic30_S_constraint_ecore(op0,1)) {
-     if (GET_CODE(XEXP(op0,0)) == PLUS) {
-       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op0,0),0),
-                    XEXP(XEXP(op0,0),1), op2, 1, OPTAB_DIRECT);
-       op2 = gen_rtx_MEM(GET_MODE(op0),op2);
-     } else {
-#if 0
-       emit_insn(
-         gen_movp32eds_gen(op2, XEXP(op0,0)) /* copy pointer */
-       );
-#else
-       // op2 = XEXP(op0,0);
-       op2 = op0;
-#endif
-     }
-     emit_insn(
-       gen_set_offset_and_page_SI(offset,op2,gen_rtx_REG(HImode, DSWPAG))
-     );
-   } else {
-     /* create pointer */
-     if (pic30_symbolic_address_operand(XEXP(op0,0),VOIDmode) &&
-         pic30_symbolic_address_operand_offset(XEXP(op0,0)) < 1023) {
-       emit_insn(
-         gen_set_offset_and_page_SI(offset, op0,
-                                    gen_rtx_REG(HImode, DSWPAG))
-       );
-     } else {
-#if 0
-       rtx reg = XEXP(op0,0);
-
-       if (!REG_P(reg)) {
-         reg = force_reg(SImode, XEXP(op0,0));
-       } 
-#endif
-       emit_insn(
-         gen_set_offset_and_page_SI(offset, op0,gen_rtx_REG(HImode, DSWPAG))
-       );
-     }
-   }
-   emit_insn(
-     fn(gen_rtx_MEM(GET_MODE(op0),offset), op1)         /* write value */
-   );
-   DONE;
-}")
-
-(define_insn "copyfpsi"
-  [(set (match_operand:SI  0 "pic30_register_operand" "=r")
-        (uextend:SI
-          (match_operand:HI 1 "register_operand" "r")))]
-  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || (REGNO(operands[1]) == SP_REGNO)))"
-  "mov %1,%0\;mov #1,%d0"
-)
-  
-(define_insn "fpcopysi"
-  [(set (match_operand:HI   0 "register_operand"      "=r")
-        (utrunc:HI
-          (match_operand:SI 1 "pic30_register_operand" "r")))]
-  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || (REGNO(operands[0]) == SP_REGNO)))"
-  "mov %1,%0"
-)
-
-;; if unified is SImode
-  
-(define_insn "movqisi"
-  [(set (match_operand:QI 0 "pic30_unified_move2_operand" "=r,RSQ")
-        (match_operand:QI 1 "pic30_register_operand"       "r,r"))]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov.b %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     return \"movpag #1,DSWPAG\;mov.b %1,%0\";
-   } else {
-     return \"mov.b %1,%0\";
-   }
-  "
-)
-
-(define_insn "movqisi2"
-  [(set (match_operand:QI 0 "pic30_register_operand"      "=r,r")
-        (match_operand:QI 1 "pic30_unified_move2_operand"  "r,RSQ")
-  )]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov.b %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     return \"movpag #1,DSRPAG\;mov.b %1,%0\";
-   } else {
-     return \"mov.b %1,%0\";
-   }
-  "
-)
-
-(define_insn "movhisi"
-  [(set (match_operand:HI 0 "pic30_unified_move2_operand" "=r,R<>SQ")
-        (match_operand:HI 1 "pic30_register_operand"       "r,r"))]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     return \"movpag #1,DSWPAG\;mov %1,%0\";
-   } else {
-     return \"mov %1,%0\";
-   }
-  "
-)
-
-(define_insn "movhisi2"
-  [(set (match_operand:HI 0 "pic30_register_operand"      "=r,r")
-        (match_operand:HI 1 "pic30_unified_move2_operand"  "r,RSQ")
-  )]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     return \"movpag #1,DSRPAG\;mov %1,%0\";
-   } else {
-     return \"mov %1,%0\";
-   }
-  "
-)
-
-(define_insn "movsisi"
-  [(set (match_operand:SI 0 "pic30_unified_move2_operand" "=r,R,Q")
-        (match_operand:SI 1 "pic30_register_operand"       "r,r,r"))]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov.d %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     switch (which_alternative) {
-       default: gcc_assert(0);
-       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
-     }
-   } else {
-     switch (which_alternative) {
-       default: gcc_assert(0);
-       case 1: return \"mov.d %1,%0\";
-       case 2: return \"mov %1,%0\;mov %d1,%Q0\";
-     }
-   }
-  "
-)
-
-(define_insn "mov<mode>si2"
-  [(set (match_operand:M32BIT 0 "pic30_register_operand"      "=r,r,r")
-        (match_operand:M32BIT 1 "pic30_unified_move2_operand"  "r,R,Q")
-  )]
-  "TARGET_EDS"
-  "*
-   if (which_alternative == 0) {
-     return \"mov.d %1,%0\";
-   }
-   if (pic30_ecore_target() || pic30_isav4_target()) {
-     switch (which_alternative) {
-       default: gcc_assert(0);
-       case 1: 
-         if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-           if (REGNO(XEXP(operands[1],0) == REGNO(operands[0]))) {
-             return \"movpag #1,DSWPAG\;mov %Q1,%d0\;mov %1,%0\";
-           } else {
-             return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
-           }
-         } else {
-           return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-         }
-       case 2: {
-         /* MEM ( PLUS ( reg, */
-         rtx inner = XEXP(operands[1],0);
-         if (REGNO(XEXP(inner,0)) == REGNO(operands[0])) {
-           return \"movpag #1,DSWPAG\;mov %Q1,%d0\;mov %1,%0\";
-         } else {
-           return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
-         }
-       }
-     }
-   } else {
-     switch (which_alternative) {
-       default: gcc_assert(0);
-       case 1: 
-         if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-           if (REGNO(XEXP(operands[1],0) == REGNO(operands[0]))) {
-             return \"mov %Q1,%d0\;mov %1,%0\";
-           } else {
-             return \"mov %1,%0\;mov %Q1,%d0\";
-           }
-         } else {
-           return \"mov.d %1,%0\";
-         }
-       case 2:  {
-         /* MEM ( PLUS ( reg, */
-         rtx inner = XEXP(operands[1],0);
-         if (REGNO(XEXP(inner,0)) == REGNO(operands[0])) {
-           return \"mov %Q1,%d0\;mov %1,%0\";
-         } else {
-           return \"mov %1,%0\;mov %Q1,%d0\";
-         }
-       }
-     }
-   }
-  "
-)
+;(define_insn "usetpagr"
+;  [(set (reg:HI PSVPAG)
+;        (uoffset_hi: HI
+;           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
+;   (clobber (match_scratch:HI 1                 "=X,r,r"))
+;  ]
+;  ""
+;  "*
+;   {  char *page;
+;      static char result[80];
+;      rtx inner = XEXP(operands[0],0);
+;      char *f = result;
+;
+;      result[0] = 0;
+;      if (pic30_eds_target()) 
+;        page = \"_DSRPAG\";
+;      else page = \"_PSVPAG\";
+;      if (which_alternative == 2) {
+;        char *t = pic30_section_base(inner,1,0);
+;
+;        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,%s\", t, page);
+;      } else {
+;        if (which_alternative == 1) {
+;          gcc_assert(GET_CODE(inner) == PLUS);
+;          inner = XEXP(inner,0);
+;        }
+;        if (((REGNO(inner) == FP_REGNO) &&
+;              pic30_frame_pointer_needed_p(get_frame_size())) ||
+;            (REGNO(inner) == SP_REGNO)) {
+;          /* OFFSET doesn't need unpacking, but we need to set page to 1
+;              on some devices -
+;              ecore devices allow the stack to be in page 1, others do not */
+;          if (pic30_ecore_target() || pic30_isav4_target()) {
+;            f += sprintf(f, \"movpag #1,DSRPAG\;\");
+;          }
+;        } if (which_alternative == 1) {
+;          /* if these aren't paged then we need to add the offset into
+;             register value to check for a page overflow  - though
+;             I hope we only generate this kind of pattern for stack offsets */
+;          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)],page);
+;        } else {
+;          /* a real register pair */
+;          f += sprintf(f, \"mov %s,%s\", reg_names[REGNO(inner)+1],page);
+;        }
+;      }
+;      return result;
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+;
+;(define_insn "usetpagw"
+;  [(set (reg:HI DSWPAG)
+;        (uoffset_hi: HI
+;           (match_operand 0 "pic30_RTU_operand"  "R,Q,TU")))
+;   (clobber (match_scratch:HI 1                 "=X,r,r"))
+;  ]
+;  ""
+;  "*
+;   {  static char result[80];
+;      rtx inner = XEXP(operands[0],0);
+;      char *f = result;
+;
+;      if (!pic30_eds_target()) return \"; DSWPAG register not rqd\";
+;      if (which_alternative == 2) {
+;        char *t = pic30_section_base(inner,1,0);
+;
+;        sprintf(result,\"mov #unified_hi(%s),%%1\;mov %%1,_DSWPAG\", t);
+;      } else {
+;        if (which_alternative == 1) {
+;          gcc_assert(GET_CODE(inner) == PLUS);
+;          inner = XEXP(inner,0);
+;        }
+;        if (((REGNO(inner) == FP_REGNO) &&
+;              pic30_frame_pointer_required()) ||
+;            (REGNO(inner) == SP_REGNO)) {
+;          /* OFFSET doesn't need unpacking, but we need to set page to 1
+;              on some devices -
+;              ecore devices allow the stack to be in page 1, others do not */
+;          if (pic30_ecore_target() || pic30_isav4_target()) {
+;            f += sprintf(f, \"movpag #1,DSWPAG\");
+;          }
+;        } if (which_alternative == 1) {
+;          /* if these aren't paged then we need to add the offset into
+;             register value to check for a page overflow  - though
+;             I hope we only generate this kind of pattern for stack offsets */
+;          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)]);
+;        } else {
+;          /* a real register pair */
+;          f += sprintf(f, \"mov %s,_DSWPAG\", reg_names[REGNO(inner)+1]);
+;        }
+;      }
+;      return result;
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+;
+;(define_insn "umovoffset"
+;  [(set (match_operand:HI 0    "pic30_register_operand"         "=r,r,r")
+;        (uoffset_lo: HI
+;           (match_operand 1 "pic30_RTU_operand"                  "R,Q,TU")))]
+;  ""
+;  "*
+;   {  rtx inner = XEXP(operands[1],0);
+;      static char result[80];
+;     
+;      switch (which_alternative) {
+;        default: gcc_assert(0);
+;
+;        case 2: {
+;          char *t = pic30_section_base(inner,0,0);
+;
+;          sprintf(result,\"movpag #unified_lo(%s),%%0\", t);
+;          return result;
+;        } 
+;
+;        case 1: {
+;          rtx base = XEXP(inner,0);
+;          rtx offset = XEXP(inner,1);
+;          int i;
+;         
+;          i = INTVAL(offset);
+;          if ((i >= 0) && (i < 32)) {
+;            sprintf(result,\"add %s,#%d,%%0\", reg_names[REGNO(base)], i);
+;          } else if ((i < 0) && (i > -32)) {
+;            sprintf(result,\"sub %s,#%d,%%0\", reg_names[REGNO(base)], -i);
+;          } else if ((i >= 0) && (i < 512)) {
+;            sprintf(result,\"mov %s,%%0\;add #%d,%%0\", 
+;                    reg_names[REGNO(base)], i);
+;          } else if ((i < 0) && (i > -512)) {
+;            sprintf(result,\"mov %s,%%0\;sub #%d,%%0\", 
+;                    reg_names[REGNO(base)], -i);
+;          } else gcc_assert(0);
+;          return result;
+;        }
+;
+;        case 0: return \"mov %r1,%0\";
+;      }
+;   }"
+;  [
+;    (set_attr "cc" "change0")
+;    (set_attr "type" "etc")
+;  ]
+;)
+;
+;(define_insn "uunpack"
+;  [(parallel 
+;    [(set (match_operand:HI 0 "pic30_register_operand" "+r")
+;          (uunpack:HI (match_dup 0)))
+;     (set (match_operand:HI 1 "register_operand" "+r")
+;          (uunpack:HI (match_dup 1)))
+;     (use (match_operand:HI 2 "pic30_register_operand" "r"))]
+;  )]
+;  ""
+;  "*
+;   {  
+;     char *page = 0;
+;     static char result[256];
+;     char *f = result;
+;
+;     if ((pic30_ecore_target()) || (pic30_eds_target())) {
+;       if (REGNO(operands[1]) == PSVPAG) page = \"_DSRPAG\";
+;       else if (REGNO(operands[1]) == DSWPAG) page = \"_DSWPAG\";
+;     } else {
+;       if (REGNO(operands[1]) == PSVPAG) page = \"_PSVPAG\";
+;     }
+;     f += sprintf(f, \"sl %%0,[w15]\;\");  /* shift up bit 15 */
+;     f += sprintf(f, \"rlc %s\;\",page);   /* shift into page */
+;     f += sprintf(f, \"bsw.z %%0,%%2\"); /* set bit 15 based on !z */
+;     return result;
+;   }
+;  "
+;)
+;
+;(define_expand "set_offset_and_page_SI"
+;  [(set (match_operand:HI 0 "pic30_register_operand"           "=r,r")
+;        (uoffset_lo: HI
+;           (match_operand 1 "pic30_RTU_operand"                 "R,TU")))
+;   (set (match_operand:HI 2 "register_operand"                 "=r,r")
+;        (uoffset_hi: HI
+;           (match_dup 1)))
+;  ]
+;  "((REGNO(operands[2]) == PSVPAG) || (REGNO(operands[2]) == DSWPAG))"
+;  "
+;   { /* set the offset and page for the SI address */
+;     static char result[256];
+;     char *f = result;
+;     char *page = 0;
+;     rtx fifteen = gen_reg_rtx(HImode);
+;     int unpack = 1;
+;
+;     {
+;       if (REGNO(operands[2]) == PSVPAG) {
+;         if (pic30_ecore_target() || pic30_isav4_target()) {
+;           emit(
+;             gen_umovpagr(operands[1])
+;           );
+;         } else {
+;           emit(
+;             gen_usetpagr(operands[1])
+;           );
+;         }
+;       } else if (REGNO(operands[2]) == DSWPAG) {
+;         if (pic30_ecore_target() || pic30_isav4_target()) {
+;           emit(
+;             gen_umovpagw(operands[1])
+;           );
+;         } else if (pic30_eds_target()) {
+;           emit(
+;             gen_usetpagw(operands[1])
+;           );
+;         } else unpack=0;
+;       }
+;       emit(
+;         gen_umovoffset(operands[0], operands[1])
+;       );
+;  
+;       if (unpack) {
+;         emit(
+;            gen_movhi_imm(fifteen, GEN_INT(15))
+;         );
+;         emit(
+;            gen_uunpack(operands[0], operands[2], fifteen)
+;         );
+;       }
+;       DONE;
+;     }
+;   }"
+;)
+;
+;(define_expand "P32rd"
+;   [(set (match_operand 0 "pic30_reg_or_R_operand"       "=rR")
+;         (match_operand 1 "pic30_mem_eds_operand"    " RQST"))]
+;   ""
+;   "{
+;   rtx op2 = gen_reg_rtx(SImode);
+;   rtx op3 = gen_reg_rtx(HImode);
+;   rtx op0 = operand0;
+;   rtx op1 = operand1;
+;   rtx page = gen_reg_rtx(HImode);
+;   rtx offset = gen_reg_rtx(HImode);
+;   rtx (*fn)(rtx, rtx);
+;   int indirect_allowed=1;
+;
+;   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
+;   switch (GET_MODE(op0)) {
+;     default:
+;/*
+; *                 fprintf(stderr, \"Unknown mode:P32rd: %s\n\",
+; *                         mode_name[GET_MODE(op0)]);
+; */
+;                  FAIL;
+;     case QImode: fn = gen_P32PEDSread_qi;
+;                  break;
+;     case HImode: fn = gen_P32PEDSread_hi;
+;                  break;
+;     case SImode: fn = gen_P32PEDSread_si;
+;                  break;
+;     case DImode: fn = gen_P32PEDSread_di;
+;                  indirect_allowed=0;
+;                  break;
+;     case SFmode: fn = gen_P32PEDSread_sf;
+;                  break;
+;     case DFmode: fn = gen_P32PEDSread_df;
+;                  indirect_allowed=0;
+;                  break;
+;     case P16APSVmode: fn = gen_P32PEDSread_p16apsv;
+;                  break;
+;     case P24PSVmode: fn = gen_P32PEDSread_p24psv;
+;                  break;
+;     case P24PROGmode: fn = gen_P32PEDSread_p24prog;
+;                  break;
+;     case P16PMPmode: fn = gen_P32PEDSread_p16pmp;
+;                  break;
+;     case P32EXTmode: fn = gen_P32PEDSread_p32ext;
+;                  break;
+;     case P32EDSmode: fn = gen_P32PEDSread_p32eds;
+;                  break;
+;     case P32PEDSmode: fn = gen_P32PEDSread_p32peds;
+;                  break;
+;   }
+;   if ((indirect_allowed == 0) && (pic30_R_operand(op0, GET_MODE(op0)))) {
+;     op0 = gen_reg_rtx(GET_MODE(op0));
+;   } else if (!pic30_reg_or_R_operand(op0, GET_MODE(op0))) {
+;     op0 = gen_reg_rtx(GET_MODE(op0));
+;   }
+;   pic30_managed_psv = 1;
+;   if (pic30_R_constraint_strict(op1,0) || pic30_Q_constraint(op1) ||
+;       pic30_S_constraint_ecore(op1,1)) {
+;     if (GET_CODE(XEXP(op1,0)) == PLUS) {
+;       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op1,0),0),
+;                    XEXP(XEXP(op1,0),1), op2, 1, OPTAB_DIRECT);
+;       op2 = gen_rtx_MEM(GET_MODE(op1),op2);
+;     } else {
+;#if 0
+;       emit_insn(
+;           gen_movp32eds_gen(op2, XEXP(op1,0)) /* copy pointer */
+;       );
+;#else
+;       // op2 = XEXP(op1,0);  // we may not need to create a copy
+;       op2 = op1;
+;#endif
+;     }
+;     emit_insn(
+;        gen_set_offset_and_page_SI(offset, op2, gen_rtx_REG(HImode, PSVPAG))
+;    );
+;   } else {
+;     /* create pointer */
+;     if (pic30_symbolic_address_operand(XEXP(op1,0),VOIDmode) &&
+;         pic30_symbolic_address_operand_offset(XEXP(op1,0)) < 1023) {
+;       emit_insn(
+;         gen_set_offset_and_page_SI(offset, op1, 
+;                                    gen_rtx_REG(HImode, PSVPAG))
+;       );
+;     } else {
+;#if 0 
+;       rtx reg = XEXP(op1,0);
+;
+;       if (!REG_P(reg)) {
+;         reg = force_reg(SImode, XEXP(op1,0));
+;       } 
+;#endif
+;       emit_insn(
+;         gen_set_offset_and_page_SI(offset, op1, gen_rtx_REG(HImode, PSVPAG))
+;       );
+;     }
+;   }
+;   emit_insn(
+;     fn(op0, gen_rtx_MEM(GET_MODE(op1),offset))         /* read value */
+;   );
+;   if (op0 != operand0) {
+;     emit_move_insn(operand0, op0);
+;   }
+;   DONE;
+;}")
+;
+;(define_expand "P32wt"
+;   [(set (match_operand 0 "pic30_mem_eds_operand"   "=RQ,ST")
+;         (match_operand 1 "pic30_move_operand"       " rR,rR"))]
+;   ""
+;   "{
+;   rtx op2 = gen_reg_rtx(SImode);
+;   rtx op3 = gen_reg_rtx(HImode);
+;   rtx op1 = operand1;
+;   rtx op0 = operand0;
+;   rtx page = gen_reg_rtx(HImode);
+;   rtx offset = gen_reg_rtx(HImode);
+;   rtx (*fn)(rtx, rtx);
+;   int eds_target = pic30_eds_target();
+;
+;   if ((GET_CODE(XEXP(op0,0)) == POST_INC) &&
+;       (REGNO(XEXP(XEXP(op0,0),0)) == SP_REGNO)) {
+;     /* this is a stack write that can only be generated with -munified
+;        (which changes the Pmode to P32EDSmode) - change it back to a normal
+;        write */
+;     switch (GET_MODE(op0)) {
+;       default:
+;/*
+; *                   fprintf(stderr, \"Unknown mode:P32wt: %s\n\",
+; *                           mode_name[GET_MODE(op0)]);
+; */
+;                    FAIL;
+;       case QImode: fn = gen_movqi;
+;                    break;
+;       case HImode: fn = gen_movhi;
+;                    break;
+;       case SImode: fn = gen_movsi;
+;                    break;
+;       case DImode: fn = gen_movdi;
+;                    break;
+;       case SFmode: fn = gen_movsf;
+;                    break;
+;       case DFmode: fn = gen_movdf;
+;                    break;
+;       case P16APSVmode: fn = gen_movp16apsv;
+;                    break;
+;       case P24PSVmode: fn = gen_movp24psv;
+;                    break;
+;       case P24PROGmode: fn = gen_movp24prog;
+;                    break;
+;       case P16PMPmode: fn = gen_movp16pmp;
+;                    break;
+;       case P32EXTmode: fn = gen_movp32ext;
+;                    break;
+;       case P32EDSmode: fn = gen_movp32eds;
+;                    break;
+;       case P32PEDSmode: fn = gen_movp32peds;
+;                    break;
+;     }
+;
+;     if (fn(gen_rtx_MEM(GET_MODE(op0),
+;                        gen_rtx_POST_INC(HImode,gen_rtx_REG(HImode, SP_REGNO))),
+;            op1))
+;       DONE;
+;     FAIL;
+;   }
+;   if (GET_MODE(op0) != GET_MODE(op1)) FAIL;
+;   switch (GET_MODE(op0)) {
+;     default:
+;/*
+; *                 fprintf(stderr, \"Unknown mode:P32wt(2): %s\n\",
+; *                         mode_name[GET_MODE(op0)]);
+; */
+;                  FAIL;
+;     case QImode: fn = gen_P32PEDSwrite_qi;
+;                  break;
+;     case HImode: fn = gen_P32PEDSwrite_hi;
+;                  break;
+;     case SImode: fn = gen_P32PEDSwrite_si;
+;                  break;
+;     case DImode: fn = gen_P32PEDSwrite_di;
+;                  break;
+;     case SFmode: fn = gen_P32PEDSwrite_sf;
+;                  break;
+;     case DFmode: fn = gen_P32PEDSwrite_df;
+;                  break;
+;     case P16APSVmode: fn = gen_P32PEDSwrite_p16apsv;
+;                  break;
+;     case P24PSVmode: fn = gen_P32PEDSwrite_p24psv;
+;                  break;
+;     case P24PROGmode: fn = gen_P32PEDSwrite_p24prog;
+;                  break;
+;     case P16PMPmode: fn = gen_P32PEDSwrite_p16pmp;
+;                  break;
+;     case P32EXTmode: fn = gen_P32PEDSwrite_p32ext;
+;                  break;
+;     case P32EDSmode: fn = gen_P32PEDSwrite_p32eds;
+;                  break;
+;     case P32PEDSmode: fn = gen_P32PEDSwrite_p32peds;
+;                  break;
+;   }
+;   if (!pic30_mode2_operand(op1, GET_MODE(op1))) {
+;     op1 = gen_reg_rtx(GET_MODE(op1));
+;     emit_move_insn(op1, operand1);
+;   }
+;   if (eds_target) {
+;     pic30_managed_psv = 1;
+;   }
+;   if (pic30_R_constraint_strict(op0,0) || pic30_Q_constraint(op0) ||
+;       pic30_S_constraint_ecore(op0,1)) {
+;     if (GET_CODE(XEXP(op0,0)) == PLUS) {
+;       op2 = expand_binop(SImode, add_optab, XEXP(XEXP(op0,0),0),
+;                    XEXP(XEXP(op0,0),1), op2, 1, OPTAB_DIRECT);
+;       op2 = gen_rtx_MEM(GET_MODE(op0),op2);
+;     } else {
+;#if 0
+;       emit_insn(
+;         gen_movp32eds_gen(op2, XEXP(op0,0)) /* copy pointer */
+;       );
+;#else
+;       // op2 = XEXP(op0,0);
+;       op2 = op0;
+;#endif
+;     }
+;     emit_insn(
+;       gen_set_offset_and_page_SI(offset,op2,gen_rtx_REG(HImode, DSWPAG))
+;     );
+;   } else {
+;     /* create pointer */
+;     if (pic30_symbolic_address_operand(XEXP(op0,0),VOIDmode) &&
+;         pic30_symbolic_address_operand_offset(XEXP(op0,0)) < 1023) {
+;       emit_insn(
+;         gen_set_offset_and_page_SI(offset, op0,
+;                                    gen_rtx_REG(HImode, DSWPAG))
+;       );
+;     } else {
+;#if 0
+;       rtx reg = XEXP(op0,0);
+;
+;       if (!REG_P(reg)) {
+;         reg = force_reg(SImode, XEXP(op0,0));
+;       } 
+;#endif
+;       emit_insn(
+;         gen_set_offset_and_page_SI(offset, op0,gen_rtx_REG(HImode, DSWPAG))
+;       );
+;     }
+;   }
+;   emit_insn(
+;     fn(gen_rtx_MEM(GET_MODE(op0),offset), op1)         /* write value */
+;   );
+;   DONE;
+;}")
+;
+;(define_insn "copyfpsi"
+;  [(set (match_operand:SI  0 "pic30_register_operand" "=r")
+;        (uextend:SI
+;          (match_operand:HI 1 "register_operand" "r")))]
+;  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || (REGNO(operands[1]) == SP_REGNO)))"
+;  "mov %1,%0\;mov #1,%d0"
+;)
+;  
+;(define_insn "fpcopysi"
+;  [(set (match_operand:HI   0 "register_operand"      "=r")
+;        (utrunc:HI
+;          (match_operand:SI 1 "pic30_register_operand" "r")))]
+;  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || (REGNO(operands[0]) == SP_REGNO)))"
+;  "mov %1,%0"
+;)
 
 ;; if unified is P32PEDS
 
@@ -12896,7 +16678,9 @@
   [(set (match_operand:P32PEDS  0 "pic30_register_operand" "=r")
         (uextend:P32PEDS
           (match_operand:HI 1 "register_operand" "r")))]
-  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || (REGNO(operands[1]) == SP_REGNO)))"
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode) && 
+   (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || 
+    (REGNO(operands[1]) == SP_REGNO)))"
   "mov %1,%0\;mov #1,%d0"
 )
   
@@ -12904,12 +16688,14 @@
   [(set (match_operand:HI   0 "register_operand"      "=r")
         (utrunc:HI
           (match_operand:P32PEDS 1 "pic30_register_operand" "r")))]
-  "(TARGET_EDS && (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || (REGNO(operands[0]) == SP_REGNO)))"
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode) &&
+    (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || 
+    (REGNO(operands[0]) == SP_REGNO)))"
   "mov %1,%0"
 )
 
 (define_insn "movqiP32PEDS"
-  [(set (match_operand:QI 0 "pic30_unified_move2_operand" "=r,RSQ")
+  [(set (match_operand:QI 0 "pic30_move2_operand"    "=r,RSQ")
         (match_operand:QI 1 "pic30_register_operand"       "r,r"))]
   "TARGET_EDS"
   "*
@@ -12924,11 +16710,55 @@
   "
 )
 
+;; if unified is P3PEDS
+
+(define_insn "copyfpP32EDS"
+  [(set (match_operand:P32EDS  0 "pic30_register_operand" "=r")
+        (uextend:P32EDS
+          (match_operand:HI 1 "register_operand" "r")))]
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32EDSmode) && 
+   (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || 
+    (REGNO(operands[1]) == SP_REGNO)))"
+  "mov %1,%0\;mov #1,%d0"
+)
+  
+(define_insn "fpcopyP32EDS"
+  [(set (match_operand:HI   0 "register_operand"      "=r")
+        (utrunc:HI
+          (match_operand:P32EDS 1 "pic30_register_operand" "r")))]
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32EDSmode) &&
+    (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || 
+    (REGNO(operands[0]) == SP_REGNO)))"
+  "mov %1,%0"
+)
+
+;; if unified is SImode
+
+(define_insn "copyfpP32UMM"
+  [(set (match_operand:P32UMM  0 "pic30_register_operand" "=r")
+        (uextend:P32UMM
+          (match_operand:HI 1 "register_operand" "r")))]
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode) && 
+   (((pic30_frame_pointer_required() && REGNO(operands[1]) == FP_REGNO)) || 
+    (REGNO(operands[1]) == SP_REGNO)))"
+  "rlnc %1,%0\;mov #1,%d0"
+)
+  
+(define_insn "fpcopyP32UMM"
+  [(set (match_operand:HI   0 "register_operand"      "=r")
+        (utrunc:HI
+          (match_operand:P32UMM 1 "pic30_register_operand" "r")))]
+  "(TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode) &&
+    (((pic30_frame_pointer_required() && REGNO(operands[0]) == FP_REGNO)) || 
+    (REGNO(operands[0]) == SP_REGNO)))"
+  "rrnc %1,%0"
+)
+
 (define_insn "movqiP32PEDS2"
   [(set (match_operand:QI 0 "pic30_register_operand"      "=r,r")
-        (match_operand:QI 1 "pic30_unified_move2_operand"  "r,RSQ")
+        (match_operand:QI 1 "pic30_move2_operand"    " r,RSQ")
   )]
-  "TARGET_EDS"
+  "TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode)"
   "*
    if (which_alternative == 0) {
      return \"mov.b %1,%0\";
@@ -12942,9 +16772,9 @@
 )
 
 (define_insn "movhiP32PEDS"
-  [(set (match_operand:HI 0 "pic30_unified_move2_operand" "=r,RSQ")
+  [(set (match_operand:HI 0 "pic30_move2_operand"     "=r,RSQ")
         (match_operand:HI 1 "pic30_register_operand"       "r,r"))]
-  "TARGET_EDS"
+  "TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode)"
   "*
    if (which_alternative == 0) {
      return \"mov %1,%0\";
@@ -12959,9 +16789,9 @@
 
 (define_insn "movhiP32PEDS2"
   [(set (match_operand:HI 0 "pic30_register_operand"      "=r,r")
-        (match_operand:HI 1 "pic30_unified_move2_operand"  "r,RSQ")
+        (match_operand:HI 1 "pic30_move2_operand"    " r,RSQ")
   )]
-  "TARGET_EDS"
+  "TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode)"
   "*
    if (which_alternative == 0) {
      return \"mov %1,%0\";
@@ -12975,9 +16805,9 @@
 )
 
 (define_insn "mov<mode>P32PEDS"
-  [(set (match_operand:M32BIT 0 "pic30_unified_move2_operand" "=r,R,Q")
-        (match_operand:M32BIT 1 "pic30_register_operand"       "r,r,r"))]
-  "TARGET_EDS"
+  [(set (match_operand:SM32BIT 0 "pic30_move2_operand"    "=r,R,Q,<>")
+        (match_operand:SM32BIT 1 "pic30_register_operand" " r,r,r,r"))]
+  "TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode)"
   "*
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
@@ -12985,24 +16815,37 @@
    if (pic30_ecore_target() || pic30_isav4_target()) {
      switch (which_alternative) {
        default: gcc_assert(0);
-       case 2: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
-       case 3: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+       case 1: return \"movpag #1,DSWPAG\;mov.d %1,%0\";
+       case 2: return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%Q0\";
+       case 3: 
+         if (GET_CODE(XEXP(operands[0],0)) == POST_INC) {
+           return \"movpag #1,DSWPAG\;mov %1,%0\;mov %d1,%0\";
+         } else {
+           return \"movpag #1,DSWPAG\;mov %d1,%0\;mov %1,%0\";
+         }
      }
    } else {
      switch (which_alternative) {
        default: gcc_assert(0);
        case 1: return \"mov.d %1,%0\";
        case 2: return \"mov %1,%0\;mov %d1,%Q0\";
+       case 3: 
+         if (GET_CODE(XEXP(operands[0],0)) == POST_INC) {
+           return \"mov %1,%0\;mov %d1,%0\";
+         } else {
+           return \"mov %d1,%0\;mov %1,%0\";
+         }
      }
    }
   "
 )
 
+; not used
 (define_insn "mov<mode>P32PEDS2"
-  [(set (match_operand:M32BIT 0 "pic30_register_operand"      "=r,r,r")
-        (match_operand:M32BIT 1 "pic30_unified_move2_operand"  "r,R,Q")
+  [(set (match_operand:SM32BIT 0 "pic30_register_operand" "=r,r,r,r")
+        (match_operand:SM32BIT 1 "pic30_move2_operand"    " r,R,Q,<>")
   )]
-  "TARGET_EDS"
+  "TARGET_EDS && (TARGET_EDS_MODE == P32PEDSmode)"
   "*
    if (which_alternative == 0) {
      return \"mov.d %1,%0\";
@@ -13012,21 +16855,28 @@
        default: gcc_assert(0);
        case 1:
          if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-           if (REGNO(XEXP(operands[1],0) == REGNO(operands[0]))) {
-             return \"movpag #1,DSWPAG\;mov %Q1,%d0\;mov %1,%0\";
+           if (REGNO(XEXP(operands[1],0)) == REGNO(operands[0])) {
+             return \"movpag #1,DSRPAG\;mov %Q1,%d0\;mov %1,%0\";
            } else {
-             return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+             return \"movpag #1,DSRPAG\;mov %1,%0\;mov %Q1,%d0\";
            }
          } else {
            return \"movpag #1,DSWPAG\;mov.d %1,%0\";
          }
        case 2: {
-         /* MEM ( PLUS ( reg, */
+         /* MEM ( PLUS ( reg,)) */
          rtx inner = XEXP(operands[1],0);
          if (REGNO(XEXP(inner,0)) == REGNO(operands[0])) {
-           return \"movpag #1,DSWPAG\;mov %Q1,%d0\;mov %1,%0\";
+           return \"movpag #1,DSRPAG\;mov %Q1,%d0\;mov %1,%0\";
          } else {
-           return \"movpag #1,DSWPAG\;mov %1,%0\;mov %Q1,%d0\";
+           return \"movpag #1,DSRPAG\;mov %1,%0\;mov %Q1,%d0\";
+         }
+       }
+       case 3: {
+         if (GET_CODE(XEXP(operands[1],0)) == POST_INC) {
+           return \"movpag #1,DSRPAG\;mov %1,%0\;mov %1,%d0\";
+         } else {
+           return \"movpag #1,DSRPAG\;mov %1,%d0\;mov %1,%0\";
          }
        }
      }
@@ -13035,7 +16885,7 @@
        default: gcc_assert(0);
        case 1: 
          if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-           if (REGNO(XEXP(operands[1],0) == REGNO(operands[0]))) {
+           if (REGNO(XEXP(operands[1],0)) == REGNO(operands[0])) {
              return \"mov %Q1,%d0\;mov %1,%0\";
            } else {
              return \"mov %1,%0\;mov %Q1,%d0\";
@@ -13044,7 +16894,7 @@
            return \"mov.d %1,%0\";
          }     
        case 2:  {
-         /* MEM ( PLUS ( reg, */ 
+         /* MEM ( PLUS ( reg,)) */ 
          rtx inner = XEXP(operands[1],0);
          if (REGNO(XEXP(inner,0)) == REGNO(operands[0])) {
            return \"mov %Q1,%d0\;mov %1,%0\";
@@ -13052,6 +16902,13 @@
            return \"mov %1,%0\;mov %Q1,%d0\";
          }
        }  
+       case 3: {
+         if (GET_CODE(XEXP(operands[1],0)) == POST_INC) {
+           return \"mov %1,%0\;mov %1,%d0\";
+         } else {
+           return \"mov %1,%d0\;mov %1,%0\";
+         }
+       }
      }
    }
   "
@@ -13060,7 +16917,7 @@
 (define_insn "movhi_P24PROGaddress_low"
   [(set (match_operand:HI 0 "pic30_register_operand"               "=r")
         (subreg:HI
-          (match_operand:P24PROG 1 "pic30_symbolic_address_operand" "q") 0))]
+          (match_operand:P24PROG 1 "pic30_symbolic_address_operand" "qs") 0))]
   ""
   "mov #tbloffset(%1),%0"
  [
@@ -13204,8 +17061,50 @@
 }
 ")
 
+(define_insn "*movsi_invalid_3"
+  [(set (match_operand:SI     0 "general_operand" "")
+        (mem:SI
+          (plus:HI
+            (reg:HI SPREG)
+            (match_operand    1 "immediate_operand" ""))))]
+  "(INTVAL(operands[1]) & 1)"
+  "*
+   {
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+   }
+  "
+)
+
+(define_insn "*movsi_invalid_4"
+  [(set
+        (mem:SI
+          (plus:SI
+            (reg:HI SPREG)
+            (match_operand    0 "immediate_operand" "")))
+        (match_operand:SI     1 "general_operand" ""))
+  ]
+  "(INTVAL(operands[0]) & 1)"
+  "*
+{
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+}
+  "
+)
+
 (define_insn "mov<mode>_const0"
-  [(set (match_operand:M32BIT 0 "pic30_move_operand" "=r,R,<>,U")
+  [(set (match_operand:GM32BIT 0 "pic30_move_operand" "=r,R,<>,U")
         (const_int 0))]
   ""
   "*
@@ -13298,22 +17197,22 @@
   ]
 )
 
-(define_insn "movsi_address"
-  [(set (match_operand:SI 0 "pic30_register_operand"        "=r")
-        (match_operand:SI 1 "pic30_symbolic_address_operand" "q"))]
-  ""
-  "*
-   if (TARGET_EDS) {
-     return \"mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0\";
-   } else {
-     return \"mov #%z1,%0\;mov #%y1,%d0\";
-   }
-  "
-  [
-   (set_attr "cc" "clobber")
-   (set_attr "type" "def")
-  ]
-)
+;(define_insn "movsi_address"
+;  [(set (match_operand:SI 0 "pic30_register_operand"        "=r")
+;        (match_operand:SI 1 "pic30_symbolic_address_operand" "q"))]
+;  ""
+;  "*
+;   if (TARGET_EDS && (TARGET_EDS_MODE == SImode)) {
+;     return \"mov #unified_lo(%1),%0\;mov #unified_hi(%1),%d0\";
+;   } else {
+;     return \"mov #%z1,%0\;mov #%y1,%d0\";
+;   }
+;  "
+;  [
+;   (set_attr "cc" "clobber")
+;   (set_attr "type" "def")
+;  ]
+;)
 
 (define_insn "movsi_rimm"
   [(set (match_operand:SI 0 "pic30_register_operand" "=r,r")
@@ -13345,8 +17244,8 @@
 /*VRT: Need optimized fix for psrd psrd*/
 (define_insn "mov<mode>_gen"
   [(set 
-    (match_operand:M32BIT 0 "pic30_move_operand" "=r,r,&r,r,R,R,R,>,>,Q,&r,<,r,T")
-    (match_operand:M32BIT 1 "pic30_move_operand"  "r,R, >,Q,r,0,R,r,>,r, <,r,T,r")
+    (match_operand:GM32BIT 0 "pic30_move_operand" "=r,r,&r,r,R,R,R,>,>,Q,&r,<,r,T")
+    (match_operand:GM32BIT 1 "pic30_move_operand"  "r,R, >,Q,r,0,R,r,>,r, <,r,T,r")
    )]
   ""
   "*
@@ -13458,10 +17357,10 @@
                   if (pic30_pre_modify(operands[1])) {
                     return \"sub %r1,#4,%r1\;mov [%r1],%0\;mov [%r1+2],%d0\";
                   } else {
-                    return \"mov %1,%d0\;mov %1,%0\";
+                    return \"mov [%r1+2],%d0\;mov [%r1],%0\;sub %r1,#4,%r1\";
                   }
                 } else {
-                return \"mov.d %1,%0\";
+                  return \"mov.d %1,%0\";
                 }
 	case 11: /* < = r */
                 return \"mov.d %1,%0\";
@@ -13483,9 +17382,9 @@
 
 (define_insn "mov<mode>_gen_APSV"
   [(set 
-    (match_operand:M32BIT 0 "pic30_move_operand" "=r,r,&r,r,R,R,R,>,>,Q,&r,<,r,T")
-    (unspec:M32BIT [
-      (match_operand:SI 1 "pic30_move_APSV_operand"  
+    (match_operand:GM32BIT 0 "pic30_move_operand" "=r,r,&r,r,R,R,R,>,>,Q,&r,<,r,T")
+    (unspec:GM32BIT [
+      (match_operand:GM32BIT 1 "pic30_move_APSV_operand"  
                                                   "r,R, >,Q,r,0,R,r,>,r, <,r,T,r")
       (reg:HI PSVPAG)] UNSPECV_USEPSV))]
   ""
@@ -13588,7 +17487,7 @@
                   if (pic30_pre_modify(operands[1])) {
                     return \"sub %r1,#4,%r1\;mov [%r1],%0\;mov [%r1+2],%d0\";
                   } else {
-                    return \"mov %1,%d0\;mov %1,%0\";
+                    return \"mov [%r1],%0\;mov [%r1+2],%d0\;sub %r1,#4,%r1\";
                   }
                 } else {
                 return \"mov.d %1,%0\";
@@ -13611,416 +17510,6 @@
   ]
 )
 
-;(define_insn "movp24psv_gen_APSV"
-;  [(set (match_operand:P24PSV 0 "pic30_move_operand" "=r,r,r,r,R,R,R,>,>,Q,r,<,r,T")
-;        (unspec:P24PSV [
-;          (match_operand:P24PSV 1 "pic30_move_APSV_operand"  
-;                                                      "r,R,>,Q,r,0,R,r,>,r,<,r,T,r")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;  ""
-;  "*
-;{
-;        int idDst, idSrc, pre;
-;
-;	switch (which_alternative)
-;	{
-;	case 0: /* r = r */
-;		return \"mov.d %1,%0\";
-;	case 1: /* r = R */
-;		return \"mov.d %1,%0\";
-;	case 2: /* r = > */
-;#if 0
-;                /* a quick note on pic30_pp_modify_valid();
-;                   this function does nothing in the current product as it
-;                   was there to detect an errata situation which has been
-;                   resolved and deprecated */
-;                if ((pre = pic30_pp_modify_valid(operands[1])) == 0)
-;                        return \"mov.d %1,%0\";
-;                else if (pre == -1) /* pre increment */
-;                        return \"add %r1,#4,%r1\;mov.d %s1,%0\";
-;                else if (pre == 1)  /* post increment */
-;                        return \"mov.d %s1,%0\;add %r1,#4,%r1\";
-;#endif
-;                return \"mov.d %1,%0\";
-;	case 3: /* r = Q */
-;		idDst = REGNO(operands[0]);
-;		idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;		if (idDst == idSrc)
-;		{
-;			return \"mov %Q1,%d0\;mov %1,%0\";
-;		} else {
-;			return \"mov %1,%0\;mov %Q1,%d0\";
-;		}
-;	case 4: /* R = r */
-;		return \"mov.d %1,%0\";
-;        case 5: /* R = 0 */
-;                return \"mov %1,%I0\;mov %1,%D0\";
-;        case 6: /* R = R */
-;                return \"mov %I1,%I0\;mov %D1,%D0\";
-;	case 7: /* > = r */
-;                return \"mov.d %1,%0\";
-;	case 8: /* > = > */
-;                /* any pre-decrement cannot be done in 'pieces' */
-;                { int op0_pre,op1_pre;
-;
-;                  op0_pre = pic30_pre_modify(operands[0]);
-;                  op1_pre = pic30_pre_modify(operands[1]);
-;                  if (op0_pre && op1_pre) {
-;                    return \"add #4,%r1\;add #4,%r0\;mov %I1,%I0\;mov %D1,%D0\";
-;                  } else if (op0_pre) {
-;                    return \"add #4,%r0\;mov %1,%I0\;mov %1,%D0\";
-;                  } else if (op1_pre) {
-;                    return \"add #4,%r1\;mov %I1,%0\;mov %D1,%0\";
-;                  } else return \"mov %1,%0\;mov %1,%0\";
-;                }
-;	case 9: /* Q = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;	case 10: /* r = < */
-;                return \"mov.d %1,%0\";
-;        case 11: /* < = r */
-;                return \"mov.d %1,%0\";
-;	case 12: /* r = T */
-;		return \"mov %1,%0\;mov %Q1,%d0\";
-;	case 13: /* T = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        default: gcc_assert(0);
-;	}
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,def,use,use,use,use,use,use,defuse,use,def,etc")
-;  ]
-;)
-;
-;(define_insn "movp24prog_gen_APSV"
-;  [(set (match_operand:P24PROG 0 "pic30_move_operand" "=r,r,r,r,R,R,R,>,>,Q,r,<,r,T")
-;        (unspec:P24PROG [
-;          (match_operand:P24PROG 1 "pic30_move_APSV_operand"  
-;                                                       "r,R,>,Q,r,0,R,r,>,r,<,r,T,r")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;  ""
-;  "*
-;{
-;        int idDst, idSrc, pre;
-;
-;	switch (which_alternative)
-;	{
-;	case 0: /* r = r */
-;		return \"mov.d %1,%0\";
-;	case 1: /* r = R */
-;		return \"mov.d %1,%0\";
-;	case 2: /* r = > */
-;#if 0
-;                /* a quick note on pic30_pp_modify_valid();
-;                   this function does nothing in the current product as it
-;                   was there to detect an errata situation which has been
-;                   resolved and deprecated */
-;                if ((pre = pic30_pp_modify_valid(operands[1])) == 0)
-;                        return \"mov.d %1,%0\";
-;                else if (pre == -1) /* pre increment */
-;                        return \"add %r1,#4,%r1\;mov.d %s1,%0\";
-;                else if (pre == 1)  /* post increment */
-;                        return \"mov.d %s1,%0\;add %r1,#4,%r1\";
-;#endif
-;                return \"mov.d %1,%0\";
-;	case 3: /* r = Q */
-;		idDst = REGNO(operands[0]);
-;		idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;		if (idDst == idSrc)
-;		{
-;			return \"mov %Q1,%d0\;mov %1,%0\";
-;		} else {
-;			return \"mov %1,%0\;mov %Q1,%d0\";
-;		}
-;	case 4: /* R = r */
-;		return \"mov.d %1,%0\";
-;        case 5: /* R = 0 */
-;                return \"mov %1,%I0\;mov %1,%D0\";
-;        case 6: /* R = R */
-;                return \"mov %I1,%I0\;mov %D1,%D0\";
-;	case 7: /* > = r */
-;                return \"mov.d %1,%0\";
-;	case 8: /* > = > */
-;                /* any pre-decrement cannot be done in 'pieces' */
-;                { int op0_pre,op1_pre;
-;
-;                  op0_pre = pic30_pre_modify(operands[0]);
-;                  op1_pre = pic30_pre_modify(operands[1]);
-;                  if (op0_pre && op1_pre) {
-;                    return \"add #4,%r1\;add #4,%r0\;mov %I1,%I0\;mov %D1,%D0\";
-;                  } else if (op0_pre) {
-;                    return \"add #4,%r0\;mov %1,%I0\;mov %1,%D0\";
-;                  } else if (op1_pre) {
-;                    return \"add #4,%r1\;mov %I1,%0\;mov %D1,%0\";
-;                  } else return \"mov %1,%0\;mov %1,%0\";
-;                }
-;	case 9: /* Q = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        case 10: /* r = < */
-;                return \"mov.d %1,%0\";
-;        case 11: /* < = r */
-;                return \"mov.d %1,%0\";
-;	case 12: /* r = T */
-;		return \"mov %1,%0\;mov %Q1,%d0\";
-;	case 13: /* T = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        default: gcc_assert(0);
-;	}
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,def,use,use,use,use,use,use,defuse,use,def,etc")
-;  ]
-;)
-;
-;(define_insn "movp32ext_gen_APSV"
-;  [(set (match_operand:P32EXT 0 "pic30_move_operand" "=r,r,r,r,R,R,R,>,>,Q,r,<,r,T")
-;        (unspec:P32EXT [
-;          (match_operand:P32EXT 1 "pic30_move_APSV_operand"  
-;                                                      "r,R,>,Q,r,0,R,r,>,r,<,r,T,r")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;  ""
-;  "*
-;{
-;        int idDst, idSrc, pre;
-;
-;	switch (which_alternative)
-;	{
-;	case 0: /* r = r */
-;		return \"mov.d %1,%0\";
-;	case 1: /* r = R */
-;		return \"mov.d %1,%0\";
-;	case 2: /* r = > */
-;#if 0
-;                /* a quick note on pic30_pp_modify_valid();
-;                   this function does nothing in the current product as it
-;                   was there to detect an errata situation which has been
-;                   resolved and deprecated */
-;                if ((pre = pic30_pp_modify_valid(operands[1])) == 0)
-;                        return \"mov.d %1,%0\";
-;                else if (pre == -1) /* pre increment */
-;                        return \"add %r1,#4,%r1\;mov.d %s1,%0\";
-;                else if (pre == 1)  /* post increment */
-;                        return \"mov.d %s1,%0\;add %r1,#4,%r1\";
-;#endif
-;                return \"mov.d %1,%0\";
-;	case 3: /* r = Q */
-;		idDst = REGNO(operands[0]);
-;		idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;		if (idDst == idSrc)
-;		{
-;			return \"mov %Q1,%d0\;mov %1,%0\";
-;		} else {
-;			return \"mov %1,%0\;mov %Q1,%d0\";
-;		}
-;	case 4: /* R = r */
-;		return \"mov.d %1,%0\";
-;        case 5: /* R = 0 */
-;                return \"mov %1,%I0\;mov %1,%D0\";
-;        case 6: /* R = R */
-;                return \"mov %I1,%I0\;mov %D1,%D0\";
-;	case 7: /* > = r */
-;                return \"mov.d %1,%0\";
-;	case 8: /* > = > */
-;                /* any pre-decrement cannot be done in 'pieces' */
-;                { int op0_pre,op1_pre;
-;
-;                  op0_pre = pic30_pre_modify(operands[0]);
-;                  op1_pre = pic30_pre_modify(operands[1]);
-;                  if (op0_pre && op1_pre) {
-;                    return \"add #4,%r1\;add #4,%r0\;mov %I1,%I0\;mov %D1,%D0\";
-;                  } else if (op0_pre) {
-;                    return \"add #4,%r0\;mov %1,%I0\;mov %1,%D0\";
-;                  } else if (op1_pre) {
-;                    return \"add #4,%r1\;mov %I1,%0\;mov %D1,%0\";
-;                  } else return \"mov %1,%0\;mov %1,%0\";
-;                }
-;	case 9: /* Q = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;	case 10: /* r = < */
-;                return \"mov.d %1,%0\";
-;        case 11: /* < = r */
-;                return \"mov.d %1,%0\";
-;	case 12: /* r = T */
-;		return \"mov %1,%0\;mov %Q1,%d0\";
-;	case 13: /* T = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        default: gcc_assert(0);
-;	}
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,def,use,use,use,use,use,use,defuse,use,def,etc")
-;  ]
-;)
-;
-;(define_insn "movp32eds_gen_APSV"
-;  [(set (match_operand:P32EDS 0 "pic30_move_operand" "=r,r,r,r,R,R,R,>,>,Q,r,<,r,T")
-;        (unspec:P32EDS [
-;          (match_operand:P32EDS 1 "pic30_move_APSV_operand"  
-;                                                      "r,R,>,Q,r,0,R,r,>,r,<,r,T,r")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;  ""
-;  "*
-;{
-;        int idDst, idSrc, pre;
-;
-;	switch (which_alternative)
-;	{
-;	case 0: /* r = r */
-;		return \"mov.d %1,%0\";
-;	case 1: /* r = R */
-;		return \"mov.d %1,%0\";
-;	case 2: /* r = > */
-;#if 0
-;                /* a quick note on pic30_pp_modify_valid();
-;                   this function does nothing in the current product as it
-;                   was there to detect an errata situation which has been
-;                   resolved and deprecated */
-;                if ((pre = pic30_pp_modify_valid(operands[1])) == 0)
-;                        return \"mov.d %1,%0\";
-;                else if (pre == -1) /* pre increment */
-;                        return \"add %r1,#4,%r1\;mov.d %s1,%0\";
-;                else if (pre == 1)  /* post increment */
-;                        return \"mov.d %s1,%0\;add %r1,#4,%r1\";
-;#endif
-;                return \"mov.d %1,%0\";
-;	case 3: /* r = Q */
-;		idDst = REGNO(operands[0]);
-;		idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;		if (idDst == idSrc)
-;		{
-;			return \"mov %Q1,%d0\;mov %1,%0\";
-;		} else {
-;			return \"mov %1,%0\;mov %Q1,%d0\";
-;		}
-;	case 4: /* R = r */
-;		return \"mov.d %1,%0\";
-;        case 5: /* R = 0 */
-;                return \"mov %1,%I0\;mov %1,%D0\";
-;        case 6: /* R = R */
-;                return \"mov %I1,%I0\;mov %D1,%D0\";
-;        case 7: /* > = r */
-;                return \"add %r0,#4,%r0\;mov.d %1,%s1\";
-;        case 8: /* > = > */
-;                /* any pre-decrement cannot be done in 'pieces' */
-;                { int op0_pre,op1_pre;
-;
-;                  op0_pre = pic30_pre_modify(operands[0]);
-;                  op1_pre = pic30_pre_modify(operands[1]);
-;                  if (op0_pre && op1_pre) {
-;                    return \"add #4,%r1\;add #4,%r0\;mov %I1,%I0\;mov %D1,%D0\";
-;                  } else if (op0_pre) {
-;                    return \"add #4,%r0\;mov %1,%I0\;mov %1,%D0\";
-;                  } else if (op1_pre) {
-;                    return \"add #4,%r1\;mov %I1,%0\;mov %D1,%0\";
-;                  } else return \"mov %1,%0\;mov %1,%0\";
-;                }
-;	case 9: /* Q = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;	case 10: /* r = < */
-;                return \"mov.d %1,%0\";
-;        case 11: /* < = r */
-;                return \"mov.d %1,%0\";
-;	case 12: /* r = T */
-;		return \"mov %1,%0\;mov %Q1,%d0\";
-;	case 13: /* T = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        default: gcc_assert(0);
-;	}
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,def,use,use,use,use,use,use,defuse,use,def,etc")
-;  ]
-;)
-;
-;(define_insn "movp32peds_gen_APSV"
-;  [(set (match_operand:P32PEDS 0 "pic30_move_operand" "=r,r,r,r,R,R,R,>,>,Q,r,<,r,T")
-;        (unspec:P32PEDS [
-;          (match_operand:P32PEDS 1 "pic30_move_APSV_operand"  
-;                                                       "r,R,>,Q,r,0,R,r,>,r,<,r,T,r")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;  ""
-;  "*
-;{
-;        int idDst, idSrc, pre;
-;
-;        switch (which_alternative)
-;	{
-;	case 0: /* r = r */
-;		return \"mov.d %1,%0\";
-;	case 1: /* r = R */
-;		return \"mov.d %1,%0\";
-;	case 2: /* r = > */
-;#if 0
-;                /* a quick note on pic30_pp_modify_valid();
-;                   this function does nothing in the current product as it
-;                   was there to detect an errata situation which has been
-;                   resolved and deprecated */
-;                if ((pre = pic30_pp_modify_valid(operands[1])) == 0)
-;                        return \"mov.d %1,%0\";
-;                else if (pre == -1) /* pre increment */
-;                        return \"add %r1,#4,%r1\;mov.d %s1,%0\";
-;                else if (pre == 1)  /* post increment */
-;                        return \"mov.d %s1,%0\;add %r1,#4,%r1\";
-;#endif
-;                return \"mov.d %1,%0\";
-;	case 3: /* r = Q */
-;		idDst = REGNO(operands[0]);
-;		idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;		if (idDst == idSrc)
-;		{
-;			return \"mov %Q1,%d0\;mov %1,%0\";
-;		} else {
-;			return \"mov %1,%0\;mov %Q1,%d0\";
-;		}
-;	case 4: /* R = r */
-;		return \"mov.d %1,%0\";
-;        case 5: /* R = 0 */
-;                return \"mov %1,%I0\;mov %1,%D0\";
-;        case 6: /* R = R */
-;                return \"mov %I1,%I0\;mov %D1,%D0\";
-;	case 7: /* > = r */
-;                return \"mov.d %1,%0\";
-;        case 8: /* > = > */
-;                /* any pre-decrement cannot be done in 'pieces' */
-;                { int op0_pre,op1_pre;
-;
-;                  op0_pre = pic30_pre_modify(operands[0]);
-;                  op1_pre = pic30_pre_modify(operands[1]);
-;                  if (op0_pre && op1_pre) {
-;                    return \"add #4,%r1\;add #4,%r0\;mov %I1,%I0\;mov %D1,%D0\";
-;                  } else if (op0_pre) {
-;                    return \"add #4,%r0\;mov %1,%I0\;mov %1,%D0\";
-;                  } else if (op1_pre) {
-;                    return \"add #4,%r1\;mov %I1,%0\;mov %D1,%0\";
-;                  } else return \"mov %1,%0\;mov %1,%0\";
-;                }
-;	case 9: /* Q = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;	case 10: /* r = < */
-;                return \"mov.d %1,%0\";
-;        case 11: /* < = r */
-;                return \"mov.d %1,%0\";
-;	case 12: /* r = T */
-;		return \"mov %1,%0\;mov %Q1,%d0\";
-;	case 13: /* T = r */
-;		return \"mov %1,%0\;mov %d1,%Q0\";
-;        default: gcc_assert(0);
-;	}
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,def,use,use,use,use,use,use,defuse,use,def,etc")
-;  ]
-;)
-
 (define_insn "movp32ext_rimm"
   [(set (match_operand:P32EXT 0 "pic30_register_operand" "=r,r")
         (match_operand:P32EXT 1 "immediate_operand" "O,i"))]
@@ -14028,6 +17517,33 @@
   "@
    mul.uu %0,#0,%0
    mov #%z1,%0\;mov #%y1,%d0"
+  [
+   (set_attr "cc" "clobber")
+   (set_attr "type" "def")
+  ]
+)
+
+; shift these up so that they are ready to be added
+(define_insn "movp32umm_rimm"
+  [(set (match_operand:P32UMM 0 "pic30_register_operand" "=r,r")
+        (match_operand:P32UMM 1 "pic30_immediate_operand" "O,i"))]
+  ""
+  "*
+   {
+     if (which_alternative == 0) { 
+       return \"mul.uu %0,#0,%0\";
+     } else {
+       static char buffer[80];
+
+       sprintf(buffer, 
+               \"mov #%d,%%0\;\"
+               \"mov #%d,%%d0\", 
+               ((INTVAL(operands[1]) << 1) & 0xFFFF),
+               ((INTVAL(operands[1]) >> 15) & 0xFFFF));
+       return buffer;
+     }
+   }
+  "
   [
    (set_attr "cc" "clobber")
    (set_attr "type" "def")
@@ -14120,6 +17636,49 @@
         return \"cannot generate instructions\";
 }
 ")
+
+(define_insn "*movdi_invalid_3"
+  [(set (match_operand:DI     0 "general_operand" "")
+        (mem:DI
+          (plus:HI
+            (reg:HI SPREG)
+            (match_operand    1 "immediate_operand" ""))))]
+  "(INTVAL(operands[1]) & 1)"
+  "*
+   {
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+   }
+  "
+)
+   
+(define_insn "*movdi_invalid_4"
+  [(set
+        (mem:DI
+          (plus:DI
+            (reg:HI SPREG)
+            (match_operand    0 "immediate_operand" "")))
+        (match_operand:DI     1 "general_operand" ""))
+  ]
+  "(INTVAL(operands[0]) & 1)"
+  "*
+{
+     if (!warn_cast_align) {
+       error(\"Odd offset to integer sized dereference;\n\"
+             \"  suggest -Wcast-align to identify invalid type punning\");
+     } else {
+       error(\"Odd offset to integer sized dereference\");
+     }
+     return \"cannot generate instruction\";
+}
+  "
+)
+
 (define_insn "*movdi_rimm"
   [(set (match_operand:DI 0 "pic30_register_operand" "=r,r")
         (match_operand:DI 1 "immediate_operand" "O,i"))]
@@ -14198,644 +17757,15 @@
 }"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   ; (set_attr "type" "def")
+   (set_attr "type" "etc")
   ]
 )
 
-;(define_insn "*movdi_gen"
-;  [(set (match_operand:DI 0 "pic30_move_operand"
-;					"=r,r,r,r,R,>,>,Q,r,<,T,r")
-;        (match_operand:DI 1 "pic30_move_operand" 
-;					 "r,R,>,Q,r,r,>,r,<,r,r,T"))]
-;  ""
-;  "*
-;{
-;  int idSrc, idDst;
-;  char temp[64];
-;  char save[64];
-;  static char szInsn[64];
-;
-;  szInsn[0] = 0;
-;  temp[0] = 0;
-;  save[0] = 0;
-;
-;  switch (which_alternative) {
-;    case 0: /* r = r */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(operands[1]);
-;      if (idDst <= idSrc) {
-;        return \"mov.d %1,%0\;mov.d %t1,%t0\";
-;      } else {
-;        return \"mov.d %t1,%t0\;mov.d %1,%0\";
-;      }
-;    case 1: /* r = R */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(XEXP(operands[1],0));
-;      if (pic30_pp_modify_valid(0) == 0) {
-;        if ((idDst > idSrc) || ((idDst+4) <= idSrc)) {
-;          /*
-;           ** source & dest don't overlap
-;           */
-;          if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;            return \"mov %1,%0\;\" 
-;                   \"mov %Q1,%d0\;\"
-;                   \"mov %R1,%t0\;\"
-;                   \"mov %S1,%q0\";
-;          } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %I1,%0\;\" 
-;                   \"nop\;\"
-;                   \"mov.d %D1,%t0\";
-;          } else {
-;            return \"mov.d %I1,%0\;\" 
-;                   \"mov.d %D1,%t0\";
-;          }
-;        }
-;        if ((idDst+2) > idSrc) {
-;          /*
-;           ** [wn] -> wn+2:wn+3:wn:wn+1
-;           */
-;         if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;            return \"mov %R1,%t0\;\"
-;                   \"mov %S1,%q0\;\"
-;                   \"mov %1,%0\;\"   
-;                   \"mov %Q1,%d0\";
-;          } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %P1,%t0\;nop\;mov.d %p1,%0\";
-;          } else {
-;            return \"mov.d %P1,%t0\;mov.d %p1,%0\";
-;          }
-;        } else {
-;          /*
-;           ** [wn] -> wn-2:wn-1:wn:wn+1
-;           */
-;         if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;            return \"mov %1,%0\;\"   
-;                   \"mov %Q1,%d0\;\"
-;                   \"mov %R1,%t0\;\"
-;                   \"mov %S1,%q0\";
-;          } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %I1,%0\;nop\;mov.d %1,%t0\";
-;          } else {
-;            return \"mov.d %I1,%0\;mov.d %1,%t0\";
-;          }
-;        } 
-;      } else { 
-;        if ((idDst > idSrc) || ((idDst + 3) <= idSrc)) {
-;          /*  don't significantly overlap */ 
-;         if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;            return \"mov %1,%0\;\"   
-;                   \"mov %Q1,%d0\;\"
-;                   \"mov %R1,%t0\;\"
-;                   \"mov %S1,%q0\";
-;          } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %1,%0\;nop\;mov [%r1+4],%t0\;nop\;mov [%r1+6],%q0\";
-;          } else {
-;            return \"mov.d %1,%0\;mov [%r1+4],%t0\;mov [%r1+6],%q0\";
-;          }
-;        }
-;        /* idDst <= idSrc < idDst+3 */
-;        switch (idDst + 4 - idSrc) {
-;          case 4:  /* idSrc == idDst+0 */
-;          case 3:  /* idSrc == idDst+1 */
-;           if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;              return 
-;                     \"mov %R1,%t0\;\"
-;                     \"mov %S1,%q0\;\"
-;                     \"mov %1,%0\;\"   
-;                     \"mov %Q1,%d0\";
-;            } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;              pic30_rtx_nops+=2;
-;              return \"mov [%r1+4],%t0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"nop\;\"
-;                     \"mov.d %1,%0\";
-;            } else {
-;              return \"mov [%r1+4],%t0\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"mov.d %1,%0\";
-;            }
-;          case 2:  /* idSrc == idDst+2 */
-;           if (pic30_psrd_psrd_errata_movd(NULL,operands[1])) {
-;              return \"mov %1,%0\;\"   
-;                     \"mov %Q1,%d0\;\"
-;                     \"mov %S1,%q0\;\"
-;                     \"mov %R1,%t0\";
-;            } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;              pic30_rtx_nops+=2;
-;              return \"mov.d %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+4],%t0\";
-;            } else {
-;              return \"mov.d %1,%0\;mov [%r1+6],%q0\;mov [%r1+4],%t0\";
-;            }
-;          default: abort();
-;        }
-;      }
-;    case 2: /* r = > */
-;      if (pic30_psrd_psrd_errata_movd(operands[1],NULL)) {
-;        if (pic30_pre_modify(operands[1])) {
-;          return \"add %r1,#8,%r1\;\"
-;                 \"mov %1,%0\;\"
-;                 \"mov %Q1,%d0\;\"
-;                 \"mov %R1,%t0\;\"
-;                 \"mov %S1,%q0\";
-;        } else {
-;          return \"mov %1,%0\;\"
-;                 \"mov %Q1,%d0\;\"
-;                 \"mov %R1,%t0\;\"
-;                 \"mov %S1,%q0\";
-;        }
-;      } else if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;        pic30_rtx_nops+=1;
-;        if (pic30_pre_modify(operands[1]))
-;          return \"add %r1,#8,%r1\;mov.d %I1,%0\;nop\;mov.d %D1,%t0\";
-;        else
-;          return \"mov.d %1,%0\;nop\;mov.d %1,%t0\";
-;      } else {
-;        if (pic30_pre_modify(operands[1]))
-;          return \"add %r1,#8,%r1\;mov.d %I1,%0\;mov.d %D1,%t0\";
-;        else
-;          return \"mov.d %1,%0\;mov.d %1,%t0\";
-;      }
-;    case 3: /* r = Q */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;      strcpy(temp, \"mov %1,%0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %Q1,%d0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %R1,%t0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %S1,%q0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      if (save[0]) {
-;        save[strlen(save)-2] = 0;
-;        strcat(szInsn, save);
-;      }
-;      return szInsn;
-;    case 4: /* R = r */
-;      return \"mov.d %1,%I0\;mov.d %t1,%D0\";
-;    case 5: /* > = r */
-;      if (pic30_pre_modify(operands[0])) {
-;        return \"add %r0,#8,%r0\;mov.d %1,%I0\;mov.d %t1,%D0\";
-;      } else return \"mov.d %1,%0\;mov.d %t1,%0\";
-;    case 6: /* > = > */
-;      { int pre_op0, pre_op1;
-;
-;        pre_op0 = pic30_pre_modify(operands[0]);
-;        pre_op1 = pic30_pre_modify(operands[1]);
-;        if (pic30_psrd_psrd_errata_movd(operands[1],NULL)) {
-;          if (pre_op0 && pre_op1) {
-;            pic30_rtx_nops++;
-;            return \"add %r0,#(8+4),%r0\;\"
-;                   \"add %r1,#(8+4),%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"nop\;\"
-;                   \"mov.d %p1,%0\";
-;          } else if (pre_op0) {
-;            return \"add %r0,#8,%r0\;\"
-;                   \"mov.d %s1,%I0\;\"
-;                   \"add #4,%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"add #4,%r1\";
-;          } else if (pre_op1) {
-;            return \"add %r1,#8,%r1\;\"
-;                   \"mov.d %I1,%s0\;\"
-;                   \"add #4,%r0\;\"
-;                   \"mov.d %D1,%s0\;\"
-;                   \"add #4,%r0\";
-;          } else {
-;            if (0 && optimize_size) {
-;              // psv_psv repeat?
-;              return \"repeat #(4-1)\;\"
-;                     \"mov %1,%0\";
-;            } else {
-;              pic30_rtx_nops+=3;
-;              return \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\";
-;            }
-;          }
-;        } else 
-;        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;          if (pre_op0 && pre_op1) {
-;            pic30_rtx_nops++;
-;            return \"add %r0,#(8+4),%r0\;\"
-;                   \"add %r1,#(8+4),%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"nop\;\"
-;                   \"mov.d %p1,%0\";
-;          } else if (pre_op0) {
-;            return \"add %r0,#8,%r0\;\"
-;                   \"mov.d %s1,%I0\;\"
-;                   \"add #4,%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"add #4,%r1\";
-;          } else if (pre_op1) {
-;            return \"add %r1,#8,%r1\;\"
-;                   \"mov.d %I1,%s0\;\"
-;                   \"add #4,%r0\;\"
-;                   \"mov.d %D1,%s0\;\"
-;                   \"add #4,%r0\";
-;          } else {
-;            if (0 && optimize_size) {
-;              // psv_psv repeat?
-;              return \"repeat #(4-1)\;\"
-;                     \"mov %1,%0\";
-;            } else {
-;              pic30_rtx_nops+=3;
-;              return \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\";
-;            }
-;          }
-;       } else {
-;          if (pre_op0 && pre_op1) {
-;            return \"add %r0,#(8+4),%r0\;\"
-;                   \"add %r1,#(8+4),%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"mov.d %p1,%0\";
-;          } else if (pre_op0) {
-;            return \"add %r0,#8,%r0\;\"
-;                   \"mov.d %s1,%I0\;\"
-;                   \"add #4,%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"add #4,%r1\";
-;          } else if (pre_op1) {
-;            return \"add %r1,#8,%r1\;\"
-;                   \"mov.d %I1,%s0\;\"
-;                   \"add #4,%r0\;\"
-;                   \"mov.d %D1,%s0\;\"
-;                   \"add #4,%r0\";
-;          } else {
-;            if (optimize_size) {
-;              return \"repeat #(4-1)\;\"
-;                     \"mov %1,%0\";
-;            } else {
-;              return \"mov %1,%0\;\"
-;                     \"mov %1,%0\;\"
-;                     \"mov %1,%0\;\"
-;                     \"mov %1,%0\";
-;            }
-;          }
-;        }
-;      }
-;    case 7: /* Q = r */
-;      return \"mov %1,%0\;mov %d1,%Q0\;mov %t1,%R0\;mov %q1,%S0\";
-;    case 8: /* r = < */
-;      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;        pic30_rtx_nops++;
-;        return \"mov.d %1,%t0\;nop\;mov.d %1,%0\";
-;      } else {
-;        return \"mov.d %1,%t0\;mov.d %1,%0\";
-;      }
-;    case 9: /* < = r */
-;      return \"mov.d %t1,%0\;mov.d %1,%0\";
-;    case 10: /* T = r */
-;      return \"mov %1,%0\;\"
-;             \"mov %d1,%Q0\;\"
-;             \"mov %t1,%R0\;\"
-;             \"mov %q1,%S0\";
-;    case 11: /* r = T */
-;            if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;               pic30_rtx_nops++;
-;               return \"mov %1,%0\;\"
-;                      \"nop\;\"
-;                      \"mov %Q1,%d0\;\"
-;                      \"nop\;\"
-;                      \"mov %R1,%t0\;\"
-;                      \"nop\;\"
-;                      \"mov %S1,%q0\";
-;            } else {
-;               return \"mov %1,%0\;\"
-;                      \"mov %Q1,%d0\;\"
-;                      \"mov %R1,%t0\;\"
-;                      \"mov %S1,%q0\";
-;            }
-;    default: gcc_assert(0);
-;  }
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,defuse,use,use,use,use,defuse,use,etc,def")
-;  ]
-;)
-;
-;(define_insn "movdi_gen_APSV"
-;  [(set (match_operand:DI 0 "pic30_move_operand"
-;					"=r,r,r,r,R,>,>,Q,r,<,T,r")
-;        (unspec:DI [
-;          (match_operand:DI 1 "pic30_move_APSV_operand" 
-;					"r,R,>,Q,r,r,>,r,<,r,r,T")
-;          (reg:HI PSVPAG)] UNSPECV_USEPSV))]
-;            
-;  ""
-;  "*
-;{
-;  int idSrc, idDst;
-;  char temp[64];
-;  char save[64];
-;  static char szInsn[64];
-;
-;  szInsn[0] = 0;
-;  temp[0] = 0;
-;  save[0] = 0;
-;
-;  switch (which_alternative) {
-;    case 0: /* r = r */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(operands[1]);
-;      if (idDst <= idSrc) {
-;        return \"mov.d %1,%0\;mov.d %t1,%t0\";
-;      } else {
-;        return \"mov.d %t1,%t0\;mov.d %1,%0\";
-;      }
-;    case 1: /* r = R */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(XEXP(operands[1],0));
-;      if (pic30_pp_modify_valid(0) == 0) {
-;        if ((idDst > idSrc) || ((idDst+4) <= idSrc)) {
-;          /*
-;           ** source & dest don't overlap
-;           */
-;          if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %I1,%0\;\" 
-;                   \"nop\;\"
-;                   \"mov.d %D1,%t0\";
-;          } else {
-;            return \"mov.d %I1,%0\;\" 
-;                   \"mov.d %D1,%t0\";
-;          }
-;        }
-;        if ((idDst+2) > idSrc) {
-;          /*
-;           ** [wn] -> wn+2:wn+3:wn:wn+1
-;           */
-;          if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %P1,%t0\;nop\;mov.d %p1,%0\";
-;          } else {
-;            return \"mov.d %P1,%t0\;mov.d %p1,%0\";
-;          }
-;        } else {
-;          /*
-;           ** [wn] -> wn-2:wn-1:wn:wn+1
-;           */
-;          if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops++;
-;            return \"mov.d %I1,%0\;nop\;mov.d %1,%t0\";
-;          } else {
-;            return \"mov.d %I1,%0\;mov.d %1,%t0\";
-;          }
-;        } 
-;      } else { 
-;        if ((idDst > idSrc) || ((idDst + 3) <= idSrc)) {
-;          /*  don't significantly overlap */ 
-;          if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;            pic30_rtx_nops+=2;
-;            return \"mov.d %1,%0\;nop\;mov [%r1+4],%t0\;nop\;mov [%r1+6],%q0\";
-;          } else {
-;            return \"mov.d %1,%0\;mov [%r1+4],%t0\;mov [%r1+6],%q0\";
-;          }
-;        }
-;        /* idDst <= idSrc < idDst+3 */
-;        switch (idDst + 4 - idSrc) {
-;          case 4:  /* idSrc == idDst+0 */
-;          case 3:  /* idSrc == idDst+1 */
-;            if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;              pic30_rtx_nops+=2;
-;              return \"mov [%r1+4],%t0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"nop\;\"
-;                     \"mov.d %1,%0\";
-;            } else {
-;              return \"mov [%r1+4],%t0\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"mov.d %1,%0\";
-;            }
-;          case 2:  /* idSrc == idDst+2 */
-;            if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;              pic30_rtx_nops+=2;
-;              return \"mov.d %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+6],%q0\;\"
-;                     \"nop\;\"
-;                     \"mov [%r1+4],%t0\";
-;            } else {
-;              return \"mov.d %1,%0\;mov [%r1+6],%q0\;mov [%r1+4],%t0\";
-;            }
-;          default: abort();
-;        }
-;      }
-;    case 2: /* r = > */
-;      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;        pic30_rtx_nops+=2;
-;        if (pic30_pre_modify(operands[1]))
-;          return \"add %r1,#8,%r1\;nop\;mov.d %I1,%0\;nop\;mov.d %D1,%t0\";
-;        else
-;          return \"mov.d %1,%0\;nop\;mov.d %1,%t0\";
-;      } else {
-;        if (pic30_pre_modify(operands[1]))
-;          return \"add %r1,#8,%r1\;nop\;mov.d %I1,%0\;nop\;mov.d %D1,%t0\";
-;        else
-;          return \"mov.d %1,%0\;nop\;mov.d %1,%t0\";
-;      }
-;    case 3: /* r = Q */
-;      idDst = REGNO(operands[0]);
-;      idSrc = REGNO(XEXP(XEXP(operands[1],0),0));
-;      strcpy(temp, \"mov %1,%0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %Q1,%d0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %R1,%t0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      strcpy(temp, \"mov %S1,%q0\;\");
-;      if (idDst != idSrc)
-;        strcat(szInsn, temp);
-;      else
-;        strcat(save, temp);
-;      idDst++;
-;      if (save[0]) {
-;        save[strlen(save)-2] = 0;
-;        strcat(szInsn, save);
-;      }
-;      return szInsn;
-;    case 4: /* R = r */
-;      return \"mov.d %1,%I0\;mov.d %t1,%D0\";
-;    case 5: /* > = r */
-;      if (pic30_pre_modify(operands[0])) {
-;        return \"add %r0,#8,%r0\;mov.d %1,%I0\;mov.d %t1,%D0\";
-;      } else return \"mov.d %1,%0\;mov.d %t1,%0\";
-;    case 6: /* > = > */
-;      { int pre_op0, pre_op1;
-;
-;        pre_op0 = pic30_pre_modify(operands[0]);
-;        pre_op1 = pic30_pre_modify(operands[1]);
-;        if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;          if (pre_op0 && pre_op1) {
-;            pic30_rtx_nops++;
-;            return \"add %r0,#(8+4),%r0\;\"
-;                   \"add %r1,#(8+4),%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"nop\;\"
-;                   \"mov.d %p1,%0\";
-;          } else if (pre_op0) {
-;            return \"add %r0,#8,%r0\;\"
-;                   \"mov.d %s1,%I0\;\"
-;                   \"add #4,%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"add #4,%r1\";
-;          } else if (pre_op1) {
-;            return \"add %r1,#8,%r1\;\"
-;                   \"mov.d %I1,%s0\;\"
-;                   \"add #4,%r0\;\"
-;                   \"mov.d %D1,%s0\;\"
-;                   \"add #4,%r0\";
-;          } else {
-;            // psv_psv repeat
-;            if (0 && optimize_size) {
-;              return \"repeat #(4-1)\;\"
-;                     \"mov %1,%0\";
-;            } else {
-;              pic30_rtx_nops+=3;
-;              return \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\;\"
-;                     \"nop\;\"
-;                     \"mov %1,%0\";
-;            }
-;          }
-;       } else {
-;          if (pre_op0 && pre_op1) {
-;            return \"add %r0,#(8+4),%r0\;\"
-;                   \"add %r1,#(8+4),%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"mov.d %p1,%0\";
-;          } else if (pre_op0) {
-;            return \"add %r0,#8,%r0\;\"
-;                   \"mov.d %s1,%I0\;\"
-;                   \"add #4,%r1\;\"
-;                   \"mov.d %s1,%D0\;\"
-;                   \"add #4,%r1\";
-;          } else if (pre_op1) {
-;            return \"add %r1,#8,%r1\;\"
-;                   \"mov.d %I1,%s0\;\"
-;                   \"add #4,%r0\;\"
-;                   \"mov.d %D1,%s0\;\"
-;                   \"add #4,%r0\";
-;          } else {
-;            if (optimize_size) {
-;              return \"repeat #(4-1)\;\"
-;                     \"mov %1,%0\";
-;            } else {
-;              return \"mov %1,%0\;\"
-;                     \"mov %1,%0\;\"
-;                     \"mov %1,%0\;\"
-;                     \"mov %1,%0\";
-;            }
-;          }
-;        }
-;      }
-;    case 7: /* Q = r */
-;      return \"mov %1,%0\;mov %d1,%Q0\;mov %t1,%R0\;mov %q1,%S0\";
-;    case 8: /* r = < */
-;      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;        pic30_rtx_nops++;
-;        return \"mov.d %1,%t0\;nop\;mov.d %1,%0\";
-;      } else {
-;        return \"mov.d %1,%t0\;mov.d %1,%0\";
-;      }
-;    case 9: /* < = r */
-;      return \"mov.d %t1,%0\;mov.d %1,%0\";
-;    case 10: /* T = r */
-;      return \"mov %1,%0\;\"
-;             \"mov %d1,%Q0\;\"
-;             \"mov %t1,%R0\;\"
-;             \"mov %q1,%S0\";
-;    case 11: /* r = T */
-;      if (pic30_psrd_psrd_errata(operands[1],NULL)) {
-;        pic30_rtx_nops++;
-;        return \"mov %1,%0\;\"
-;               \"nop\;\"
-;               \"mov %Q1,%d0\;\"
-;               \"nop\;\"
-;               \"mov %R1,%t0\;\"
-;               \"nop\;\"
-;               \"mov %S1,%q0\";
-;      } else {
-;        return \"mov %1,%0\;\"
-;               \"mov %Q1,%d0\;\"
-;               \"mov %R1,%t0\;\"
-;               \"mov %S1,%q0\";
-;      }
-;    default: gcc_assert(0);
-;  }
-;}"
-;  [
-;   (set_attr "cc" "clobber")
-;   (set_attr "type"
-;             "def,defuse,defuse,defuse,use,use,use,use,defuse,use,etc,def")
-;  ]
-;)
-;
-
-;
-; simplify the options and make reload generate the complex ones we used to
-;   support.  This should result in better code generation
-;
-
 (define_insn "*mov<mode>_gen"
-  [(set (match_operand:M64BIT 0 "pic30_movedi_operand"
+  [(set (match_operand:GM64BIT 0 "pic30_movedi_operand"
 					"=r,r,&r,R,>,&r,<,TU,r,r,r,Q")
-        (match_operand:M64BIT 1 "pic30_movedi_operand" 
+        (match_operand:GM64BIT 1 "pic30_movedi_operand" 
 					 "r,R, >,r,r, <,r,r, T,U,Q,r"))]
   ""
   "*
@@ -15122,16 +18052,17 @@
 }"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type"
-             "def,defuse,defuse,use,use,defuse,use,etc,def,def,defuse,use")
+   (set_attr "type" 
+             "etc,use,use,use,use,use,use,etc,etc,etc,use,use")
   ]
 )
+;            "def,defuse,defuse,use,use,defuse,use,etc,def,def,defuse,use")
 
 (define_insn "mov<mode>_gen_APSV"
-  [(set (match_operand:M64BIT 0 "pic30_movedi_operand"
+  [(set (match_operand:GM64BIT 0 "pic30_movedi_operand"
 					"=r,r,&r,R,>,&r,<,TU,r,r,r,Q")
-        (unspec:M64BIT [
-          (match_operand:M64BIT 1 "pic30_movedi_operand" 
+        (unspec:GM64BIT [
+          (match_operand:GM64BIT 1 "pic30_movedi_operand" 
 					 "r,R, >,r,r, <,r,r, T,U,Q,r")
           (reg:HI PSVPAG)] 
          UNSPECV_USEPSV))]
@@ -15421,13 +18352,14 @@
   [
    (set_attr "cc" "clobber")
    (set_attr "type"
-             "def,defuse,defuse,use,use,defuse,use,etc,def,def,defuse,use")
+             "def,use,use,use,use,use,use,etc,etc,etc,use,use")
+;             "def,defuse,defuse,use,use,defuse,use,etc,def,def,defuse,use")
   ]
 )
 
 (define_expand "mov<mode>"
-  [(set (match_operand:M64BIT 0 "pic30_general_operand" "")
-        (match_operand:M64BIT 1 "pic30_general_operand" ""))]
+  [(set (match_operand:GM64BIT 0 "pic30_general_operand" "")
+        (match_operand:GM64BIT 1 "pic30_general_operand" ""))]
   ""
   "
 {
@@ -17844,7 +20776,199 @@
   DONE;
 }")
 
-;; P32EDS
+;; P32UMM
+
+(define_insn "cmpp32umm"
+  [(set (cc0)
+        (compare (match_operand:P32UMM 0 "pic30_mode2_operand"
+                                "r,r,r, R,<>,r")
+                 (match_operand:P32UMM 1 "pic30_mode1PN_UMM_operand"
+                                "r,R,<>,r,r, h")))]
+  ""
+  "*
+   switch (which_alternative) {
+     default: gcc_assert(0);
+     case 0:  return \"sub %0,%1,[w15]\;subb %d0,%d1,[w15]\";
+     case 1:  return \"sub %0,%I1,[w15]\;subb %d0,%D1,[w15]\";
+     case 2:  return \"sub %0,%1,[w15]\;subb %d0,%1,[w15]\";
+     case 3:  return \"subr %1,%I0,[w15]\;subbr %1,%D0,[w15]\";
+     case 4:  return \"subr %1,%0,[w15]\;subbr %1,%0,[w15]\";
+     case 5:  
+              if (INTVAL(operands[1]) >= 0) {
+                return \"sub %0,#(%1*2),[w15]\;subb %d0,#0,[w15]\";
+              } else {
+                return \"add %0,#(%J1*2),[w15]\;addc %d0,#0,[w15]\";
+              }
+   }"
+  [
+   (set_attr "cc" "set")
+   (set_attr "type" "etc,use,use,use,use,etc")
+  ]
+)
+
+(define_insn "addp32umm_lit"
+  [(set (match_operand:P32UMM   0 "pic30_register_operand" "=r,r")
+        (plus: P32UMM
+          (match_operand:P32UMM 1 "pic30_register_operand" " 0,0")
+          (match_operand:P32UMM 2 "pic30_OJM_operand"      " PJ,M")))
+   (clobber (match_operand:HI   3 "pic30_register_operand" "=&r,&r"))
+  ]
+  ""
+  "*
+   if (INTVAL(operands[2]) >= 0) {
+     if (INTVAL(operands[2]) <= 255) {
+       return \"add #(%2*2),%0\;\"
+              \"btsc _SR,#0\;\"
+              \"bset %0,#0\;\"
+              \"addc #0,%d0\";
+     } else {
+       return \"add #%2,%0\;\"
+              \"addc #0,%d0\;\"
+              \"add #%2,%0\;\"
+              \"addc #0,%d0\;\"
+              \"cp0 %d0\;\"
+              \"btss _SR,#1\;\"
+              \"bset %0,#0\";
+     }
+   } else {
+     if (INTVAL(operands[2]) >= -255) {
+       return \"sub #(%J2*2),%0\;\"
+              \"and.b #0,%3\;\"
+              \"subb #0,%d0\;\"
+              \"bsw.z %0,%3\";
+     } else {
+       return \"sub #%J2,%0\;\"
+              \"subb #0,%d0\;\"
+              \"sub #%J2,%0\;\"
+              \"subb #0,%d0\;\"
+              \"cp0 %d0\;\"
+              \"btss _SR,#1\;\"
+              \"bclr %0,#0\";
+     }
+  }"
+  [
+    (set_attr "cc" "clobber")
+    (set_attr "type" "def")
+  ]
+)  
+
+; (CAW) below, and.b #0,xx will clear the low bits and set Z flag
+
+(define_insn "addp32umm3hi_r"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=&r,&r")
+        (plus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" "%r,  0")
+          (subreg:P32UMM
+            (match_operand:HI    2 "pic30_mode2_operand"    " r,  R") 0)))
+   (clobber (match_operand:SI    3 "pic30_register_operand" "=&r,&r"))
+  ]
+  ""
+  "@
+   asr %2,#15,%d3\;sl %2,%3\;add %3,%1,%0\;and.b #0,%3\;addc %d3,%d1,%d0\;bsw.z %0,%3
+   mov %2,%d3\;asr %d3,#15,%d3\;sl %2,%3\;add %3,%1,%0\;and.b #0,%3\;addc %d3,%d1,%d0\;bsw.z %0,%3"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addp32umm3hi_rnc"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=&r,&r")
+        (plus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" "%r,  0")
+          (subreg:P32UMM
+            (match_operand:HI    2 "pic30_mode2_operand"    " r,  R") 0)))
+  ]
+  ""
+  "@
+   asr %2,#15,%d0\;sl %2,%0\;add %0,%1,%0\;addc %d0,%d1,%d0\;bclr %0,#0\;cp0 %d0\;btss _SR,#1\;bset %0,#0
+   mov %2,%0\;asr %0,#15,%d0\;sl %0,%0\;add %0,%1,%0\;addc %d0,%d1,%d0\;bclr %0,#0\;cp0 %d0\;btss _SR,#1\;bset %0,#0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addp32umm3si_r"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=&r,&r")
+        (plus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" "%r,  0")
+          (subreg:P32UMM
+            (match_operand:SI    2 "pic30_mode2_operand"    "r,   R") 0)))
+   (clobber (match_operand:HI    3 "pic30_register_operand" "=&r,&r"))
+  ]
+  ""
+  "@
+   sl %2,%3\;add %3,%1,%0\;and.b #0,%3\;addc %d2,%d1,%d0\;bsw.z %0,%3
+   sl %I2,%3\;add %3,%1,%0\;and.b #0,%3\;addc %d1,%D2,%d0\;bsw.z %0,%3"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addp32umm3_r"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=r,&r")
+        (plus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" "%r, 0")
+          (match_operand:P32UMM  2 "pic30_mode2_operand"    "r,  R")))
+   (clobber (match_operand:HI    3 "pic30_register_operand" "=&r,&r"))
+  ] 
+  ""
+  "@
+   add %1,%2,%0\;and.b #0,%3\;addc %d1,%d2,%d0\;bsw.z %0,%3
+   add %1,%I2,%0\;and.b #0,%3\;addc %d1,%D2,%d0\;bsw.z %0,%3"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_insn "addp32umm3_rnc"
+  [(set (match_operand: P32UMM   0 "pic30_register_operand" "=r,&r")
+        (plus: P32UMM
+          (match_operand:P32UMM  1 "pic30_register_operand" "%r, 0")
+          (match_operand:P32UMM  2 "pic30_mode2_operand"    "r,  R")))
+  ] 
+  ""
+  "@
+   add %1,%2,%0\;addc %d1,%d2,%d0\;bclr %0,#0\;cp0 %d0\;btss _SR,#1\;bset %0,#0
+   add %1,%I2,%0\;addc %d1,%D2,%d0\;bclr %0,#0\;cp0 %d0\;btss _SR,#1\;bset %0,#0"
+  [
+    (set_attr "type" "def")
+  ]
+)
+
+(define_expand "addp32umm3"
+  [(set (match_operand:P32UMM    0 "pic30_register_operand" "")
+        (plus: P32UMM 
+           (match_operand:P32UMM 1 "pic30_register_operand" "")
+           (match_operand:P32UMM 2 "pic30_mode1i_operand" "")))]
+  ""
+  "{
+   rtx clobber = NULL_RTX;
+   if (!reload_in_progress && !reload_completed) {
+     clobber = gen_reg_rtx(HImode);
+   }
+
+   if (GET_CODE(operands[2]) == CONST_INT) {
+     rtx new_val = operands[2];
+     if (pic30_OJM_operand(new_val, HImode)) {
+       emit_insn(gen_addp32umm_lit(operand0,operand1,operand2,clobber));
+       DONE;
+     } else {
+       /* load the immediate separately */
+ 
+       emit_insn(gen_movp32umm_rimm(operand0, new_val));
+       if (clobber) 
+         emit_insn(gen_addp32umm3_r(operand0, operand1, operand0,clobber));
+       else 
+         emit_insn(gen_addp32umm3_rnc(operand0, operand1, operand0));
+       DONE;
+     }
+   }
+   if (clobber) 
+     emit_insn(gen_addp32umm3_r(operand0,operand1,operand2,clobber));
+   else 
+     emit_insn(gen_addp32umm3_rnc(operand0, operand1, operand0));
+   DONE;
+}")
 
 ;;;;;;;;;;;;;;;;;
 ;; double integer
@@ -17862,7 +20986,8 @@
    sub %0,#%J2\;subb %d0,#0\;subb %t0,#0\;subb %q0,#0"
   [
    (set_attr "cc" "math")
-   (set_attr "type" "def")
+   ; (set_attr "type" "def")
+   (set_attr "type" "etc")
   ]
 )
 
@@ -18024,7 +21149,8 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     ; (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -18186,7 +21312,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -18348,7 +21474,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -18509,7 +21635,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -18673,7 +21799,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -18837,7 +21963,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -19001,7 +22127,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -19166,7 +22292,7 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     (set_attr "type" "etc")
   ]
 )
 
@@ -19182,10 +22308,762 @@
 ;  ]
 ;)
 
+(define_insn "addsidi3_hi"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (ashift:DI
+             (match_operand:DI 1 "pic30_register_operand"    " r,r,r,r, r,r,r,r, r")
+             (const_int 32))
+           (match_operand:DI 2 "pic30_DI_mode2_operand"      " r,r,0,>, >,r,0,R, R")))
+  ]
+  ""
+  "*
+{
+   char *noerrata_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;mov %2,%0\;\"
+                              \"add %1,%2,%0\;addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov.d %2,%0\;add %1,%2,%t0\;addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;add %1,%t2,%I0\;addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;add %1,%2,%I0\;addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;mov %I2,%I0\;\"
+                              \"add %1,%I2,%I0\;addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov.d %I2,%0\;add %1,%I2,%t0\;addc %d1,%2,%q0\",
+  };
+
+   char *psv_psv_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;nop\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;\"
+                          \"add %1,%t2,%I0\;\"
+                          \"addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;\"
+                          \"addc %1,%2,%I0\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%I0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov %I2,%0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[180];
+  char **patterns;
+  int regno;
+  rtx x;
+
+  if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+    pic30_rtx_nops+=3;
+    patterns = psv_psv_patterns;
+  } else {
+    patterns = noerrata_patterns;
+  }
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     ; (set_attr "type" "def,use,use,use,defuse,use,use,use,defuse")
+     (set_attr "type" "etc,use,use,use,use,use,use,use,use")
+  ]
+)
+
+
+(define_insn "addsidi3_hi2"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"        "=r,>,>,>,&r,R,R,R,&r,r")
+        (plus:DI
+           (mult:DI
+             (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r,r")
+             (const_int 4294967296))
+           (match_operand:DI 2 "pic30_DI_mode2k_operand"     "r,r,0,>, >,r,0,R, R,Q")))
+  ]
+  ""
+  "*
+{
+   char *noerrata_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;mov %2,%0\;\"
+                              \"add %1,%2,%0\;addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov.d %2,%0\;add %1,%2,%t0\;addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;add %1,%t2,%I0\;addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;add %1,%2,%I0\;addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;mov %I2,%I0\;\"
+                              \"add %1,%I2,%I0\;addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov.d %I2,%0\;add %1,%I2,%t0\;addc %d1,%2,%q0\",
+
+     /* r,r,Q */          \"\", /* placeholder, actual insn is below */
+
+  };
+
+   char *psv_psv_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;nop\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;\"
+                          \"add %1,%t2,%I0\;\"
+                          \"addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;\"
+                          \"addc %1,%2,%I0\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%I0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov %I2,%0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+
+     /* r,r,Q */          \"\", /* placeholder, actual insn below */
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[180];
+  char *this_insn;
+  char **patterns;
+  int regno, index_value;
+  rtx x;
+
+  if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+    pic30_rtx_nops+=3;
+    patterns = psv_psv_patterns;
+  } else {
+    patterns = noerrata_patterns;
+  }
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 9:  /* r,r,Q */
+
+              index_value = INTVAL(XEXP(XEXP(operands[2],0),1));
+              if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+                if (index_value < 0) {
+                  return \"mov %r2,%q0\;\"
+                         \"sub #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %d1,[%q0],%q0\;\"
+                         \"nop\" ;
+                } else {
+                  return \"mov %r2,%q0\;\"
+                         \"add #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %d1,[%q0],%q0\;\"
+                         \"nop\" ;
+                }
+              } else {
+                if (index_value < 0) {
+                  return \"mov %r2,%q0\;\"
+                         \"sub #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"addc %d1,[%q0],%q0\" ;
+                } else {
+                  return \"mov %r2,%q0\;\"
+                         \"add #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"addc %d1,[%q0],%q0\" ;
+                }
+              }
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber,clobber")
+     ; (set_attr "type" "def,use,use,use,defuse,use,use,use,defuse,etc")
+     (set_attr "type" "etc,use,use,use,use,use,use,use,use,etc")
+  ]
+)
+
+(define_insn "addsidi3_hi3"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
+        (plus:DI
+           (lshiftrt:DI
+             (match_operand:DI 1 "pic30_register_operand"     "r,r,r,r, r,r,r,r, r")
+             (const_int 32))
+           (match_operand:DI   2 "pic30_DI_mode2_operand"     "r,r,0,>, >,r,0,R, R")))
+   (clobber (match_scratch:HI  3                             "=X,X,r,r, r,X,r,r, r"))
+  ]
+  ""
+  "*
+{
+   char *noerrata_patterns[] = {
+     /* r,r,r */          \"add %t1,%2,%0\;addc %q1,%d2,%d0\;\"
+                             \"addc %t2,#0,%t0\;addc %q2,#0,%q0\",
+
+     /* >,r,r */          \"add %t1,%2,%0\;addc %q1,%d2,%0\;\"
+                             \"addc %t2,#0,%0\;addc %q2,#0,%0\",
+
+     /* >,r,0 */          \"add %t1,%s2,%0\;addc %q1,%s2,%0\;\"
+                             \"clr %3\;addc %3,%s0,%0\;addc %3,%s0,%0\",
+
+     /* >,r,> */          \"add %t1,%2,%0\;addc %q1,%2,%0\;\"
+                             \"clr %3\;addc %3,%2,%0\;addc %3,%2,%0\",
+
+     /* r,r,> */          \"add %t1,%2,%0\;addc %q1,%2,%d0\;\"
+                             \"clr %3\;addc %3,%2,%t0\;addc %3,%2,%q0\",
+
+     /* R,r,r */          \"add %t1,%2,%I0\;addc %q1,%d2,%I0\;\"
+                             \"addc %t2,#0,%I0\;addc %q2,#0,%0\",
+
+     /* R,r,0 */          \"add %t1,%2,%I0\;addc %q1,%2,%I0\;\"
+                             \"clr %3\;addc %3,%2,%IO\;addc %3,%2,%s0\",
+
+     /* R,r,R */          \"add %t1,%I2,%I0\;addc %q1,%I2,%I0\;\"
+                             \"clr %3\;addc %3,%I2,%IO\;addc %3,%s2,%s0\",
+
+     /* r,r,R */          \"add %t1,%I2,%0\;addc %q1,%I2,%d0\;\"
+                             \"clr %3\;addc %3,%I2,%tO\;addc %3,%s2,%q0\",
+  };
+
+   char *psv_psv_patterns[] = {
+     /* r,r,r */          \"add %t1,%2,%0\;addc %q1,%d2,%d0\;\"
+                             \"addc %t2,#0,%t0\;addc %q2,#0,%q0\",
+
+     /* >,r,r */          \"add %t1,%2,%0\;addc %q1,%d2,%0\;\"
+                             \"addc %t2,#0,%0\;addc %q2,#0,%0\",
+
+     /* >,r,0 */          \"add %t1,%s2,%0\;addc %q1,%s2,%0\;\"
+                             \"clr %3\;addc %3,%s0,%0\;addc %3,%s0,%0\",
+
+     /* >,r,> */          \"add %t1,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %q1,%2,%0\;\"
+                          \"clr %3\;\"
+                          \"addc %3,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %3,%2,%0\",
+
+     /* r,r,> */          \"add %t1,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %q1,%2,%d0\;\"
+                          \"clr %3\;\"
+                          \"addc %3,%2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %3,%2,%q0\",
+
+     /* R,r,r */          \"add %t1,%2,%I0\;\"
+                          \"addc %q1,%d2,%I0\;\"
+                          \"addc %t2,#0,%I0\;\"
+                          \"addc %q2,#0,%s0\",
+
+     /* R,r,0 */          \"add %t1,%2,%I0\;\"
+                          \"addc %q1,%2,%I0\;\"
+                          \"clr %3\;\"
+                          \"addc %3,%2,%I0\;\"
+                          \"addc %3,%2,%s0\",
+
+     /* R,r,R */          \"add %t1,%I2,%I0\;\"
+                          \"nop\;\"
+                          \"addc %q1,%I2,%I0\;\"
+                          \"clr %3\;\"
+                          \"addc %3,%I2,%I0\;\"
+                          \"nop\;\"
+                          \"addc %3,%2,%0\",
+
+     /* r,r,R */          \"add %t1,%I2,%0\;\"
+                          \"nop\;\"
+                          \"addc %q1,%I2,%d0\;\"
+                          \"clr %3\;\"
+                          \"addc %3,%I2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %3,%2,%q0\",
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[180];
+  char **patterns;
+  int regno;
+  rtx x;
+
+  if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+    pic30_rtx_nops+=3;
+    patterns = psv_psv_patterns;
+  } else {
+    patterns = noerrata_patterns;
+  }
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
+     ; (set_attr "type" "def,use,use,use,defuse,use,use,use,defuse")
+     (set_attr "type" "etc,use,use,use,use,use,use,use,use")
+  ]
+)
+
+(define_insn "addsidi3_hi2s"
+  [(set (match_operand:DI 0 "pic30_DI_mode2_operand"        "=r,>,>,>,&r,R,R,R,&r,&r,&r")
+        (plus:DI
+           (mult:DI
+             (match_operand:DI 1 "pic30_DI_mode2k_operand"   "r,r,r,r, r,r,r,r, r, r, Q")
+             (const_int 4294967296))
+           (match_operand:DI 2 "pic30_DI_mode2k_operand"     "r,r,0,>, >,r,0,R, R, Q, r")))
+  ]
+  ""
+  "*
+{
+   char *noerrata_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;mov %2,%0\;\"
+                              \"add %1,%2,%0\;addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov.d %2,%0\;add %1,%2,%t0\;addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;add %1,%t2,%I0\;addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;add %1,%2,%I0\;addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;mov %I2,%I0\;\"
+                              \"add %1,%I2,%I0\;addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov.d %I2,%0\;add %1,%I2,%t0\;addc %d1,%2,%q0\",
+
+     /* r,r,Q */          \"\", /* placeholder, actual insn below */
+     /* r,Q,r */          \"\", /* placeholder, actual insn below */
+
+  };
+
+   char *psv_psv_patterns[] = {
+     /* r,r,r */          \"mov.d %2,%0\;add %1,%t2,%t0\;addc %d1,%q2,%q0\",
+
+     /* >,r,r */          \"mov.d %2,%0\;add %1,%t2,%0\;addc %d1,%q2,%0\",
+
+     /* >,r,0 */          \"add %r0,#4,%r0\;add %1,%s2,%0\;nop\;addc %d1,%s2,%0\",
+
+     /* >,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,> */          \"mov %2,%0\;\"
+                          \"nop\;\"
+                          \"mov %2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+
+     /* R,r,r */          \"mov.d %2,%I0\;\"
+                          \"add %1,%t2,%I0\;\"
+                          \"addc %d1,%q2,%0\",
+
+     /* R,r,0 */          \"add %r0,#4,%r0\;\"
+                          \"addc %1,%2,%I0\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* R,r,R */          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%I0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%I0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%0\",
+
+     /* r,r,R */          \"mov %I2,%0\;\"
+                          \"nop\;\"
+                          \"mov %I2,%d0\;\"
+                          \"nop\;\"
+                          \"add %1,%I2,%t0\;\"
+                          \"nop\;\"
+                          \"addc %d1,%2,%q0\",
+
+     /* r,r,Q */          \"\", /* placeholder, actual insn below */
+
+     /* r,Q,r */          \"\", /* placeholder, actual insn below */
+
+  };
+
+  /* increasing the patterns, means increasing this number too */
+  static char szInsns[180];
+  char **patterns;
+  int regno, index_value;
+  rtx x;
+
+  if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+    pic30_rtx_nops+=3;
+    patterns = psv_psv_patterns;
+  } else {
+    patterns = noerrata_patterns;
+  }
+
+  switch (which_alternative) {
+     default: return patterns[which_alternative];
+
+     case 5:  /* R,r,r */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 6:  /* R,r,0 */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+              return szInsns;
+
+     case 7:  /* R,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[0],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r0\");
+              }
+
+              x = XEXP(operands[2],0);
+	      if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 8:  /* r,r,R */
+              strcpy(szInsns, patterns[which_alternative]);
+
+              x = XEXP(operands[2],0);
+              if (!pic30_dead_or_set_p(NEXT_INSN(insn), x) &&
+                  !find_regno_note(insn, REG_UNUSED, REGNO(x))) {
+                 strcat(szInsns,\"\;sub #6,%r2\");
+              }
+              return szInsns;
+
+     case 9:  /* r,r,Q */
+
+              index_value = INTVAL(XEXP(XEXP(operands[2],0),1));
+              if (pic30_psrd_psrd_errata(NULL,operands[2])) {
+                if (index_value < 0) {
+                  return \"mov %r2,%q0\;\"
+                         \"sub #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %d1,[%q0],%q0\;\"
+                         \"nop\" ;
+                } else {
+                  return \"mov %r2,%q0\;\"
+                         \"add #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %d1,[%q0],%q0\;\"
+                         \"nop\" ;
+                }
+              } else {
+                if (index_value < 0) {
+                  return \"mov %r2,%q0\;\"
+                         \"sub #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"addc %d1,[%q0],%q0\" ;
+                } else {
+                  return \"mov %r2,%q0\;\"
+                         \"add #%i2,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %1,[%q0++],%t0\;\"
+                         \"addc %d1,[%q0],%q0\" ;
+                }
+              }
+
+     case 10:  /* r,Q,r */
+
+              index_value = INTVAL(XEXP(XEXP(operands[1],0),1));
+              if (pic30_psrd_psrd_errata(NULL,operands[1])) {
+                if (index_value < 0) {
+                  return \"mov %r1,%q0\;\"
+                         \"sub #%i1,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %t2,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %q2,[%q0],%q0\;\"
+                         \"nop\" ;
+                } else {
+                  return \"mov %r1,%q0\;\"
+                         \"add #%i1,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"nop\;\"
+                         \"add %t2,[%q0++],%t0\;\"
+                         \"nop\;\"
+                         \"addc %q2,[%q0],%q0\;\"
+                         \"nop\" ;
+                }
+              } else {
+                if (index_value < 0) {
+                  return \"mov %r1,%q0\;\"
+                         \"sub #%i1,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %t2,[%q0++],%t0\;\"
+                         \"addc %q2,[%q0],%q0\" ;
+                } else {
+                  return \"mov %r1,%q0\;\"
+                         \"add #%i1,%q0\;\"
+                         \"mov.d [%q0++],%0\;\"
+                         \"add %t2,[%q0++],%t0\;\"
+                         \"addc %q2,[%q0],%q0\" ;
+                }
+              }
+   }
+}"
+   [
+     (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber,clobber,clobber")
+     ; (set_attr "type" "def,use,use,use,defuse,use,use,use,defuse,etc,etc")
+     (set_attr "type" "etc,use,use,use,use,use,use,use,use,etc,etc")
+  ]
+)
+
+
 (define_insn "adddi3"
   [(set (match_operand:DI 0 "pic30_DI_mode2_operand"         "=r,>,>,>,&r,R,R,R,&r")
         (plus:DI
-           (match_operand:DI 1 "pic30_register_operand"    "r,r,r,r, r,r,r,r, r")
+           (match_operand:DI 1 "pic30_register_operand"       "r,r,r,r, r,r,r,r, r")
            (match_operand:DI 2 "pic30_DI_mode2_operand"       "r,r,0,>, >,r,0,R, R")))
   ]
   ""
@@ -19338,7 +23216,8 @@
 }"
    [
      (set_attr "cc" "math,math,math,math,math,clobber,clobber,clobber,clobber")
-     (set_attr "type" "def")
+     ; (set_attr "type" "def,use,use,use,defuse,use,use,use,defuse")
+     (set_attr "type" "etc,use,use,use,use,use,use,use,use")
   ]
 )
 ;;;;;;;;
@@ -22907,6 +26786,98 @@
   ]
 )
 
+(define_insn "divmodsd_eds"
+  [(set (match_operand:HI 0 "pic30_register_operand"     "=a,a,?b,?b")
+        (unspec_volatile:HI [
+          (match_operand:SI 1 "pic30_register_operand"    "r,r, r, r")
+	  (match_operand:HI 2 "pic30_ereg_operand"        "e,e, e, e")
+        ] UNSPECV_EDSDIVMODSD))
+   (set (match_operand:HI 3 "pic30_register_operand"     "=b,e, e, a")
+        (unspec_volatile:HI [
+          (const_int 0)
+        ] UNSPECV_EDSMOD))
+   (clobber (match_scratch:HI 4                          "=X,b, e, e"))
+   (clobber (match_scratch:HI 5                          "=X,X, a, X"))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,%%3\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 2:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,%%4\;mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 3:  
+        if (pic30_errata_mask & exch_errata)
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                  \"%s\"
+                  \"mov w1,%%4\;mov w0,w1\;mov %%4,w0\",
+                  repeat_errata_push,repeat_errata_pop);
+        else 
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.sd %%1,%%2\;\"
+                  \"%s\"
+                  \"exch w0,w1\",
+                  repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")   ; should have new CC of div
+    (set_attr "type" "def")
+  ]
+)
+
+(define_expand "divmodsdumm"
+  [(set (match_operand:HI 0 "pic30_register_operand"   "")
+        (unspec_volatile:HI [
+          (match_operand:SI 1 "pic30_register_operand" "")
+          (match_operand:HI 2 "pic30_ereg_operand"     "")
+        ] UNSPECV_DIVMODSD))
+   (set (match_operand 3 "pic30_mem_eds_operand"       "")
+        (unspec_volatile:HI [
+          (match_dup 1)
+          (match_dup 2)
+        ] UNSPECV_DIVMODSD))
+  ]
+  ""
+  "{
+     rtx rem = gen_reg_rtx(HImode);
+     emit(
+       gen_divmodsd_eds(operand0,operand1,operand2,rem)
+     );
+     emit(
+       gen_P32UMMwt_hi(operand3, rem)
+     );
+     DONE;
+   }
+  "
+)
+
 (define_insn "divmodud"
   [(set (match_operand:HI 0 "pic30_register_operand"  "=a,?b")
         (unspec_volatile:HI [
@@ -22954,6 +26925,99 @@
     (set_attr "type" "def")
   ]
 )
+
+(define_insn "divmodud_umm"
+  [(set (match_operand:HI 0 "pic30_register_operand"     "=a,a,?b,?b")
+        (unspec_volatile:HI [
+          (match_operand:SI 1 "pic30_register_operand"    "r,r, r, r")
+	  (match_operand:HI 2 "pic30_ereg_operand"        "e,e, e, e")
+        ] UNSPECV_EDSDIVMODUD))
+   (set (match_operand:HI 3 "pic30_register_operand"     "=b,e, e, a")
+        (unspec_volatile:HI [
+          (const_int 0)
+        ] UNSPECV_EDSMOD))
+   (clobber (match_scratch:HI 4                          "=X,b, e, e"))
+   (clobber (match_scratch:HI 5                          "=X,X, a, X"))
+   (clobber (reg:HI RCOUNT))
+  ]
+  ""
+  "*
+  {
+    static char buffer[512];
+    char *c = buffer;
+    char *repeat_errata_push = pic30_repeat_errata_push_init();
+    char *repeat_errata_pop = pic30_repeat_errata_pop_init();
+    switch (which_alternative) {
+      default: gcc_assert(0);
+      case 0:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 1:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,%%3\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 2:  
+        sprintf(c,\"%s\"
+                \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                \"%s\"
+                \"mov w1,%%4\;mov w0,w1\",
+                repeat_errata_push,repeat_errata_pop);
+        return buffer;
+      case 3:  
+        if (pic30_errata_mask & exch_errata)
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                  \"%s\"
+                  \"mov w1,%%4\;mov w0,w1\;mov %%4,w0\",
+                  repeat_errata_push,repeat_errata_pop);
+        else 
+          sprintf(c,\"%s\"
+                  \"repeat #__TARGET_DIVIDE_CYCLES\;div.ud %%1,%%2\;\"
+                  \"%s\"
+                  \"exch w0,w1\",
+                  repeat_errata_push,repeat_errata_pop);
+        return buffer;
+    }
+  }
+  "
+  [
+    (set_attr "cc" "clobber")   ; should have new CC of div
+    (set_attr "type" "def")
+  ]
+)
+
+(define_expand "divmodudumm"
+  [(set (match_operand:HI 0 "pic30_register_operand"   "")
+        (unspec_volatile:HI [
+          (match_operand:SI 1 "pic30_register_operand" "")
+          (match_operand:HI 2 "pic30_ereg_operand"     "")
+        ] UNSPECV_DIVMODUD))
+   (set (match_operand 3 "pic30_mem_umm_operand"       "")
+        (unspec_volatile:HI [
+          (match_dup 1)
+          (match_dup 2)
+        ] UNSPECV_DIVMODUD))
+  ]
+  ""
+  "{
+     rtx rem = gen_reg_rtx(HImode);
+     emit(
+       gen_divmodud_umm(operand0,operand1,operand2,rem)
+     );
+     emit(
+       gen_P32UMMwt_hi(operand3, rem)
+     );
+     DONE;
+   }
+  "
+)
+
 
 (define_insn "divmodhi4"
   [(set (match_operand:HI   0 "pic30_register_operand" "=a,?b")
@@ -23262,6 +27326,18 @@
   ]
 )
 
+(define_insn "negp32eds2"
+  [(set (match_operand:P32EDS 0 "pic30_register_operand"        "=r")
+        (neg:P32EDS (match_operand:P32EDS 1 "pic30_register_operand" "r")))]
+  ""
+  "subr %1,#0,%0\;subbr %d1,#0,%d0"
+  [
+   (set_attr "cc" "set")
+   (set_attr "type" "def")
+  ]
+)
+
+
 ;;;;;;;;;;;;;;;;;;
 ;; Single float
 ;;;;;;;;;;;;;;;;;;
@@ -23555,6 +27631,7 @@
   ]
 )
 
+
 ;;;;;;;;;;;;;;
 ;; Test Bit ;;
 ;;;;;;;;;;;;;;
@@ -23677,9 +27754,10 @@
 ;; Set Bit ;;
 ;;;;;;;;;;;;;
 
-(define_insn "bitsetsiR"
-  [(set (match_operand:SI 0 "pic30_reg_or_R_operand"         "=r,R")
-        (ior:SI  (match_operand:SI 1 "pic30_reg_or_R_operand" "0,0")
+(define_insn "bitset<mode>R"
+  [(set (match_operand:GM32BIT   0 "pic30_reg_or_R_operand" "=r,R")
+        (ior:GM32BIT  
+          (match_operand:GM32BIT 1 "pic30_reg_or_R_operand"  "0,0")
                  (match_operand 2 "const_int_operand"         "i,i")))]
   "(pic30_one_bit_set(GET_MODE(operands[0]),operands[2],1))"
   "*
@@ -23811,17 +27889,24 @@
 ;;;;;;;;;;;;;;;;
 
 (define_insn "bittogsi"
-  [(set (match_operand:SI 0 "pic30_register_operand"         "=r")
-        (xor:SI  (match_operand:SI 1 "pic30_register_operand" "0")
-                 (match_operand 2 "const_int_operand"   "i")))]
+  [(set (match_operand:SI 0 "pic30_mode2_operand"            "=r,R")
+        (xor:SI  (match_operand:SI 1 "pic30_mode2_operand"    "0,0")
+                 (match_operand 2 "const_int_operand"         "i,i")))]
   "(pic30_one_bit_set(GET_MODE(operands[0]),operands[2],1))"
   "*
    {
      unsigned int n = INTVAL(operands[2]);
-     if (n >= 65536)
-       return \"btg %d0,#%b2-16\";
-     else
-       return \"btg %0,#%b2\";
+     if (which_alternative == 0) {
+       if (n >= 65536)
+         return \"btg %d0,#%b2-16\";
+       else
+         return \"btg %0,#%b2\";
+     } else {
+       if (n >= 65536)
+         return \"btg %P0,#%b2-16\";
+       else
+         return \"btg %0,#%b2\";
+     }
    }"
   [
    (set_attr "type" "def")
@@ -24313,9 +28398,8 @@
   rtx operand_0;
 
   rtx operands_1 = force_reg(SImode, operands[1]);
-  rtx operands_2 = force_reg(SImode, operands[2]);
 
-  if (GET_CODE(operands_2) == CONST_INT) {
+  if (GET_CODE(operands[2]) == CONST_INT) {
     operand0_lo = gen_reg_rtx(HImode);
     operand1_lo = gen_reg_rtx(HImode);
     operand1_hi = gen_reg_rtx(HImode);
@@ -24323,12 +28407,20 @@
   
     emit_insn(gen_movhi(operand1_lo, gen_rtx_SUBREG(HImode,operands_1,0)));
     emit_insn(gen_movhi(operand1_hi, gen_rtx_SUBREG(HImode,operands_1,2)));
-    emit_insn(gen_andhi3(operand0_lo, operand1_lo, operands_2));
-    emit_insn(gen_movsi_const0(operands[0]));
-    emit_insn(gen_movsi(operand_0,gen_rtx_ZERO_EXTEND(SImode, operand0_lo)));
-    emit_insn(gen_iorsi3(operands[0], operands[0], operand_0));
+    emit_insn(gen_andhi3(operand0_lo, operand1_lo, operands[2]));
+    emit_insn(
+      gen_movhi(gen_rtx_SUBREG(HImode,operand_0,2), GEN_INT(0))
+    );
+    emit_insn(
+      gen_movhi(gen_rtx_SUBREG(HImode,operand_0,0), operand0_lo)
+    );
+    emit_insn(
+      gen_movsi(operands[0],operand_0)
+    );
     DONE;
   } else {
+    rtx operands_2 = force_reg(SImode, operands[2]);
+
     operand0_lo = gen_reg_rtx(HImode);
     operand0_hi = gen_reg_rtx(HImode);
     operand1_lo = gen_reg_rtx(HImode);
@@ -24343,12 +28435,15 @@
     emit_insn(gen_movhi(operand2_hi, gen_rtx_SUBREG(HImode,operands_2,2)));
     emit_insn(gen_andhi3(operand0_lo, operand1_lo, operand2_lo));
     emit_insn(gen_andhi3(operand0_hi, operand1_hi, operand2_hi));
-    emit_insn(gen_movsi(operand_0,gen_rtx_ZERO_EXTEND(SImode, operand0_hi)));
-    /* ashlsi3 does not accept a mode2 operand */
-    emit_insn(gen_ashlsi3(operand_0, operand_0, GEN_INT(16)));
-    emit_insn(gen_movsi(operands[0], operand_0));
-    emit_insn(gen_movsi(operand_0,gen_rtx_ZERO_EXTEND(SImode, operand0_lo)));
-    emit_insn(gen_iorsi3(operands[0], operands[0], operand_0));
+    emit_insn(
+      gen_movhi(gen_rtx_SUBREG(HImode,operand_0,2), operand0_hi)
+    );
+    emit_insn(
+      gen_movhi(gen_rtx_SUBREG(HImode,operand_0,0), operand0_lo)
+      );
+    emit_insn(
+      gen_movsi(operands[0],operand_0)
+    );
     DONE;
   }
 
@@ -26029,13 +30124,13 @@
 ;; single integer
 ;;;;;;;;;;;;;;;;;
 
-(define_insn "iorsi3_DATA"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_insn "ior<mode>3_DATA"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r,&r, R,R,R, r,R,<>,<>,R,<>")
-       (ior:SI 
-          (match_operand:SI 1 "pic30_mode1P_operand"
+       (ior:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_mode1P_operand"
              "%r, r, r,r,r, 0,r, r, r, r, r")
-          (match_operand:SI 2 "pic30_mode1P_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_operand"
              " r, R, 0,R,r, P,P, <>,R,<>,P")))]
  ""
  "*
@@ -26138,13 +30233,13 @@
  ]
 )
 
-(define_insn "iorsi3_APSV"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_insn "ior<mode>3_APSV"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r,&r, R,R,R, r,R,<>,<>,R,<>")
-       (ior:SI 
-          (match_operand:SI 1 "pic30_mode1P_APSV_operand"
+       (ior:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_mode1P_APSV_operand"
              "%r, r, r,r,r, 0,r, r, r, r, r")
-          (match_operand:SI 2 "pic30_mode1P_APSV_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_APSV_operand"
              " r, R, 0,R,r, P,P, <>,R,<>,P")))]
  ""
  "*
@@ -26244,13 +30339,13 @@
  ]
 )
 
-(define_expand "iorsi3"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_expand "ior<mode>3"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r<>,&r<>,R,R,R,  R,r, r,<>")
-       (ior:SI
-          (match_operand:SI 1 "pic30_mode1P_or_1bit_APSV_operand"
+       (ior:GM32BIT
+          (match_operand:GM32BIT 1 "pic30_mode1P_or_1bit_APSV_operand"
              "%r,   r,  r,r,r,  r,0, r,r")
-          (match_operand:SI 2 "pic30_mode1P_or_1bit_APSV_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_or_1bit_APSV_operand"
              "r<>, R,  0,R,r<>,P,P, P,P")))]
  ""
  "
@@ -26258,21 +30353,21 @@
   if ((pic30_one_bit_set(GET_MODE(operands[0]),operands[1],1) && 
        pic30_reg_or_R_operand(operands[2],VOIDmode))) {
     emit(
-      gen_bitsetsiR(operands[0], operands[2], operands[1])
+      gen_bitset<mode>R(operands[0], operands[2], operands[1])
     );
   } else if ((pic30_one_bit_set(GET_MODE(operands[0]),operands[2],1) && 
             pic30_reg_or_R_operand(operands[1], VOIDmode))) {
     emit(
-      gen_bitsetsiR(operands[0], operands[1], operands[2])
+      gen_bitset<mode>R(operands[0], operands[1], operands[2])
     );
   } else if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
              pic30_mode1P_operand(operands[2],GET_MODE(operands[2]))) {
     emit(
-      gen_iorsi3_DATA(operands[0],operands[1],operands[2])
+      gen_ior<mode>3_DATA(operands[0],operands[1],operands[2])
     );
   } else {
     emit(
-      gen_iorsi3_APSV(operands[0],operands[1],operands[2])
+      gen_ior<mode>3_APSV(operands[0],operands[1],operands[2])
     );
   }
   DONE;
@@ -28140,13 +32235,13 @@
 ;; single integer
 ;;;;;;;;;;;;;;;;;
 
-(define_insn "xorsi3_DATA"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_insn "xor<mode>3_DATA"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r,&r, R,R,R, r,R,<>,<>,R,<>")
-       (xor:SI 
-          (match_operand:SI 1 "pic30_register_operand"
+       (xor:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"
              "%r, r, r,r,r, 0,r, r, r, r, r")
-          (match_operand:SI 2 "pic30_mode1P_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_operand"
              " r, R, 0,R,r, P,P, <>,R,<>,P")))]
  ""
  "*
@@ -28246,13 +32341,13 @@
  ]
 )
 
-(define_insn "xorsi3_APSV"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_insn "xor<mode>3_APSV"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r,&r, R,R,R, r,R,<>,<>,R,<>")
-       (xor:SI 
-          (match_operand:SI 1 "pic30_register_operand"
+       (xor:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"
              "%r, r, r,r,r, 0,r, r, r, r, r")
-          (match_operand:SI 2 "pic30_mode1P_APSV_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_APSV_operand"
              " r, R, 0,R,r, P,P, <>,R,<>,P")))]
  ""
  "*
@@ -28352,22 +32447,22 @@
  ]
 )
 
-(define_expand "xorsi3"
- [(set (match_operand:SI 0 "pic30_mode2_operand"
+(define_expand "xor<mode>3"
+ [(set (match_operand:GM32BIT 0 "pic30_mode2_operand"
              "=r<>,&r<>,R,R,R,  R,r,&r,<>")
-       (xor:SI
-          (match_operand:SI 1 "pic30_register_operand"
+       (xor:GM32BIT
+          (match_operand:GM32BIT 1 "pic30_register_operand"
              "%r,   r,  r,r,r,  r,0, r,r")
-          (match_operand:SI 2 "pic30_mode1P_APSV_operand"
+          (match_operand:GM32BIT 2 "pic30_mode1P_APSV_operand"
              "r<>, R,  0,R,r<>,P,P, P,P")))]
  ""
  "
 {
   if (pic30_mode1P_operand(operands[1],GET_MODE(operands[1])) &&
       pic30_mode1P_operand(operands[2],GET_MODE(operands[2])))
-    emit(gen_xorsi3_DATA(operands[0],operands[1],operands[2]));
+    emit(gen_xor<mode>3_DATA(operands[0],operands[1],operands[2]));
   else
-    emit(gen_xorsi3_APSV(operands[0],operands[1],operands[2]));
+    emit(gen_xor<mode>3_APSV(operands[0],operands[1],operands[2]));
   DONE;
 }")
 
@@ -30301,8 +34396,7 @@
 (define_insn "ashlqi3"
   [(set (match_operand:QI 0 "pic30_register_operand"                 "=r,r")
         (ashift:QI (match_operand:QI 1 "pic30_register_operand"       "r,r")
-                   (subreg:QI 
-                     (match_operand:HI 2 "pic30_reg_or_P_operand" "r,P") 0)))]
+                   (match_operand:QI 2 "pic30_reg_or_P_operand"       "r,P")))]
   ""
   "@
     sl %1,%2,%0
@@ -31368,9 +35462,10 @@
 ;; SImode ;;
 ;;;;;;;;;;;;
 
-(define_expand "lshrsi3"
-  [(set (match_operand:SI 0 "pic30_register_operand"              "")
-        (lshiftrt:SI (match_operand:SI 1 "pic30_register_operand"  "")
+(define_expand "lshr<mode>3"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand"   "")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"   "")
                      (match_operand:HI 2 "pic30_reg_or_imm_operand" "")))]
   ""
   "
@@ -31380,39 +35475,40 @@
 		switch (INTVAL(operands[2]))
 		{
 		case 0:
-			emit_insn(gen_movsi(operands[0], operands[1]));
+			emit_insn(gen_mov<mode>(operands[0], operands[1]));
 			break;
 		case 1:
-			emit_insn(gen_lshrsi3_imm1(operands[0],
+			emit_insn(gen_lshr<mode>3_imm1(operands[0],
 						operands[1], operands[2]));
 			break;
 		case 2 ... 15:
-			emit_insn(gen_lshrsi3_imm2to15(operands[0],
+			emit_insn(gen_lshr<mode>3_imm2to15(operands[0],
 						operands[1], operands[2]));
 			break;
 		case 16:
-			emit_insn(gen_lshrsi3_imm16plus(operands[0],
+			emit_insn(gen_lshr<mode>3_imm16plus(operands[0],
 						operands[1], operands[2]));
 			break;
 		case 17 ... 31:
-			emit_insn(gen_lshrsi3_imm16plus(operands[0],
+			emit_insn(gen_lshr<mode>3_imm16plus(operands[0],
 						operands[1], operands[2]));
 			break;
 		default:
-			emit_insn(gen_movsi(operands[0], const0_rtx));
+			emit_insn(gen_mov<mode>(operands[0], const0_rtx));
 			break;
 		}
 	}
 	else
 	{
-		emit_insn(gen_lshrsi3_reg(operands[0],operands[1],operands[2]));
+		emit_insn(gen_lshr<mode>3_reg(operands[0],operands[1],operands[2]));
 	}
 	DONE;
 }")
 
-(define_insn "lshrsi3_imm1"
-  [(set (match_operand:SI 0 "pic30_register_operand"             "=r")
-        (lshiftrt:SI (match_operand:SI 1 "pic30_register_operand" "r")
+(define_insn "lshr<mode>3_imm1"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=r")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"  "r")
                      (match_operand:HI 2 "pic30_I_operand"  "I")))]
   ""
   "
@@ -31423,9 +35519,10 @@
   ]
 )
 
-(define_insn "lshrsi3_imm16plus"
-  [(set (match_operand:SI 0            "pic30_register_operand"         "=r")
-        (lshiftrt:SI (match_operand:SI 1 "pic30_register_operand"        "r")
+(define_insn "lshr<mode>3_imm16plus"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=r")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"  "r")
                      (match_operand:HI 2 "pic30_imm16plus_operand" "i")))]
   ""
   "*
@@ -31441,9 +35538,10 @@
   ]
 )
 
-(define_insn "lshrsi3_imm2to15"
-  [(set (match_operand:SI 0            "pic30_register_operand"        "=r")
-        (lshiftrt:SI (match_operand:SI 1 "pic30_register_operand"       "r")
+(define_insn "lshr<mode>3_imm2to15"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=r")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"  "r")
                      (match_operand:HI 2 "pic30_imm2to15_operand" "i")))
 		     (clobber (match_scratch:HI 3               "=&r"))]
   ""
@@ -31470,9 +35568,10 @@
   ]
 )
 
-(define_insn "lshrsi3_reg"
-  [(set (match_operand:SI 0 "pic30_register_operand"             "=r")
-        (lshiftrt:SI (match_operand:SI 1 "pic30_register_operand" "0")
+(define_insn "lshr<mode>3_reg"
+  [(set (match_operand:GM32BIT   0 "pic30_register_operand" "=r")
+        (lshiftrt:GM32BIT 
+          (match_operand:GM32BIT 1 "pic30_register_operand"  "0")
                      (match_operand:HI 2 "pic30_register_operand" "r")))
 		     (clobber (match_scratch:HI 3          "=2"))]
   ""
@@ -31926,7 +36025,7 @@
 }"
   [
    (set_attr "cc" "clobber")
-   (set_attr "type" "def")
+   (set_attr "type" "etc")
   ]
 )
 
@@ -33509,7 +37608,7 @@
 
 (define_insn "save_const_psv"
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
-        (match_operand:HI 1 "pic30_symbolic_address_operand" "q"))]
+        (match_operand:HI 1 "pic30_symbolic_address_operand" "qs"))]
   ""
   "mov #%1,%0"
 )
@@ -34978,7 +39077,7 @@
 
 (define_peephole
   [(set (match_operand:HI 0 "pic30_register_operand"        "=r")
-        (match_operand:HI 1 "pic30_symbolic_address_operand" "q"))
+        (match_operand:HI 1 "pic30_symbolic_address_operand" "qs"))
    (set (match_operand:HI 2 "pic30_register_operand"        "=r")
         (match_dup 0))]
  "dead_or_set_p(insn, operands[0])"
@@ -35023,9 +39122,9 @@
 ;; mov.d [wn+k],r0; mov.d r0,r1 becomes mov.d [wn+k],r1
 
 (define_peephole
-  [(set (match_operand:M32BIT 0 "pic30_register_operand" "=r")
-        (match_operand:M32BIT 1 "pic30_Q_operand"   "Q"))
-   (set (match_operand:M32BIT 2 "pic30_register_operand" "=r")
+  [(set (match_operand:GM32BIT 0 "pic30_register_operand" "=r")
+        (match_operand:GM32BIT 1 "pic30_Q_operand"   "Q"))
+   (set (match_operand:GM32BIT 2 "pic30_register_operand" "=r")
         (match_dup 0))
   ]
  "dead_or_set_p(insn, operands[0])"
@@ -35085,9 +39184,9 @@
 ;; mov.d a,r0; mov.d r0,r1 becomes mov.d a,r1
 
 (define_peephole
-  [(set (match_operand:M32BIT 0 "pic30_register_operand" "=r")
-        (match_operand:M32BIT 1 "pic30_T_operand"   "T"))
-   (set (match_operand:M32BIT 2 "pic30_register_operand" "=r")
+  [(set (match_operand:GM32BIT 0 "pic30_register_operand" "=r")
+        (match_operand:GM32BIT 1 "pic30_T_operand"   "T"))
+   (set (match_operand:GM32BIT 2 "pic30_register_operand" "=r")
         (match_dup 0))
   ]
  "dead_or_set_p(insn, operands[0])"
@@ -35946,6 +40045,34 @@
   ]
 )
 
+(define_insn "mov<mode>_APSV_gen"
+  [
+    (set 
+       (match_operand:QUQ15 0 "pic30_move_operand" "=rR<>, Q,r, TU,r, !TUrR<>,w,Q,w,TU,w,r,w,   R<>")
+       (match_operand:QUQ15 1 "pic30_move_operand" " rR<>, r,Q, r,TU, TUrR<>, w,w,Q,w,TU,w,rR<>,w"))
+    (use (reg:HI PSVPAG))
+  ]
+  ""
+  "@
+   mov %1,%0
+   mov %1,%0
+   mov %1,%0
+   mov %1,%0
+   mov %1,%0
+   push %1\;pop %0
+   clr %0\;add %0
+   mov %m1H,%0
+   lac %1,%0
+   push %m1H\;pop %0
+   clr %0\;push %1\;pop %m0H
+   mov %m1H,%0
+   lac %1,%0
+   push %m1H\;pop %0"
+  [
+    (set_attr "type" "defuse,use,defuse,etc,def,defuse,etc,use,use,etc,etc,def,use,use")
+  ]
+)
+
 (define_expand "mov<mode>"
   [(set (match_operand:QUQ15 0 "pic30_move_operand" "")
         (match_operand:QUQ15 1 "pic30_move_operand" ""))]
@@ -35988,8 +40115,8 @@
 (define_insn "mov<mode>_gen"
   [
     (set 
-      (match_operand:QUQ31 0 "pic30_move_operand" "=rR<>, r,   Q, r, TU,r, TU,R, w,TU,w,r,w,R,w")
-      (match_operand:QUQ31 1 "pic30_move_operand" " r,    R<>, r, Q, r,TU, R,TU, w,w,TU,w,r,w,R"))
+      (match_operand:QUQ31 0 "pic30_move_operand" "=rR<>, r,   Q, r, TU,r, TU,R, w,TU,w,r,w,R,w,R")
+      (match_operand:QUQ31 1 "pic30_move_operand" " r,    R<>, r, Q, r,TU, R,TU, w,w,TU,w,r,w,R,R"))
   ]
   "(pic30_psrd_psrd_errata(operands[0],operands[1]) == 0) &&
    (pic30_psrd_psrd_errata_movd(operands[0],operands[1]) == 0)"
@@ -36010,7 +40137,8 @@
        \"mov %m1L,%0\;mov %m1H,%d0\",
        \"mov %1,%m0L\;mov %d1,%m0H\",
        \"push %m1H\;push %m1L\;pop %I0\;pop %D0\",
-       \"push %I1\;push %D1\;pop %m0H\;pop %m0L\"
+       \"push %I1\;push %D1\;pop %m0H\;pop %m0L\",
+       \"mov %I1,%I0\;mov %D1,%D0\"
      };
 
      /* check for early clobber */
@@ -36024,7 +40152,7 @@
        default: /* no overlap possible */
                 break;
        case 3: {
-         /* mem ( plus ( reg, */
+         /* mem  plus reg, */
          rtx inner = XEXP(operands[1],0);
          src_regno = REGNO(XEXP(inner,0));
          overlap = src_regno-dst_regno;
@@ -36041,7 +40169,69 @@
      return patterns[which_alternative];
    }"
   [
-    (set_attr "type" "def,defuse,use,use,etc,def,use,use,etc,etc,etc,def,etc,use,use")
+    (set_attr "type" "def,defuse,use,use,etc,def,use,use,etc,etc,etc,def,etc,use,use,use")
+  ]
+)
+
+(define_insn "mov<mode>_gen_APSV"
+  [
+    (set 
+      (match_operand:QUQ31 0 "pic30_move_operand" "=rR<>, r,   Q, r, TU,r, TU,R, w,TU,w,r,w,R,w,R")
+      (match_operand:QUQ31 1 "pic30_move_operand" " r,    R<>, r, Q, r,TU, R,TU, w,w,TU,w,r,w,R,R"))
+    (use (reg:HI PSVPAG))
+  ]
+  "(pic30_psrd_psrd_errata(operands[0],operands[1]) == 0) &&
+   (pic30_psrd_psrd_errata_movd(operands[0],operands[1]) == 0)"
+  "*
+   {
+     const char *patterns[] = {
+       \"mov.d %1,%0\",
+       \"mov.d %1,%0\",
+       \"mov.w %1,%0\;mov.w %d1,%Q0\",
+       \"mov.w %1,%0\;mov.w %Q1,%d0\",               /* =r,Q */
+       \"push.d %1\;pop %0+2\;pop %0\",
+       \"push %1\;push %1+2\;pop.d %0\",
+       \"push %I1\;push %D1\;pop %0+2\;pop %0\",
+       \"push %1\;push %1+2\;pop %P0\;pop %p0\",
+       \"clr %0\;add %0\",
+       \"push %m1L\;push %m1H\;pop %0+2\;pop %0\",
+       \"push %1\;push %1+2\;pop %m0H\;pop %m0L\",
+       \"mov %m1L,%0\;mov %m1H,%d0\",
+       \"mov %1,%m0L\;mov %d1,%m0H\",
+       \"push %m1H\;push %m1L\;pop %I0\;pop %D0\",
+       \"push %I1\;push %D1\;pop %m0H\;pop %m0L\",
+       \"mov %I1,%I0\;mov %D1,%D0\"
+     };
+
+     /* check for early clobber */
+     int src_regno,dst_regno,mode_n_regs;
+     int overlap;
+
+     dst_regno = REGNO(operands[0]);
+     mode_n_regs = pic30_class_max_nregs(W_REGS,GET_MODE(operands[0]));
+
+     switch (which_alternative) {
+       default: /* no overlap possible */
+                break;
+       case 3: {
+         /* mem  plus reg, */
+         rtx inner = XEXP(operands[1],0);
+         src_regno = REGNO(XEXP(inner,0));
+         overlap = src_regno-dst_regno;
+         switch (overlap) {
+           default: /* no overlap */
+             break;
+           case 0:  /* src == dst */
+             return \"mov.w %Q1,%d0\;mov.w %1,%0\";
+             break;
+         }
+         break;
+       }
+     }
+     return patterns[which_alternative];
+   }"
+  [
+    (set_attr "type" "def,defuse,use,use,etc,def,use,use,etc,etc,etc,def,etc,use,use,use")
   ]
 )
 
@@ -48009,6 +52199,335 @@
                if (pic30_accumulator_operand(operands[0],
                                              <MODE>mode)) {
                  if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %1,[w15++]\;\"
+                          \"pop ACCAL\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop ACCAH\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop ACCAU\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %1,[w15++]\;\"
+                          \"pop ACCBL\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop ACCBU\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop ACCBH\;\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an
+                    & earlyclobber confuses reload */
+                 unsigned int index;
+                 index = REGNO(XEXP(operands[1],0));
+                 if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+                   pic30_rtx_nops+=2;
+                 if (index == REGNO(operands[0])) {
+                   /* write to the index register last */
+                   return \"mov %Q1,%d0\;\"
+                            \"nop\;\"
+                          \"mov.b %R1,%t0\;\"
+                            \"nop\;\"
+                          \"mov %1,%0\;\"
+                          \"add %1,#6,%1\";
+                 } else if (index == REGNO(operands[0])+1) {
+                   /* write to the index+1 register last */
+                   return \"mov.b %R1,%t0\;\"
+                            \"nop\;\"
+                          \"mov %1,%0\;\"
+                            \"nop\;\"
+                          \"mov %Q1,%d0\;\"
+                          \"add %1,#6,%1\";
+                 } else {
+                   /* maybe write to the index+2 register last */
+                     return \"mov %1,%0\;\"
+                            \"nop\;\"
+                            \"mov %1,%d0\;\"
+                            \"nop\;\"
+                            \"mov.b %1,%t0\";
+                   }
+                 } else {
+                   if (index == REGNO(operands[0])) {
+                     /* write to the index register last */
+                     return \"mov %Q1,%d0\;\"
+                            \"mov.b %R1,%t0\;\"
+                            \"mov %1,%0\;\"
+                            \"add %1,#6,%1\";
+                   } else if (index == REGNO(operands[0])+1) {
+                     /* write to the index+1 register last */
+                     return \"mov.b %R1,%t0\;\"
+                            \"mov %1,%0\;\"
+                            \"mov %Q1,%d0\;\"
+                            \"add %1,#6,%1\";
+                   } else {
+                     /* maybe write to the index+2 register last */
+                     return \"mov %1,%0\;\"
+                            \"mov %1,%d0\;\"
+                            \"mov.b %1,%t0\";
+                   }
+                 }
+               }
+               break;
+      case 3:  /* R,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 return \"push %m1U\;\"
+                        \"push %m1H\;\"
+                        \"push %m1L\;\"
+                        \"mov [--w15],%I0\;\"
+                        \"mov [--W15],%I0\;\"
+                        \"mov [--W15],%D0\;\"
+                        \"dec2 %r0,%r0\";
+               } else {
+                 return \"mov %1,%I0\;\"
+                        \"mov %d1,%I0\;\"
+                        \"mov.b %t1,%0\;\"
+                        \"sub %r0,#4,%r0\";
+               }
+               break;
+      case 4:  /* >,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 rtx reg;
+                 rtx post_inc = XEXP(operands[0],0);
+
+                 reg = XEXP(post_inc,0);
+                 if (REGNO(reg) == WR15_REGNO) {
+                   /* push onto the stack */
+                   return \"push %m1L\;\"
+                          \"push %m1H\;\"
+                          \"push %m1U\";
+                 } else {
+                   /* push the value backward, so we can pop it the right way
+                      round */
+                   return \"push %m1U\;\"
+                          \"push %m1H\;\"
+                          \"push %m1L\;\"
+                          \"mov [--w15],%0\;\"
+                          \"mov [--W15],%0\;\"
+                          \"mov [--W15],%0\";
+                 }
+               } else {
+                 return \"mov %1,%0\;\"
+                        \"mov %d1,%0\;\"
+                        \"mov %t1,%0\";
+               }
+               break;
+      case 5:  /* >,> */
+               if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+               return \"mov %1,%0\;\"
+                        \"nop\;\"
+                      \"mov %1,%0\;\" 
+                        \"nop\;\"
+                      \"mov %1,%0\;\";
+               } else {
+                 return \"mov %1,%0\;\"
+                        \"mov %1,%0\;\" 
+                        \"mov %1,%0\;\";
+               }
+               break;
+      case 6:  /* wr,< */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 rtx reg;
+                 rtx pre_dec = XEXP(operands[1],0);
+
+                 reg = XEXP(pre_dec,0);
+                 if (REGNO(reg) == WR15_REGNO) {
+                   return \"pop %m0U\;\"
+                          \"pop %m0H\;\"
+                          \"pop %m0L\";
+                 } else {
+                   return \"mov %1,[w15++]\;\"
+                          \"pop %m0U\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop %m0H\;\"
+                          \"mov %1,[W15++]\;\"
+                          \"pop %m0L\";
+                 }
+               } else {
+                 if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+                   pic30_rtx_nops+=2;
+                 return \"mov %1,%t0\;\"
+                          \"nop\;\"
+                        \"mov %1,%d0\;\"
+                          \"nop\;\"
+                        \"mov %1,%0\";
+                 } else {
+                   return \"mov %1,%t0\;\"
+                          \"mov %1,%d0\;\"
+                          \"mov %1,%0\";
+               }
+               }
+               break;
+      case 7:  /* <,wr */
+               if (pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 return \"push %m1L\;\"
+                        \"push %m1H\;\"
+                        \"push %m1U\;\"
+                        \"mov [--w15],%0\;\"
+                        \"mov [--W15],%0\;\"
+                        \"mov [--W15],%0\";
+               } else {
+                 return \"mov %t1,%0\;\"
+                        \"mov %d1,%0\;\"
+                        \"mov %1,%0\";
+               }
+               break;
+      case 8:  /* r,Q */
+               if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+                 pic30_rtx_nops+=2;
+               return \"mov %1,%0\;\"
+                        \"nop\;\"
+                      \"mov %Q1,%d0\;\"
+                        \"nop\;\"
+                      \"mov %R1,%t0\;\";
+               } else {
+                 return \"mov %1,%0\;\"
+                        \"mov %Q1,%d0\;\"
+                        \"mov %R1,%t0\;\";
+               }
+      case 9:  /* Q,r */
+               return \"mov %1,%0\;\"
+                      \"mov %d1,%Q0\;\"
+                      \"mov %t1,%R0;\";
+    }"
+)
+
+(define_insn "mov<mode>_gen_APSV"
+   [(set
+      (match_operand:AUACC 0 
+         "pic30_move_operand" "=wr,????wr,????wr,????R, >, >, wr,  <, r, Q")
+      (match_operand:AUACC 1 
+         "pic30_move_operand"  "wr,     R,     >,   wr,wr, >,  <, wr, Q, r"))
+     (use (reg:HI PSVPAG))
+   ]
+   ""
+   "*
+    switch (which_alternative) {
+      default: gcc_assert(0);
+
+      case 0:  /* wr,wr */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode) &&
+                   pic30_accumulator_operand(operands[1],
+                                             <MODE>mode)) {
+                 /* saturation mode doesn't matter... we won't overflow */
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"clr A\;\"
+                          \"add A\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"clr B\;\"
+                          \"add B\";
+                 } else gcc_assert(0);
+               } else if (pic30_accumulator_operand(operands[0],
+                                                    <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %1,ACCAL\;\"
+                          \"mov %d1,ACCAH\;\"
+                          \"mov %t1,ACCAU\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %1,ACCBL\;\"
+                          \"mov %d1,ACCBH\;\"
+                          \"mov %t1,ACCBU\";
+                 } else gcc_assert(0);
+               } else if (pic30_accumulator_operand(operands[1],
+                                                    <MODE>mode)) {
+                 if (REGNO(operands[1]) == A_REGNO) {
+                   return \"mov ACCAL,%0\;\"
+                          \"mov ACCAH,%d0\;\"
+                          \"mov ACCAU,%t0\";
+                 } else if (REGNO(operands[1]) == B_REGNO) {
+                   return \"mov ACCBL,%0\;\"
+                          \"mov ACCBH,%d0\;\"
+                          \"mov ACCBU,%t0\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an &
+                    early clobber confuses reload */
+                 /* op0 and op1 regnos will only be even ... */
+                 if (REGNO(operands[0]) == REGNO(operands[1])) {
+                   return \"; nop\";
+                 } else if (REGNO(operands[0]) == REGNO(operands[1])+2) {
+                   return \"mov.b %t1,%t0\;\"
+                          \"mov.d %1,%0\";
+                 } /* else the other overlap doesn't matter */ 
+                 return \"mov.d %1,%0\;\"
+                        \"mov.b %t1,%t0\";
+               }
+               break;
+      case 1:  /* wr,R */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"pop ACCAL\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"pop ACCAH\;\"
+                          \"mov %D1,[W15++]\;\"
+                          \"pop ACCAU\;\"
+                          \"dec2 %r1,%r1\";
+                 } else if (REGNO(operands[0]) == B_REGNO) {
+                   return \"mov %I1,[w15++]\;\"
+                          \"pop ACCBL\;\"
+                          \"mov %I1,[W15++]\;\"
+                          \"pop ACCBH\;\"
+                          \"mov %D1,[W15++]\;\"
+                          \"pop ACCBU\;\"
+                          \"dec2 %r1,%r1\";
+                 } else gcc_assert(0);
+               } else {
+                 /* Try and prevent clobbering, apparently using an
+                    & earlyclobber confuses reload */
+                 unsigned int index;
+                 index = REGNO(XEXP(operands[1],0));
+                 if (pic30_psrd_psrd_errata(operands[1],NULL)) {
+                   pic30_rtx_nops+=2;
+                 if (index == REGNO(operands[0])) {
+                   /* write to the index register last */
+                   return \"mov %Q1,%d0\;\"
+                            \"nop\;\"
+                          \"mov.b %R1,%t0\;\"
+                            \"nop\;\"
+                          \"mov %1,%0\";
+                 } else if (index == REGNO(operands[0])+1) {
+                   /* write to the index+1 register last */
+                   return \"mov.b %R1,%t0\;\"
+                            \"nop\;\"
+                          \"mov %1,%0\;\"
+                            \"nop\;\"
+                          \"mov %Q1,%d0\";
+                 } else {
+                   /* maybe write to the index+2 register last */
+                   return \"mov %1,%0\;\"
+                            \"nop\;\"
+                          \"mov %Q1,%d0\;\"
+                            \"nop\;\"
+                          \"mov.b %R1,%t0\";
+                 }
+                 } else {
+                   if (index == REGNO(operands[0])) {
+                     /* write to the index register last */
+                     return \"mov %Q1,%d0\;\"
+                            \"mov.b %R1,%t0\;\"
+                            \"mov %1,%0\";
+                   } else if (index == REGNO(operands[0])+1) {
+                     /* write to the index+1 register last */
+                     return \"mov.b %R1,%t0\;\"
+                            \"mov %1,%0\;\"
+                            \"mov %Q1,%d0\";
+                   } else {
+                     /* maybe write to the index+2 register last */
+                     return \"mov %1,%0\;\"
+                            \"mov %Q1,%d0\;\"
+                            \"mov.b %R1,%t0\";
+               }
+                 }
+               }
+               break;
+      case 2:  /* wr,> */
+               if (pic30_accumulator_operand(operands[0],
+                                             <MODE>mode)) {
+                 if (REGNO(operands[0]) == A_REGNO) {
                    return \"mov %I1,[w15++]\;\"
                           \"pop ACCAL\;\"
                           \"mov %I1,[W15++]\;\"
@@ -48204,8 +52723,8 @@
 )
 
 (define_expand "mov<mode>"
-  [(set (match_operand:AUACC 0 "pic30_move2_operand" "")
-        (match_operand:AUACC 1 "pic30_move2_operand" ""))]
+  [(set (match_operand:AUACC 0 "pic30_mode2k_operand" "")
+        (match_operand:AUACC 1 "pic30_mode2k_operand" ""))]
   ""
   "
 { int result;
@@ -51065,6 +55584,9 @@
   ]
   ""
   "flim %2,%0"
+  [
+    (set_attr "cc" "clobber")
+  ]
 )
 
 (define_insn "flim_excess"
@@ -51093,6 +55615,9 @@
   ]
   ""
   "flim %2,%1,%3"
+  [
+    (set_attr "cc" "clobber")
+  ]
 )
 
 (define_insn "flimv_excess"
@@ -51125,6 +55650,9 @@
   ]
   ""
   "flim.v %2,%1,%3"
+  [
+    (set_attr "cc" "clobber")
+  ]
 )
 
 (define_insn "min"
@@ -51243,7 +55771,7 @@
 
 (define_mode_iterator CCMODES [QI HI])
 
-(define_insn_and_split "skipclrop2<mode>"
+(define_insn "skipclrop2<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51261,23 +55789,13 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSC))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn,operands,0,2);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn_and_split "skipclrop1<mode>"
+(define_insn "skipclrop1<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51294,23 +55812,13 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSC))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn,operands,0,1);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn_and_split "skipclrop0<mode>"
+(define_insn "skipclrop0<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51324,34 +55832,24 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSS))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn,operands,0,0);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn "btsc<mode>"
-  [(set (cc0)
-        (unspec_volatile:CCMODES [
-          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
-          (match_operand 1 "immediate_operand"          "i") 
-        ] UNSPEC_BTSC))
-  ]
-  ""
-  "btsc %0,#%1"
-)
+;(define_insn "btsc<mode>"
+;  [(set (cc0)
+;        (unspec_volatile:CCMODES [
+;          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
+;          (match_operand 1 "immediate_operand"          "i") 
+;        ] UNSPEC_BTSC))
+;  ]
+;  ""
+;  "btsc %0,#%1"
+;)
 
-(define_insn_and_split "skipsetop2<mode>"
+(define_insn "skipsetop2<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51369,23 +55867,13 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSS))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn, operands,1, 2);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn_and_split "skipsetop1<mode>"
+(define_insn "skipsetop1<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51402,23 +55890,13 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSS))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn, operands,1, 1);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn_and_split "skipsetop0<mode>"
+(define_insn "skipsetop0<mode>"
   [(set (match_operand:CCMODES    0 "pic30_register_operand" "+r")
         (if_then_else:CCMODES
           (compare
@@ -51432,29 +55910,19 @@
         ))
   ]
   ""
-  "#"
-  "reload_completed"
-  [(set (cc0)
-        (unspec_volatile: CCMODES [
-           (match_dup 1)
-           (match_dup 2)
-         ] UNSPEC_BTSS))
-       (set (match_dup 0)
-            (match_dup 3))
-  ]
-  ""
+  "*return pic30_skip(insn, operands, 1, 0);"
   [
     (set_attr "cc" "clobber")
   ]
 )
 
-(define_insn "btss<mode>"
-  [(set (cc0)
-        (unspec_volatile:CCMODES [
-          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
-          (match_operand 1 "immediate_operand"          "i") 
-        ] UNSPEC_BTSS))
-  ]
-  ""
-  "btss %0,#%1"
-)
+;(define_insn "btss<mode>"
+;  [(set (cc0)
+;        (unspec_volatile:CCMODES [
+;          (match_operand 0 "pic30_reg_or_near_operand"  "rU")
+;          (match_operand 1 "immediate_operand"          "i") 
+;        ] UNSPEC_BTSS))
+;  ]
+;  ""
+;  "btss %0,#%1"
+;)

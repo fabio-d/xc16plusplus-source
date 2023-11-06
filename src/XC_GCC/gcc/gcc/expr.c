@@ -811,7 +811,7 @@ convert_modes (enum machine_mode mode, enum machine_mode oldmode, rtx x, int uns
   /* extended modes may not have a linear address mapping; not sure how
      to do this in a target_specific_way ... */
 #ifdef TARGET_LINEAR_MODE
-  if (TARGET_LINEAR_MODE(mode))
+  if (TARGET_LINEAR_MODE(mode) && TARGET_LINEAR_MODE(oldmode))
 #endif
 #endif
   if ((CONST_INT_P (x)
@@ -3156,9 +3156,15 @@ emit_move_resolve_push (enum machine_mode mode, rtx x)
 
   /* Do not use anti_adjust_stack, since we don't want to update
      stack_pointer_delta.  */
+#ifdef _BUILD_C30_
   temp = expand_simple_binop (Pmode, PLUS, stack_pointer_rtx,
 			      GEN_INT (adjust), stack_pointer_rtx,
 			      0, OPTAB_LIB_WIDEN);
+#else /*_BUILD_C30_*/
+  temp = expand_simple_binop (Pmode, PLUS, stack_pointer_rtx,
+			      GEN_INT (adjust), stack_pointer_rtx,
+			      0, OPTAB_LIB_WIDEN);
+#endif /*_BUILD_C30_*/
   if (temp != stack_pointer_rtx)
     emit_move_insn (stack_pointer_rtx, temp);
 
@@ -3648,17 +3654,29 @@ push_block (rtx size, int extra, int below)
 {
   rtx temp;
 
+#ifdef _BUILD_C30_
+  size = convert_modes (STACK_Pmode, ptr_mode, size, 1);
+#else /*_BUILD_C30_*/
   size = convert_modes (Pmode, ptr_mode, size, 1);
+#endif /*_BUILD_C30_*/
+
   if (CONSTANT_P (size))
     anti_adjust_stack (plus_constant (size, extra));
   else if (REG_P (size) && extra == 0)
     anti_adjust_stack (size);
   else
     {
+#ifdef _BUILD_C30_
+      temp = copy_to_mode_reg (STACK_Pmode, size);
+      if (extra != 0)
+	temp = expand_binop (STACK_Pmode, add_optab, temp, GEN_INT (extra),
+			     temp, 0, OPTAB_LIB_WIDEN);
+#else /*_BUILD_C30_*/
       temp = copy_to_mode_reg (Pmode, size);
       if (extra != 0)
 	temp = expand_binop (Pmode, add_optab, temp, GEN_INT (extra),
 			     temp, 0, OPTAB_LIB_WIDEN);
+#endif /*_BUILD_C30_*/
       anti_adjust_stack (temp);
     }
 
@@ -3677,12 +3695,21 @@ push_block (rtx size, int extra, int below)
       if (CONST_INT_P (size))
 	temp = plus_constant (virtual_outgoing_args_rtx,
 			      -INTVAL (size) - (below ? 0 : extra));
+#ifdef _BUILD_C30_
+      else if (extra != 0 && !below)
+	temp = gen_rtx_PLUS (STACK_Pmode, virtual_outgoing_args_rtx,
+			     negate_rtx (STACK_Pmode, plus_constant (size, extra)));
+      else
+	temp = gen_rtx_PLUS (STACK_Pmode, virtual_outgoing_args_rtx,
+			     negate_rtx (STACK_Pmode, size));
+#else /*_BUILD_C30_*/
       else if (extra != 0 && !below)
 	temp = gen_rtx_PLUS (Pmode, virtual_outgoing_args_rtx,
 			     negate_rtx (Pmode, plus_constant (size, extra)));
       else
 	temp = gen_rtx_PLUS (Pmode, virtual_outgoing_args_rtx,
 			     negate_rtx (Pmode, size));
+#endif /*_BUILD_C30_*/
     }
 
   return memory_address (GET_CLASS_NARROWEST_MODE (MODE_INT), temp);
@@ -3714,7 +3741,11 @@ emit_single_push_insn (enum machine_mode mode, rtx x, tree type)
       return;
     }
   if (GET_MODE_SIZE (mode) == rounded_size)
-    dest_addr = gen_rtx_fmt_e (STACK_PUSH_CODE, Pmode, stack_pointer_rtx);
+#ifdef _BUILD_C30_
+    dest_addr = gen_rtx_fmt_e (STACK_PUSH_CODE, STACK_Pmode, stack_pointer_rtx);
+#else /*_BUILD_C30_*/
+    dest_addr = gen_rtx_fmt_e (STACK_PUSH_CODE, STACK_Pmode, stack_pointer_rtx);
+#endif /*_BUILD_C30_*/
   /* If we are to pad downward, adjust the stack pointer first and
      then store X into the stack location using an offset.  This is
      because emit_move_insn does not know how to pad; it does not have
@@ -3725,7 +3756,11 @@ emit_single_push_insn (enum machine_mode mode, rtx x, tree type)
       HOST_WIDE_INT offset;
 
       emit_move_insn (stack_pointer_rtx,
+#ifdef _BUILD_C30_
+		      expand_binop (STACK_Pmode,
+#else /*_BUILD_C30_*/
 		      expand_binop (Pmode,
+#endif /*_BUILD_C30_*/
 #ifdef STACK_GROWS_DOWNWARD
 				    sub_optab,
 #else
@@ -3747,20 +3782,39 @@ emit_single_push_insn (enum machine_mode mode, rtx x, tree type)
 	   previous value.  */
 	offset -= (HOST_WIDE_INT) rounded_size;
 #endif
+#ifdef _BUILD_C30_
+      dest_addr = gen_rtx_PLUS (STACK_Pmode, stack_pointer_rtx, GEN_INT (offset));
+#else /*_BUILD_C30_*/
       dest_addr = gen_rtx_PLUS (Pmode, stack_pointer_rtx, GEN_INT (offset));
+#endif /*_BUILD_C30_*/
     }
   else
     {
 #ifdef STACK_GROWS_DOWNWARD
       /* ??? This seems wrong if STACK_PUSH_CODE == POST_DEC.  */
+#ifdef _BUILD_C30_
+      dest_addr = gen_rtx_PLUS (STACK_Pmode, stack_pointer_rtx,
+				GEN_INT (-(HOST_WIDE_INT) rounded_size));
+#else /*_BUILD_C30_*/
       dest_addr = gen_rtx_PLUS (Pmode, stack_pointer_rtx,
 				GEN_INT (-(HOST_WIDE_INT) rounded_size));
+#endif /*_BUILD_C30_*/
 #else
       /* ??? This seems wrong if STACK_PUSH_CODE == POST_INC.  */
+#ifdef _BUILD_C30_
+      dest_addr = gen_rtx_PLUS (STACK_Pmode, stack_pointer_rtx,
+				GEN_INT (rounded_size));
+#else /*_BUILD_C30_*/
       dest_addr = gen_rtx_PLUS (Pmode, stack_pointer_rtx,
 				GEN_INT (rounded_size));
+#endif /*_BUILD_C30_*/
 #endif
+
+#ifdef _BUILD_C30_
       dest_addr = gen_rtx_PRE_MODIFY (Pmode, stack_pointer_rtx, dest_addr);
+#else /*_BUILD_C30_*/
+      dest_addr = gen_rtx_PRE_MODIFY (Pmode, stack_pointer_rtx, dest_addr);
+#endif /*_BUILD_C30_*/
     }
 
   dest = gen_rtx_MEM (mode, dest_addr);
@@ -9167,6 +9221,7 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
                right mode; this will produce better code for extended pointers
             */
 	    rtx offset_rtx;
+            rtx base = NULL_RTX;
 #else
 	    rtx offset_rtx = expand_expr (offset, NULL_RTX, VOIDmode,
 					  EXPAND_SUM);
@@ -9177,8 +9232,19 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 	    address_mode
 	      = targetm.addr_space.address_mode (MEM_ADDR_SPACE (op0));
 #if _BUILD_C30_
+            base = pic30_base_rtx(XEXP(op0,0));
+            if ((base == virtual_stack_vars_rtx) ||
+                (base == stack_pointer_rtx) ||
+                (base == frame_pointer_rtx)) {
+              address_mode = machine_Pmode;
+            }
             offset_rtx = expand_expr (offset, NULL_RTX, VOIDmode,
+#if 0
+		address_mode  == machine_Pmode ? EXPAND_NORMAL : EXPAND_SUM);
+#else
 		address_mode ? EXPAND_NORMAL : EXPAND_SUM);
+#endif
+
 #endif
 	    if (GET_MODE (offset_rtx) != address_mode)
 	      offset_rtx = convert_to_mode (address_mode, offset_rtx, 0);

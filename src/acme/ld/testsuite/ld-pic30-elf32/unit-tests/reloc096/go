@@ -45,10 +45,10 @@ if [ $vflag = "on" ]; then
 fi
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o || exit 99
+$GLD30 -o t.exe t1.o t2.o --defsym symLO=-128 --defsym symHI=255 || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GLD30 -o t.exe t1.o t2.o"
+    echo "$GLD30 -o t.exe t1.o t2.o --defsym symLO=-128 --defsym symHI=255"
     echo $err
 fi
 

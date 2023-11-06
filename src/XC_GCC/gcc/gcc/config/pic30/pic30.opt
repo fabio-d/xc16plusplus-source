@@ -196,6 +196,10 @@ mlegacy-libc
 Target Mask(LEGACY_LIBC) MaskExists
 use legacy lib/include directory
 
+mmusl-libc
+Target RejectNegative Var(pic30_musl_libc)
+Use musl libc
+
 mprint-builtins
 Target RejectNegative Var(TARGET_PRINT_BUILTINS)
 -mprint-builtins        Print a list of enabled builtin functions

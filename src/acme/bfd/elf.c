@@ -908,9 +908,9 @@ _bfd_elf_make_section_from_shdr (abfd, hdr, name)
 #if defined(PIC30)
 
   if (pic30_debug) {
-    printf("\n_bfd_elf_make_section_from_shdr: %s, initial map = %x\n",
+    printf("\nCreating ELF section '%s', initial map = %x\n",
            name, pic30_attribute_map(newsect));
-    printf("_bfd_elf_make_section_from_shdr: %s, sh_flags = %lx, sh_addr = %lx, sh_info = %lx\n",
+    printf("  sh_flags = %lx, sh_addr = %lx, sh_info = %lx\n",
            name, hdr->sh_flags, hdr->sh_addr, hdr->sh_info);
   }
 

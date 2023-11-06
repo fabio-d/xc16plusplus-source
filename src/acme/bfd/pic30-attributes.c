@@ -630,9 +630,11 @@ void pic30_add_section_attributes(asection *sec,
           _set_it;                                                             \
           if (pic30_is_valid_attributes(pic30_attribute_map(sec),0) == 0) {    \
             PIC30_RESTORE_FLAGS(sec,to);                                       \
-            fprintf(stderr,"Attribute %s cannot be added to section %s "       \
-                           "without invalidating flags; skipping\n",           \
-                    attr, sec->name);                                          \
+            if (!PIC30_IS_INFO_ATTR(sec)) {                                    \
+              fprintf(stderr,"Attribute %s cannot be added to section %s "     \
+                             "without invalidating flags; skipping\n",         \
+                      attr, sec->name);                                        \
+            }                                                                  \
           }                                                                    \
           if (pic30_debug) printf("%s added succesfully\n", attr);             \
           free(to);                                                            \

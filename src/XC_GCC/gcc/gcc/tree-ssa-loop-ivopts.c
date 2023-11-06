@@ -802,6 +802,7 @@ determine_base_object (tree expr)
     case INTEGER_CST:
 #ifdef _BUILD_C30_
       /* pointer to what? */
+      if (TYPE_MODE(TREE_TYPE(expr)) == P32UMMmode) return NULL_TREE;
       if (!ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(expr))))) {
         return expr;
       }
@@ -951,8 +952,10 @@ find_bivs (struct ivopts_data *data)
       if (step)
 	{
 	  if (POINTER_TYPE_P (type)) {
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) 
             if (TYPE_ADDR_SPACE(TREE_TYPE(type)) != ADDR_SPACE_GENERIC)
+	      step = fold_convert (type, step);
+            else if (TYPE_MODE(type) == P32UMMmode)
 	      step = fold_convert (type, step);
             else
 #endif
@@ -1372,6 +1375,11 @@ idx_find_step (tree base, tree *idx, void *data)
   struct iv *iv;
   tree step, iv_base, iv_step, lbound, off;
   struct loop *loop = dta->ivopts_data->current_loop;
+#ifdef _BUILD_C30_
+  // we use this_sizetype because sizetype is a #define and we may need
+  // to use a different integer type for address space pointers
+#endif
+  tree this_sizetype = sizetype;
 
   if (TREE_CODE (base) == MISALIGNED_INDIRECT_REF
       || TREE_CODE (base) == ALIGN_INDIRECT_REF)
@@ -1433,16 +1441,20 @@ idx_find_step (tree base, tree *idx, void *data)
 
   iv_base = iv->base;
   iv_step = iv->step;
+#ifdef _BUILD_C30_
+  if (POINTER_TYPE_P(TREE_TYPE(iv_base)))  
+    this_sizetype = pic30_target_pointer_sizetype(TREE_TYPE(iv_base));
+#endif
   if (!convert_affine_scev (dta->ivopts_data->current_loop,
-			    sizetype, &iv_base, &iv_step, dta->stmt,
+			    this_sizetype, &iv_base, &iv_step, dta->stmt,
 			    false))
     {
       /* The index might wrap.  */
       return false;
     }
 
-  step = fold_build2 (MULT_EXPR, sizetype, step, iv_step);
-  dta->step = fold_build2 (PLUS_EXPR, sizetype, dta->step, step);
+  step = fold_build2 (MULT_EXPR, this_sizetype, step, iv_step);
+  dta->step = fold_build2 (PLUS_EXPR, this_sizetype, dta->step, step);
 
   return true;
 }
@@ -2082,6 +2094,10 @@ generic_type_for (tree type)
 #ifdef _BUILD_C30_
     if (TYPE_ADDR_SPACE(TREE_TYPE(type)) != ADDR_SPACE_GENERIC)
       return type;
+#if 1
+    else if (TYPE_MODE(type) == P32UMMmode)
+      return type;
+#endif
 #endif
     return unsigned_type_for (type);
   }
@@ -2284,6 +2300,10 @@ add_autoinc_candidates (struct ivopts_data *data, tree base, tree step,
              our version of binutils */
           if (TYPE_ADDR_SPACE(TREE_TYPE(TREE_TYPE(base))) != ADDR_SPACE_GENERIC)
             return;
+
+#if 1
+          if (TYPE_MODE(TREE_TYPE(base)) == P32UMMmode) return;
+#endif
 #endif
 	  new_step = fold_build1 (NEGATE_EXPR, TREE_TYPE (step), step);
 	  code = POINTER_PLUS_EXPR;
@@ -2412,7 +2432,8 @@ add_iv_value_candidates (struct ivopts_data *data,
   basetype = TREE_TYPE (iv->base);
   if (POINTER_TYPE_P (basetype)) {
 #ifdef _BUILD_C30_
-    if (TYPE_ADDR_SPACE(TREE_TYPE(basetype)) == ADDR_SPACE_GENERIC)
+    if ((TYPE_ADDR_SPACE(TREE_TYPE(basetype)) == ADDR_SPACE_GENERIC) &&
+        (TYPE_MODE(basetype) != P32UMMmode))
 #endif
     basetype = sizetype;
   }
@@ -4008,7 +4029,8 @@ cand_value_at (struct loop *loop, struct iv_cand *cand, gimple at, tree niter,
   tree steptype = type;
   if (POINTER_TYPE_P (type))
 #ifdef _BUILD_C30_
-    if (TYPE_ADDR_SPACE(TREE_TYPE(type)) == ADDR_SPACE_GENERIC)
+    if ((TYPE_ADDR_SPACE(TREE_TYPE(type)) == ADDR_SPACE_GENERIC) &&
+        (TYPE_MODE(type) != P32UMMmode))
 #endif
     steptype = sizetype;
 
@@ -5516,7 +5538,12 @@ rewrite_use_nonlinear_expr (struct ivopts_data *data,
       /* Hmmm.. we seem to be casting the the candidate to the 'step' instead
          of converting the step to the candidate.  We loose information if
          the 'step' has lower precision than the candidate */
-      if (TYPE_PRECISION(utype) != TYPE_PRECISION(ctype)) {
+#if 0
+      if (TYPE_PRECISION(utype) != TYPE_PRECISION(ctype)) 
+#else
+      if (incr_code == POINTER_PLUS_EXPR)
+#endif
+      {
         /* build2_stat appears to be 'broken' as the comment says:
            "When the sizetype precision doesn't match tatht of pointers we
             need ... "
@@ -5530,7 +5557,7 @@ rewrite_use_nonlinear_expr (struct ivopts_data *data,
         right_sized_type =pic30_extended_pointer_integer_type(TYPE_MODE(utype));
         op = fold_convert(right_sized_type, unshare_expr(step));
         comp = fold_convert(utype,
-                            build2(incr_code, right_sized_type, 
+                            build2(incr_code, TREE_TYPE(cand->var_before), 
                                    cand->var_before, op));
       } else
 #endif

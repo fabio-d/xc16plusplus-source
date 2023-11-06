@@ -4829,9 +4829,6 @@ grokdeclarator (const struct c_declarator *declarator,
   const char *errmsg;
   tree expr_dummy;
   bool expr_const_operands_dummy;
-#ifdef _BUILD_C30_
-  addr_space_t target_force_address_space = 0;
-#endif
 
   if (expr == NULL)
     expr = &expr_dummy;
@@ -4962,22 +4959,29 @@ grokdeclarator (const struct c_declarator *declarator,
   as2 = TYPE_ADDR_SPACE (element_type);
   address_space = ADDR_SPACE_GENERIC_P (as1)? as2 : as1;
 
-#if defined(_BUILD_C30_)  
-  if ((TARGET_EDS) && (Pmode == P32PEDSmode)) {
+#if defined(_BUILD_C30_)  && 0
+  if ((TARGET_EDS) && (Pmode == TARGET_EDS_MODE)) {
+    tree attr;
     tree ptr_type;
+    int do_not_force=0;
     /* normal declarations that are not in an odd storage class should
        be defined as if:
 
        __eds__ Tau foo;
     */
-    if (name && strncmp(name->identifier.id.str, "positions", 9) == 0) {
-       fprintf(stderr,"fubar\n");
-    }
     if (lookup_attribute("sfr", *decl_attrs) ||
         lookup_attribute("__sfr__", *decl_attrs) ||
         lookup_attribute("near", *decl_attrs) ||
         lookup_attribute("__near__", *decl_attrs)) {
-    } else if ((decl_context == NORMAL) && (declarator->kind != cdk_function)) {
+      do_not_force=1;
+    } else if 
+       ((attr = lookup_attribute("space", *decl_attrs)) ||
+        (attr = lookup_attribute("__space__", *decl_attrs))) {
+      do_not_force = pic30_do_not_force_space(attr);
+    } 
+    if ((do_not_force == 0) && 
+        (decl_context == NORMAL) && 
+        (declarator->kind != cdk_function)) {
       switch (storage_class) {
         case csc_static:  /* FALLSTHROUGH */
           if (declspecs->const_p == 0) {
@@ -4993,14 +4997,18 @@ grokdeclarator (const struct c_declarator *declarator,
         case csc_extern:  /* FALLSTHROUGH */
           if (ADDR_SPACE_GENERIC_P (address_space)) {
             address_space = pic30_space_eds;
+            target_force_address_space = address_space;
           }
           break;
         default: break;
       }
     } 
-    if (declarator->kind == cdk_pointer) {
+    if ((do_not_force == 0) &&
+        ((declarator->kind == cdk_pointer) || 
+         (declarator->kind == cdk_array)) && 
+        (decl_context != FIELD)) {
       /* we think we have to force pointers to be eds address spaces */ 
-      if (ADDR_SPACE_GENERIC_P(TYPE_ADDR_SPACE(type))) {
+      if (ADDR_SPACE_GENERIC_P(address_space)) {
          address_space = pic30_space_eds;
          target_force_address_space = address_space;
       }
@@ -5457,7 +5465,7 @@ grokdeclarator (const struct c_declarator *declarator,
 	       below.  */
 	      {
 		addr_space_t as = DECODE_QUAL_ADDR_SPACE (type_quals);
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_) && 0
 		if (!ADDR_SPACE_GENERIC_P (target_force_address_space) && 
                     target_force_address_space != TYPE_ADDR_SPACE (type))
 		  type = build_qualified_type (type,
@@ -5621,12 +5629,6 @@ grokdeclarator (const struct c_declarator *declarator,
 	      pedwarn (loc, OPT_pedantic,
 		       "ISO C forbids qualified function types");
 
-#ifdef _BUILD_C30_
-            if (!ADDR_SPACE_GENERIC_P (target_force_address_space) && 
-                    target_force_address_space != TYPE_ADDR_SPACE (type))
-		  type = build_qualified_type (type,
-					       ENCODE_QUAL_ADDR_SPACE (target_force_address_space));
-#endif
 	    if (type_quals)
 	      type = c_build_qualified_type (type, type_quals);
 	    size_varies = false;
@@ -5670,6 +5672,12 @@ grokdeclarator (const struct c_declarator *declarator,
 	    /* Process type qualifiers (such as const or volatile)
 	       that were given inside the `*'.  */
 	    type_quals = declarator->u.pointer_quals;
+#if defined(_BUILD_C30_) && 0
+            if ((target_force_address_space) && 
+                (decl_context == NORMAL) &&
+                (declarator->kind == cdk_pointer))
+              type_quals |= ENCODE_QUAL_ADDR_SPACE(target_force_address_space);
+#endif
 
 	    declarator = declarator->declarator;
 	    break;
@@ -5688,7 +5696,7 @@ grokdeclarator (const struct c_declarator *declarator,
   address_space = DECODE_QUAL_ADDR_SPACE (type_quals);
   if (!ADDR_SPACE_GENERIC_P (address_space))
     {
-#ifdef _BUILD_C30_
+#if defined(_BUILD_C30_)
       /* was going to make this a target macro, but decl_context and
          storage_class are not exportable */
       if ((address_space == pic30_space_eds) &&
@@ -8613,10 +8621,19 @@ make_pointer_declarator (struct c_declspecs *type_quals_attrs,
   struct c_declarator *ret = XOBNEW (&parser_obstack, struct c_declarator);
   if (type_quals_attrs)
     {
+      addr_space_t as;
       attrs = type_quals_attrs->attrs;
       quals = quals_from_declspecs (type_quals_attrs);
       if (attrs != NULL_TREE)
 	itarget = build_attrs_declarator (attrs, target);
+#if defined( _BUILD_C30_) && 0
+      if ((target->kind == cdk_pointer) && (TARGET_EDS)) {
+        as = DECODE_QUAL_ADDR_SPACE (quals);
+        if (ADDR_SPACE_GENERIC_P(as)) {
+          quals |= ENCODE_QUAL_ADDR_SPACE(pic30_space_eds);
+        }
+      }
+#endif
     }
   ret->kind = cdk_pointer;
   ret->declarator = itarget;

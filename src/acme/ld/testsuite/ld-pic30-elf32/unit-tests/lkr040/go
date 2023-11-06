@@ -31,7 +31,7 @@ do
 done
 
 rm -f t1.s
-$GCC30 t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--smart-io
+$GCC30 t1.c -o t1.exe -mcpu=30F6014 -isystem $PIC30_CD/include -Wl,--heap=256,--smart-io
 err=$?
 if [ $vflag = "on" ]; then
     echo

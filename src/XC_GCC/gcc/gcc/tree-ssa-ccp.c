@@ -3811,7 +3811,7 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 		    }
 		  else if (TREE_CODE (arg) == SSA_NAME)
 		    {
-#if 0
+#ifndef _BUILD_C30_ 
 		      tree temp = and_var_with_comparison (arg, invert,
 							   code2, op2a, op2b);
 #else
@@ -3820,7 +3820,9 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
                       /* In simple cases we can look through PHI nodes,
                          but we have to be careful with loops.
                          See PR49073.  */
-                      if (! dom_info_available_p (CDI_DOMINATORS)
+                      if (! dom_info_available_p (CDI_DOMINATORS) 
+                          || ! gimple_bb(def_stmt)
+                          || ! gimple_bb(stmt)
                           || gimple_bb (def_stmt) == gimple_bb (stmt)
                           || dominated_by_p (CDI_DOMINATORS,
                                              gimple_bb (def_stmt),
@@ -4275,7 +4277,7 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 		    }
 		  else if (TREE_CODE (arg) == SSA_NAME)
 		    {
-#if 0
+#ifndef _BUILD_C30_
 		      tree temp = or_var_with_comparison (arg, invert,
 							  code2, op2a, op2b);
 #else
@@ -4285,6 +4287,8 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
                          but we have to be careful with loops.
                          See PR49073.  */
                       if (! dom_info_available_p (CDI_DOMINATORS)
+                          || ! gimple_bb(def_stmt)
+                          || ! gimple_bb(stmt)
                           || gimple_bb (def_stmt) == gimple_bb (stmt)
                           || dominated_by_p (CDI_DOMINATORS,
                                              gimple_bb (def_stmt),

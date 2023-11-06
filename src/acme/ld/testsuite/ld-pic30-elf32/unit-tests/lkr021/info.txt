@@ -2,8 +2,8 @@ lkr021: Section .pbss,"d" is not initialized:
 
 The objective of this test is to verify that
 the persistent data section .pbss,"d" is not
-initialized by the startup library. Note that
-an empty data init template has a size of 2.
+initialized by the startup library. The output
+file should not contain a data init template. 
 
 The following warning message should be generated:
 

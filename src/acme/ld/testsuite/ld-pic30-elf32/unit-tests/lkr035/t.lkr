@@ -1,3 +1,7 @@
+CRT0_STARTUP(crt0_standard.o)
+CRT1_STARTUP(crt1_standard.o)
+CRT_STARTMODE(crt_start_mode_normal)
+
 MEMORY
 {
   program (rx) : ORIGIN = 0x100,    LENGTH = 0x9000

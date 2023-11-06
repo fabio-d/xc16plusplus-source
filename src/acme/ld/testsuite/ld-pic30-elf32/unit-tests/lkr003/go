@@ -29,11 +29,11 @@ do
 done
 
 rm -f t1.o t.exe
-$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld -save-temps
+$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld -save-temps -mno-info-linker
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld"
+    echo "$CC30 -o t.exe t1.s -mcpu=30F6014 -T p30F6014.gld -mno-info-linker"
     echo $err
 fi
 

@@ -5,9 +5,9 @@
         ;; 
                 .text 
         
-        .equiv  symB1, -32767
-        .equiv  symB2, -32768
-        .equiv  symB3, -32769
+        ;;.equiv  symB1, -32767 ;; does not work after v1.50
+        ;;.equiv  symB2, -32768
+        ;;.equiv  symB3, -32769
         .equiv  symB4, 65535
         .equiv  symB5, 65536
 

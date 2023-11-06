@@ -51,8 +51,8 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
-grep "Program Memory" temp > test.out
-grep "Data Memory" temp >> test.out
+grep "\"program\" Memory" temp > test.out
+grep "\"data\" Memory" temp >> test.out
 grep "Dynamic Memory Usage" temp >> test.out
 
 echo

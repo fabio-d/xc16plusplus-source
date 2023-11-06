@@ -4511,9 +4511,14 @@ prepare_float_lib_cmp (rtx x, rtx y, enum rtx_code comparison,
 void
 emit_indirect_jump (rtx loc)
 {
+  enum machine_mode jmpmode = Pmode;
+#ifdef _BUILD_C30_
+  jmpmode = FN_Pmode;
+#endif
+
   if (!insn_data[(int) CODE_FOR_indirect_jump].operand[0].predicate
-      (loc, Pmode))
-    loc = copy_to_mode_reg (Pmode, loc);
+      (loc, jmpmode))
+    loc = copy_to_mode_reg (jmpmode, loc);
 
   emit_jump_insn (gen_indirect_jump (loc));
   emit_barrier ();

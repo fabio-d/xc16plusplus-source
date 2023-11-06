@@ -3694,7 +3694,7 @@ build2_stat (enum tree_code code, tree tt, tree arg0, tree arg1 MEM_STAT_DECL)
      */
     /* tt and arg0 should be pointer types */
     gcc_assert(POINTER_TYPE_P(tt) && POINTER_TYPE_P(TREE_TYPE(arg0)));
-    if (TYPE_MODE(tt) == HImode) {
+    if (TYPE_MODE(tt) == machine_Pmode) {
        /* arg1 should be integral if tt = HImode */  
        gcc_assert(INTEGRAL_TYPE_P (TREE_TYPE (arg1)));
     } else {
@@ -9794,12 +9794,6 @@ signed_or_unsigned_type_for (int unsignedp, tree type)
       if (!TYPE_ADDR_SPACE (TREE_TYPE (t)))
 	t = size_type_node;
       else
-#ifdef _BUILD_C30_
-        /* C30 extended pointer types don't behave like integers
-           and this is a bad assumption to make, they have different modes
-           for a reason */
-        return type;
-#endif
 	return lang_hooks.types.type_for_size (TYPE_PRECISION (t), unsignedp);
     }
 

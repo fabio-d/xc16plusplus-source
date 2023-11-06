@@ -2,8 +2,6 @@
    Copyright (C) 1994, 1995, 1996, 1997, 1998 Free Software Foundation, Inc.
    Contributed by John Elliott (john.elliott@microchip.com)
 
-
-
 This file is part of GNU CC.
 
 GNU CC is free software; you can redistribute it and/or modify
@@ -103,7 +101,6 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 /*----------------------------------------------------------------------*/
 /*    G L O B A L    V A R I A B L E S                */
 /*----------------------------------------------------------------------*/
-enum machine_mode machine_Pmode = HImode;
 int pic30_compiler_version = 0;
 int pic30_resource_version = 0;
 SECTION_FLAGS_INT pic30_text_flags = SECTION_CODE;
@@ -135,6 +132,25 @@ struct mchp_config_specification *mchp_configuration_values;
 const char * pic30_dfp = NULL;
 const char * mchp_codecov = NULL;
 
+unsigned int pic30_pointer_size;
+enum machine_mode pic30_pmode;
+enum machine_mode machine_Pmode;
+enum machine_mode machine_regmode;
+
+tree ext_ptr_type;
+tree eds_ptr_type;
+tree peds_ptr_type;
+tree apsv_ptr_type;
+tree df_ptr_type;
+tree umm_ptr_type;
+tree psv_ptr_type;
+tree prog_ptr_type;
+tree pmp_ptr_type;
+tree packed_char_type_node;
+tree packed_signed_char_type_node;
+tree packed_unsigned_char_type_node;
+
+
 /*----------------------------------------------------------------------*/
 /*    L O C A L    V A R I A B L E S                    */
 /*----------------------------------------------------------------------*/
@@ -156,6 +172,7 @@ const char * mchp_codecov = NULL;
 #define SECTION_NAME_BOOT_PROG    ".boot_prog"
 #define SECTION_NAME_SECURE_PROG  ".secure_prog"
 #define SECTION_NAME_DATAFLASH    ".dataflash"
+#define SECTION_NAME_EDS_DATA     ".udata_01234567"
 
 /* the attribute names from the assemblers point of view */
 #define SECTION_ATTR_ADDRESS           "address"
@@ -738,17 +755,6 @@ pic30_errata_map errata_map[] = {
                         "\t\tStackError trap if executing an ULNK instruction.\n",
     0, 0
   },
-#if 0
-  { "psrd_psrd",     psrd_psrd_errata,
-                        "Given a specific set of pre-conditions, when two or\n"
-                        "\t\tmore data flash read instructions (via Program\n"
-                        "\t\tSpace Visibility (PSV) read or table read) are\n"
-                        "\t\texecuted back to back, one or more subsequent\n"
-                        "\t\tinstructions will be mis-executed. For more\n"
-                        "\t\tinformation, please review\n"
-                        "\t\thttps://www.microchip.com/erratum_psrd_psrd.\n",
-    0, 0 },
-#endif
   { "psrd_psrd",     psrd_psrd_errata_movd,
                         "Given a specific set of pre-conditions, when two or\n"
                         "\t\tmore data flash read instructions (via Program\n"
@@ -943,6 +949,8 @@ enum css {
 static char *force_section_name(tree decl);
 int pic30_output_address_of_external(FILE *, rtx);
 
+bool pic30_valid_mode_for_subreg(rtx op);
+
 /*----------------------------------------------------------------------*/
 
 static enum reg_class pic30_secondary_reload(bool in_p, rtx x,
@@ -1133,6 +1141,15 @@ const struct attribute_spec pic30_attribute_table[] = {
 
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P pic30_scalar_mode_supported_p
+
+static int pic30_sched_reorder(FILE *file, int verbose, rtx *ready,
+                               int *nreadyp, int cycle);
+#undef TARGET_SCHED_REORDER
+#define TARGET_SCHED_REORDER pic30_sched_reorder
+
+static bool pic30_cannot_force_const_mem(rtx);
+#undef TARGET_CANNOT_FORCE_CONST_MEM
+#define TARGET_CANNOT_FORCE_CONST_MEM pic30_cannot_force_const_mem
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1949,16 +1966,9 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
   tree paramtype;
   location_t loc = DECL_SOURCE_LOCATION(decl);
   int size_t_type = 0;
+  int forced_section_eds=0;
 
   validate_decl_attributes(decl); /* moved from default_section_name */
-
-  if ((TARGET_EDS) && (TREE_CODE(decl) == VAR_DECL)) {
-    if ((DECL_SECTION_NAME(decl) == 0) && 
-        (DECL_COMMON(decl) == 0) &&
-        (DECL_EXTERNAL(decl) == 0)) {
-      (void) force_section_name(decl);
-    }
-  }
 
   if (TREE_CODE(decl) == FUNCTION_DECL) {
     if (TREE_PUBLIC(decl)) {
@@ -2026,6 +2036,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
         default:
         case pic30_space_const:
         case ADDR_SPACE_GENERIC:
+        case pic30_space_stack:
           break; /* no required space attributes */
  
         case pic30_space_prog:
@@ -2109,6 +2120,12 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
           if (memory->decl == attr) break;
       }
       if (memory == 0) error("Invalid external memory attribute\n");
+      if (pmp) {
+        // ensure that a PMP space has a __pmp__ qualifier
+        if (TYPE_ADDR_SPACE(TREE_TYPE(decl)) != pic30_space_pmp) {
+           error("space(pmp) requires __pmp__ qualifier for '%D'", decl);
+        }
+      }
     }
   }
   auto_psv = (space_attr && IDENT_CONST(TREE_VALUE(TREE_VALUE(space_attr))));
@@ -2123,13 +2140,26 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
     }
   }
 
-  if ((TARGET_EDS) && (TREE_CODE(decl) != FUNCTION_DECL) &&
-      (pic30_unified_mode(decl) != machine_Pmode)) {
-     flags |= SECTION_EDS;
+  if ((TARGET_EDS) && (TREE_CODE(decl) != FUNCTION_DECL)) {
+    // These things are not compatible with SECTION_EDS
+    if ((space_attr == NULL_TREE) &&
+        (near_attr == NULL_TREE) &&
+        (far_attr == NULL_TREE) &&
+        (sfr_attr == NULL_TREE) &&
+        ((flags & ~(SECTION_BSS | SECTION_WRITE | SECTION_PERSIST)) == 0)
+       ) {
+      enum machine_mode m = pic30_unified_mode(decl);
+
+      if ((m != machine_Pmode) && (m == Pmode)) {
+        forced_section_eds=1;
+       flags |= SECTION_EDS;
+      }
+    }
   }
 
   // if (flags == 0) 
-  else {
+  // else 
+  {
     if (((address_attr) || (reverse_attr)) && (!DECL_SECTION_NAME(decl))) {
       char *name = xstrdup(pic30_unique_section_name(decl));
 
@@ -2139,10 +2169,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
       }
       DECL_SECTION_NAME(decl) = build_string(strlen(name),name);
     }
-    if ((TARGET_EDS) && (TREE_CODE(decl) != FUNCTION_DECL) &&
-        (pic30_unified_mode(decl) != machine_Pmode)) {
-     flags |= SECTION_EDS;
-    } else if (TARGET_CONST_IN_CODE) {
+    if (TARGET_CONST_IN_CODE) {
       if (!section_name) {
           if (TREE_CODE(decl) == STRING_CST)
             /* -fwriteable_strings no longer supported */
@@ -2150,8 +2177,10 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
           if (TREE_CODE(decl) == VAR_DECL) {
     
             if (!space_attr && TREE_READONLY(decl) &&
-                (DECL_INITIAL(decl) || (DECL_EXTERNAL(decl))))
+                (DECL_INITIAL(decl) || (DECL_EXTERNAL(decl)))) {
               flags |= SECTION_READ_ONLY;
+              if (forced_section_eds) flags &= (~SECTION_EDS);
+            }
           }
       }
     }
@@ -2342,9 +2371,6 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
     section_type_set = 1;
     eedata = 1;
   }
-#if 0
-  if ((!section_type_set) && (!DECL_EXTERNAL(decl))) 
-#endif
   if ((!section_type_set)) {
     if (bss_initializer_p(decl))
        f += sprintf(f, PIC30_BSS_FLAG);
@@ -2370,10 +2396,7 @@ static int pic30_build_prefix(tree decl, int fnear, char *prefix) {
           flags &= ~SECTION_PAGE;
         }
       }
-    } else if (TARGET_EDS) {
-      /* -munified we want to have all objects paged */
-      flags |= SECTION_PAGE;
-    }
+    } 
     fnear = 0;
   }
   if ((flags & SECTION_XMEMORY) ||
@@ -2632,7 +2655,7 @@ static const char *pic30_unique_section_name(tree decl) {
   int len;
 
   if (current_time == 0) current_time = time(0);
-  if (decl) {
+  if (decl && (TREE_CODE(decl) != STRING_CST)) {
     tree a;
 
     a = lookup_attribute(IDENTIFIER_POINTER(pic30_identAddress[0]),
@@ -2724,15 +2747,17 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
   int force_preserved = 0;
   int force_keep = 0;
   static char temp_buffer[256];
+  static int unified_version = 0;
 
   if (result) result[0] = 0;
 
+  if (current_time == 0) current_time = time(0);
   if ((pszSectionName) && (pszSectionName[0] == '#'))
     return pszSectionName;
 
   len_this_default_name = strlen(this_default_name);
   implied_psv = ((flags & SECTION_READ_ONLY) && (TARGET_CONST_IN_CODE));
-  if (decl) {
+  if (decl && (TREE_CODE(decl) != STRING_CST)) {
     is_aligned = lookup_attribute(IDENTIFIER_POINTER(pic30_identAligned[0]),
                                   DECL_ATTRIBUTES(decl));
     a = lookup_attribute(IDENTIFIER_POINTER(pic30_identAddress[0]),
@@ -2792,22 +2817,8 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       int i;
 
       pszSectionName = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
-#if 0
-      /* we could check... but */
-      /* if the section name constains flags, we might invalidate
-         implied psv */
-      named_flags = validate_section_flags(pszSectionName,0,1);
-      for (i = 0; valid_section_flags[i].flag_name; i++) {
-        if (named_flags & valid_section_flags[i].flag_mask) {
-          if (valid_section_flags[i].incompatable_with & SECTION_PSV) {
-            implied_psv = 0;
-          }
-        }
-      }
-#else 
       /* a named section should never have implied psv... */
       implied_psv = 0;
-#endif
     } else if ((a) || (r)) {
       pszSectionName = pic30_default_section;
     } 
@@ -2891,9 +2902,18 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
       sprintf(temp_buffer, "%s%s", prepend, pszSectionName);
       CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
     } else if (psv) {
-      if (b) sprintf(temp_buffer,"%s",SECTION_NAME_BOOT_CONST);
-      else if (s) sprintf(temp_buffer,"%s",SECTION_NAME_SECURE_CONST);
-      else  sprintf(temp_buffer,"%s",SECTION_NAME_CONST);
+      if (TARGET_EDS) {
+        if (b) sprintf(temp_buffer,"%s_%lx_%x",SECTION_NAME_BOOT_CONST,
+                       current_time, unified_version++);
+        else if (s) sprintf(temp_buffer,"%s_%lx_%x",SECTION_NAME_SECURE_CONST,
+                                        current_time, unified_version++);
+        else  sprintf(temp_buffer,"%s_%lx_%x",SECTION_NAME_CONST,
+                                  current_time, unified_version++);
+      } else {
+        if (b) sprintf(temp_buffer,"%s",SECTION_NAME_BOOT_CONST);
+        else if (s) sprintf(temp_buffer,"%s",SECTION_NAME_SECURE_CONST);
+        else  sprintf(temp_buffer,"%s",SECTION_NAME_CONST);
+      }
       CHECK_SIZE_WITH_STRING(result, currentlen, maxlen, temp_buffer);
     } else if (prog) {
       if (b) sprintf(temp_buffer,"%s",SECTION_NAME_BOOT_PROG);
@@ -3059,7 +3079,14 @@ static const char *default_section_name(tree decl, const char *pszSectionName,
                     IDENTIFIER_POINTER(DECL_NAME(decl)));
             return retval;
           }
-        } else return reserved_section_names[i].section_name;
+        } else if (TARGET_EDS) {
+          char *txt = reserved_section_names[i].section_name;
+          char *retval = (char *)xmalloc(strlen(txt)+34);
+
+          sprintf(retval, "%s_%lx_%x", txt, current_time, unified_version++);
+          return retval;
+        } else 
+          return reserved_section_names[i].section_name;
       }
       i++;
     }
@@ -3240,7 +3267,7 @@ get_license (enum check_license_flag type)
 #endif
   char ccov_kopt[] = "-full-checkout-for-compilers";
   char version[9] = "";
-  char  product_xccov[] = "swxc-cov";
+  char  product_xccov[] = "swanaly";
   char  version_xccov[4] = "1.0";
   char date[] = __DATE__;
   int mchp_license_valid, xclm_tampered;
@@ -3385,7 +3412,9 @@ get_license (enum check_license_flag type)
         } else {
           mchp_license_valid = WEXITSTATUS(status);
           /* return FREE if we dont' have CCOV license */
-          if (mchp_license_valid != MCHP_XCLM_VALID_CCOV_LICENSE) {
+          if ((mchp_license_valid == MCHP_XCLM_VALID_CCOV_LICENSE) ||
+              (mchp_license_valid == MCHP_XCLM_VALID_ANATS_LICENSE)) {
+          } else {
             mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
           }
         }
@@ -3469,6 +3498,13 @@ void pic30_override_options_after_change(void) {
   }
 #endif
 
+  if (TARGET_EDS) {
+    warn_implicit_function_declaration = 1;
+    if ((ptr_type_node) && (TYPE_MODE(ptr_type_node) != Pmode)) {
+      SET_TYPE_MODE(ptr_type_node, Pmode);
+    }
+  }
+
   #undef NULLIFY
 }
 
@@ -3502,9 +3538,6 @@ void pic30_optimization_options(int level, int size) {
       flag_indirect_inlining = 0;
     }
 
-#if 0
-    flag_tree_loop_optimize = 0;
-#endif
     flag_tree_switch_conversion = 0;
 
     flag_tree_parallelize_loops = 0;
@@ -3559,6 +3592,12 @@ void pic30_override_options(void) {
 #ifdef SET_MCHP_VERSION
   SET_MCHP_VERSION(pic30_compiler_version);
 #endif
+  /* set defaults */
+  pic30_pointer_size = (TARGET_EDS ? 32 : 16);
+  pic30_pmode = (TARGET_EDS ? TARGET_EDS_MODE : HImode);
+  machine_Pmode = HImode;
+  machine_regmode = HImode;
+
   if (pic30_target_cpu) {
     char *copy, *copy2, *c;
     int mask;
@@ -3594,13 +3633,6 @@ void pic30_override_options(void) {
           TARGET_ARCH(PIC33E)) {
         pic30_errata_mask = psrd_psrd_errata_movd;
       }
-#if 0
-      if (TARGET_ARCH(GENERIC) || TARGET_ARCH(DA_GENERIC) ||
-          TARGET_ARCH(EP_GENERIC) || TARGET_ARCH(CH_GENERIC)) {
-        pic30_target_cpu = 0;
-        pic30_target_family = 0;
-      }
-#else
       if (strcmp(pic30_target_cpu_id, "GENERIC-16BIT")==0) {
         pic30_target_cpu = 0;
         pic30_target_family = (char*)"__GENERIC_16BIT__";
@@ -3625,7 +3657,6 @@ void pic30_override_options(void) {
         pic30_target_cpu = 0;
         pic30_target_family = (char*)"__GENERIC_16DSP_CH__";
       }
-#endif
     } else {
       error("Invalid -mcpu option.  CPU %s not recognized.\n",
             pic30_target_cpu);
@@ -3788,7 +3819,7 @@ void pic30_override_options(void) {
   }
   /* set errata */
   if (pic30_errata) {
-    const char *errata = pic30_errata;
+    char *errata = pic30_errata;
     char save;
     char *c;
     int errata_num;
@@ -3897,55 +3928,6 @@ void pic30_override_options(void) {
 
   pic30_override_options_after_change();
 
-#if 0
-  if (nullify_O2) {
-    NULLIFY(flag_inline_small_functions) = 0;
-    NULLIFY(flag_indirect_inlining) = 0;
-    NULLIFY(flag_thread_jumps) = 0;
-    NULLIFY(flag_crossjumping) = 0;
-    NULLIFY(flag_optimize_sibling_calls) = 0;
-    NULLIFY(flag_cse_follow_jumps) = 0;
-    NULLIFY(flag_gcse) = 0;
-    NULLIFY(flag_expensive_optimizations) = 0;
-    NULLIFY(flag_rerun_cse_after_loop) = 0;
-    NULLIFY(flag_caller_saves) = 0;
-    NULLIFY(flag_peephole2) = 0;
-  #ifdef INSN_SCHEDULING
-    if ((pic30_errata_mask & (psrd_psrd_errata | ecc_errata)) != 0) {
-      NULLIFY(flag_schedule_insns) = 0;
-      NULLIFY(flag_schedule_insns_after_reload) = 0;
-    }
-  #endif
-    NULLIFY(flag_regmove) = 0;
-    NULLIFY(flag_strict_aliasing) = 0;
-    NULLIFY(flag_strict_overflow) = 0;
-    NULLIFY(flag_reorder_blocks) = 0;
-    NULLIFY(flag_reorder_functions) = 0;
-    NULLIFY(flag_tree_vrp) = 0;
-    NULLIFY(flag_tree_builtin_call_dce) = 0;
-    NULLIFY(flag_tree_pre) = 0;
-    NULLIFY(flag_tree_switch_conversion) = 0;
-    NULLIFY(flag_ipa_cp) = 0;
-    NULLIFY(flag_ipa_sra) = 0;
-  }
-
-  if (nullify_O3) {
-    NULLIFY(flag_predictive_commoning) = 0;
-    NULLIFY(flag_inline_functions) = 0;
-    NULLIFY(flag_unswitch_loops) = 0;
-    NULLIFY(flag_gcse_after_reload) = 0;
-    NULLIFY(flag_tree_vectorize) = 0;
-    NULLIFY(flag_ipa_cp_clone) = 0;
-    NULLIFY(flag_tree_pre_partial_partial) = 0;
-  }
-
-  if (nullify_Os) {
-    NULLIFY(optimize_size) = 0;
-  }
-
-  #undef NULLIFY
-#endif
-
   if (pic30_it_option) {
     /* enable instrumented trace */
     char *option,*c;
@@ -4004,7 +3986,11 @@ void pic30_override_options(void) {
       pic30_codecov_far = 1;
     }
 #if defined(LICENSE_MANAGER_XCLM)
-    if (get_license(check_for_code_coverage) == MCHP_XCLM_VALID_CCOV_LICENSE) {
+    int get_license_return_value = 0;
+    get_license_return_value = get_license(check_for_code_coverage);
+
+    if ((get_license_return_value == MCHP_XCLM_VALID_CCOV_LICENSE) ||
+        (get_license_return_value == MCHP_XCLM_VALID_ANATS_LICENSE)) {
       pic30_codecov_license = 1;
     } else {
       pic30_codecov_license = 0;
@@ -4013,6 +3999,11 @@ void pic30_override_options(void) {
     pic30_codecov_license = 1;
 #endif
   }
+
+  if (TARGET_EDS) {
+   warn_implicit_function_declaration = 1;
+  }
+
   initialize_object_signatures();
 }
 
@@ -4092,6 +4083,16 @@ static bool pic30_assemble_integer(rtx x, unsigned int size, int aligned_p) {
         output_addr_const(asm_out_file, x);
         fprintf(asm_out_file, ")\n");
         fprintf(asm_out_file, "\t.word edspage(");
+        output_addr_const(asm_out_file, x);
+        fprintf(asm_out_file, ")\n");
+        return 1;
+      }
+    } else if (GET_MODE(x) == P32UMMmode) {
+      {
+        fprintf(asm_out_file, "\t.word unified_lo(");
+        output_addr_const(asm_out_file, x);
+        fprintf(asm_out_file, ")\n");
+        fprintf(asm_out_file, "\t.word unified_hi(");
         output_addr_const(asm_out_file, x);
         fprintf(asm_out_file, ")\n");
         return 1;
@@ -4427,17 +4428,11 @@ static void pic30_globalize_label(FILE *f, const char *l) {
           mchp_print_builtin_function(add_builtin_function(NAME, __VA_ARGS__));\
         else add_builtin_function(NAME, __VA_ARGS__)
 
-tree ext_ptr_type;
-tree eds_ptr_type;
-tree peds_ptr_type;
-tree apsv_ptr_type;
-tree df_ptr_type;
-tree psv_ptr_type;
-tree prog_ptr_type;
-tree pmp_ptr_type;
-tree packed_char_type_node;
-tree packed_signed_char_type_node;
-tree packed_unsigned_char_type_node;
+static tree pic30_build_pointer_type(tree type) {
+  tree t = type;
+  t = build_pointer_type(t);
+  return t;
+}
 
 static void pic30_init_builtins(void) {
   tree fn_type;
@@ -4566,6 +4561,20 @@ static void pic30_init_builtins(void) {
   TYPE_UNSIGNED (df_ptr_type) = 1;
   TYPE_ALIGN (df_ptr_type) = 32;
   (*lang_hooks.types.register_builtin_type) (df_ptr_type, "__df_ptr_t");
+
+  /* type for the 32it UMM pointer type */
+  umm_ptr_type = make_node(INTEGER_TYPE);
+  TREE_TYPE(umm_ptr_type) = char_type_node;
+  SET_TYPE_MODE(umm_ptr_type,P32UMMmode);
+  nbits = GET_MODE_BITSIZE(TYPE_MODE(umm_ptr_type));
+  TYPE_PRECISION (umm_ptr_type) = nbits;
+  TYPE_MIN_VALUE(umm_ptr_type) = build_int_cst(long_unsigned_type_node,0);
+  TYPE_MAX_VALUE(umm_ptr_type) = build_int_cst(long_unsigned_type_node,-1);
+  TYPE_SIZE (umm_ptr_type) = bitsize_int (nbits);
+  TYPE_SIZE_UNIT (umm_ptr_type) = size_int (nbits / BITS_PER_UNIT);
+  TYPE_UNSIGNED (umm_ptr_type) = 1;
+  TYPE_ALIGN (umm_ptr_type) = 32;
+  (*lang_hooks.types.register_builtin_type) (df_ptr_type, "__umm_ptr_t");
 
   /* attribute sub-values */
   fn_type = build_function_type(void_type_node, NULL_TREE);
@@ -4725,7 +4734,7 @@ static void pic30_init_builtins(void) {
 
   p0_type = build_qualified_type(long_integer_type_node, TYPE_QUAL_CONST);
   p1_type = build_qualified_type(integer_type_node, TYPE_QUAL_CONST);
-  p2_type = build_pointer_type(integer_type_node);
+  p2_type = pic30_build_pointer_type(integer_type_node);
 
   fn_type = build_function_type_list(integer_type_node,
                       p0_type, p1_type, p2_type, NULL_TREE);
@@ -4749,7 +4758,7 @@ static void pic30_init_builtins(void) {
 
   p0_type = build_qualified_type(long_unsigned_type_node, TYPE_QUAL_CONST);
   p1_type = build_qualified_type(unsigned_type_node, TYPE_QUAL_CONST);
-  p2_type = build_pointer_type(unsigned_type_node);
+  p2_type = pic30_build_pointer_type(unsigned_type_node);
   fn_type = build_function_type_list(unsigned_type_node,
                       p0_type, p1_type, p2_type, NULL_TREE);
   add_builtin_function_public("__builtin_divmodud", fn_type,
@@ -4811,7 +4820,7 @@ static void pic30_init_builtins(void) {
   /*
    *  builtin_bit_toggle
    */
-  p0_type = build_pointer_type(unsigned_type_node);
+  p0_type = pic30_build_pointer_type(unsigned_type_node);
   p1_type = build_qualified_type(unsigned_type_node, TYPE_QUAL_CONST);
   fn_type = build_function_type_list(void_type_node, p0_type,
                                      p1_type, NULL_TREE);
@@ -4821,7 +4830,7 @@ static void pic30_init_builtins(void) {
   /*
    * DSP builtins
    */
-   p0_type = build_pointer_type(unsigned_type_node);
+   p0_type = pic30_build_pointer_type(unsigned_type_node);
    p1_type = build_qualified_type(unsigned_type_node, TYPE_QUAL_CONST);
    fn_type = build_function_type_list(integer_type_node,
                    integer_type_node, integer_type_node, NULL_TREE);
@@ -4839,8 +4848,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_clr", fn_type,
                    PIC30_BUILTIN_CLR, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       p1_type, p0_type, integer_type_node,
                                       p1_type, p0_type, integer_type_node,
@@ -4849,8 +4858,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_clr_prefetch", fn_type,
                     PIC30_BUILTIN_CLR_PREFETCH, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node,
                                       p1_type, integer_type_node,
@@ -4887,8 +4896,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_lacd", fn_type,
                     PIC30_BUILTIN_LACD, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node, integer_type_node,
                                       integer_type_node,
@@ -4898,8 +4907,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_mac", fn_type,
                     PIC30_BUILTIN_MAC, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(
                                       void_type_node,
                                       p1_type, p0_type, integer_type_node,
@@ -4908,8 +4917,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_movsac", fn_type,
                     PIC30_BUILTIN_MOVSAC, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node, integer_type_node,
                                       p1_type, p0_type, integer_type_node,
@@ -4918,8 +4927,8 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_mpy", fn_type,
                     PIC30_BUILTIN_MPY, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node, integer_type_node,
                                       p1_type, p0_type, integer_type_node,
@@ -4928,16 +4937,16 @@ static void pic30_init_builtins(void) {
    add_builtin_function_public("__builtin_mpyn", fn_type,
                     PIC30_BUILTIN_MPYN, BUILT_IN_MD, NULL, NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node, integer_type_node,
                                       p1_type, p0_type, integer_type_node,
                                       p1_type, p0_type, integer_type_node,
                                       NULL_TREE);
 
-   p0_type = build_pointer_type(integer_type_node);
-   p1_type = build_pointer_type(p0_type);
+   p0_type = pic30_build_pointer_type(integer_type_node);
+   p1_type = pic30_build_pointer_type(p0_type);
    fn_type = build_function_type_list(integer_type_node,
                                       integer_type_node, integer_type_node,
                                       integer_type_node,
@@ -5118,14 +5127,14 @@ static void pic30_init_builtins(void) {
   fn_type = build_function_type_list(integer_type_node, integer_type_node,
                                      integer_type_node, integer_type_node,
                                      NULL_TREE);
-  p0_type = build_pointer_type(integer_type_node);
+  p0_type = pic30_build_pointer_type(integer_type_node);
   fn_type = build_function_type_list(integer_type_node, integer_type_node,
                                      integer_type_node, integer_type_node,
                                      p0_type, NULL_TREE);
   add_builtin_function_public("__builtin_flim_excess", fn_type,
           PIC30_BUILTIN_FLIM_EXCESS, BUILT_IN_MD, NULL, NULL_TREE);
   add_builtin_function_public("__builtin_flimv_excess", fn_type,
-          PIC30_BUILTIN_FLIM_EXCESS, BUILT_IN_MD, NULL, NULL_TREE);
+          PIC30_BUILTIN_FLIMV_EXCESS, BUILT_IN_MD, NULL, NULL_TREE);
 
   fn_type = build_function_type_list(integer_type_node,
                                      integer_type_node, integer_type_node,
@@ -5135,7 +5144,7 @@ static void pic30_init_builtins(void) {
   add_builtin_function_public("__builtin_max", fn_type,
                   PIC30_BUILTIN_MAX, BUILT_IN_MD, NULL, NULL_TREE);
 
-  p0_type = build_pointer_type(integer_type_node);
+  p0_type = pic30_build_pointer_type(integer_type_node);
   fn_type = build_function_type_list(integer_type_node,
                                      integer_type_node, integer_type_node,
                                      p0_type, NULL_TREE);
@@ -5195,8 +5204,9 @@ const char * pic30_section_name(rtx op) {
   return pszSectionName;
 }
 
-static tree pic30_pointer_expr(tree arg) {
+static enum machine_mode pic30_pointer_expr(tree arg, enum machine_mode *mode) {
   int i;
+  /* * mode will return the derefenceing mode */
 
   switch (TREE_CODE(arg)) {
     case INTEGER_CST:
@@ -5204,19 +5214,22 @@ static tree pic30_pointer_expr(tree arg) {
     case COMPLEX_CST:
     case VECTOR_CST:
     case STRING_CST:
-      return 0;
+      return VOIDmode;
     case ADDR_EXPR:
       if (TREE_CODE(TREE_OPERAND(arg,0)) == VAR_DECL)
-        return TREE_OPERAND(arg,0);
+        return TYPE_MODE(TREE_TYPE(TREE_OPERAND(arg,0)));
     default:
-      if (TREE_CODE(TREE_TYPE(arg)) == POINTER_TYPE) return arg;
+      if (TREE_CODE(TREE_TYPE(arg)) == POINTER_TYPE) {
+        *mode = TYPE_MODE(TREE_TYPE(TREE_TYPE(arg)));
+        return TYPE_MODE(TREE_TYPE(arg));
+      }
       break;
   }
   for (i = 0; i < TREE_CODE_LENGTH(TREE_CODE(arg)); i++) {
-    tree parg = pic30_pointer_expr(TREE_OPERAND(arg,i));
-    if (parg) return parg;
+    enum machine_mode m = pic30_pointer_expr(TREE_OPERAND(arg,i),mode);
+    if (m != VOIDmode) return m;
   }
-  return 0;
+  return VOIDmode;
 }
 
 /*
@@ -5330,6 +5343,142 @@ static int pic30_reg_for_builtin(rtx reg) {
   return 0;
 }
 
+struct pic30_prefetch_data {
+  rtx xyptr;
+  rtx xyval;
+  rtx xyincr;
+  rtx p_reg;
+  rtx d_reg;
+  rtx umm_p_reg;
+};
+
+bool pic30_process_prefetch(tree t_xyptr, tree t_xyval, tree t_xyincr,
+                            struct pic30_prefetch_data *prefetch,
+                            char *XY, char *id, int required_flags) {
+  rtx umm_p_reg = NULL_RTX;
+  rtx xyptr = NULL_RTX;
+  rtx xyval = NULL_RTX;
+  rtx xyincr = NULL_RTX;
+  rtx p_reg = NULL_RTX;
+  rtx d_reg = NULL_RTX;
+
+  /* bit 0 == t_xyptr */
+  /* bit 1 == t_xyval */
+  /* bit 2 == t_xyincr */
+
+  if (prefetch == NULL) return false;
+
+  if (t_xyptr && 
+      ((TREE_CODE(t_xyptr) != INTEGER_CST)||(TREE_INT_CST_LOW(t_xyptr) != 0))){
+    /* we use pointers to return multiple results; the optimizer doesn't
+       clean up the stack - so remove the indirection */
+    if (TREE_CODE(t_xyptr) == ADDR_EXPR) {
+      /* we really care about the symbol we are taking the address of */
+      xyptr = expand_expr(TREE_OPERAND(t_xyptr,0), NULL_RTX, HImode,
+                       EXPAND_NORMAL);
+      if (GET_MODE(xyptr) == P32UMMmode) {
+        gcc_assert(TARGET_EDS);
+        /* load the pointer value */
+        umm_p_reg = gen_reg_rtx(P32UMMmode);
+        emit_move_insn(umm_p_reg, xyptr);
+      } else {
+        p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_movhi(p_reg, xyptr)
+        );
+      }
+    } else  {
+      error("Pointer to pointer to %s prefetch should be an integer pointer.",
+            XY);
+      error("Pointers to Extended Address spaces are not supported.");
+      return false;
+    }
+    if ((t_xyval) && (TREE_CODE(t_xyval) == ADDR_EXPR)) {
+      /* we really care about the symbol we are taking the address of */
+      xyval = expand_expr(TREE_OPERAND(t_xyval,0), NULL_RTX, HImode,
+                       EXPAND_NORMAL);
+      d_reg = gen_reg_rtx(HImode);
+    } else if (required_flags & 2) {
+      error("__builtin_%s: missing or invalid argument for %sVAL", id, XY);
+      return false;
+    }
+    if (t_xyincr != NULL_TREE) {
+      /* sometimes not present */
+      xyincr = expand_expr(t_xyincr, NULL_RTX, HImode, EXPAND_NORMAL);
+      switch (INTVAL(xyincr)) {
+        case 0:  xyincr = NULL_RTX;
+        case -6:
+        case -4:
+        case -2:
+        case 2:
+        case 4:
+        case 6: break;
+        default:
+          error("%s increment to __builtin_%s is out of range", XY, id);
+          return false;
+      }
+    } else if (required_flags & 4) {
+      error("__builtin_%s: missing or invalid argument for %sINCR", id, XY);
+    }
+  } else if (required_flags & 1) {
+    error("__builtin_%s: missing or invalid argument for %sPTR", id, XY);
+    return false;
+  }
+  // fill in the details
+  prefetch->xyptr = xyptr;
+  prefetch->xyval = xyval;
+  prefetch->xyincr = xyincr;
+  prefetch->p_reg = p_reg;
+  prefetch->d_reg = d_reg;
+  prefetch->umm_p_reg = umm_p_reg;
+  return true;
+}
+
+void pic30_post_prefetch(struct pic30_prefetch_data x_prefetch,
+                         struct pic30_prefetch_data y_prefetch) {
+  if (TARGET_EDS) {
+    if (x_prefetch.p_reg && x_prefetch.xyincr) {
+      rtx t = gen_reg_rtx(P32UMMmode);
+
+      emit_move_insn(t,x_prefetch.xyptr);
+      emit_insn(
+        gen_p32umm_updateoffset(t, x_prefetch.p_reg)
+      );
+      emit_move_insn(x_prefetch.xyptr,t);
+    }
+    if (y_prefetch.p_reg && y_prefetch.xyincr) {
+      rtx t = gen_reg_rtx(P32UMMmode);
+
+      emit_move_insn(t,y_prefetch.xyptr);
+      emit_insn(
+        gen_p32umm_updateoffset(t, y_prefetch.p_reg)
+      );
+      emit_move_insn(y_prefetch.xyptr,t);
+    }
+  } else {
+    if (x_prefetch.p_reg && x_prefetch.xyincr) {
+      emit_insn(
+        gen_movhi(x_prefetch.xyptr, x_prefetch.p_reg)
+      );
+    }
+    if (y_prefetch.p_reg && y_prefetch.xyincr) {
+      emit_insn(
+        gen_movhi(y_prefetch.xyptr, y_prefetch.p_reg)
+      );
+    }
+  }
+  if (x_prefetch.d_reg) { 
+    emit_insn(
+      gen_movhi(x_prefetch.xyval, x_prefetch.d_reg)
+    );
+  }
+  if (y_prefetch.d_reg) { 
+    emit_insn(
+      gen_movhi(y_prefetch.xyval, y_prefetch.d_reg)
+    );
+  } 
+}
+
 #define DIRECT_INJECTION
 /*
 ** Expand a call to a machine specific built-in function that was set up by
@@ -5376,13 +5525,13 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
   rtx (*gen)(rtx,rtx) = 0;
   rtx (*gen3)(rtx,rtx,rtx) = 0;
   rtx (*gen4)(rtx,rtx,rtx,rtx) = 0;
-  rtx scratch0 =  gen_rtx_REG(HImode,SINK0);
-  rtx scratch1 =  gen_rtx_REG(HImode,SINK1);
-  rtx scratch2 =  gen_rtx_REG(HImode,SINK2);
-  rtx scratch3 =  gen_rtx_REG(HImode,SINK3);
-  rtx scratch4 =  gen_rtx_REG(HImode,SINK4);
-  rtx scratch5 =  gen_rtx_REG(HImode,SINK5);
-  rtx scratch6 =  gen_rtx_REG(HImode,SINK6);
+  rtx scratch0 =  gen_rtx_REG(machine_regmode,SINK0);
+  rtx scratch1 =  gen_rtx_REG(machine_regmode,SINK1);
+  rtx scratch2 =  gen_rtx_REG(machine_regmode,SINK2);
+  rtx scratch3 =  gen_rtx_REG(machine_regmode,SINK3);
+  rtx scratch4 =  gen_rtx_REG(machine_regmode,SINK4);
+  rtx scratch5 =  gen_rtx_REG(machine_regmode,SINK5);
+  rtx scratch6 =  gen_rtx_REG(machine_regmode,SINK6);
 
   switch (fcode)
   {
@@ -5933,17 +6082,29 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       }
       if ((fcode == PIC30_BUILTIN_DIVMODSD) ||
           (fcode == PIC30_BUILTIN_DIVMODUD)) {
-        arglist = TREE_CHAIN(arglist);
-        arg2 = TREE_VALUE(arglist);
-        if (arg2 == error_mark_node) return const0_rtx;
-        r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-        r3 = gen_reg_rtx(machine_Pmode);
-        emit_move_insn(r3,r2);
-        r2 = r3;
-        if (fcode == PIC30_BUILTIN_DIVMODSD) {
-          emit_insn(gen_divmodsd(target, r0, r1, r2));
+        if (!TARGET_EDS) {
+          arglist = TREE_CHAIN(arglist);
+          arg2 = TREE_VALUE(arglist);
+          if (arg2 == error_mark_node) return const0_rtx;
+          r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
+          r3 = gen_reg_rtx(machine_Pmode);
+          emit_move_insn(r3,r2);
+          r2 = r3;
+          if (fcode == PIC30_BUILTIN_DIVMODSD) {
+            emit_insn(gen_divmodsd(target, r0, r1, r2));
+          } else {
+            emit_insn(gen_divmodud(target, r0, r1, r2));
+          }
         } else {
-          emit_insn(gen_divmodud(target, r0, r1, r2));
+          arglist = TREE_CHAIN(arglist);
+          arg2 = TREE_VALUE(arglist);
+          if (arg2 == error_mark_node) return const0_rtx;
+          r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
+          if (fcode == PIC30_BUILTIN_DIVMODSD) {
+            emit_insn(gen_divmodsdumm(target, r0, r1, gen_rtx_MEM(HImode,r2)));
+          } else {
+            emit_insn(gen_divmodudumm(target, r0, r1, gen_rtx_MEM(HImode,r2)));
+          }
         }
       } else if (fcode == PIC30_BUILTIN_DIVSD)
       {
@@ -6052,8 +6213,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return(target);
 
     case PIC30_BUILTIN_BTG: {
-      int pointer = 0;
-      int mode = HImode;
+      enum machine_mode pointer = 0;
+      enum machine_mode mode = HImode;
       rtx (*gen_mov)(rtx,rtx) = gen_movhi;
       rtx (*gen_bittog)(rtx,rtx,rtx) = gen_bittoghi;
       rtx (*gen_bittog_sfr)(rtx,rtx) = gen_bittoghi_sfr;
@@ -6071,13 +6232,13 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             r0 = DECL_RTL(sub_arg0);
           }
         } else {
-          pointer = (pic30_pointer_expr(sub_arg0) != 0);
+          pointer = pic30_pointer_expr(sub_arg0, &mode);
         }
-      } else pointer = (pic30_pointer_expr(arg0) != 0);
+      } else pointer = pic30_pointer_expr(arg0, &mode);
       if (!r0) r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
       arglist = TREE_CHAIN(arglist);
       arg1 = TREE_VALUE(arglist);
-      mode = GET_MODE(r0);
+      if (mode == VOIDmode) mode = GET_MODE(r0);
       if (arg1 == error_mark_node) return NULL_RTX;
       if ((TREE_CODE(arg1) == NOP_EXPR) || (TREE_CODE(arg1) == COMPONENT_REF)) {
         /* allow param 2 to be a field value, get the address from that ie:
@@ -6117,25 +6278,66 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       } else if (mode != HImode) {
         error("Invalid pointer type, must be pointer to char, int, or long");
       }
-      if (pointer) {
-        /* a pointer - copy its value into a register so that we can toggle
-           the contents  */
-        rtx reg = gen_reg_rtx(mode);
+      if (GET_CODE(r0) == MEM) {
+        rtx inner = XEXP(r0,0);
 
-        emit_insn(gen_mov(reg, r0));
-        emit_insn(gen_bittog(gen_rtx_MEM(mode,reg),gen_rtx_MEM(mode,reg), r1));
-        return NULL_RTX;
+        if (GET_CODE(inner) == SYMBOL_REF) {
+          r0 = inner;
+        } else {
+          pointer = mode;
+          r0 = inner;
+        }
       }
       if (GET_CODE(r0) == SYMBOL_REF) {
-         if (pic30_neardata_space_operand_p(r0))
+         /* take the address and turn it into a pointer */
+         if (pic30_neardata_space_operand_p(r0)) {
+           if (GET_MODE(r0) != machine_Pmode) {
+             /* we know we can access this as machine_Pmode...
+              * generate a machine_Pmode version 
+              */
+             r0 = gen_rtx_SYMBOL_REF(machine_Pmode,XSTR(r0,0));
+             SYMBOL_REF_FLAG(r0) = 1;
+           }
            emit_insn(gen_bittog_sfr(gen_rtx_MEM(mode,r0),r1));
-         else {
-           rtx reg = gen_reg_rtx(HImode);
+           return NULL_RTX;
+         } else {
+           rtx reg = gen_reg_rtx(Pmode);
 
-           emit_insn(gen_movhi_address(reg, r0));
-           emit_insn(gen_bittog(gen_rtx_MEM(mode,reg),
-                     gen_rtx_MEM(mode,reg), r1));
+           emit_insn(
+             TARGET_EDS ?
+               gen_movp32umm_address(reg, r0) :
+               gen_movhi_address(reg, r0)
+           );
+           pointer = GET_MODE(r0);
+           r0 = reg;
          }
+      }
+      if (pointer) {
+        if (GET_MODE(r0) == HImode) {
+          /* a pointer - copy its value into a register so that we can toggle
+             the contents  */
+          rtx reg = gen_reg_rtx(machine_Pmode);
+
+          emit_insn(
+           gen_mov(reg, r0)
+          );
+          emit_insn(
+            gen_bittog(gen_rtx_MEM(mode,reg),gen_rtx_MEM(mode,reg), r1)
+          );
+          return NULL_RTX;
+        } else if (GET_MODE(r0) == P32UMMmode) {
+          /* a pointer - copy its value into a register so that we can toggle
+             the contents  */
+          rtx reg = gen_reg_rtx(machine_Pmode);
+
+          emit_insn(
+           gen_p32umm_rwpointer(reg, r0)
+          );
+          emit_insn(
+            gen_bittog(gen_rtx_MEM(mode,reg),gen_rtx_MEM(mode,reg), r1)
+          );
+          return NULL_RTX;
+        } else gcc_assert(0);
       }
       else if (GET_CODE(r0) == REG) {
          if (r0 == virtual_stack_vars_rtx) {
@@ -6145,18 +6347,24 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             emit_insn(gen_bittog(reg,gen_rtx_MEM(mode,reg),r1));
             emit_insn(gen_mov(gen_rtx_MEM(mode,r0), reg));
          } else emit_insn(gen_bittog(r0,r0,r1));
-      } else if (GET_CODE(r0) == MEM) {
+      } 
+      if (GET_CODE(r0) == MEM) {
         rtx inner = XEXP(r0,0);
 
         if (GET_CODE(inner) == SYMBOL_REF) {
           if (pic30_neardata_space_operand_p(inner))
             emit_insn(gen_bittog_sfr(r0,r1));
           else {
-            rtx reg = gen_reg_rtx(HImode);
+            rtx reg = gen_reg_rtx(Pmode);
 
-            emit_insn(gen_movhi_address(reg,r0));
-            emit_insn(gen_bittog(gen_rtx_MEM(mode,reg),
-                      gen_rtx_MEM(mode,reg),r1));
+            emit_insn(  
+              TARGET_EDS ?
+                gen_movp32peds_address(reg, r0) :
+                gen_movhi_address(reg, r0)
+            );
+            emit_insn(
+              gen_bittog(gen_rtx_MEM(mode,reg), gen_rtx_MEM(mode,reg),r1)
+            );
           }
         } else {
           emit_insn(gen_bittog(r0, r0, r1));
@@ -6292,10 +6500,9 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     }
 
     case PIC30_BUILTIN_CLR_PREFETCH: {
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
-      rtx d_xreg = NULL_RTX;
-      rtx d_yreg = NULL_RTX;
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
       rtx awb = NULL_RTX;
       rtx awb_to;
 
@@ -6336,120 +6543,72 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       {
         target = gen_reg_rtx(HImode);
       }
-      r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r0) != CONST_INT) || (INTVAL(r0) != 0)) {
-        /* contains an X prefetch */
-        r1 = expand_expr(arg1, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r1) == CONST_INT) && (INTVAL(r1) == 0)) {
-          error("X prefetch destination to __builtin_clr_prefetch should not "
-                "be NULL");
-          return NULL_RTX;
-        }
-        r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_xreg = gen_reg_rtx(machine_Pmode);
-        d_xreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r0))
-        );
-        if (GET_CODE(r2) != CONST_INT) {
-          error("X increment to __builtin_clr_prefetch should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r2)) {
-          case 0:  r2 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("X increment to __builtin_clr_prefetch is out of range");
-            return NULL_RTX;
-        }
-      }
-      r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r3) != CONST_INT) || (INTVAL(r3) != 0)) {
-        /* contains an Y prefetch */
-        r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r4) == CONST_INT) && (INTVAL(r4) == 0)) {
-          error("Y prefetch destination to __builtin_clr_prefetch should not "
-                "be NULL");
-          return NULL_RTX;
-        }
-        r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_yreg = gen_reg_rtx(machine_Pmode);
-        d_yreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r3))
-        );
-        if (GET_CODE(r5) != CONST_INT) {
-          error("Y increment to __builtin_clr_prefetch should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r5)) {
-          case 0:  r5 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("Y increment to __builtin_clr_prefetch is out of range");
-            return NULL_RTX;
-        }
-      }
+      if (pic30_process_prefetch(arg0,arg1,arg2,&x_prefetch,"X",id,0) == false)
+        return NULL_RTX;
+      if (pic30_process_prefetch(arg3,arg4,arg5,&y_prefetch,"Y",id,0) == false)
+        return NULL_RTX;
       r6 = expand_expr(arg6, NULL_RTX, HImode, EXPAND_NORMAL);
       if ((GET_CODE(r6) != CONST_INT) || (INTVAL(r6) != 0)) {
         awb = gen_reg_rtx(HImode);
       } else awb_to = scratch6;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
+        );
+      }
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        } else {
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        }
+      }
       if (awb) {
         emit_insn(
           gen_clracawb_gen_hi(target,
-                           d_xreg ? d_xreg : scratch0,
-                           p_xreg ? p_xreg : scratch1,
-                           p_xreg && (r2) ? p_xreg : scratch2,
-                           (r2)   ? r2 : gen_rtx_CONST_INT(HImode,0),
-                           d_yreg ? d_yreg : scratch3,
-                           p_yreg ? p_yreg : scratch4,
-                           p_yreg && (r5) ? p_yreg : scratch5,
-                           (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg &&
+                             x_prefetch.xyincr ? x_prefetch.p_reg : scratch2,
+                           x_prefetch.xyincr ?
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg &&
+                             y_prefetch.xyincr ? y_prefetch.p_reg : scratch5,
+                           y_prefetch.xyincr ?
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
                            awb,
                            awb_to)
         );
       } else emit_insn(
         gen_clrac_gen_hi(target,
-                         d_xreg ? d_xreg : scratch0,
-                         p_xreg ? p_xreg : scratch1,
-                         p_xreg && (r2) ? p_xreg : scratch2,
-                         (r2)   ? r2 : gen_rtx_CONST_INT(HImode,0),
-                         d_yreg ? d_yreg : scratch3,
-                         p_yreg ? p_yreg : scratch4,
-                         p_yreg && (r5) ? p_yreg : scratch5,
-                         (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0))
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg &&
+                             x_prefetch.xyincr ? x_prefetch.p_reg : scratch2,
+                           x_prefetch.xyincr ?
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg &&
+                             y_prefetch.xyincr ? y_prefetch.p_reg : scratch5,
+                           y_prefetch.xyincr ?
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0))
+
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
-      if (p_xreg && r2) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r0), p_xreg)
-        );
-      }
-      if (p_yreg && r5) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r1), d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r4), d_yreg)
-        );
-      }
+      pic30_post_prefetch(x_prefetch,y_prefetch);
       if (awb) {
         rtx mem_of = r6;
 
@@ -6460,6 +6619,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             mem_of = gen_reg_rtx(machine_Pmode);
 
             emit_insn(
+               TARGET_EDS ? 
+                 gen_p32umm_writemem(mem_of, r6) :
                gen_movhi_address(mem_of, r6)
             );
           }
@@ -6479,9 +6640,10 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       accum_r = expand_expr(accum, NULL_RTX, HImode, EXPAND_NORMAL);
       /* FALLSTHROUGH */
     case PIC30_BUILTIN_ED: {
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
       rtx distance = NULL_RTX;
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
 
       if (id == 0) id = "ed";
       if (!(pic30_dsp_target())) {
@@ -6511,33 +6673,31 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         r0 = sqr;
       }
-      r1 = expand_expr(arg1, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r1) == CONST_INT) && (INTVAL(r1) == 0)) {
-        error("parameter 2 to __builtin_%s cannot be a NULL pointer",id);
+      if (!pic30_process_prefetch(arg1,NULL_TREE,arg2,&x_prefetch,"X",id,0))
         return NULL_RTX;
-      }
-      r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r3) == CONST_INT) && (INTVAL(r3) == 0)) {
-        error("parameter 4 to __builtin_%s cannot be a NULL pointer",id);
+      if (!pic30_process_prefetch(arg3,NULL_TREE,arg4,&y_prefetch,"Y",id,0))
         return NULL_RTX;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
+        );
       }
-      p_xreg = gen_reg_rtx(machine_Pmode);
-      emit_insn(
-        gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r1))
-      );
-      p_yreg = gen_reg_rtx(machine_Pmode);
-      emit_insn(
-        gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r3))
-      );
-      r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-      r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r2) != CONST_INT) ||
-          ((INTVAL(r2) != 0) && (!CONST_OK_FOR_LETTER_P(INTVAL(r2),'Y')))) {
-        error("parameter 3 for __builtin_%s is out of range",id);
-      }
-      if ((GET_CODE(r4) != CONST_INT) ||
-          ((INTVAL(r4) != 0) && (!CONST_OK_FOR_LETTER_P(INTVAL(r4),'Y')))) {
-        error("parameter 5 for __builtin_%s is out of range",id);
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        } else {
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        }
       }
       r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
       if ((GET_CODE(r5) == CONST_INT) && (INTVAL(r5) == 0)) {
@@ -6551,39 +6711,46 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
                   target,
                   r0,
                   distance,
-                  p_xreg,
-                  p_yreg,
-                  INTVAL(r2) != 0 ? p_xreg : scratch0,
-                  r2,
-                  INTVAL(r4) != 0 ? p_yreg : scratch1,
-                  r4)
+                  x_prefetch.p_reg,
+                  y_prefetch.p_reg,
+                  INTVAL(x_prefetch.xyincr) != 0 ? x_prefetch.p_reg : scratch0,
+                  x_prefetch.xyincr,
+                  INTVAL(y_prefetch.xyincr) != 0 ? y_prefetch.p_reg : scratch1,
+                  y_prefetch.xyincr)
           :
             gen_edac_hi(
                   target,
                   accum_r,
                   r0,
                   distance,
-                  p_xreg,
-                  p_yreg,
-                  INTVAL(r2) != 0 ? p_xreg : scratch0,
-                  r2,
-                  INTVAL(r4) != 0 ? p_yreg : scratch1,
-                  r4)
+                  x_prefetch.p_reg,
+                  y_prefetch.p_reg,
+                  INTVAL(x_prefetch.xyincr) != 0 ? x_prefetch.p_reg : scratch0,
+                  x_prefetch.xyincr,
+                  INTVAL(y_prefetch.xyincr) != 0 ? y_prefetch.p_reg : scratch1,
+                  y_prefetch.xyincr)
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
-      if (p_xreg && (INTVAL(r2) != 0)) {
+      pic30_post_prefetch(x_prefetch,y_prefetch);
+      { rtx mem_of = r5;
+
+        if (GET_CODE(r5) == MEM) {
+          rtx in1 = XEXP(r5,0);
+
+          if (GET_CODE(in1) == SYMBOL_REF) {
+            mem_of = gen_reg_rtx(machine_Pmode);
+
+            emit_insn(
+               TARGET_EDS ?
+                 gen_p32umm_writemem(mem_of, r5) :
+               gen_movhi_address(mem_of, r5)
+            );
+          }
+        }
         emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r1), p_xreg)
+          gen_movhi(gen_rtx_MEM(HImode,mem_of), distance)
         );
       }
-      if (p_yreg && (INTVAL(r4) != 0)) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), p_yreg)
-        );
-      }
-      emit_insn(
-        gen_movhi(gen_rtx_MEM(HImode,r5), distance)
-      );
       return target;
     }
 
@@ -6695,10 +6862,9 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       return target;
 
     case PIC30_BUILTIN_MAC: {
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
-      rtx d_xreg = NULL_RTX;
-      rtx d_yreg = NULL_RTX;
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
       rtx awb = NULL_RTX;
       rtx awb_to;
 
@@ -6767,150 +6933,55 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         r2 = reg;
       }
-#ifndef DIRECT_INJECTION
-      r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r3) != CONST_INT) || (INTVAL(r3) != 0)) 
-#else
-      if ((TREE_CODE(arg3) != INTEGER_CST) || (TREE_INT_CST_LOW(arg3) != 0))
-#endif
-      {
-#ifndef DIRECT_INJECTION
-        /* contains an X prefetch */
-        r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r4) == CONST_INT) && (INTVAL(r4) == 0)) {
-          error("X prefetch destination to __builtin_mac should not be NULL");
-          return NULL_RTX;
-        }
-        p_xreg = gen_reg_rtx(machine_Pmode);
-        d_xreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r3))
-        );
-        if (GET_CODE(r5) != CONST_INT) {
-          error("X increment to __builtin_mac should be a literal");
-          return NULL_RTX;
-        }
-#else
-        /* we use pointers to return multiple results; the optimizer doesn't
-           clean up the stack - so remove the indirection */
-        if (TREE_CODE(arg3) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r3 = expand_expr(TREE_OPERAND(arg3,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-           p_xreg = gen_reg_rtx(machine_Pmode);
-           emit_insn(
-             gen_movhi(p_xreg, r3)
-           );
-        } else  {
-          error("Pointer to pointer to X prefetch should be an integer pointer.");
-          error("Pointers to Extended Address spaces are not supported.");
-          return NULL_RTX;
-        }
-        if (TREE_CODE(arg4) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r4 = expand_expr(TREE_OPERAND(arg4,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-           d_xreg = gen_reg_rtx(HImode);
-        } else {
-          error("X prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-#endif
-        r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
-        switch (INTVAL(r5)) {
-          case 0:  r5 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("X increment to __builtin_mac is out of range");
-            return NULL_RTX;
-        }
-      }
-#ifndef DIRECT_INJECTION
-      r6 = expand_expr(arg6, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r6) != CONST_INT) || (INTVAL(r6) != 0)) 
-#else
-      if ((TREE_CODE(arg6) != INTEGER_CST) || (TREE_INT_CST_LOW(arg6) != 0))
-#endif
-      {
-#ifndef DIRECT_INJECTION
-        /* contains an Y prefetch */
-        r7 = expand_expr(arg7, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r7) == CONST_INT) && (INTVAL(r7) == 0)) {
-          error("Y prefetch destination to __builtin_mac should not be NULL");
-          return NULL_RTX;
-        }
-        p_yreg = gen_reg_rtx(machine_Pmode);
-        d_yreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r6))
-        );
-        if (GET_CODE(r8) != CONST_INT) {
-          error("Y increment to __builtin_mac should be a literal");
-          return NULL_RTX;
-        }
-#else
-        /* we use pointers to return multiple results; the optimizer doesn't
-           clean up the stack - so remove the indirection */
-        if (TREE_CODE(arg6) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r6 = expand_expr(TREE_OPERAND(arg6,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-           p_yreg = gen_reg_rtx(machine_Pmode);
-           emit_insn(
-             gen_movhi(p_yreg, r6)
-           );
-        } else {
-          error("Pointer to pointer to Y prefetch should be an integer pointer.");
-          error("Pointer to Extended Address spaces are not supported.");
-          return NULL_RTX;
-        }
-        if (TREE_CODE(arg7) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r7 = expand_expr(TREE_OPERAND(arg7,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-           d_yreg = gen_reg_rtx(HImode);
-        } else {
-          error("X prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-#endif
-        r8 = expand_expr(arg8, NULL_RTX, HImode, EXPAND_NORMAL);
-        switch (INTVAL(r8)) {
-          case 0:  r7 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("Y increment to __builtin_mac is out of range");
-            return NULL_RTX;
-        }
-      }
+      
+      if (pic30_process_prefetch(arg3,arg4,arg5,&x_prefetch,"X",id,0) == false)
+        return NULL_RTX;
+      if (pic30_process_prefetch(arg6,arg7,arg8,&y_prefetch,"Y",id,0) == false)
+        return NULL_RTX;
       r9 = expand_expr(arg9, NULL_RTX, HImode, EXPAND_NORMAL);
       if ((GET_CODE(r9) != CONST_INT) || (INTVAL(r9) != 0)) {
         awb = gen_reg_rtx(HImode);
       } else awb_to = scratch6;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
+        );
+      }
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        } else {
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        }
+      }
       if (awb) {
         emit_insn(
           gen_macawb_gen_hi(target,
                            r0,
                            r1,
                            r2,
-                           d_xreg ? d_xreg : scratch0,
-                           p_xreg ? p_xreg : scratch1,
-                           p_xreg && (r5) ? p_xreg : scratch2,
-                           (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
-                           d_yreg ? d_yreg : scratch3,
-                           p_yreg ? p_yreg : scratch4,
-                           p_yreg && (r8) ? p_yreg : scratch5,
-                           (r8)   ? r8 : gen_rtx_CONST_INT(HImode,0),
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && 
+                             x_prefetch.xyincr ? x_prefetch.p_reg : scratch2,
+                           x_prefetch.xyincr ? 
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg && 
+                             y_prefetch.xyincr ? y_prefetch.p_reg : scratch5,
+                           y_prefetch.xyincr ? 
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
                            awb,
                            awb_to)
         );
@@ -6919,61 +6990,22 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
                          r0,
                          r1,
                          r2,
-                         d_xreg ? d_xreg : scratch0,
-                         p_xreg ? p_xreg : scratch1,
-                         p_xreg && (r5) ? p_xreg : scratch2,
-                         (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
-                         d_yreg ? d_yreg : scratch3,
-                         p_yreg ? p_yreg : scratch4,
-                         p_yreg && (r8) ? p_yreg : scratch5,
-                         (r8)   ? r8 : gen_rtx_CONST_INT(HImode,0))
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && 
+                             x_prefetch.xyincr ? x_prefetch.p_reg : scratch2,
+                           x_prefetch.xyincr ? 
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg &&
+                             y_prefetch.xyincr ? y_prefetch.p_reg : scratch5,
+                           y_prefetch.xyincr ?
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0))
+
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
-#ifndef DIRECT_INJECTION
-      if (p_xreg && r5) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), p_xreg)
-        );
-      }
-      if (p_yreg && r8) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r6), p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r4), d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r7), d_yreg)
-        );
-      }
-#else
-#if 1
-      if (p_xreg && r5) {
-        emit_insn(
-          gen_movhi(r3, p_xreg)
-        );
-      }
-      if (p_yreg && r8) {
-        emit_insn(
-          gen_movhi(r6, p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(r4, d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(r7, d_yreg)
-        );
-      }
-#endif
-#endif
+      pic30_post_prefetch(x_prefetch,y_prefetch);
       if (awb) {
         rtx mem_of = r9;
 
@@ -6984,6 +7016,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             mem_of = gen_reg_rtx(machine_Pmode);
 
             emit_insn(
+               TARGET_EDS ?
+                 gen_p32umm_writemem(mem_of, r9) :
                gen_movhi_address(mem_of, r9)
             );
           }
@@ -6997,10 +7031,9 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     }
 
     case PIC30_BUILTIN_MOVSAC: {
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
-      rtx d_xreg = NULL_RTX;
-      rtx d_yreg = NULL_RTX;
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
       rtx awb = NULL_RTX;
       rtx awb_to;
 
@@ -7038,85 +7071,51 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         awb_to = reg;
       }
-      r0 = expand_expr(arg0, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r0) != CONST_INT) || (INTVAL(r0) != 0)) {
-        /* contains an X prefetch */
-        r1 = expand_expr(arg1, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r1) == CONST_INT) && (INTVAL(r1) == 0)) {
-          error("X prefetch destination to __builtin_movsac should not "
-                "be NULL");
-          return NULL_RTX;
-        }
-        r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_xreg = gen_reg_rtx(machine_Pmode);
-        d_xreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r0))
-        );
-        if (GET_CODE(r2) != CONST_INT) {
-          error("X increment to __builtin_movsac should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r2)) {
-          case 0:  r2 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("X increment to __builtin_movsac is out of range");
-            return NULL_RTX;
-        }
-      }
-      r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r3) != CONST_INT) || (INTVAL(r3) != 0)) {
-        /* contains an Y prefetch */
-        r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r4) == CONST_INT) && (INTVAL(r4) == 0)) {
-          error("Y prefetch destination to __builtin_movsac should not "
-                "be NULL");
-          return NULL_RTX;
-        }
-        r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_yreg = gen_reg_rtx(machine_Pmode);
-        d_yreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r3))
-        );
-        if (GET_CODE(r5) != CONST_INT) {
-          error("Y increment to __builtin_movsac should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r5)) {
-          case 0:  r5 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("Y increment to __builtin_movsac is out of range");
-            return NULL_RTX;
-        }
-      }
+      if (pic30_process_prefetch(arg0,arg1,arg2,&x_prefetch,"X",id,0) == false)
+        return NULL_RTX;
+      if (pic30_process_prefetch(arg3,arg4,arg5,&y_prefetch,"Y",id,0) == false)
+        return NULL_RTX;
       r6 = expand_expr(arg6, NULL_RTX, HImode, EXPAND_NORMAL);
       if ((GET_CODE(r6) != CONST_INT) || (INTVAL(r6) != 0)) {
         awb = gen_reg_rtx(HImode);
       } else awb_to = scratch6;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
+        );
+      }
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        } else {
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        }
+      }
       if (awb) {
         emit_insn(
           gen_movsacawb_gen_hi(
-                           d_xreg ? d_xreg : scratch0,
-                           p_xreg ? p_xreg : scratch1,
-                           p_xreg && (r2) ? p_xreg : scratch2,
-                           (r2)   ? r2 : gen_rtx_CONST_INT(HImode,0),
-                           d_yreg ? d_yreg : scratch3,
-                           p_yreg ? p_yreg : scratch4,
-                           p_yreg && (r5) ? p_yreg : scratch5,
-                           (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && (x_prefetch.xyincr) ? 
+                             x_prefetch.p_reg : scratch2,
+                           (x_prefetch.xyincr) ? 
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg && (y_prefetch.xyincr) ? 
+                             y_prefetch.p_reg : scratch5,
+                           (y_prefetch.xyincr) ? 
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
                            awb,
                            awb_to)
         );
@@ -7124,36 +7123,21 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       } else {
         emit_insn(
           gen_movsac_gen_hi(
-                           d_xreg ? d_xreg : scratch0,
-                           p_xreg ? p_xreg : scratch1,
-                           p_xreg && (r2) ? p_xreg : scratch2,
-                           (r2)   ? r2 : gen_rtx_CONST_INT(HImode,0),
-                           d_yreg ? d_yreg : scratch3,
-                           p_yreg ? p_yreg : scratch4,
-                           p_yreg && (r5) ? p_yreg : scratch5,
-                           (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0))
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && (x_prefetch.xyincr) ? 
+                             x_prefetch.p_reg : scratch2,
+                           (x_prefetch.xyincr) ?   
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg && (y_prefetch.xyincr) ? 
+                             y_prefetch.p_reg : scratch5,
+                           (y_prefetch.xyincr) ? 
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0))
         );
       }
-      if (p_xreg && r2) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r0), p_xreg)
-        );
-      }
-      if (p_yreg && r5) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r1), d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r4), d_yreg)
-        );
-      }
+      pic30_post_prefetch(x_prefetch,y_prefetch);
       if (awb) {
         rtx mem_of = r6;
 
@@ -7164,6 +7148,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             mem_of = gen_reg_rtx(machine_Pmode);
 
             emit_insn(
+              TARGET_EDS ?
+                gen_movp32umm_address(mem_of, r6) :
                gen_movhi_address(mem_of, r6)
             );
           }
@@ -7178,10 +7164,9 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     case PIC30_BUILTIN_MPYN:
       id = "mpyn";
     case PIC30_BUILTIN_MPY: {
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
-      rtx d_xreg = NULL_RTX;
-      rtx d_yreg = NULL_RTX;
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
 
       if (id == 0) id = "mpy";
       if (!(pic30_dsp_target())) {
@@ -7230,138 +7215,30 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         r1 = reg;
       }
-#ifndef DIRECT_INJECTION
-      /* do not expand the args yet */
-      r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r2) != CONST_INT) || (INTVAL(r2) != 0)) 
-#else
-      if ((TREE_CODE(arg2) != INTEGER_CST) || (TREE_INT_CST_LOW(arg2) != 0)) 
-#endif
-      {
-        /* contains an X prefetch */
-#ifndef DIRECT_INJECTION
-        r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r3) == CONST_INT) && (INTVAL(r3) == 0)) {
-          error("X prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-        p_xreg = gen_reg_rtx(machine_Pmode);
-        d_xreg = gen_reg_rtx(HImode);
+      if (pic30_process_prefetch(arg2,arg3,arg4,&x_prefetch,"X",id,0) == false)
+        return NULL_RTX;
+      if (pic30_process_prefetch(arg5,arg6,arg7,&y_prefetch,"Y",id,0) == false)
+        return NULL_RTX;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
         emit_insn(
-          gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r2))
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
         );
-#else
-        /* we use pointers to return multiple results; the optimizer doesn't
-           clean up the stack - so remove the indirection */
-        if (TREE_CODE(arg2) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r2 = expand_expr(TREE_OPERAND(arg2,0), NULL_RTX, HImode, 
-                            EXPAND_NORMAL);
-#if 1
-	   p_xreg = gen_reg_rtx(HImode);
-           emit_insn(
-             gen_movhi(p_xreg, r2)
-           );
-#else
-           p_xreg = r2;
-#endif
-        } else {
-          error("Pointer to pointer to X prefetch should be an integer pointer");
-          return NULL_RTX;
-        }
-        if (TREE_CODE(arg3) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r3 = expand_expr(TREE_OPERAND(arg3,0), NULL_RTX, HImode, 
-                            EXPAND_NORMAL);
-           d_xreg = gen_reg_rtx(HImode);
-        } else {
-          error("X prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-#endif
-        r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-        if (GET_CODE(r4) != CONST_INT) {
-          error("X increment to __builtin_%s should be a literal",id);
-          return NULL_RTX;
-        }
-        switch (INTVAL(r4)) {
-          case 0:  r4 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("X increment to __builtin_%s is out of range",id);
-            return NULL_RTX;
-        }
       }
-#ifndef DIRECT_INJECTION
-      r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r5) != CONST_INT) || (INTVAL(r5) != 0)) 
-#else
-      /* do not expand the args yet */
-      if ((TREE_CODE(arg5) != INTEGER_CST) || (TREE_INT_CST_LOW(arg5) != 0)) 
-#endif
-      {
-        /* contains an Y prefetch */
-#ifndef DIRECT_INJECTION
-        r6 = expand_expr(arg6, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r6) == CONST_INT) && (INTVAL(r6) == 0)) {
-          error("Y prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-        p_yreg = gen_reg_rtx(machine_Pmode);
-        d_yreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r5))
-        );
-#else
-        /* we use pointers to return multiple results; the optimizer doesn't
-           clean up the stack - so remove the indirection */
-        if (TREE_CODE(arg5) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r5 = expand_expr(TREE_OPERAND(arg5,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-#if 1
-           p_yreg = gen_reg_rtx(HImode);
-           emit_insn(
-             gen_movhi(p_yreg, r5)
-           );
-#else
-           p_yreg = r5;
-#endif
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
         } else {
-          error("Pointer to pointer to Y prefetch should be an integer pointer");
-          return NULL_RTX;
-        }
-        if (TREE_CODE(arg6) == ADDR_EXPR) {
-           /* we really care about the symbol we are taking the address of */
-           r6 = expand_expr(TREE_OPERAND(arg6,0), NULL_RTX, HImode,
-                            EXPAND_NORMAL);
-           d_yreg = gen_reg_rtx(HImode);
-        } else {
-          error("Y prefetch destination to __builtin_%s should not be NULL",id);
-          return NULL_RTX;
-        }
-#endif
-        r7 = expand_expr(arg7, NULL_RTX, HImode, EXPAND_NORMAL);
-        if (GET_CODE(r7) != CONST_INT) {
-          error("Y increment to __builtin_%s should be a literal",id);
-          return NULL_RTX;
-        }
-        switch (INTVAL(r7)) {
-          case 0:  r7 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("Y increment to __builtin_%s is out of range",id);
-            return NULL_RTX;
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
         }
       }
       emit_insn(
@@ -7370,70 +7247,29 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
          gen_mpy_gen_hi)(target,
                          r0,
                          r1,
-                         p_xreg ? d_xreg : scratch0,
-                         p_xreg ? p_xreg : scratch1,
-                         p_xreg && (r4) ? p_xreg : scratch2,
-                         (r4)   ? r4 : gen_rtx_CONST_INT(HImode,0),
-                         p_yreg ? d_yreg : scratch3,
-                         p_yreg ? p_yreg : scratch4,
-                         p_yreg && (r7) ? p_yreg : scratch5,
-                         (r7)   ? r7 : gen_rtx_CONST_INT(HImode,0))
-      );
+                         x_prefetch.p_reg ? x_prefetch.d_reg : scratch0,
+                         x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                         x_prefetch.p_reg && (x_prefetch.xyincr) ? 
+                           x_prefetch.p_reg : scratch2,
+                         (x_prefetch.xyincr) ? 
+                           x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                         y_prefetch.p_reg ? y_prefetch.d_reg : scratch3,
+                         y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                         y_prefetch.p_reg && (y_prefetch.xyincr) ? 
+                           y_prefetch.p_reg : scratch5,
+                         (y_prefetch.xyincr) ? 
+                           y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0))
+        );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
-#ifndef DIRECT_INJECTION 
-      if (p_xreg && r4) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r2), p_xreg)
-        );
-      }
-      if (p_yreg && r7) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r5), p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r6), d_yreg)
-        );
-      }
-#else
-#if 1
-      if (p_xreg && r4) {
-        emit_insn(
-          gen_movhi(r2, p_xreg)
-        );
-      }
-      if (p_yreg && r7) {
-        emit_insn(
-          gen_movhi(r5, p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(r3, d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(r6, d_yreg)
-        );
-      }
-#endif
-#endif
+      pic30_post_prefetch(x_prefetch,y_prefetch);
       return target;
       break;
     }
 
     case PIC30_BUILTIN_MSC: {
-      rtx p_xreg = NULL_RTX;
-      rtx p_yreg = NULL_RTX;
-      rtx d_xreg = NULL_RTX;
-      rtx d_yreg = NULL_RTX;
+      struct pic30_prefetch_data x_prefetch = { NULL_RTX };
+      struct pic30_prefetch_data y_prefetch = { NULL_RTX };
+      bool unified_page = false;
       rtx awb = NULL_RTX;
       rtx awb_to;
 
@@ -7501,86 +7337,54 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         r2 = reg;
       }
-      r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r3) != CONST_INT) || (INTVAL(r3) != 0)) {
-        /* contains an X prefetch */
-        r4 = expand_expr(arg4, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r4) == CONST_INT) && (INTVAL(r4) == 0)) {
-          error("X prefetch destination to __builtin_msc should not be NULL");
-          return NULL_RTX;
-        }
-        r5 = expand_expr(arg5, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_xreg = gen_reg_rtx(machine_Pmode);
-        d_xreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_xreg, gen_rtx_MEM(machine_Pmode, r5))
-        );
-        if (GET_CODE(r5) != CONST_INT) {
-          error("X increment to __builtin_msc should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r5)) {
-          case 0:  r5 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("X increment to __builtin_msc is out of range");
-            return NULL_RTX;
-        }
-      }
-      r6 = expand_expr(arg6, NULL_RTX, HImode, EXPAND_NORMAL);
-      if ((GET_CODE(r6) != CONST_INT) || (INTVAL(r6) != 0)) {
-        /* contains an Y prefetch */
-        r7 = expand_expr(arg7, NULL_RTX, HImode, EXPAND_NORMAL);
-        if ((GET_CODE(r7) == CONST_INT) && (INTVAL(r7) == 0)) {
-          error("Y prefetch destination to __builtin_msc should not be NULL");
-          return NULL_RTX;
-        }
-        r8 = expand_expr(arg8, NULL_RTX, HImode, EXPAND_NORMAL);
-        p_yreg = gen_reg_rtx(machine_Pmode);
-        d_yreg = gen_reg_rtx(HImode);
-        emit_insn(
-          gen_movhi(p_yreg, gen_rtx_MEM(machine_Pmode, r6))
-        );
-        if (GET_CODE(r8) != CONST_INT) {
-          error("Y increment to __builtin_msc should be a literal");
-          return NULL_RTX;
-        }
-        switch (INTVAL(r8)) {
-          case 0:  r8 = NULL_RTX;
-          case -6:
-          case -4:
-          case -2:
-          case 2:
-          case 4:
-          case 6: break;
-          default:
-            error("Y increment to __builtin_msc is out of range");
-            return NULL_RTX;
-        }
-      }
+      if (pic30_process_prefetch(arg3,arg4,arg5,&x_prefetch,"X",id,0) == false)
+        return NULL_RTX;
+      if (pic30_process_prefetch(arg6,arg7,arg8,&y_prefetch,"Y",id,0) == false)
+        return NULL_RTX;
       r9 = expand_expr(arg9, NULL_RTX, HImode, EXPAND_NORMAL);
       if ((GET_CODE(r9) != CONST_INT) || (INTVAL(r9) != 0)) {
         awb = gen_reg_rtx(HImode);
       } else awb_to = scratch6;
+      /* if we are in UMM mode, then... we need to form real addresses
+           for p_xreg and p_yreg; but we can only set one read page
+           so... this better be the case */
+      if (x_prefetch.umm_p_reg) {
+        unified_page = true;
+        x_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        emit_insn(
+          gen_p32umm_rwpointer(x_prefetch.p_reg,x_prefetch.umm_p_reg)
+        );
+      }
+      if (y_prefetch.umm_p_reg) {
+        y_prefetch.p_reg = gen_reg_rtx(machine_Pmode);
+        if (!unified_page) {
+          emit_insn(
+            gen_p32umm_rwpointer(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        } else {
+          emit_insn(
+            gen_p32umm_offset(y_prefetch.p_reg,y_prefetch.umm_p_reg)
+          );
+        }
+      }
       if (awb) {
         emit_insn(
           gen_mscawb_gen_hi(target,
                            r0,
                            r1,
                            r2,
-                           d_xreg ? d_xreg : scratch0,
-                           p_xreg ? p_xreg : scratch1,
-                           p_xreg && (r5) ? p_xreg : scratch2,
-                           (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
-                           d_yreg ? d_yreg : scratch3,
-                           p_yreg ? p_yreg : scratch4,
-                           p_yreg && (r8) ? p_yreg : scratch5,
-                           (r8)   ? r8 : gen_rtx_CONST_INT(HImode,0),
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && (x_prefetch.xyincr) ? 
+                             x_prefetch.p_reg : scratch2,
+                           (x_prefetch.xyincr) ? 
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg && (y_prefetch.xyincr) ? 
+                             y_prefetch.p_reg : scratch5,
+                           (y_prefetch.xyincr) ? 
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
                            awb,
                            awb_to)
         );
@@ -7589,36 +7393,21 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
                          r0,
                          r1,
                          r2,
-                         d_xreg ? d_xreg : scratch0,
-                         p_xreg ? p_xreg : scratch1,
-                         p_xreg && (r5) ? p_xreg : scratch2,
-                         (r5)   ? r5 : gen_rtx_CONST_INT(HImode,0),
-                         d_yreg ? d_yreg : scratch3,
-                         p_yreg ? p_yreg : scratch4,
-                         p_yreg && (r8) ? p_yreg : scratch5,
-                         (r8)   ? r8 : gen_rtx_CONST_INT(HImode,0))
+                           x_prefetch.d_reg ? x_prefetch.d_reg : scratch0,
+                           x_prefetch.p_reg ? x_prefetch.p_reg : scratch1,
+                           x_prefetch.p_reg && (x_prefetch.xyincr) ? 
+                             x_prefetch.p_reg : scratch2,
+                           (x_prefetch.xyincr) ? 
+                             x_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0),
+                           y_prefetch.d_reg ? y_prefetch.d_reg : scratch3,
+                           y_prefetch.p_reg ? y_prefetch.p_reg : scratch4,
+                           y_prefetch.p_reg && (y_prefetch.xyincr) ? 
+                             y_prefetch.p_reg : scratch5,
+                           (y_prefetch.xyincr) ? 
+                             y_prefetch.xyincr : gen_rtx_CONST_INT(HImode,0))
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
-      if (p_xreg && r5) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r3), p_xreg)
-        );
-      }
-      if (p_yreg && r8) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r6), p_yreg)
-        );
-      }
-      if (d_xreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r4), d_xreg)
-        );
-      }
-      if (d_yreg) {
-        emit_insn(
-          gen_movhi(gen_rtx_MEM(HImode,r7), d_yreg)
-        );
-      }
+      pic30_post_prefetch(x_prefetch,y_prefetch);
       if (awb) {
         rtx mem_of = r9;
 
@@ -7629,6 +7418,8 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             mem_of = gen_reg_rtx(machine_Pmode);
 
             emit_insn(
+              TARGET_EDS ?
+                gen_movp32umm_address(mem_of, r9) :
                gen_movhi_address(mem_of, r9)
             );
           }
@@ -8228,9 +8019,6 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
           r2 = force_reg(HImode, r2);
         }
         r3 = expand_expr(arg3, NULL_RTX, HImode, EXPAND_NORMAL);
-        if (!pic30_register_operand(r3, HImode)) {
-          r3 = force_reg(HImode, r3);
-        }
         r9 = gen_reg_rtx(HImode);
         emit(
           gen_flim_pack(r10,r1,r2)
@@ -8240,9 +8028,7 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
           gen4 ? gen4(target,r0,r10,r9) : 
                  gen_flim_excess(target, r0, r10,r9)
         );
-        emit(
-          gen_movhi(gen_rtx_MEM(HImode,r3), r9)
-        );
+        emit_move_insn(gen_rtx_MEM(HImode,r3),r9);
         return target;
         break;
       } else {
@@ -8301,7 +8087,11 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         arglist = TREE_CHAIN(arglist);
         arg2 = TREE_VALUE(arglist);
         r2 = expand_expr(arg2, NULL_RTX, HImode, EXPAND_NORMAL);
-        r2 = gen_rtx_MEM(HImode,r2);
+        if (TARGET_EDS) {
+          r3 = gen_reg_rtx(HImode);
+        } else {
+          r3 = gen_rtx_MEM(HImode,r2);
+        }
       }
       if (!pic30_reg_for_builtin(r0)) {
         rtx reg = NULL_RTX;
@@ -8321,11 +8111,14 @@ rtx pic30_expand_builtin(tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
         );
         r1 = reg;
       }
-
       emit_insn(
-        gen3 ? gen3(target, r0, r1) : gen4(target, r0, r1, r2)
+        gen3 ? gen3(target, r0, r1) : gen4(target, r0, r1, r3)
       );
       push_cheap_rtx(&dsp_builtin_list,get_last_insn(),exp,fcode);
+      if (TARGET_EDS) {
+        emit_move_insn(gen_rtx_MEM(HImode,r2),r3);
+      }
+      
       return target;
     }
   }
@@ -8482,6 +8275,18 @@ int pic30_extra_constraint_p(rtx value, char c, const char *p) {
         break;
       }
     }
+  } else if (c == 'q') {
+    /* qm == (MEM: q)
+     * qs == symbol ref
+     */
+    if (p[1] == 'm') {
+      if (GET_CODE(value) == MEM) {
+        result = EXTRA_CONSTRAINT(XEXP(value,0),c);
+      } 
+    } else if (p[1] == 's') {
+      result = EXTRA_CONSTRAINT(value,c);
+    }
+    return result;
   } else {
     switch (c) {
       case 'I':
@@ -8492,6 +8297,9 @@ int pic30_extra_constraint_p(rtx value, char c, const char *p) {
       case 'N':
       case 'O':
       case 'P':
+        result = CONST_OK_FOR_LETTER_P(INTVAL(value), c);
+        break;
+      case 'h':
         result = CONST_OK_FOR_LETTER_P(INTVAL(value), c);
         break;
       default:
@@ -8514,6 +8322,7 @@ int pic30_hard_regno_mode_ok(int regno, enum machine_mode mode) {
     case P32EXTmode:
     case P24PROGmode:
     case P24PSVmode:
+    case P32UMMmode:
     case SFmode:        /* Float (32 bits) */
       fOkay = (regno < SP_REGNO) && IS_EVEN_REG(regno);
       break;
@@ -8590,13 +8399,7 @@ int pic30_regno_nregs(int regno, enum machine_mode mode) {
   /* Accumulators are always 1 for the right kinds of things, otherwise too
      many to handle */
   if ((regno == A_REGNO) || (regno == B_REGNO)) {
-#if 0
-    /* try and allocate A and B for the right mode of thing 
-         if fixed point is not enabled, allow the old way
-         otherwise only allow A and B for accumulator modes */
-#else
     /* still allow integer modes so that we can do integer macs */
-#endif
     if (pic30_fp_round_p() != pic30_none) {
       switch (mode) {
         default: break;
@@ -9951,6 +9754,24 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
     /* near QI operands can only move via another reg */
     return W_REGS;
   }
+
+  if (in_p && pic30_symbolic_address_operand(x,VOIDmode)) {
+  
+    while (GET_CODE(x) == CONST) x = XEXP(x,0);
+    if (GET_CODE(x) == PLUS) {
+      rtx offset = XEXP(x,1);
+      if ((GET_CODE(offset) == CONST_INT) &&
+        ((INTVAL(offset) < 0) || (INTVAL(offset) > 32768))) {
+        /* relocations larger than 32K won't work... we can only load a 32-bit
+	   value - we need a spare register */
+        switch (mode) {
+          default: break;
+          case P32UMMmode: sri->icode = CODE_FOR_reload_large_addrp32umm;
+                           return NO_REGS;
+        }
+      }
+    }
+  }
   /* If the Q constraint fails because the displacement was too far
      then disp will be != -1 */
   if (pic30_Q_constraint_displacement(x,&disp)) {
@@ -10142,30 +9963,6 @@ enum reg_class pic30_secondary_reload(bool in_p, rtx x,
       }
     }
   }
-#if 0
-  if (MEM_P(x)) {
-    /* look for other odd (mem ) expressions that will require extra
-       registers */
-    rtx inner = XEXP(x,0);
-
-    switch (GET_CODE(inner)) {
-      default: break;
-      case POST_INC:
-      case PRE_INC:
-      case POST_DEC:
-      case PRE_DEC: { 
-        rtx inner2;
-          
-        inner2 = XEXP(inner,0);
-        if (!REG_P(inner2)) { 
-          gcc_assert(GET_MODE(inner2) == Pmode);
-          sri->icode = in_p ? CODE_FOR_PPinc_inhi : CODE_FOR_PPinc_outhi;
-          return NO_REGS;
-        }
-        break;
-    }
-  }
-#endif
   return NO_REGS;
 }
 
@@ -10228,7 +10025,8 @@ static int pic30_mode1MinMax_res_operand(rtx op, enum machine_mode mode,
   code = GET_CODE(op);
   switch (code) {
     case SUBREG:
-      fMode1Operand = register_operand(op, mode);
+      fMode1Operand = pic30_valid_mode_for_subreg(op) &&
+                      register_operand(op, mode);
       break;
     case REG:
       /*
@@ -10337,7 +10135,7 @@ int pic30_modek_APSV_possible_operand(rtx op, enum machine_mode mode) {
 /* The encoding is as follows:                                          */
 /*    [Wn+k]    Indirect + displacement                                 */
 /************************************************************************/
-int pic30_modek_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
+int pic30_modek_operand_helper(rtx op, enum machine_mode mode) {
   int fModekOperand;
   rtx rtxInner;
   rtx rtxPlusOp0;
@@ -10358,15 +10156,15 @@ int pic30_modek_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
 
           subop = SUBREG_REG(op);
           submd = GET_MODE(subop);
-          fModekOperand = pic30_modek_operand_helper(subop, submd, unified_ok);
+          fModekOperand = pic30_modek_operand_helper(subop, submd);
         }
       }
       break;
     case MEM:
       rtxInner = XEXP(op, 0);
-      if (unified_ok && TARGET_EDS) {
-        if (GET_MODE(rtxInner) != Pmode) return 0;
-      } else if (GET_MODE(rtxInner) != machine_Pmode) return 0;
+      while (GET_CODE(rtxInner) == SUBREG) rtxInner = XEXP(rtxInner,0);
+      if ((GET_MODE(rtxInner) != Pmode) &&
+          (GET_MODE(rtxInner) != machine_Pmode)) return 0;
       switch (GET_CODE(rtxInner)) {
         case PLUS:
           /*
@@ -10375,14 +10173,10 @@ int pic30_modek_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
           rtxPlusOp0 = XEXP(rtxInner, 0);
           switch (GET_CODE(rtxPlusOp0)) {
             case SUBREG:
-              if (unified_ok && TARGET_EDS) {
                 if ((!register_operand(rtxPlusOp0, machine_Pmode)) &&
                     (!register_operand(rtxPlusOp0, Pmode))) {
                   break;
                 }
-              } else if (!register_operand(rtxPlusOp0, machine_Pmode)) {
-                break;
-              }
               /*
               ** Fall thru
               */
@@ -10398,6 +10192,7 @@ int pic30_modek_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
                       nMin = PIC30_DISP_MIN;
                       nMax = PIC30_DISP_MAX;
                       break;
+                    case P32UMMmode:
                     case P16PMPmode:
                     case P32EXTmode:
                     case P32DFmode:
@@ -10583,12 +10378,13 @@ int pic30_modek_APSV_operand_helper(rtx op, enum machine_mode mode) {
 /*    [++Wn]    Indirect with pre-increment                             */
 /*    [Wn+Wb]    Indirect with base                                     */
 /************************************************************************/
-int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
+int pic30_mode3_operand_helper(rtx op, enum machine_mode mode) {
   int fMode3Operand = -1;
   rtx rtxInner;
   rtx rtxPlusOp0;
   rtx rtxPlusOp1;
   rtx of;
+  int done = 0;
 
   switch (GET_CODE(op)) {
     case SUBREG:
@@ -10603,7 +10399,9 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
         /* just for validation */
         of = gen_rtx_SUBREG(GET_MODE(op), SUBREG_REG(of), SUBREG_BYTE(op));
       }
-      if (GET_CODE(SUBREG_REG(of)) == MEM) {
+      if (!pic30_valid_mode_for_subreg(op)) {
+        fMode3Operand = 0;
+      } else if (GET_CODE(SUBREG_REG(of)) == MEM) {
         if (GET_MODE(of) == mode) {
           rtx subop;
           enum machine_mode submd;
@@ -10613,7 +10411,7 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
           if (SUBREG_BYTE(of) != 0) {
             fMode3Operand = pic30_modek_possible_operand(subop, submd);
           } else {
-            fMode3Operand = pic30_mode3_operand_helper(subop, submd,unified_ok);
+            fMode3Operand = pic30_mode3_operand_helper(subop, submd);
           }
         }
       } else {
@@ -10642,10 +10440,14 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
     case MEM:
       rtxInner = XEXP(op, 0);
       /* remove const */
-      while (GET_CODE(rtxInner) == CONST) rtxInner = XEXP(rtxInner,0);
-      if (unified_ok && TARGET_EDS) {
-        if (GET_MODE(rtxInner) != Pmode) return 0;
-      } else if (GET_MODE(rtxInner) != machine_Pmode) return 0;
+      while (!done) {
+        switch GET_CODE(rtxInner) {
+          case CONST: rtxInner = XEXP(rtxInner,0);
+                      break;
+          default: done = 1;
+        }
+      }
+      if (GET_MODE(rtxInner) != machine_Pmode) return 0;
       switch (GET_CODE(rtxInner)) {
         case SUBREG:
           fMode3Operand = (GET_MODE(op) == mode);
@@ -10674,11 +10476,6 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
               fMode3Operand = (GET_MODE(op) == mode);
               break;
           }
-          if (unified_ok && TARGET_EDS) {
-            if (GET_MODE(rtxInner) == Pmode) return fMode3Operand;
-          } else if ((GET_MODE(XEXP(rtxInner,0))) == machine_Pmode) {
-            return fMode3Operand;
-          }
           break;
         case PRE_MODIFY:
         case POST_MODIFY:
@@ -10699,14 +10496,10 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
           }
           switch (GET_CODE(rtxPlusOp0)) {
             case SUBREG:
-              if (unified_ok && TARGET_EDS) {
                 if ((!register_operand(rtxPlusOp0, machine_Pmode)) &&
                     (!register_operand(rtxPlusOp0, Pmode))) {
                   break;
                 }
-              } else if (!register_operand(rtxPlusOp0, machine_Pmode)) {
-                break;
-              }
               /*
               ** Fall thru
               */
@@ -10714,14 +10507,10 @@ int pic30_mode3_operand_helper(rtx op, enum machine_mode mode, int unified_ok) {
               rtxPlusOp1 = XEXP(rtxInner, 1);
               switch (GET_CODE(rtxPlusOp1)) {
                 case SUBREG:
-                  if (unified_ok && TARGET_EDS) {
                     if ((!register_operand(rtxPlusOp0, machine_Pmode)) &&
                         (!register_operand(rtxPlusOp0, Pmode))) {
                       break;
                     }
-                  } else if (!register_operand(rtxPlusOp1,machine_Pmode)) {
-                    break;
-                  }
                   /*
                   ** Fall thru
                   */
@@ -10756,13 +10545,23 @@ int pic30_mode3_APSV_operand_helper(rtx op, enum machine_mode mode) {
   rtx rtxInner;
   rtx rtxPlusOp0;
   rtx rtxPlusOp1;
+  rtx of;
 
   switch (GET_CODE(op)) {
     case SUBREG:
       /*
       ** Either a register, or a memory reference
       */
-      if (GET_CODE(SUBREG_REG(op)) == MEM) {
+      of = op;
+      while ((GET_CODE(of) == SUBREG) && (GET_CODE(SUBREG_REG(of)) == SUBREG))
+        of = SUBREG_REG(of);
+      if (of != op) {
+        /* just for validation */
+        of = gen_rtx_SUBREG(GET_MODE(op), SUBREG_REG(of), SUBREG_BYTE(op));
+      }
+      if (!pic30_valid_mode_for_subreg(op)) {
+        fMode3Operand = 0;
+      } else if (GET_CODE(SUBREG_REG(op)) == MEM) {
         if (GET_MODE(op) == mode) {
           rtx subop;
           enum machine_mode submd;
@@ -10929,6 +10728,8 @@ int pic30_register_operand_helper(rtx op, enum machine_mode mode,
         sub = SUBREG_REG (sub);
       } while (GET_CODE(sub) == SUBREG);
 
+      if (!pic30_valid_mode_for_subreg(op)) return 0;
+
       /* Before reload, we can allow (SUBREG (MEM...)) as a register operand
          because it is guaranteed to be reloaded into one.
          Just make sure the MEM is valid in itself.
@@ -10937,12 +10738,8 @@ int pic30_register_operand_helper(rtx op, enum machine_mode mode,
          reg went on the stack.)  */
       /* though subreg (mem (post_inc  X)) n)  where n != 0 is not okay,
          as reload cannot load this into a proper mem instruction */
-#if 0
-      if (! reload_completed && GET_CODE (sub) == MEM)
-#else
       if ((reload_completed == 0) && (reload_in_progress == 0) &&
           (GET_CODE (sub) == MEM))
-#endif
       {
         rtx sub_sub = XEXP(sub,0);
         switch (GET_CODE(sub_sub)) {
@@ -11006,8 +10803,8 @@ static void pic30_mode3_index(rtx op, int *pnIndex) {
     pnIndex[1] = INT_MAX;
     switch (GET_CODE(op))
     {
-    case REG:
     case SUBREG:
+    case REG:
         /*
         ** Register to register
         */
@@ -11132,13 +10929,21 @@ int pic30_isav4_target(void) {
   return TARGET_ARCH(CH_GENERIC) || (pic30_device_mask & HAS_ISAV4);
 }
 
+int pic30_extended_ram_target(void) {
+  return (((pic30_mem_info.ram[0] + 
+            pic30_mem_info.ram[1] + 
+            pic30_mem_info.sfr[0]) > 32*1024) ||
+          (TARGET_ARCH(DA_GENERIC) || TARGET_ARCH(EP_GENERIC) ||
+          (TARGET_ARCH(CH_GENERIC))));
+}
+
 int pic30_eds_target(void) {
   return TARGET_ARCH(DA_GENERIC) || TARGET_ARCH(EP_GENERIC) ||
          TARGET_ARCH(CH_GENERIC) || (pic30_device_mask & HAS_EDS);
 }
 
 int pic30_ecore_target(void) {
-  return TARGET_ARCH(EP_GENERIC) || pic30_device_mask & HAS_ECORE;
+  return TARGET_ARCH(EP_GENERIC) || (pic30_device_mask & HAS_ECORE);
 }
 
 int pic30_dsp_target(void) {
@@ -11216,6 +11021,18 @@ pic30_valid_call_address_operand(rtx op, enum machine_mode mode) {
           case P16APSVmode: \
                        fn = JOIN4(gen_,access,rdwt,_p16apsv);\
                        break;\
+          case QQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_qq);\
+                       break;\
+          case HQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_hq);\
+                       break;\
+          case UQQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_uqq);\
+                       break;\
+          case UHQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_uhq);\
+                       break;\
           case P16PMPmode: \
                        fn = JOIN4(gen_,access,rdwt,_p16pmp);\
                        break;\
@@ -11237,6 +11054,51 @@ pic30_valid_call_address_operand(rtx op, enum machine_mode mode) {
           case P32PEDSmode: \
                        fn = JOIN4(gen_,access,rdwt,_p32peds);\
                        break;\
+          case P32UMMmode: \
+                       fn = JOIN4(gen_,access,rdwt,_p32umm);\
+                       break;\
+          case P32DFmode: \
+                       fn = JOIN4(gen_,access,rdwt,_p32df);\
+                       break;\
+          case SQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_sq);\
+                       break;\
+          case DQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_dq);\
+                       break;\
+          case TQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_tq);\
+                       break;\
+          case USQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_usq);\
+                       break;\
+          case UDQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_udq);\
+                       break;\
+          case UTQmode: \
+                       fn = JOIN4(gen_,access,rdwt,_utq);\
+                       break;\
+          case HAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_ha);\
+                       break;\
+          case SAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_sa);\
+                       break;\
+          case TAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_ta);\
+                       break;\
+          case UHAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_uha);\
+                       break;\
+          case USAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_usa);\
+                       break;\
+          case UDAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_uda);\
+                       break;\
+          case UTAmode: \
+                       fn = JOIN4(gen_,access,rdwt,_uta);\
+                       break;\
           case SFmode: \
                        fn = JOIN4(gen_,access,rdwt,_sf);\
                        break;\
@@ -11257,7 +11119,7 @@ static int pic30_big_index(rtx addr, rtx loc) {
   int result = 0;
   rtx new_rtx = 0;
 
-  if (!TARGET_BIG) return 0;
+  if (TARGET_BIG || (TARGET_EDS && (TARGET_EDS_MODE != P32UMMmode))) {
   switch(GET_CODE(addr)) {
       default: break;
       case MINUS:
@@ -11281,7 +11143,50 @@ static int pic30_big_index(rtx addr, rtx loc) {
                    }
                    break;
   }
+  }
   return 0;
+}
+
+rtx pic30_simplify_addr(rtx addr) {
+  rtx lhs, rhs;
+  enum machine_mode mode;
+  rtx (*gen)(rtx,rtx,rtx);  // add or subtract
+
+  switch (GET_CODE(addr)) {
+    default: break;
+    case PLUS: 
+       mode = GET_MODE(addr);
+       switch (mode) {
+         case HImode: gen = gen_addhi3;
+                      break;
+         case SImode: gen = gen_addsi3;
+                      break;
+         case P32UMMmode: gen = gen_addp32umm3;
+                          break;
+         default: return addr;
+       }
+       lhs = pic30_simplify_addr(XEXP(addr,0));
+       rhs = pic30_simplify_addr(XEXP(addr,1));
+       addr = gen_reg_rtx(mode);
+       emit(
+         gen(addr, lhs, rhs)
+       );
+  }
+  return addr;
+}
+       
+
+
+rtx pic30_simplify_mem(rtx op) {
+  rtx addr = NULL_RTX;
+  if (reload_in_progress) return op;
+  if (GET_CODE(op) != MEM) return op;
+
+  addr = pic30_simplify_addr(XEXP(op,0));
+  if (addr != XEXP(op,0)) {
+    return gen_rtx_MEM(GET_MODE(op), addr);
+  }
+  return op;
 }
 
 /************************************************************************/
@@ -11295,9 +11200,24 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
   rtx (*fn_l)(rtx,rtx) = 0;     /* lhs move function */
   rtx op0_r,op0_l;              /* opnds */
   rtx op1_r,op1_l;              /* opnds */
+  rtx (*fn_addPmode)(rtx,rtx,rtx) = 0;
+  int force_rhsdest_reg = 0;
+
+  if (machine_Pmode == HImode) {
+    fn_addPmode = gen_addhi3;
+  } else if (machine_Pmode == SImode) {
+    fn_addPmode = gen_addsi3;
+  } else if (machine_Pmode == P32PEDSmode) {
+    fn_addPmode = gen_addp32peds3;
+  } else if (machine_Pmode == P32EDSmode) {
+    fn_addPmode = gen_addp32eds3;
+  } else {
+    gcc_assert(0);
+  }
 
   op0 = operands[0];
   op1 = operands[1];
+
   if (!reload_in_progress) {
     if ((mode == DImode) || (mode == DFmode)) {
       int id;
@@ -11313,45 +11233,39 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
           rtx reg;
           code = GET_CODE(XEXP(operands[id],0));
           mode = GET_MODE(XEXP(operands[id],0));
-          if (mode == HImode)
-          switch (code) {
-            case PRE_INC:
-              /*
-              ** Transform
-              **    [++wn]
-              ** to
-              **    wn += k ; [wn]
-              */
-              reg = XEXP(XEXP(operands[id], 0), 0);
-              emit_insn((rtx)gen_addhi3(reg, reg,GEN_INT(GET_MODE_SIZE(mode))));
-              operands[id] = gen_rtx_MEM(mode, reg);
-              break;
-
-            case POST_DEC:
-              /*
-              ** Transform
-              **    [wn--]
-              ** to
-              **    [wn] ; wn -= k
-              */
-              reg = XEXP(XEXP(operands[id], 0), 0);
-              operands[id] = gen_rtx_MEM(mode, reg);
-              emit_insn((rtx)gen_addhi3(reg,reg,GEN_INT(-GET_MODE_SIZE(mode))));
-              break;
-
-            case SYMBOL_REF:
-              /*
-              ** Transform:
-              **    global
-              ** to
-              **    wn = &global ; [wn]
-              reg = gen_reg_rtx(machine_Pmode);
-              emit_insn((rtx) gen_movhi_address(reg, operands[id]));
-              operands[id] = gen_rtx_MEM(mode, reg);
-              */
-              break;
-            default:
-              break;
+          if (mode == machine_Pmode) {
+            switch (code) {
+              case PRE_INC:
+                /*
+                ** Transform
+                **    [++wn]
+                ** to
+                **    wn += k ; [wn]
+                */
+                reg = XEXP(XEXP(operands[id], 0), 0);
+                  emit_insn(
+                    (rtx)fn_addPmode(reg, reg,GEN_INT(GET_MODE_SIZE(mode)))
+                  );
+                operands[id] = gen_rtx_MEM(mode, reg);
+                break;
+  
+              case POST_DEC:
+                /*
+                ** Transform
+                **    [wn--]
+                ** to
+                **    [wn] ; wn -= k
+                */
+                reg = XEXP(XEXP(operands[id], 0), 0);
+                operands[id] = gen_rtx_MEM(mode, reg);
+                  emit_insn(
+                    (rtx)fn_addPmode(reg,reg,GEN_INT(-GET_MODE_SIZE(mode)))
+                  );
+                break;
+  
+              default:
+                break;
+            }
           }
         }
       }
@@ -11405,6 +11319,7 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
           case P24PSVmode:
           case P32EDSmode:
           case P32DFmode:
+          case P32UMMmode:
           case P32PEDSmode: {
             rtx temp;
 
@@ -11469,6 +11384,28 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
     } else if (pic30_eds_operand(XEXP(op1,0),P32EDSmode)) {
       fn = gen_P32EDSrd;
       o1 = op1;
+    } else if (pic30_umm_operand(XEXP(op1,0),P32UMMmode)) {
+      /* our move is a P32UMM access */
+
+      rtx base = XEXP(op1,0);
+
+      if ((base == stack_pointer_rtx) ||
+          (base == frame_pointer_rtx) ||
+          (base == virtual_stack_dynamic_rtx) ||
+          (base == virtual_stack_vars_rtx)) {
+        /* let it go */
+      } else {
+        switch (mode) {
+          GEN_TARGET_RD_ACCESS(P32UMM);
+          default:
+             error("Undefined UMM access");
+             break;
+        }
+        /* we can handle some non-regs on the assignment side, 
+         * but mostly not... let combine deal with the ones we can */
+        force_rhsdest_reg = 1;
+        o1 = op1;
+      }
     } else if ((!reload_in_progress) && 
                pic30_eds_operand(XEXP(op1,0),P32PEDSmode)) {
       rtx base = XEXP(op1,0);
@@ -11504,21 +11441,9 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
       fn = gen_P32DFrd;
       o1 = op1;
     } else if (pic30_big_index(XEXP(op1,0),NULL_RTX)) {
-#if 0
-      /* need a temp */
-      rtx temp;
-      temp = gen_reg_rtx(HImode);
-      emit_move_insn(temp, XEXP(op1,0));
-      op1 = gen_rtx_MEM(GET_MODE(op1), temp);
-      o1 = temp;
-#else
       op1 = copy_rtx(op1);
       pic30_big_index(XEXP(op1,0),op1);
       o1 = XEXP(op1,0);
-#endif
-    } else if (GET_MODE(XEXP(op1,0)) == SImode) {
-      fn = gen_P32rd;
-      o1 = op1;
     } else if (pic30_invalid_address_operand(op1, GET_MODE(op1))) {
       return -1;
     }
@@ -11550,6 +11475,7 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
           case P24PROGmode:
           case P24PSVmode:
           case P32EDSmode:
+          case P32UMMmode:
           case P32PEDSmode: {
             rtx temp;
 
@@ -11584,6 +11510,24 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
 
       fn = gen_P32EDSwt;
       o0 = op0; /* these patterns do not strip MEM? */
+    } else if (pic30_umm_operand(XEXP(op0,0),P32UMMmode)) {
+      /* our move is a P32UMM access */
+      rtx base = XEXP(op0,0);
+
+      if ((base == stack_pointer_rtx) ||
+          (base == frame_pointer_rtx) ||
+          (base == virtual_stack_dynamic_rtx) ||
+          (base == virtual_stack_vars_rtx)) {
+        /* let it go */
+      } else {
+        switch (mode) {
+          GEN_TARGET_WT_ACCESS(P32UMM);
+          default:
+             error("Undefined UMM access");
+             break;
+        }
+        o0 = op0;
+      }
     } else if ((!reload_in_progress) && 
                pic30_eds_operand(XEXP(op0,0),P32PEDSmode)) {
       /* our move is a P32PEDS write */
@@ -11627,6 +11571,8 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
                              break;
            case P32EXTmode: fn = gen_pushp32ext;
                              break;
+           case P32UMMmode: fn = gen_pushp32umm;
+                             break;
         }
         o0 = op0;
       } else {
@@ -11634,22 +11580,10 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
         o0 = op0; /* these patterns do not strip MEM? */
       }
     } else if (pic30_big_index(XEXP(op0,0),NULL_RTX)) {
-#if 0
-      /* need a temp */
-      rtx temp;
-      temp = gen_reg_rtx(HImode);
-      emit_move_insn(temp, XEXP(op0,0));
-      op0 = gen_rtx_MEM(GET_MODE(op0), temp);
-      o0 = temp;
-#else
       op0 = copy_rtx(op0);
       pic30_big_index(XEXP(op0,0),op0);
       o0 = XEXP(op0,0);
-#endif
-    } else if (GET_MODE(XEXP(op0,0)) == SImode) {
-      fn = gen_P32wt;
-      o0 = op0;
-    } else if ((!fn_r) && (pic30_invalid_address_operand(op1, GET_MODE(op1)))) {
+    } else if ((!fn_r) && (pic30_invalid_address_operand(op0, GET_MODE(op0)))) {
       return -1;
     }
     if ((fn)  && (!fn_l)) {
@@ -11682,6 +11616,9 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
       case P32DFmode:
         fn = gen_movp32df_address;
         break;
+      case P32UMMmode:
+        fn = gen_movp32umm_address;
+        break;
       default: break;
     }
     if ((fn) && (!fn_r)) {
@@ -11690,25 +11627,33 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
       op1_r = op1;
     }
   }
-  if (TARGET_EDS && REG_P(op1) && 
+  if (TARGET_EDS && REG_P(op1) && (GET_MODE(op0) == TARGET_EDS_MODE) &&
        ((REGNO(op1) == SP_REGNO) || 
         ((pic30_frame_pointer_required() && (REGNO(op1) == FP_REGNO))))) {
     /* for occaisons where we want to copy the stack/frame pointer in
        unified mode */
-    if (Pmode == SImode) {
-      fn_r = gen_copyfpsi;
-    } else fn_r = gen_copyfpP32PEDS;
+    if (TARGET_EDS_MODE == P32UMMmode) {
+      fn_r = gen_copyfpP32UMM;
+    } else if (TARGET_EDS_MODE == P32PEDSmode) {
+      fn_r = gen_copyfpP32PEDS;
+    } else if (TARGET_EDS_MODE == P32EDSmode) {
+      fn_r = gen_copyfpP32EDS;
+    } else gcc_assert(0);
     op0_r = op0;
     op1_r = gen_rtx_REG(machine_Pmode,REGNO(op1));
   }
-  if (TARGET_EDS && REG_P(op0) && 
+  if (TARGET_EDS && REG_P(op0) && (GET_MODE(op1) == TARGET_EDS_MODE) &&
        ((REGNO(op0) == SP_REGNO) || 
         ((pic30_frame_pointer_required() && (REGNO(op0) == FP_REGNO))))) {
     /* for occaisons where we want to copy the stack/frame pointer in
        unified mode */
-    if (Pmode == SImode) {
-      fn_l = gen_fpcopysi;
-    } else fn_l = gen_fpcopyP32PEDS;
+    if (TARGET_EDS_MODE == P32UMMmode) {
+      fn_l = gen_fpcopyP32UMM;
+    } else if (TARGET_EDS_MODE == P32EDSmode) {
+      fn_l = gen_fpcopyP32EDS;
+    } else if (TARGET_EDS_MODE == P32PEDSmode) {
+      fn_l = gen_fpcopyP32PEDS;
+    } else gcc_assert(0);
     op0_l = gen_rtx_REG(machine_Pmode,REGNO(op0));
     op1_l = op1;
   }
@@ -11722,7 +11667,19 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
     emit_insn(fn_l(op0_l, temp));
     return 1;
   } else if (fn_r) {
-    emit_insn(fn_r(op0_r, op1_r));
+    rtx temp = op0_r;
+
+    if (force_rhsdest_reg) {
+      if (GET_CODE(op0_r) != REG) {
+        temp = gen_reg_rtx(GET_MODE(op0_r));
+      } else force_rhsdest_reg = 0;
+    }
+    emit_insn(
+      fn_r(temp, op1_r)
+    );
+    if (force_rhsdest_reg) {
+      emit_move_insn(op0_r,temp);
+    }
     return 1;
   } else if (fn_l) {
     emit_insn(fn_l(op0_l, op1_l));
@@ -11750,6 +11707,8 @@ int pic30_emit_move_sequence(rtx *operands, enum machine_mode mode) {
       op1 = new_op1;
     }
   }
+  op0 = pic30_simplify_mem(op0);
+  op1 = pic30_simplify_mem(op1);
   /*
   ** Adjust operands in case we have modified them.
   */
@@ -11804,6 +11763,13 @@ int pic30_Q_displacement(rtx op) {
     {
     case MEM:
         rtxInner = XEXP(op, 0);
+        if (!pic30_valid_mode_for_subreg(rtxInner))
+          return nDisplacement;
+        while (GET_CODE(rtxInner) == SUBREG) {
+          /* we don't care if what position the subreg we are looking at,
+             we are dereferencing a pointer */
+          rtxInner = XEXP(rtxInner,0);
+        }
         switch (GET_CODE(rtxInner))
         {
         case PLUS:
@@ -11853,12 +11819,6 @@ int pic30_Q_constraint_displacement(rtx op, int *disp) {
     if (disp) *disp = nDisplacement;
     bQ = (nDisplacement >= (PIC30_DISP_MIN*nScale)) &&
          (nDisplacement <= (PIC30_DISP_MAX*nScale));
-#if 0
-    if ((nDisplacement != INT_MAX) && ((nDisplacement & (nScale-1)) != 0)) {
-      warning(0,"I just made a bad offset %d %d!\n",nDisplacement,nScale);
-      debug_rtx(op);
-    }
-#endif
     return(bQ);
 }
 
@@ -11876,21 +11836,27 @@ int pic30_R_constraint_strict(rtx op, int strict) {
   switch (GET_CODE(op)) {
     case MEM:
       rtxInner = XEXP(op, 0);
+      if (GET_MODE(rtxInner) != Pmode) {
       switch (GET_MODE(rtxInner)) {
         default: return 0;
         case HImode:
 	case P16APSVmode:
           break;
+
         /* not valid for 'R' type expressions in general ... */
-        case SImode:
+          case P32UMMmode:
+            /* lets not support it for now */
+            return 0;
+          case P32EDSmode:
         case P32PEDSmode:
            if ((Pmode == GET_MODE(rtxInner)) && TARGET_EDS) break;
-        case P32EDSmode:
           if (strict == 0) break;
           return 0;
       }
+      }
       switch (GET_CODE(rtxInner)) {
         case SUBREG:
+          if (pic30_valid_mode_for_subreg(rtxInner))
           fR = register_operand(rtxInner, VOIDmode);
           break;
         case REG:
@@ -11940,6 +11906,8 @@ int pic30_S_constraint_ecore(rtx op, int ecore_okay) {
             switch (GET_CODE(rtxPlusOp0))
             {
             case SUBREG:
+                if (!pic30_valid_mode_for_subreg(rtxPlusOp0))
+                  break;
                 if (!register_operand(rtxPlusOp0, mode))
                 {
                     break;
@@ -12054,9 +12022,12 @@ int pic30_U_constraint(rtx op, enum machine_mode mode) {
 ** 'b' for the bit number (for bit <set,clr,tog,test,test+set>)
 ** 'B' for the bit number of the 1's complement (for bit clear)
 ** 'c' is used
+** 'C' free
 ** 'd' for the second register in a pair
 ** 'D' for forcing post-decrement on [R]
-** 'i' index, 'i' from [Wn+i]
+** 'e' free
+** 'E' free
+** 'i' index, 'i' from [Wn+i] or [Wn-i], where i is always positive
 ** 'I' for forcing post-increment on [R]
 ** 'J' for the negative of a constant
 ** 'j' for 65536-the constant
@@ -12067,6 +12038,7 @@ int pic30_U_constraint(rtx op, enum machine_mode mode) {
 ** 'm' for the memory-mapped name of a register
 ** 'M' form a MASK based upon (1<<(val+1))-1
 ** 'n' is used
+** 'N' free
 ** 'o' for a literal 24-bit offset (opnd must be const int)
 ** 'O' for a negative literal 24-bit offset (opnd must be const int)
 ** 'P' for forcing pre-increment on [R]
@@ -12074,10 +12046,12 @@ int pic30_U_constraint(rtx op, enum machine_mode mode) {
 ** 'q' for the fourth register in a quadruple
 ** 'Q' for forcing extra displacement: [Wn+d] => [Wn+d+2]
 ** 'R' for forcing extra displacement: [Wn+d] => [Wn+d+4]
-** 'r' strip and memory deref:         [Wn] => Wn, [++Wn] => Wn
+** 'r' strip any memory deref:         [Wn] => Wn, [++Wn] => Wn
 ** 'S' for forcing extra displacement: [Wn+d] => [Wn+d+6]
 ** 's' strip any pre/post modify:      [++Wn] => [Wn]
 ** 't' for the third register in a triple
+** 'T' strip any memory deref, use next register: [Wn] => W(n+1), [++Wn] => W(n+1)
+** 'u' for PSVPAG or DSRPAG; we ignore the operand...
 ** 'w' for int >> 48
 ** 'x' for int/fixed >> 32 ; for fixed this gives only the low byte
 ** 'y' for int/fixed >> 16
@@ -12086,14 +12060,24 @@ int pic30_U_constraint(rtx op, enum machine_mode mode) {
 */
 void pic30_print_operand(FILE *file, rtx x, int letter) {
   rtx inner;
+  rtx rhs;
   int nDelta = 0;
 
+  if (letter == 'u') {
+    if (pic30_eds_target()) {
+      fprintf(file,"DSRPAG");
+    } else {
+      fprintf(file,"PSVPAG");
+    }
+    return;
+  }
   if (x == NULL_RTX)
   {
     fprintf(file, "%c", letter);
     return;
   }
   inner = XEXP(x, 0);
+  rhs = XEXP(x, 1);
   switch (GET_CODE (x))
   {
     case REG:
@@ -12126,6 +12110,9 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
             fprintf(file, "ACCB");  /* this needs a suffix */
           } else fprintf(file,"%s", reg_names[REGNO(x)]);
           break;
+        case 'T':
+          fprintf(file, "%s", reg_names[REGNO(x)+1]);
+          break;
         default:
           fprintf(file, "%s", reg_names[REGNO(x)]);
           break;
@@ -12139,40 +12126,30 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
       break;
 
     case MEM:
+      while (GET_CODE(inner) == SUBREG) inner = XEXP(inner,0);
       if (pic30_Q_constraint(x)) {
         int nScale, nDisplacement;
 
         nScale = (GET_MODE(x) == QImode) ? 1 : 2;
         nDisplacement = pic30_Q_displacement(x);
         if ((nScale == 2) && (nDisplacement & 1)) {
-          error("Invalid displacement for operand type\n");
+          error("Invalid displacement for operand type; the access is mis-aligned\n");
         }
       }
-#if 0
-      else if (pic30_T_constraint(x) || pic30_U_constraint(x)) {
-        int displacement;
-
-        displacement = pic30_UT_displacement(x);
-        if (displacement < 0) {
-          error("Illegal offset from object\n");
-        }
-      }
-#endif
       switch (letter)
       {
-        case 'i': /* index */
+        case 'i': {/* index */
+          int index_value = abs(INTVAL(XEXP(inner,1)));
           switch (GET_CODE(inner)) {
-            int sign = 1;
-
             case MINUS:
-              sign = -1;
               /* FALLSTHROUGH */
             case PLUS:
-              fprintf(file, "%d", INTVAL(XEXP(inner,1))*sign);
+              fprintf(file, "%d", index_value);
               break;
             default: gcc_assert(0);
           }
           break;
+        }
         case 'I': /* post-increment */
         case 'D': /* post-decrement */
           switch (GET_CODE(inner))
@@ -12285,6 +12262,7 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
           }
         }
         break;
+        case 'T':
         case 'r':
           switch (GET_CODE(inner)) {
             case PLUS:
@@ -12298,7 +12276,7 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
               break;
             default: break;
           }
-          pic30_print_operand(file, inner, 'r');
+          pic30_print_operand(file, inner, letter);
           break;
         case 's':
           switch (GET_CODE(inner)) {
@@ -12315,7 +12293,6 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
           }
           output_address(inner);
           break;
-
         default:
           output_address(inner);
           break;
@@ -12492,6 +12469,9 @@ void pic30_print_operand(FILE *file, rtx x, int letter) {
 ** x is an RTL expression.
 */
 void pic30_print_operand_address(FILE *file, rtx addr) {
+    while (GET_CODE(addr) == SUBREG) {
+      addr = XEXP(addr,0);
+    }
     switch (GET_CODE (addr))
     {
     case REG:
@@ -12796,6 +12776,8 @@ void pic30_initial_elimination_offset(int from, int to, HOST_WIDE_INT *poffset){
   int regno;
   int nOffset;
 
+  int register_stack_slot_size = 2;
+  int accumulator_stack_slot_size = 6;
   fLeaf = current_function_is_leaf;
   fInterrupt = pic30_interrupt_function_p(current_function_decl);
   nLastReg = (frame_pointer_needed) ? FP_REGNO : SP_REGNO;
@@ -12817,11 +12799,13 @@ void pic30_initial_elimination_offset(int from, int to, HOST_WIDE_INT *poffset){
       {
         if (pic30_mustsave(regno, fLeaf, fInterrupt))
         {
-          nOffset += 2;
+          nOffset += register_stack_slot_size;
         }
       }
-      if (pic30_mustsave(A_REGNO, fLeaf, fInterrupt)) nOffset += 6;
-      if (pic30_mustsave(B_REGNO, fLeaf, fInterrupt)) nOffset += 6;
+      if (pic30_mustsave(A_REGNO, fLeaf, fInterrupt)) 
+        nOffset += accumulator_stack_slot_size;
+      if (pic30_mustsave(B_REGNO, fLeaf, fInterrupt)) 
+        nOffset += accumulator_stack_slot_size;
       /* and the PSVPAG, if we are saving it... */
       { int is_secure_fn, is_boot_fn;
         enum psv_model_kind psv_model = psv_unspecified;
@@ -12839,12 +12823,13 @@ void pic30_initial_elimination_offset(int from, int to, HOST_WIDE_INT *poffset){
           psv_model = psv_no_auto_psv;
         }
         if ((is_boot_fn) || (is_secure_fn) || (psv_model == psv_auto_psv)) {
-         if (pic30_eds_target() && TARGET_CONST_IN_DATA) nOffset += 2;
-         nOffset += 2;
+         if (pic30_eds_target() && TARGET_CONST_IN_DATA) 
+           nOffset += register_stack_slot_size;
+         nOffset += register_stack_slot_size;
         }
       }
       /* and CORCON if we are saving it */
-      if (df_regs_ever_live_p(CORCON)) nOffset += 2;
+      if (df_regs_ever_live_p(CORCON)) nOffset += register_stack_slot_size;
     }
     *poffset = -(get_frame_size() + nOffset);
   }
@@ -13031,6 +13016,7 @@ static int pic30_get_save_variable_scratch(int fShadow, int fLeaf,
     int regno = 0;
     tree vl;
     int nLastReg = (frame_pointer_needed) ? FP_REGNO : SP_REGNO;
+    int scratch_reg_size = (TARGET_EDS ? 2  : 1);
 
     if ((vl = lookup_attribute(IDENTIFIER_POINTER(pic30_identScratchReg[1]),
                                DECL_ATTRIBUTES(current_function_decl)))) {
@@ -13051,12 +13037,18 @@ static int pic30_get_save_variable_scratch(int fShadow, int fLeaf,
             }
             else
             {
-                for (regno = 0; regno < nLastReg; ++regno)
-                {
-                    if (pic30_mustsave(regno, fLeaf, interruptfn))
-                    {
+                for (regno = 0; regno < nLastReg; regno += scratch_reg_size)
+                {   int i;
+                    int bad = 0;
+
+                    for (i = 0; i < scratch_reg_size; i++) {
+                      if (pic30_mustsave(regno+i, fLeaf, interruptfn)) 
+                      {
+                        bad = 1;
                         break;
                     }
+                }
+                    if (bad) break;
                 }
                 if (regno >= nLastReg)
                 {
@@ -13156,7 +13148,7 @@ static void pic30_expand_prologue_frame(int size) {
         }
         for (size -= n; size > 0; size -= n)
         {
-            rtx sp = gen_rtx_REG(HImode, SP_REGNO);
+            rtx sp = gen_rtx_REG(machine_regmode, SP_REGNO);
             n = (size > (PIC30_ADD_MAX & ~1)) ? PIC30_ADD_MAX & ~1
                               : size;
             insn = emit_insn(gen_addhi3(sp, sp, GEN_INT(n)));
@@ -13187,28 +13179,64 @@ static void pic30_expand_epilogue_frame(int size) {
           size += 2;
         }
         for (size -= n; size > 0; size -= n) {
-          rtx sp = gen_rtx_REG(HImode, SP_REGNO);
+          rtx sp = gen_rtx_REG(machine_regmode, SP_REGNO);
           n = (size > (PIC30_ADD_MAX & ~1)) ? PIC30_ADD_MAX & ~1 : size;
-          insn = emit_insn(gen_subhi3(sp, sp, GEN_INT(n)));
+          insn = emit_insn(
+                   machine_regmode == HImode ?
+                     gen_subhi3(sp, sp, GEN_INT(n)) :
+                     gen_subsi3(sp, sp, GEN_INT(n))
+                 );
         }
     }
+}
+
+static rtx pic30_gen_push_reg(rtx reg) {
+  rtx sp;
+
+  sp = stack_pointer_rtx;
+  sp = gen_rtx_POST_INC(STACK_Pmode, sp);
+  sp = gen_rtx_MEM(STACK_Pmode, sp);
+  return gen_pushhi(sp, reg);
 }
 
 /*
 ** Generate an RTL insn to push a register on the stack
 */
-static rtx pic30_expand_pushhi(int regno) {
+static rtx pic30_expand_push_reg(enum machine_mode mode, int regno) {
     rtx insn;
     rtx sp;
     rtx reg;
+  int nregs = ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD);
+  int i;
+  int inc = 1;
+  enum machine_mode push_mode;
 
+  if ((nregs & 1) == 0) {
+    // we can push/pop with SImode
+    push_mode = SImode;
+    nregs = nregs >> 1;
+    inc = 2;
+  } else push_mode = HImode;
+
+  for (i = 0; i < nregs; i++) {
+    reg = gen_rtx_REG(push_mode, regno+(i*inc));
     sp = stack_pointer_rtx;
-    sp = gen_rtx_POST_INC(HImode, sp);
-    sp = gen_rtx_MEM(HImode, sp);
-    reg = gen_rtx_REG(HImode, regno);
-    insn = emit_insn(gen_pushhi(sp, reg));
-
-    return(insn);
+    sp = gen_rtx_POST_INC(push_mode, sp);
+    sp = gen_rtx_MEM(push_mode, sp);
+    if (push_mode == HImode) {
+      insn = emit_insn(
+               gen_pushhi(sp, reg)
+             );
+    } else {
+      insn = emit_insn(
+               gen_pushsi(sp, reg)
+             );
+    }
+#if MAKE_FRAME_RELATED
+    RTX_FRAME_RELATED_P(insn) = 1;
+#endif
+  }
+  return insn;
 }
 
 /*
@@ -13218,20 +13246,30 @@ static rtx pic30_expand_pop(enum machine_mode mode, int regno) {
     rtx insn;
     rtx sp;
     rtx reg;
+  int nregs = ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD);
+  int i;
+  int inc = 1;
+  enum machine_mode push_mode;
 
+  if ((nregs & 1)  == 0) {
+    // we can push/pop with SImode
+    push_mode = SImode;
+    nregs = nregs >> 1;
+  } else push_mode = HImode;
+
+  for (i = nregs; i > 0; i--) {
     sp = stack_pointer_rtx;
-    sp = gen_rtx_PRE_DEC(mode, sp);
-    sp = gen_rtx_MEM(mode, sp);
-    reg = gen_rtx_REG(mode, regno);
-    if (mode == HImode)
-    {
+    sp = gen_rtx_PRE_DEC(push_mode, sp);
+    sp = gen_rtx_MEM(push_mode, sp);
+    reg = gen_rtx_REG(push_mode, regno+(i-1)*inc);
+    if (push_mode == HImode) {
         insn = emit_insn(gen_pophi(reg, sp));
     }
-    else
-    {
+    else {
         insn = emit_insn(gen_popsi(reg, sp));
     }
     emit_insn(gen_rtx_USE(VOIDmode, reg));
+  }
 
     return(insn);
 }
@@ -13295,6 +13333,9 @@ void pic30_expand_prologue(void) {
   }
   if ((is_secure_fn) && (psv_model == psv_unspecified)) {
     psv_model = psv_auto_psv;
+  }
+  if (TARGET_EDS) {
+    psv_model = psv_no_auto_psv;
   }
   if ((fInterrupt) && (psv_model == psv_unspecified)) {
     warning_at(0,0,"%D PSV model not specified for '%s';\nassuming 'auto_psv' "
@@ -13366,10 +13407,10 @@ void pic30_expand_prologue(void) {
       rtx sfr;
 
       sp = stack_pointer_rtx;
-      sp = gen_rtx_POST_INC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "RCOUNT");
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sp = gen_rtx_POST_INC(STACK_Pmode, sp);
+      sp = gen_rtx_MEM(STACK_Pmode, sp);
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, PIC30_NEAR_FLAG "RCOUNT");
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
       insn = emit_insn(gen_pushhi(sp, sfr));
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
@@ -13430,23 +13471,10 @@ void pic30_expand_prologue(void) {
         if (save_this) {
           if (scratch_regno == -1) scratch_regno = regno;
           if (lCalleeSaveRegs[regno] == SAVE_DWORD) {
-            rtx sp;
-            rtx r;
-  
-            sp = stack_pointer_rtx;
-            sp = gen_rtx_POST_INC(SImode, sp);
-            sp = gen_rtx_MEM(SImode, sp);
-            r = gen_rtx_REG(SImode, regno);
-            insn = emit_insn(gen_pushsi(sp, r));
-#if MAKE_FRAME_RELATED
-            RTX_FRAME_RELATED_P(insn) = 1;
-#endif
+            insn = pic30_expand_push_reg(SImode, regno);
             regno++;
           } else {
-            insn = pic30_expand_pushhi(regno);
-#if MAKE_FRAME_RELATED
-            RTX_FRAME_RELATED_P(insn) = 1;
-#endif
+            insn = pic30_expand_push_reg(HImode, regno);
           }
         }
       }
@@ -13458,58 +13486,61 @@ void pic30_expand_prologue(void) {
     ** save A and B if required
     */
     if (pic30_mustsave(A_REGNO, fLeaf, fInterrupt) && (!is_accum_context_fn)) {
-      rtx sp;
       rtx sfr;
 
-
-      sp = stack_pointer_rtx;
-      sp = gen_rtx_POST_INC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAL);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCAL);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
 
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAH);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCAH);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
 
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAU);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCAU);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
     }
     if (pic30_mustsave(B_REGNO, fLeaf, fInterrupt) && (!is_accum_context_fn)) {
-      rtx sp;
       rtx sfr;
 
-      sp = stack_pointer_rtx;
-      sp = gen_rtx_POST_INC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBL);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCBL);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
 
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBH);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCBH);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
 
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBU);
-      sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      sfr = gen_rtx_SYMBOL_REF(SFR_MODE, ACCBU);
+      sfr = gen_rtx_MEM(SFR_MODE, sfr);
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
@@ -13526,36 +13557,31 @@ void pic30_expand_prologue(void) {
       /* we do not save the previous value if we are tracking the psv page */
       if (psv_model == psv_auto_psv) {
         /* preserve current PSVPAG */
-        sp = stack_pointer_rtx;
-        sp = gen_rtx_POST_INC(HImode, sp);
-        sp = gen_rtx_MEM(HImode, sp);
-        sfr = gen_rtx_SYMBOL_REF(HImode, psvpage);
-        sfr = gen_rtx_MEM(HImode, sfr);
-        insn = emit_insn(gen_pushhi(sp, sfr));
+        sfr = gen_rtx_SYMBOL_REF(SFR_MODE, psvpage);
+        sfr = gen_rtx_MEM(SFR_MODE, sfr);
+        insn = emit_insn(
+                 pic30_gen_push_reg(sfr)
+               );
 #if MAKE_FRAME_RELATED
         RTX_FRAME_RELATED_P(insn) = 1;
 #endif
 
         if (pic30_eds_target()) {
           /* preserve current DSRPAG */
-          sp = stack_pointer_rtx;
-          sp = gen_rtx_POST_INC(HImode, sp);
-          sp = gen_rtx_MEM(HImode, sp);
-          sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "DSWPAG");
-          sfr = gen_rtx_MEM(HImode, sfr);
-          insn = emit_insn(gen_pushhi(sp, sfr));
+          sfr = gen_rtx_SYMBOL_REF(SFR_MODE, PIC30_NEAR_FLAG "DSWPAG");
+          sfr = gen_rtx_MEM(SFR_MODE, sfr);
+          insn = emit_insn(
+                   pic30_gen_push_reg(sfr)
+                 );
 #if MAKE_FRAME_RELATED
           RTX_FRAME_RELATED_P(insn) = 1;
 #endif
           if (scratch_regno == -1) {
             scratch_regno = WR8_REGNO;
             pop_scratch_regno = 1;
-            reg = gen_rtx_REG(HImode, WR8_REGNO);
-            insn = pic30_expand_pushhi(WR8_REGNO);
-#if MAKE_FRAME_RELATED
-            RTX_FRAME_RELATED_P(insn) = 1;
-#endif
-          } else reg = gen_rtx_REG(HImode, scratch_regno);
+            reg = gen_rtx_REG(machine_regmode, WR8_REGNO);
+            insn = pic30_expand_push_reg(machine_regmode,WR8_REGNO);
+          } else reg = gen_rtx_REG(machine_regmode, scratch_regno);
           emit_insn(gen_movhi(reg,GEN_INT(1)));
           emit_insn(gen_set_vdsw(reg));
         }
@@ -13571,7 +13597,7 @@ void pic30_expand_prologue(void) {
           scratch_regno = WR8_REGNO;
           pop_scratch_regno = 1;
           reg = gen_rtx_REG(HImode, WR8_REGNO);
-          insn = pic30_expand_pushhi(WR8_REGNO);
+        insn = pic30_expand_push_reg(HImode,WR8_REGNO);
         } else reg = gen_rtx_REG(HImode, scratch_regno);
         emit_insn(gen_movhi_address(reg,sfr));
         if (0 && TARGET_TRACK_PSVPAG && TARGET_CONST_IN_CODE) {
@@ -13583,15 +13609,14 @@ void pic30_expand_prologue(void) {
     }
     if (df_regs_ever_live_p(CORCON)) {
       /* save and set the CORCON register */
-      rtx sp,reg,sfr;
+      rtx reg,sfr;
 
       /* preserve current CORCON */
-      sp = stack_pointer_rtx;
-      sp = gen_rtx_POST_INC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
       sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "CORCON");
       sfr = gen_rtx_MEM(HImode, sfr);
-      insn = emit_insn(gen_pushhi(sp, sfr));
+      insn = emit_insn(
+               pic30_gen_push_reg(sfr)
+             );
 #if MAKE_FRAME_RELATED
       RTX_FRAME_RELATED_P(insn) = 1;
 #endif
@@ -13616,7 +13641,7 @@ void pic30_expand_prologue(void) {
                       build_int_cst_wide(unsigned_type_node, scratch_regno, 0),
                       old_attrs);
       } else {
-        insn = pic30_expand_pop(HImode, scratch_regno);
+        insn = pic30_expand_pop(machine_regmode, scratch_regno);
         scratch_regno = -1;
       }
     }
@@ -13644,7 +13669,9 @@ void pic30_expand_prologue(void) {
                                                         fInterrupt,&fScratch);
         if (fScratch)
         {
-          insn = pic30_expand_pushhi(scratch_regno);
+          insn = pic30_expand_push_reg(TARGET_EDS ? TARGET_EDS_MODE :
+                                                    STACK_Pmode,
+                                       scratch_regno);
         }
       }
       regno = scratch_regno;
@@ -13660,20 +13687,22 @@ void pic30_expand_prologue(void) {
         pic30_push_save_variable(vl);
         decl = pic30_get_save_variable_decl(vl, &nwords, &noffset);
         pszv = IDENTIFIER_POINTER(DECL_NAME(decl));
-        var = gen_rtx_SYMBOL_REF(HImode, pszv);
+        var = gen_rtx_SYMBOL_REF(SFR_MODE, pszv);
         if (pic30_near_decl_p(decl))
         {
           for (n = 0; n < nwords; ++n)
           {
-            disp = GEN_INT(noffset+n*2);
+            disp = GEN_INT(noffset+n*GET_MODE_SIZE(machine_regmode));
             if (DECL_RTL(decl)) {
-              src = gen_rtx_PLUS(HImode, XEXP(DECL_RTL(decl),0),disp);
+              src = gen_rtx_PLUS(SFR_MODE, XEXP(DECL_RTL(decl),0),disp);
             } else {
-              src = gen_rtx_PLUS(HImode, var, disp);
+              src = gen_rtx_PLUS(SFR_MODE, var, disp);
             }
-            src = gen_rtx_CONST(HImode, src);
-            src = gen_rtx_MEM(HImode, src);
-            insn = emit_insn(gen_pushhi(sp, src));
+            src = gen_rtx_CONST(SFR_MODE, src);
+            src = gen_rtx_MEM(SFR_MODE, src);
+            insn = emit_insn(
+                     pic30_gen_push_reg(src)
+                   );
 #if MAKE_FRAME_RELATED
             RTX_FRAME_RELATED_P(insn) = 1;
 #endif
@@ -13682,22 +13711,45 @@ void pic30_expand_prologue(void) {
         else
         {
           rtx reg;
+          enum machine_mode var_mode = STACK_Pmode;
 
+          if (TARGET_EDS) var_mode = TARGET_EDS_MODE;
           disp = GEN_INT(noffset);
           if (DECL_RTL(decl)) {
-            src = gen_rtx_PLUS(HImode, XEXP(DECL_RTL(decl),0),disp);
+            src = gen_rtx_PLUS(var_mode, XEXP(DECL_RTL(decl),0),disp);
           } else {
-            src = gen_rtx_PLUS(HImode, var, disp);
+            src = gen_rtx_PLUS(var_mode, var, disp);
           }
-          src = gen_rtx_CONST(HImode, src);
-          reg = gen_rtx_REG(HImode, regno);
-          insn = emit_insn(gen_movhi_address(reg, src));
-
-          src = gen_rtx_POST_INC(HImode, reg);
-          src = gen_rtx_MEM(HImode, src);
+          src = gen_rtx_CONST(var_mode, src);
+          reg = gen_rtx_REG(var_mode, regno);
+          insn = emit_insn(
+                   (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) ?
+                     gen_movp32umm_address(reg, src) :
+                     gen_movhi_address(reg, src) 
+                 );
+          src = gen_rtx_POST_INC(var_mode, reg);
+          src = gen_rtx_MEM(var_mode, src);
+          if (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) {
+            insn = emit_insn(
+                     gen_P32UMMsetuppushaddr(src)
+                   );
+          }
           for (n = 0; n < nwords; ++n)
           {
-            insn = emit_insn(gen_pushhi(sp,src));
+            if (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) {
+              rtx sp;
+
+              sp = stack_pointer_rtx;
+              sp = gen_rtx_POST_INC(STACK_Pmode, sp);
+              sp = gen_rtx_MEM(STACK_Pmode, sp);
+              insn = emit_insn(
+                       gen_P32UMMpushnext_hi(sp,src)
+                     );
+            } else {
+              insn = emit_insn(
+                       pic30_gen_push_reg(src)
+                     );
+            }
 #if MAKE_FRAME_RELATED
             RTX_FRAME_RELATED_P(insn) = 1;
 #endif
@@ -13773,6 +13825,9 @@ void pic30_expand_epilogue(void) {
   if ((fInterrupt) && (psv_model == psv_unspecified)) {
     psv_model = psv_auto_psv;
   }
+  if (TARGET_EDS) {
+    psv_model = psv_no_auto_psv;
+  }
 
   if (lookup_attribute("naked", DECL_ATTRIBUTES(current_function_decl))) {
     emit_jump_insn(
@@ -13797,8 +13852,8 @@ void pic30_expand_epilogue(void) {
     int fScratch;
 
     sp = stack_pointer_rtx;
-    sp = gen_rtx_PRE_DEC(HImode, sp);
-    sp = gen_rtx_MEM(HImode, sp);
+    sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+    sp = gen_rtx_MEM(STACK_Pmode, sp);
 
     pic30_expand_epilogue_frame(size);
     /*
@@ -13816,46 +13871,66 @@ void pic30_expand_epilogue(void) {
     {
       decl = pic30_get_save_variable_decl(vl, &nwords, &noffset);
       pszv = IDENTIFIER_POINTER(DECL_NAME(decl));
-      var = gen_rtx_SYMBOL_REF(HImode, pszv);
+      var = gen_rtx_SYMBOL_REF(SFR_MODE, pszv);
       if (pic30_near_decl_p(decl))
       {
         for (n = nwords-1; n >= 0; --n)
         {
           disp = GEN_INT(noffset+n*2);
           if (DECL_RTL(decl)) {
-            dst = gen_rtx_PLUS(HImode, XEXP(DECL_RTL(decl),0),disp);
+            dst = gen_rtx_PLUS(SFR_MODE, XEXP(DECL_RTL(decl),0),disp);
           } else {
-            dst = gen_rtx_PLUS(HImode, var, disp);
+            dst = gen_rtx_PLUS(SFR_MODE, var, disp);
           }
-          dst = gen_rtx_CONST(HImode, dst);
-          dst = gen_rtx_MEM(HImode, dst);
+          dst = gen_rtx_CONST(SFR_MODE, dst);
+          dst = gen_rtx_MEM(SFR_MODE, dst);
           insn = emit_insn(gen_pophi(dst,sp));
         }
       }
       else
       {
         rtx reg;
+        enum machine_mode var_mode = STACK_Pmode;
 
+        if (TARGET_EDS) var_mode = TARGET_EDS_MODE;
         disp = GEN_INT((nwords-1)*2+noffset);
         if (DECL_RTL(decl)) {
-          dst = gen_rtx_PLUS(HImode, XEXP(DECL_RTL(decl),0),disp);
+          dst = gen_rtx_PLUS(var_mode, XEXP(DECL_RTL(decl),0),disp);
         } else {
-          dst = gen_rtx_PLUS(HImode, var, disp);
+          dst = gen_rtx_PLUS(var_mode, var, disp);
         }
-        dst = gen_rtx_CONST(HImode, dst);
-        reg = gen_rtx_REG(HImode, regno);
-        insn = emit_insn(gen_movhi_address(reg, dst));
-        dst = gen_rtx_POST_DEC(HImode, reg);
-        dst = gen_rtx_MEM(HImode, dst);
+        dst = gen_rtx_CONST(var_mode, dst);
+        reg = gen_rtx_REG(var_mode, regno);
+        insn = emit_insn(
+                 (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) ?
+                   gen_movp32umm_address(reg, dst) :
+                   gen_movhi_address(reg, dst) 
+               );
+        dst = gen_rtx_POST_DEC(var_mode, reg);
+        dst = gen_rtx_MEM(var_mode, dst);
+        if (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) {
+          insn = emit_insn(
+                   gen_P32UMMsetuppushaddr(dst)
+                 );
+        }
         for (n = 0; n < nwords; ++n)
         {
-          insn = emit_insn(gen_pophi(dst,sp));
+          
+          if (TARGET_EDS && (TARGET_EDS_MODE == P32UMMmode)) {
+            insn = emit_insn(
+                       gen_P32UMMpopnext_hi(dst,sp)
+                   );
+          } else {
+            insn = emit_insn(
+                     gen_pophi(dst,sp)
+                   );
+          }
         }
       }
     }
     if ((fScratch) && (psv_model == psv_auto_psv))
     {
-      insn = pic30_expand_pop(HImode, regno);
+      insn = pic30_expand_pop(STACK_Pmode, regno);
       fScratch = 0;
     }
     if (psv_model == psv_auto_psv) {
@@ -13879,17 +13954,17 @@ void pic30_expand_epilogue(void) {
       insn = pic30_expand_pop(HImode, regno);
     }
     if (pic30_errata_mask & retfie_errata) {
-      rtx w0 = gen_rtx_REG(HImode, WR0_REGNO);
+      rtx w0 = gen_rtx_REG(STACK_Pmode, WR0_REGNO);
       rtx addr;
 
-      insn = pic30_expand_pushhi(WR0_REGNO);
+      insn = pic30_expand_push_reg(STACK_Pmode,WR0_REGNO);
       disp = GEN_INT(0x00e0);
       insn = emit_insn(gen_movhi(w0, disp));
-      addr = gen_rtx_MEM(HImode,
+      addr = gen_rtx_MEM(STACK_Pmode,
                          gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "SR"));
       SYMBOL_REF_FLAG(XEXP(addr,0)) = 1;  /* mark it as near */
       insn = emit_insn(gen_iorhi3_sfr0( addr, w0, addr ));
-      insn = pic30_expand_pop(HImode, WR0_REGNO);
+      insn = pic30_expand_pop(STACK_Pmode, WR0_REGNO);
     }
   } else if (psv_model == psv_auto_psv) {
     /* if not an interrupt routine we may need to recover a scratch register
@@ -13899,7 +13974,7 @@ void pic30_expand_epilogue(void) {
     if (!noreturn) {
       regno = pic30_get_save_variable_scratch(fShadow, fLeaf, fInterrupt,
                                               &fScratch);
-      if (fScratch) (void) pic30_expand_pop(HImode, regno);
+      if (fScratch) (void) pic30_expand_pop(STACK_Pmode, regno);
     }
 
     if (pic30_eds_target()) {
@@ -13911,10 +13986,10 @@ void pic30_expand_epilogue(void) {
       insn = emit_insn(gen_pophi(sfr, sp));
     }
     sp = stack_pointer_rtx;
-    sp = gen_rtx_PRE_DEC(HImode, sp);
-    sp = gen_rtx_MEM(HImode, sp);
-    sfr = gen_rtx_SYMBOL_REF(HImode, psvpage);
-    sfr = gen_rtx_MEM(HImode, sfr);
+    sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+    sp = gen_rtx_MEM(STACK_Pmode, sp);
+    sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, psvpage);
+    sfr = gen_rtx_MEM(STACK_Pmode, sfr);
     insn = emit_insn(gen_pophi(sfr, sp));
 
   }
@@ -13926,10 +14001,10 @@ void pic30_expand_epilogue(void) {
     */
     if (df_regs_ever_live_p(CORCON)) {
       sp = stack_pointer_rtx;
-      sp = gen_rtx_PRE_DEC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "CORCON");
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+      sp = gen_rtx_MEM(STACK_Pmode, sp);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, PIC30_NEAR_FLAG "CORCON");
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
     }
     /*
@@ -13937,30 +14012,30 @@ void pic30_expand_epilogue(void) {
     */
     if (pic30_mustsave(B_REGNO, fLeaf, fInterrupt) && (!is_accum_context_fn)) {
       sp = stack_pointer_rtx;
-      sp = gen_rtx_PRE_DEC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBU);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+      sp = gen_rtx_MEM(STACK_Pmode, sp);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCBU);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBH);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCBH);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCBL);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCBL);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
     }
     if (pic30_mustsave(A_REGNO, fLeaf, fInterrupt) && (!is_accum_context_fn)) {
       sp = stack_pointer_rtx;
-      sp = gen_rtx_PRE_DEC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAU);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+      sp = gen_rtx_MEM(STACK_Pmode, sp);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCAU);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAH);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCAH);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
-      sfr = gen_rtx_SYMBOL_REF(HImode, ACCAL);
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, ACCAL);
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr, sp));
     }
 
@@ -14008,10 +14083,10 @@ void pic30_expand_epilogue(void) {
       rtx sfr;
 
       sp = stack_pointer_rtx;
-      sp = gen_rtx_PRE_DEC(HImode, sp);
-      sp = gen_rtx_MEM(HImode, sp);
-      sfr = gen_rtx_SYMBOL_REF(HImode, PIC30_NEAR_FLAG "RCOUNT");
-      sfr = gen_rtx_MEM(HImode, sfr);
+      sp = gen_rtx_PRE_DEC(STACK_Pmode, sp);
+      sp = gen_rtx_MEM(STACK_Pmode, sp);
+      sfr = gen_rtx_SYMBOL_REF(STACK_Pmode, PIC30_NEAR_FLAG "RCOUNT");
+      sfr = gen_rtx_MEM(STACK_Pmode, sfr);
       insn = emit_insn(gen_pophi(sfr,sp));
     }
     /*
@@ -14285,7 +14360,7 @@ int pic30_neardata_space_operand_offset(rtx op, HOST_WIDE_INT *offset) {
           op = XEXP(op, 0);
           break;
       case CONST_INT:
-          fNear = (INTVAL(op) < 0x2000);
+          fNear = ((INTVAL(op) < 0x2000) && (INTVAL(op) >= 0x0));
           break;
       default:
           fNear = 0;
@@ -14397,10 +14472,11 @@ int pic30_data_space_operand_p(enum machine_mode mode,rtx op,int strict) {
         if (strict && (mode == QImode))
           result =  pic30_neardata_space_operand_p(op);
         else {
-#if 0
-          result = !pic30_program_space_operand_p(op);
-#endif
           result = 0;
+          if (sym) {
+            result |= ((TREE_CODE(sym) == STRING_CST) && 
+                       (TARGET_CONST_IN_CODE));
+          }
           result |= pic30_has_space_operand_p(op, PIC30_DATA_FLAG);
           result |= pic30_has_space_operand_p(op, PIC30_X_FLAG);
           result |= pic30_has_space_operand_p(op, PIC30_Y_FLAG);
@@ -14481,7 +14557,7 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
   rtx disp = NULL_RTX;        /* Displacement */
   enum machine_mode addr_mode;
 
-  addr_mode = GET_MODE(addr) != VOIDmode ? GET_MODE(addr) : HImode;
+  addr_mode = GET_MODE(addr) != VOIDmode ? GET_MODE(addr) : pic30_pmode;
   fLegit = TRUE;
   if (pic30_addr_space_valid_pointer_mode(addr_mode, address_space) == 0)
     return 0;
@@ -14495,15 +14571,24 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
        however, if the addr mode is anything other HImode we must accept
        the address
     */
-    if ((addr_mode == HImode) && ((optimize < 2) || (optimize_size))) {
+    if ((addr_mode == pic30_pmode) && ((optimize < 2) || (optimize_size))) {
       if ((mode == DImode) || (mode == DFmode)) return FALSE;
     }
     if ((mode == QImode) &&
         ((pic30_program_space_operand_p(addr) == 0) &&
          (pic30_neardata_space_operand_p(addr) == 0)))
       return FALSE;
+
+    /* try the default pointer mode */
+    if (addr_mode == machine_Pmode) {
+        return pic30_data_space_operand_p(mode,addr,fStrict) ||
+               pic30_program_space_operand_p(addr) ||
+               pic30_has_space_operand_p(addr, PIC30_APSV_FLAG);
+    }
+    /* try the others */
     switch (addr_mode) {
       default:  return FALSE;
+      case P32UMMmode:
       case P32PEDSmode:
       case P32EDSmode:
         /* EDS can access any internal memory, including PMP if v3 device */
@@ -14569,6 +14654,7 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
         case USQmode:
         case UDQmode:
         case UTQmode:
+        case P32UMMmode:
         case P32DFmode:
         case P32PEDSmode:
         case P32EDSmode:
@@ -14700,6 +14786,7 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
             case UQQmode:
             case UHQmode:
 
+            case P32UMMmode:
             case P32DFmode:
             case P32PEDSmode:
             case P32EDSmode:
@@ -14794,6 +14881,7 @@ bool pic30_addr_space_legitimate_address_p(enum machine_mode mode, rtx addr,
                 nMin = PIC30_DISP_MIN;
                 nMax = PIC30_DISP_MAX;
                 break;
+            case P32UMMmode:
             case P16PMPmode:
             case P32EXTmode:
             case P32DFmode:
@@ -16598,6 +16686,10 @@ void pic30_encode_section_info(tree decl, rtx rtl,
       SYMBOL_REF_FLAG(XEXP(rtl, 0)) = pic30_build_prefix(decl, fNear, prefix);
       break;
 
+    case STRING_CST:
+      /* something in the constant pool */
+      break;
+
     default:
         break;
   }
@@ -16679,34 +16771,21 @@ static char *force_section_name(tree decl) {
         sprintf(this_default_name,"*_%8.8x%lx", (unsigned) decl, current_time);
         force_named_section = xstrdup(this_default_name);
       }
-    } else if (TARGET_EDS) {
-      /* pick a unique name for this file so that psvpage tracking can work */
-      static char bss_default_name[sizeof("_unified_data_012345678")] = { 0 };
-      static char data_default_name[sizeof("_unified_data_012345678")] = { 0 };
-      
-      if (TYPE_ADDR_SPACE(TREE_TYPE(decl)) != pic30_space_eds) return 0;
-
-      if (current_time == 0) current_time = time(0);
-      if (bss_initializer_p(decl)) {
-        if (bss_default_name[0] == 0) {
-          sprintf(bss_default_name,"_unified_bss_%lx", current_time);
-        }
-        DECL_SECTION_NAME(decl) = build_string(strlen(bss_default_name), 
-                                               bss_default_name);
-        force_named_section = xstrdup(bss_default_name);
-      } else {
-        if (data_default_name[0] == 0) {
-          sprintf(data_default_name,"_unified_data_%lx", current_time);
-        }
-        DECL_SECTION_NAME(decl) = build_string(strlen(data_default_name), 
-                                               data_default_name);
-        force_named_section = xstrdup(data_default_name);
-      }
     }
     return force_named_section;
   }
   return 0;
 }
+
+static section *pic30_name_unnamed_section(section *unnamed, tree decl) {
+  struct reserved_section_names_ *s;
+  char *section_name;
+
+  s = (struct reserved_section_names_ *)unnamed->unnamed.data;
+  section_name = default_section_name(0,s->section_name, s->mask);
+  return get_section(section_name, s->mask, decl);
+}
+  
 
 /*
 ** A C statement or statements to switch to the appropriate
@@ -16810,9 +16889,9 @@ section *pic30_select_section (tree decl, int reloc,
           (DECL_INITIAL (decl) != error_mark_node &&
           !TREE_CONSTANT (DECL_INITIAL (decl)))) {
         if (bNear) {
-          return ndata_section;
+          return pic30_name_unnamed_section(ndata_section,decl);
         } else {
-          return data_section;
+          return pic30_name_unnamed_section(data_section,decl);
         }
       } else {
         /*
@@ -16822,18 +16901,18 @@ section *pic30_select_section (tree decl, int reloc,
           return get_section(name_,flags_,decl_);
 
         if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
-          return current_const_section;
+          return pic30_name_unnamed_section(current_const_section,decl);
         } else if (bNear) {
-          return ndconst_section;
+          return pic30_name_unnamed_section(ndconst_section,decl);
         } else {
-          return dconst_section;
+          return pic30_name_unnamed_section(dconst_section,decl);
         }
       }
     } else {
       if (TARGET_CONST_IN_CODE | TARGET_CONST_IN_PSV) {
-        return current_const_section;
+        return pic30_name_unnamed_section(current_const_section,decl);
       } else {
-        return dconst_section;
+        return pic30_name_unnamed_section(dconst_section,decl);
       }
     }
   }
@@ -17029,9 +17108,17 @@ const char *pic30_set_constant_section_helper(const char **name,
       saved_name = 0;
 
       if (TARGET_CONST_IN_CODE || TARGET_CONST_IN_PSV) {
+        if (TARGET_EDS) {
+          saved_name = ".unified_const";
+        } else {
         saved_name = ".const";
+	}
         saved_decl = 0;
         saved_flags = SECTION_READ_ONLY | SECTION_PAGE;
+      } else if (TARGET_EDS) {
+        saved_name = SECTION_NAME_EDS_DATA;
+        saved_decl = 0;
+        saved_flags = SECTION_EDS | SECTION_PAGE;
       }
     } 
   } 
@@ -17586,7 +17673,7 @@ char * pic30_ndata_section_asm_op(void) {
   static char szSection[32];
 
   lfInExecutableSection = FALSE;
-  sprintf(szSection, "\t.section\t%s,%s,%s",lSectionStack->pszName,
+  sprintf(szSection, "\t.section\t%s,%s,%s",SECTION_NAME_NDATA,
           SECTION_ATTR_NEAR, SECTION_ATTR_DATA);
   return(szSection);
 }
@@ -17613,7 +17700,7 @@ char *pic30_const_section_asm_op(void) {
   else
 #endif
   {
-    sprintf(szSection, "\t.section\t%s,%s,page", lSectionStack->pszName,
+    sprintf(szSection, "\t.section\t%s,%s,page", SECTION_NAME_CONST,
                        SECTION_ATTR_CONST);
   }
   return(szSection);
@@ -17920,9 +18007,10 @@ rtx pic30_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr) {
   }
   else
   {
+    int offset = -3;
     ret = gen_rtx_MEM(machine_Pmode,
             memory_address(machine_Pmode,
-                           plus_constant(frameaddr,-3 * UNITS_PER_WORD)));
+                           plus_constant(frameaddr,offset * UNITS_PER_WORD)));
   }
   return(ret);
 }
@@ -18124,7 +18212,7 @@ void pic30_asm_file_end(void) {
   {
     fprintf(asm_out_file, "\t.equ\t_%s,%d\n", pSFR->pName, pSFR->address);
   }
-  if (pic30_managed_psv) {
+  if ((pic30_managed_psv) || (TARGET_EDS)) {
     fprintf(asm_out_file,
             "\n\t.section __c30_info, info, bss\n__managed_psv:\n");
   }
@@ -18150,8 +18238,12 @@ void pic30_asm_file_end(void) {
     }
   }
   {
-    if (size_t_used_externally)
+    if (size_t_used_externally) {
       external_options_mask.bits.unsigned_long_size_t = 1;
+    }
+    external_options_mask.bits.no_short_double = 1;
+    external_options_mask.bits.unified_memory = 1;
+
     fprintf(asm_out_file,
             "\n\t.section __c30_signature, info, data\n"
             "\t.word 0x0001\n"
@@ -18886,7 +18978,7 @@ rtx pic30_legitimize_address(rtx x, rtx oldx, enum machine_mode mode) {
 
 rtx pic30_addr_space_legitimize_address_ecore_eval(rtx x, rtx *LHS) {
   rtx lhs = XEXP(x,0);
-  rtx rhs = XEXP(x,1);
+  rtx rhs;
 
   if (*LHS != NULL_RTX) return x;
   switch (GET_CODE(x)) {
@@ -18923,6 +19015,7 @@ rtx pic30_addr_space_legitimize_address_ecore_eval(rtx x, rtx *LHS) {
       return pic30_addr_space_legitimize_address_ecore_eval(lhs, LHS);
       
     case PLUS:
+      rhs = XEXP(x,1);
       lhs = pic30_addr_space_legitimize_address_ecore_eval(lhs, LHS);
       rhs = pic30_addr_space_legitimize_address_ecore_eval(rhs, LHS);
       if (lhs && rhs) return gen_rtx_PLUS(GET_MODE(x), lhs,rhs);
@@ -18971,19 +19064,6 @@ int pic30_legitimize_reload_address(rtx X, enum machine_mode MODE,
                 GET_MODE(X), VOIDmode, 0, 0, OPNUM, TYPE, insn);
     return 1;
   }
-#if 0
-  /* This seems to be done in reload.c : ~6081 which was previously commented
-     out.   This causes XC16-1046, so if we need to put this back in we would
-     need to understand how to force the relaod of the input/output register */
-  if (((GET_CODE(X) == PRE_INC) || (GET_CODE(X) == PRE_DEC) ||
-       (GET_CODE(X) == POST_INC) || (GET_CODE(X) == POST_DEC)) &&
-      ((!REG_P(XEXP(X,0))) ||
-       (REGNO(XEXP(X,0)) >= FIRST_PSEUDO_REGISTER))) {
-    push_reload(XEXP(X,0),NULL_RTX,&XEXP(X,0), NULL, W_REGS,
-                GET_MODE(X), VOIDmode, 0,0, OPNUM, TYPE, insn);
-    return 1;
-  }
-#endif
   return 0;
 }
 
@@ -19074,11 +19154,12 @@ int pic30_extended_pointer_operand(rtx x, enum machine_mode ptr_mode) {
       switch (GET_CODE(rhs)) {
         case CONST_INT: break;
         case SUBREG:
-                   if (GET_CODE(XEXP(lhs,0)) != REG) return 0;
-                   /* FALLSTHROUGH */
-        case REG:  if ((GET_MODE(rhs) != ptr_mode) && (GET_MODE(rhs) != HImode))
                      return 0;
-                   break;
+                   if (GET_CODE(XEXP(rhs,0)) != REG) return 0;
+                   /* FALLSTHROUGH */
+        case REG:  if (GET_MODE(rhs) == ptr_mode) {
+                     break;
+                   } else return 0;
         default: return 0;
       }
       return 1;  /* pic30_move_operand doesn't check rhs */
@@ -19117,6 +19198,9 @@ int pic30_extended_pointer_operand(rtx x, enum machine_mode ptr_mode) {
       } else if (ptr_mode == P32EXTmode) {
         if (PIC30_HAS_NAME_P(XSTR(x,0),PIC30_EXT_FLAG))
           return 1;
+      } else if (ptr_mode == P32UMMmode) {
+        if (pic30_eds_space_operand_p(x))
+          return 1;
       } else if (ptr_mode == P32DFmode) {
         if (PIC30_HAS_NAME_P(XSTR(x,0),PIC30_PACKEDFLASH_FLAG))
           return 1;
@@ -19149,6 +19233,29 @@ int pic30_mem_peds_operand(rtx x, enum machine_mode mode) {
   return 0;
 }
 
+int pic30_mem_umm_operand(rtx x, enum machine_mode mode) {
+  if (GET_CODE(x) == MEM) {
+    return pic30_extended_pointer_operand(XEXP(x,0), P32UMMmode);
+  }
+  return 0;
+}
+
+int pic30_mem_wtumm_operand(rtx x, enum machine_mode mode) {
+  if (GET_CODE(x) == MEM) {
+    /* do not allow pre/post inc/decs for writing */
+    switch (GET_CODE(XEXP(x,0))) {
+      default:
+        return pic30_extended_pointer_operand(XEXP(x,0), P32UMMmode);
+      case POST_INC:
+      case POST_DEC:
+      case PRE_INC:
+      case PRE_DEC:
+        break;
+    }
+  }
+  return 0;
+}
+
 enum machine_mode pic30_addr_space_pointer_mode(addr_space_t address_space) {
   switch (address_space) {
     default:
@@ -19156,7 +19263,7 @@ enum machine_mode pic30_addr_space_pointer_mode(addr_space_t address_space) {
       return Pmode;
 
     case ADDR_SPACE_GENERIC:
-      return ptr_mode;
+      return Pmode;
 
     case pic30_space_psv:
       return P24PSVmode;
@@ -19171,7 +19278,6 @@ enum machine_mode pic30_addr_space_pointer_mode(addr_space_t address_space) {
       return P32EXTmode;
 
     case pic30_space_eds:
-      if (TARGET_EDS) return P32PEDSmode;
       return P32EDSmode;   /* actually not good enough,
                                 how can we choose paged mode? */
 
@@ -19183,7 +19289,10 @@ enum machine_mode pic30_addr_space_pointer_mode(addr_space_t address_space) {
       return VOIDmode;
 
     case pic30_space_const:
-      return ptr_mode;
+      return Pmode;
+
+    case pic30_space_stack:
+      return machine_Pmode;
   }
 }
 
@@ -19191,7 +19300,7 @@ enum machine_mode pic30_addr_space_address_mode(addr_space_t address_space) {
   switch (address_space) {
     case pic30_space_const:
     case ADDR_SPACE_GENERIC:
-      return HImode;
+      return Pmode;
 
     default: return pic30_addr_space_pointer_mode(address_space);
   }
@@ -19206,6 +19315,7 @@ bool pic30_addr_space_valid_pointer_mode(enum machine_mode mode,
 
     case pic30_space_const:
     case ADDR_SPACE_GENERIC:
+    case pic30_space_stack:
        return pic30_valid_pointer_mode(mode);
 
     case pic30_space_psv:
@@ -19278,6 +19388,11 @@ bool pic30_addr_space_subset_p(addr_space_t superset, addr_space_t subset) {
     case ADDR_SPACE_GENERIC:
       switch (subset) {
         default: break;
+        case pic30_space_eds: 
+          return (TARGET_EDS) && 
+                 ((TARGET_EDS_MODE == P32PEDSmode) || 
+                  (TARGET_EDS_MODE == P32PEDSmode));
+        case pic30_space_stack:
         case pic30_space_const:
           return 1;
       }
@@ -19310,6 +19425,7 @@ bool pic30_addr_space_subset_p(addr_space_t superset, addr_space_t subset) {
     case pic30_space_eds:
       switch (subset) {
         default: break;
+        case pic30_space_stack:
         case ADDR_SPACE_GENERIC:
         case pic30_space_psv:
         case pic30_space_prog:
@@ -19321,10 +19437,11 @@ bool pic30_addr_space_subset_p(addr_space_t superset, addr_space_t subset) {
   return 0;
 }
 
-rtx pic30_decl_rtl(tree decl) {
+rtx pic30_decl_rtl(tree decl, int *new) {
   /* sometimes we don't have a rtl and we need to make it.
    * somethings don't get a rtl
    */
+  *new = 0;
   if (!DECL_RTL_SET_P(decl)) {
     /* Check that we are not being given an automatic variable.  */
     if (TREE_CODE (decl) != PARM_DECL && TREE_CODE (decl) != RESULT_DECL) {
@@ -19336,6 +19453,7 @@ rtx pic30_decl_rtl(tree decl) {
           || DECL_REGISTER (decl)) {
         /* And that we were not given a type or a label.  */
         if (TREE_CODE (decl) != TYPE_DECL && TREE_CODE (decl) != LABEL_DECL) {
+          *new = 0;
           return DECL_RTL(decl);
         }
       }
@@ -19365,10 +19483,11 @@ addr_space_t pic30_addr_space_adjust(addr_space_t from, tree type, tree obj) {
   if (obj) {
     tree sym = obj;
     if (TREE_CODE(sym) == ADDR_EXPR) {
+      int just_made = 0;
       /* What are we taking the address of? */
       sym = TREE_OPERAND(obj,0);
       if (TREE_CODE(sym) == VAR_DECL) {
-        rtx mem = pic30_decl_rtl(sym);
+        rtx mem = pic30_decl_rtl(sym,&just_made);
         rtx decl = NULL_RTX;
         if (mem) {
           decl= XEXP(mem,0);
@@ -19376,6 +19495,7 @@ addr_space_t pic30_addr_space_adjust(addr_space_t from, tree type, tree obj) {
             result = pic30_space_psv;
           if (pic30_has_space_operand_p(decl, PIC30_PROG_FLAG)) 
             result = pic30_space_prog;
+          if (just_made) SET_DECL_RTL(sym,NULL_RTX);
         }
       } else if (TREE_CODE(sym) == STRING_CST) {
         if (TARGET_CONST_IN_CODE) result = pic30_space_const;
@@ -19492,6 +19612,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
         switch (from_as) {
           default: break;
 
+          case pic30_space_stack:
           case pic30_space_const:
           case ADDR_SPACE_GENERIC:
           case pic30_space_prog:
@@ -19543,6 +19664,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
 
         default:  break;
 
+        case pic30_space_stack:
         case pic30_space_const:
         case ADDR_SPACE_GENERIC:
         case pic30_space_prog:
@@ -19555,6 +19677,7 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
 
   if (to_mode != VOIDmode) {
     rtx newref;
+    enum machine_mode from_mode = GET_MODE(op);
 
     /* if we are converting something simple, then generate it by hand
      * since convert_modes will almost always generate a register; which is
@@ -19580,36 +19703,61 @@ rtx pic30_addr_space_convert(rtx op, tree from_exp, tree to_type) {
       /* accepting_exp is something in PSV, we can convert that to an EDS
          poiner easily */
       rtx newref = gen_reg_rtx(to_mode);
-      rtx reg = gen_reg_rtx(HImode);
+      rtx reg = gen_reg_rtx(from_mode);
 
       // emit_move_insn(reg,op);
       convert_move(reg,op,1);
-      if (to_mode == P32EDSmode) {
-         emit_insn(
-           gen_extendhip32eds2_const(newref, reg)
-         );
-      } else if (to_mode == P32PEDSmode) {
-         emit_insn(
-           gen_extendhip32peds2_const(newref, reg)
-         );
+      if ((!TARGET_EDS) && (from_mode == Pmode)) {
+        if (to_mode == P32EDSmode) {
+           emit_insn(
+             gen_extendhip32eds2_const(newref, reg)
+           );
+        } else if (to_mode == P32PEDSmode) {
+           emit_insn(
+             gen_extendhip32peds2_const(newref, reg)
+           );
+        } else gcc_assert(0);
+      } else if ((TARGET_EDS) && (from_mode == Pmode)) {
+        if (to_mode == P32EDSmode) {
+           emit_insn(
+             gen_extendp32ummp32eds2(newref, reg)
+           );
+        } else if (to_mode == P32PEDSmode) {
+           emit_insn(
+             gen_extendp32ummp32peds2(newref, reg)
+           );
+        } else gcc_assert(0);
       } else gcc_assert(0);
       return newref;
     } else if (accepting_exp && 
+         (GET_MODE(op) == HImode) &&
          auto_var_in_fn_p(accepting_exp, current_function_decl)) {
        /* accepting_exp is something on the stack, we can convert that
           to a EDS pointer easily */
       rtx newref = gen_reg_rtx(to_mode);
-      rtx reg = gen_reg_rtx(HImode);
+      rtx reg = gen_reg_rtx(from_mode);
  
       emit_move_insn(reg,op);
-      if (to_mode == P32EDSmode) {
-        emit_insn(
-          gen_extendhip32eds_stack(newref, reg)
-        );
-      } else if (to_mode == P32PEDSmode) {
-        emit_insn(
-          gen_extendhip32peds_stack(newref, reg)
-        );
+      if ((!TARGET_EDS) && (from_mode == Pmode)) {
+        if (to_mode == P32EDSmode) {
+          emit_insn(
+            gen_extendhip32eds_stack(newref, reg)
+          );
+        } else if (to_mode == P32PEDSmode) {
+          emit_insn(
+            gen_extendhip32peds_stack(newref, reg)
+          );
+        } else gcc_assert(0);
+      } else if ((TARGET_EDS) && (from_mode == Pmode)) {
+        if (to_mode == P32EDSmode) {
+           emit_insn(
+             gen_extendp32ummp32eds2(newref, reg)
+           );
+        } else if (to_mode == P32PEDSmode) {
+           emit_insn(
+             gen_extendp32ummp32peds2(newref, reg)
+           );
+        } else gcc_assert(0);
       } else gcc_assert(0);
       return newref;
     } else {
@@ -19651,6 +19799,11 @@ pic30_unique_section (tree decl, int reloc)
     name = XSTR(XEXP(DECL_RTL(decl), 0), 0);
     flags = validate_identifier_flags(name);
     prefix = default_section_name(0,0,flags);
+    if (prefix[0] == '*') {
+      /* no section name was found, need to create one -
+           because we cannot use '*' as the basis for a section */
+      prefix = pic30_unique_section_name(decl);
+    }
   }
   else
     /* default use the default_unique_section (bits) */
@@ -19728,6 +19881,10 @@ pic30_unique_section (tree decl, int reloc)
  * modified s.t. no extended modes are valid
  */
 bool pic30_valid_pointer_mode(enum machine_mode mode) {
+
+  /* Pmode changes based upon target device */
+  if (mode == Pmode) return 1;
+  if (mode == machine_Pmode) return 1;
   switch (mode) {
     case P16APSVmode:
     case HImode:
@@ -19749,17 +19906,58 @@ bool pic30_valid_pointer_mode(enum machine_mode mode) {
 bool pic30_convert_pointer(rtx to, rtx from, int unsignedp) {
   rtx result;
   rtx result2;
+  rtx real_from = from;
+  rtx reg_to;
+  rtx reg_from;
+  rtx (*convert)(rtx,rtx) = 0;
+
+  while (GET_CODE(real_from) == SUBREG) {
+    real_from = XEXP(real_from,0);
+  }
 
   if (pic30_valid_pointer_mode(GET_MODE(to))) {
     switch (GET_CODE(from)) {
 
-#if  1
       default:  {
-        rtx reg_to;
-        rtx reg_from;
-
         switch (GET_MODE(to)) {
           default: break;
+
+          case P32UMMmode: 
+            switch (GET_MODE(from)) {
+              default: break;
+              /* we have lost the page information; the only valid
+                 use of this is to make a P32UMM offset */
+              case P32UMMmode: 
+                 convert = gen_movp32umm;
+                 break;
+              case DImode:
+                 convert = gen_zero_extenddip32umm2;
+                 break;
+              case SImode:
+                 convert = gen_zero_extendsip32umm2;
+                 break;
+              case HImode:
+                 convert = gen_zero_extendhip32umm2;
+                 break;
+              case QImode:
+                 convert = gen_zero_extendqip32umm2;
+                 break;
+            }
+            if (convert) {
+               reg_from = force_reg(GET_MODE(real_from),real_from);
+               reg_to = to;
+               if (GET_CODE(to) != REG) {
+                 reg_to = force_reg(GET_MODE(to),to);
+               }
+               emit_insn(
+                 convert(reg_to,reg_from)
+               );
+               if (reg_to != to) {
+                 emit_move_insn(to,reg_to);
+               }
+               return 1;
+            }
+            break;
 
           case P32EDSmode:
              switch (GET_MODE(from)) {
@@ -19807,7 +20005,6 @@ bool pic30_convert_pointer(rtx to, rtx from, int unsignedp) {
         }
         break;
       }
-#endif
  
       case SYMBOL_REF:
         switch GET_MODE(to) {
@@ -19853,9 +20050,45 @@ bool pic30_convert_pointer(rtx to, rtx from, int unsignedp) {
                                     gen_rtx_SYMBOL_REF(P32DFmode,XSTR(from,0)))
              );
              return 1;
+          case P32UMMmode:
+             emit_insn(
+               gen_movp32umm_address(to,
+                                    gen_rtx_SYMBOL_REF(P32UMMmode,XSTR(from,0)))
+             );
+             return 1;
           default: break;
         }
         break;
+    }
+  }
+  if (pic30_valid_pointer_mode(GET_MODE(real_from))) {
+    enum machine_mode to_mode = GET_MODE(to);
+    switch (GET_MODE(real_from)) {
+      default: break;
+      case P32UMMmode:
+        if (to_mode == QImode) convert = gen_extendp32ummqi2;
+        else if (to_mode == HImode) convert = gen_extendp32ummhi2;
+        else if (to_mode == SImode) convert = gen_extendp32ummsi2;
+        else if (to_mode == DImode) convert = gen_extendp32ummdi2;
+        else if (to_mode == P32EDSmode) convert = gen_extendp32ummp32eds2;
+        else if (to_mode == P32PEDSmode) convert = gen_extendp32ummp32peds2;
+        else if (to_mode == GET_MODE(real_from)) convert = gen_movp32umm;
+        else gcc_assert(0);
+        break;
+    }
+    if (convert) {
+       reg_from = force_reg(GET_MODE(real_from),real_from);
+       reg_to = to;
+       if (GET_CODE(to) != REG) {
+         reg_to = force_reg(GET_MODE(to),to);
+       }
+       emit_insn(
+         convert(reg_to,reg_from)
+       );
+       if (reg_to != to) {
+         emit_move_insn(to,reg_to);
+       }
+       return 1;
     }
   }
   return 0;
@@ -20150,13 +20383,8 @@ char *pic30_default_include_path(const char *prefix) {
   char *inc_path = 0;
 
   pic30_override_options();
-  if (target_flags & MASK_LEGACY_LIBC) {
-    extra = sizeof(MPLABC30_LEGACY_COMMON_INCLUDE_PATH);
-    common = MPLABC30_LEGACY_COMMON_INCLUDE_PATH;
-  } else {
-    extra = sizeof(MPLABC30_COMMON_INCLUDE_PATH);
-    common = MPLABC30_COMMON_INCLUDE_PATH;
-  }
+  extra = sizeof(MPLABC30_C99_COMMON_INCLUDE_PATH);
+  common = MPLABC30_C99_COMMON_INCLUDE_PATH;
 
   { char *my_space = 0;
 
@@ -20247,7 +20475,7 @@ pic30_gimplify_va_arg_expr (tree valist, tree type,
                             gimple_seq pre_p ATTRIBUTE_UNUSED,
                             gimple_seq post_p ATTRIBUTE_UNUSED)
 {
-  tree ptr = build_pointer_type (type);
+  tree ptr = pic30_build_pointer_type (type);
   tree valist_type;
   tree t, u;
   unsigned int size;
@@ -20256,7 +20484,7 @@ pic30_gimplify_va_arg_expr (tree valist, tree type,
   indirect = pass_by_reference (NULL, TYPE_MODE (type), type, 0);
   if (indirect) {
     type = ptr;
-    ptr = build_pointer_type (type);
+    ptr = pic30_build_pointer_type (type);
   }
   size = int_size_in_bytes (type);
   valist_type = TREE_TYPE (valist);
@@ -20692,9 +20920,9 @@ int section_base_eq(const void *a, const void *b) {
  *
  * offset_or_page == 0 => offset
  */
-char *pic30_section_base(rtx x, int offset_or_page, rtx *excess) {
+char *pic30_section_base(rtx x, int page, rtx *excess) {
   tree decl = 0;
-  tree section;
+  tree tree_section;
   char *result;
   char *r;
   static htab_t table = 0;
@@ -20732,35 +20960,30 @@ char *pic30_section_base(rtx x, int offset_or_page, rtx *excess) {
     const char *name;
     char underscore='_';
 
-    section = DECL_SECTION_NAME(decl);
-    if ((TREE_CODE(decl) != STRING_CST) && section) {
+    tree_section = DECL_SECTION_NAME(decl);
+    if ((TREE_CODE(decl) != STRING_CST) && tree_section) {
       tree t;
 
       name = TREE_STRING_POINTER(DECL_SECTION_NAME(decl));
-      if (strncmp(name,pic30_default_section, 1) == 0) section = 0;
+      if (strncmp(name,pic30_default_section, 1) == 0) tree_section = 0;
       else {
-        t = get_identifier(TREE_STRING_POINTER(section));
+        t = get_identifier(TREE_STRING_POINTER(tree_section));
         result = IDENTIFIER_POINTER(t);
       }
     } else if (TREE_CODE(decl) == STRING_CST) {
       /* skip the . it will be added later */
-      if (offset_or_page == 0)
+      if (page == 0) {
         result = &XSTR(x,0)[2];
-      else if (TARGET_CONST_IN_CODE)
-        result = &SECTION_NAME_CONST[1];
-      else
-        result = &SECTION_NAME_DCONST[1];
+      } else {
+        if (TARGET_EDS) {
+          result = &XSTR(x,0)[2];
+        } else {
+          section *sect = pic30_select_section(decl,0,0);
+          result = sect->named.name + 1;
+        }
+      }
     }
-#if 0
-    /* temporary; the assembler does not define sections names as extern
-       so that each object file can have the same section name - but it is a
-       mistake to assume that if we refer to the section name to think we get
-       the start of the section; we get the start of the section in this file.
-       We are looking at fixing the assembler/linker/compiler to do the expected
-       thing.  Not today */
-    section = 0;
-#endif
-    if (((offset_or_page == 0) || (section == 0)) ||
+    if (((page == 0) || (tree_section == 0)) ||
         !(PIC30_HAS_NAME_P(XSTR(x,0), PIC30_PAGE_FLAG))) {
       if (TREE_CODE(decl) != STRING_CST)
         result = XSTR(XEXP(DECL_RTL(decl),0),0);
@@ -20803,7 +21026,7 @@ char *pic30_section_base(rtx x, int offset_or_page, rtx *excess) {
              */
             HOST_WIDE_INT mod_value = INTVAL(offset) % 32768;
             HOST_WIDE_INT div_value = INTVAL(offset) / 32768;
-            if (offset_or_page != 0)
+            if (page != 0)
               *excess = GEN_INT(div_value);
             offset = GEN_INT(mod_value);
           }
@@ -20830,8 +21053,11 @@ void initialize_object_signatures(void) {
      (so will be set at code-generation in the pic30.md file) while others
      are significant simply by command line options (and will be set here) */
 
-  /* intitialize values of options_set mask */
-  if (TARGET_BIG) options_set.bits.unsigned_long_size_t = 1;
+  if (TARGET_BIG || TARGET_EDS) options_set.bits.unsigned_long_size_t = 1;
+  /* we may wish to condition this on external functions called with a pointer,
+     not now */
+  if (TARGET_EDS) options_set.bits.unified_memory = 1;
+  if (!flag_short_double) options_set.bits.no_short_double = 1;
 }
 
 void push_cheap_rtx(cheap_rtx_list **l, rtx x, tree t, int flag) {
@@ -20970,7 +21196,7 @@ int pic30_adjust_frame_related_worker(rtx insn, rtx pattern, int set,
             debug_current_frame_remap();
           }
 
-          if (W14 == NULL_RTX) W14 = gen_rtx_REG(HImode, WR14_REGNO);
+          if (W14 == NULL_RTX) W14 = gen_rtx_REG(STACK_Pmode, WR14_REGNO);
           new_insn = gen_exch(e1, W14);
           replace_rtx(insn, e1, W14);
           push_cheap_rtx(&pic30_adjust_frame_remap_insn,
@@ -20985,7 +21211,7 @@ int pic30_adjust_frame_related_worker(rtx insn, rtx pattern, int set,
             fprintf(stderr,"* remap w%d -> w%d\n", REGNO(e1), remapped_regno);
           }
 
-          if (W14 == NULL_RTX) W14 = gen_rtx_REG(HImode, WR14_REGNO);
+          if (W14 == NULL_RTX) W14 = gen_rtx_REG(STACK_Pmode, WR14_REGNO);
           replace_rtx(insn, e1, W14);
           delta++;
         }
@@ -21045,7 +21271,8 @@ int pic30_adjust_frame_related_worker(rtx insn, rtx pattern, int set,
                     remapped_regno);
           }
 
-          replace_rtx(insn, gen_rtx_REG(HImode, remapped_regno), pattern);
+          replace_rtx(insn, gen_rtx_REG(machine_regmode, remapped_regno), 
+                      pattern);
           delta++;
         }
       }
@@ -21077,8 +21304,8 @@ void pic30_adjust_frame_related_restore(rtx insn, int start, int end) {
         fprintf(stderr,"* exch w%d, w%d\n", i, remapped_regno);
       }
       pic30_adjust_frame_remap_swap(i,remapped_regno);
-      swap_reg_a = gen_rtx_REG(HImode, i);
-      swap_reg_b = gen_rtx_REG(HImode, remapped_regno);
+      swap_reg_a = gen_rtx_REG(machine_regmode, i);
+      swap_reg_b = gen_rtx_REG(machine_regmode, remapped_regno);
       new_insn = gen_exch(swap_reg_a,  swap_reg_b);
       push_cheap_rtx(&pic30_adjust_frame_remap_insn,
                      emit_insn_before(new_insn, insn),
@@ -21157,7 +21384,6 @@ void pic30_adjust_frame_related(void) {
   }
 }
 #endif
-
 
 unsigned int pic30_track_sfrs(void) {
   /* for now, focus on inter block optimizations 
@@ -21255,15 +21481,6 @@ unsigned int pic30_track_sfrs(void) {
                insn);
                SATB_status = required_saturation;
             }
-#if 0
-            if (required_saturation != SATB_status) {
-               /* generate instruction */
-               emit_insn_before(
-                 gen_setSAT(GEN_INT(CORCON_SET_SATB + required_saturation)),
-               insn);
-               SATB_status = required_saturation;
-            }
-#endif
           }
         }
       }
@@ -22188,6 +22405,7 @@ void pic30_warn_address(tree exp, enum machine_mode tmode) {
      a warning if they are not __eds__ */
   /* in future we will want to know if the device has < 28K of RAM */
 
+  if (TARGET_EDS) return;
   if (TARGET_NO_EDS_WARN) return;
   if ((pic30_mem_info.ram[0] > 0) && (pic30_mem_info.ram[0] < 28*1024))
     return;
@@ -22221,9 +22439,6 @@ void pic30_warn_address(tree exp, enum machine_mode tmode) {
 }
 
 void pic30_common_override_options(void) {
-#if 0
-  if (!optimize_size) flag_inline_trees = 1;
-#endif
 }
 
 int pic30_device_has_gie() {
@@ -22367,12 +22582,7 @@ void pic30_apply_pragmas(tree decl) {
       args = chainon(args,
                      build_tree_list(NULL_TREE,build_int_cst(NULL_TREE,2)));
       attrib = build_tree_list(get_identifier("__format__"), args);
-#if 0
-      attrib = chainon(DECL_ATTRIBUTES(decl), attrib);
-      DECL_ATTRIBUTES(decl) = attrib;
-#else
       decl_attributes(&decl, attrib, 0);
-#endif
       mchp_pragma_scanf_args = 0;
     }
     if (mchp_pragma_printf_args) {
@@ -22386,12 +22596,7 @@ void pic30_apply_pragmas(tree decl) {
       args = chainon(args,
                      build_tree_list(NULL_TREE,build_int_cst(NULL_TREE,2)));
       attrib = build_tree_list(get_identifier("__format__"), args);
-#if 0
-      attrib = chainon(DECL_ATTRIBUTES(decl), attrib);
-      DECL_ATTRIBUTES(decl) = attrib;
-#else
       decl_attributes(&decl, attrib, 0);
-#endif
       mchp_pragma_printf_args = 0;
     }
     if (mchp_pragma_inline) {
@@ -22410,12 +22615,7 @@ void pic30_apply_pragmas(tree decl) {
 
     /* make a fake KEEP attribute and add it to the decl */
     attrib = build_tree_list(pic30_identKeep[0], NULL_TREE);
-#if 0
-    attrib = chainon(DECL_ATTRIBUTES(decl), attrib);
-    DECL_ATTRIBUTES(decl) = attrib;
-#else
-      decl_attributes(&decl, attrib, 0);
-#endif
+    decl_attributes(&decl, attrib, 0);
     mchp_pragma_keep = 0;
   }
 
@@ -22450,6 +22650,7 @@ tree pic30_extended_pointer_integer_type(enum machine_mode mode) {
     case P32EDSmode: return eds_ptr_type;
     case P32PEDSmode: return peds_ptr_type;
     case P32DFmode: return df_ptr_type;
+    case P32UMMmode: return umm_ptr_type;
   }
 }
 
@@ -22538,6 +22739,9 @@ tree pic30_target_pointer_sizetype(tree for_type) {
       gcc_unreachable();
       break;
 
+    case pic30_space_stack:
+      return unsigned_type_node;
+
     case pic30_space_const:
     case ADDR_SPACE_GENERIC:
       return sizetype;
@@ -22555,7 +22759,11 @@ tree pic30_target_pointer_sizetype(tree for_type) {
       return sizetype;
 
     case pic30_space_eds:
+#if 1
       return long_unsigned_type_node;
+#else
+      return sizetype;
+#endif
 
     case pic30_space_packed:
       return sizetype;
@@ -22757,7 +22965,7 @@ void pic30_dependencies_evaluation_hook(rtx head, rtx tail) {
 static int pic30_const_in_code_tree_p(tree exp) {
 
   if (!TARGET_CONST_IN_CODE) return 0;
-  if (TYPE_MODE(TREE_TYPE(exp)) != HImode) return 0;
+  if (TYPE_MODE(TREE_TYPE(exp)) != Pmode) return 0;
   
   switch (TREE_CODE(exp)) {
     default: return 0;
@@ -23381,6 +23589,92 @@ int pic30_skip_operator(rtx op, enum machine_mode mode) {
          pic30_skip0_operator(op,mode);
 }
 
+static bool
+pic30_cannot_force_const_mem(rtx x) {
+  if ((GET_CODE(x) == CONST_INT) && ((INTVAL(x) & 0xFFFF) == INTVAL(x))) {
+    return true;
+  }
+  return TARGET_EDS;
+}
+
+bool
+pic30_do_not_force_space(tree space_attr) {
+  if (IDENT_PROG(TREE_VALUE(space_attr)) || 
+      IDENT_CONST(TREE_VALUE(space_attr)) || 
+      IDENT_PSV(TREE_VALUE(space_attr)) ||
+      IDENT_EEDATA(TREE_VALUE(space_attr)) || 
+      IDENT_AUXFLASH(TREE_VALUE(space_attr)) ||
+      IDENT_EDS(TREE_VALUE(space_attr)) ||
+      IDENT_AUXPSV(TREE_VALUE(space_attr))) { 
+    return 1;
+  }
+  return 0;
+}
+
+rtx
+pic30_form_UMM_address_validate(rtx x) {
+  switch (GET_CODE(x)) {
+    default: break;
+    case SYMBOL_REF: {
+       rtx reg;
+
+       if (can_create_pseudo_p()) {
+         reg = gen_reg_rtx(P32UMMmode);
+         emit_move_insn(reg,x);
+         return reg;
+       }
+       break;
+    }
+    case PLUS: {
+       rtx l,r;
+ 
+       l = pic30_form_UMM_address_validate(XEXP(x,0));
+       r = pic30_form_UMM_address_validate(XEXP(x,1));
+       if ((l != XEXP(x,0)) || (r != (XEXP(x,1)))) {
+         return gen_rtx_PLUS(P32UMMmode, l, r);
+       }
+       break;
+    }
+    case REG:
+       if (GET_MODE(x) != P32UMMmode) {
+         rtx newx = gen_rtx_SUBREG(P32UMMmode, x, 0);
+         return newx;
+       }
+       break;
+  }
+  return x;
+}
+
+rtx
+pic30_form_UMM_address(rtx mem) {
+   /* with P32UMM mode variables, we will see various optimisations
+      attempt to add SI or HI mode values; then we will fail.
+
+      generate casts for these things, returna new mem 
+
+      return original RTX if we don't recognize the form */
+   rtx new;
+
+   if (GET_CODE(mem) == MEM) {
+     rtx addr = XEXP(mem,0);
+
+     new = pic30_form_UMM_address_validate(addr);
+     if (new != addr) return gen_rtx_MEM(GET_MODE(mem),new);
+   }
+   return mem;
+}
+
+rtx
+pic30_base_rtx(rtx mem) {
+  switch (GET_CODE(mem)) {
+     default: return NULL_RTX;
+     case REG: return mem;
+     case PLUS: return pic30_base_rtx(XEXP(mem,0));
+     case SUBREG: return pic30_base_rtx(XEXP(mem,0));
+     case CONST: return pic30_base_rtx(XEXP(mem,0));
+  }
+}
+
 #if 0
 // debug
 int pic30_trap_qualifier(int val) {
@@ -23392,3 +23686,199 @@ int pic30_trap_qualifier(int val) {
 }
 #endif
 
+/* jimmy the ready list; if reload_completed do nothing otherwise 
+   reorder the list to select the first instruction that does not set a 
+   hard register... hopefully this will reduce the register pressure.   
+   if notheing is moved that is fine */
+static int pic30_sched_reorder(FILE *file, int verbose, rtx *ready, 
+                               int *nreadyp, int cycle) {
+  int i;
+  rtx first;
+  rtx curr;
+  rtx pat;
+  
+  if (reload_completed) return 1;
+  first = ready[*nreadyp-1];
+  pat = PATTERN(first);
+  if (REG_P(SET_DEST(pat)) && HARD_REGISTER_P(SET_DEST(pat))) {
+    /* look for an insn that doesn't set a hard reg */
+    for (i = *nreadyp - 2; i >= 0; i--) {
+      curr = ready[i];
+      pat = PATTERN(curr);
+      if (REG_P(SET_DEST(pat)) && !HARD_REGISTER_P(SET_DEST(pat))) {
+        // pick me!
+        // fprintf(stderr,"Putting insn %d onto top of ready list\n", INSN_UID(curr));
+        for (; i < *nreadyp-1; i++) {
+          ready[i] = ready[i+1];
+        }
+        ready[i] = curr;
+        // if (file) fprintf(stderr,"reordered!\n");
+        break;
+      }
+    }
+  }
+  return 1;
+}
+
+bool pic30_valid_mode_for_subreg(rtx op) {
+  /* some conversions can't happen in a subreg -
+   * perhaps we wish to apply this logic to any pointer that is not linear
+   * (EDS) but we have already handled that in a different way */
+  rtx start_op;                    // inner most subreg
+
+  start_op = op;
+  while (GET_CODE(start_op) == SUBREG) {
+    start_op = SUBREG_REG(start_op);
+  }
+  return (GET_MODE(op) == GET_MODE(start_op)) || 
+         ((GET_MODE(op) != P32UMMmode) &&
+          (GET_MODE(start_op) != P32UMMmode));
+}
+
+char *pic30_skip_adjust_template(char *template, int offset, int count) {
+   /* %0 -> %0
+    * %1 -> %offset
+    * %2 ->  %(offset+1) and so on
+    * %% -> %%
+    * can't handle bogus templates...
+    */
+  enum { copy, in_percent } state = copy;
+  char *buffer = xmalloc(strlen(template)+1);
+  char ch;
+  char *c, *b;
+
+  b = buffer;
+  for (c = template; *c; c++) {
+    ch = *c;
+    if ((ch == '%') && (state == copy)) {
+      state = in_percent;
+    }
+    if ((state == in_percent) && 
+        (ch >= '0') && (ch <= '9')) {
+      /* maybe adjust */
+      gcc_assert(ch != '9');
+      if (ch > '0') ch = ch + offset - 1;
+      state = copy;
+    }
+    *b++ = ch;
+  }
+  *b = 0;
+  return buffer;
+}
+
+char *pic30_skip(rtx insn, rtx *operands, int set, int count) {
+  /* printing instructions uses lots of global variables...
+   * ... this function screws that up to get the template for the 2nd
+   *     instruction.
+   *
+   * hence the weird code at the end that doesn't seem to do anything 
+   */
+  static char buffer[256];
+  char *p = buffer;
+  char mode_letter;
+
+  switch (GET_MODE(operands[0])) {
+    default: gcc_assert(0);
+             break;
+
+    case QImode:  mode_letter='b';
+                  break;
+
+    case HImode:  mode_letter='w';
+                  break;
+  }
+
+  p += sprintf(p, "bts%c %%1,#%%2\n\t", set ? 's' : 'c');
+  if (count == 0) {
+    // a simple mov
+    p += sprintf(p, "mov.%c %%3,%%0", mode_letter);
+#if 0
+  } else {
+    struct valid_operator *op;
+    int i;
+
+    if (count == 1) op = valid_skip1_operators;
+    else op = valid_skip2_operators;
+
+    for (i = 0; op[i].mnemonic; i++) {
+      if (GET_CODE(operands[3]) == op[i].insn_code) break;
+    }
+    gcc_assert(op[i].mnemonic != 0);
+    p += sprintf(p, "%s.%c ", op[i].mnemonic, mode_letter);
+    for (i = 0; i < count; i++) {
+      /* can only be immediate, reg or near */
+      char *immediate="";
+      if (immediate_operand(operands[4+i],VOIDmode)) {
+        immediate="#";
+      }
+      p += sprintf(p, "%s%%%d%s", immediate, 4+i, i+1 == count ? ",%0" : ",");
+    }
+  }
+#else
+  } else if (count == 1) {
+    rtx tmp = NULL_RTX;
+    struct valid_operator *op;
+    int i;
+    char *template, *adjusted_template;
+    int code;
+
+    op = valid_skip1_operators;
+    for (i = 0; op[i].mnemonic; i++) {
+      if (GET_CODE(operands[3]) == op[i].insn_code) break;
+    }
+    gcc_assert(op[i].mnemonic != 0);
+    tmp = gen_rtx_fmt_e(op[i].insn_code, GET_MODE(operands[4]), operands[4]);
+    tmp = gen_rtx_SET(GET_MODE(operands[0]), operands[0], tmp);
+    start_sequence();
+    tmp = emit_insn(tmp);
+    code = recog_memoized(tmp);
+    if (code > -1) {
+      extract_insn(tmp);
+      gcc_assert(constrain_operands(1));
+    }
+    template = get_insn_template(code, tmp);
+    adjusted_template = pic30_skip_adjust_template(template,4,count);
+    p += sprintf(p, "%s", adjusted_template);
+    free(adjusted_template);
+    end_sequence();
+  } else if (count == 2) {
+    rtx tmp = NULL_RTX;
+    struct valid_operator *op;
+    int i;
+    char *template, *adjusted_template;
+    int code;
+
+    op = valid_skip2_operators;
+    for (i = 0; op[i].mnemonic; i++) {
+      if (GET_CODE(operands[3]) == op[i].insn_code) break;
+    }
+    gcc_assert(op[i].mnemonic != 0);
+    tmp = gen_rtx_fmt_ee(op[i].insn_code, GET_MODE(operands[4]), 
+                         operands[4], operands[5]);
+    tmp = gen_rtx_SET(GET_MODE(operands[0]), operands[0], tmp);
+    start_sequence();
+    tmp = emit_insn(tmp);
+    code = recog_memoized(tmp);
+    if (code > -1) {
+      extract_insn(tmp);
+      gcc_assert(constrain_operands(1));
+    }
+    template = get_insn_template(code, tmp);
+    adjusted_template = pic30_skip_adjust_template(template,4,count);
+    p += sprintf(p, "%s", adjusted_template);
+    free(adjusted_template);
+    end_sequence();
+  }
+#endif
+  if (count) {
+    int code;
+
+    // restore all the sh***y global variables
+    code = recog_memoized(insn);
+    extract_insn(insn);
+    constrain_operands(1);
+  }
+  return buffer;
+}
+  
+  

@@ -586,7 +586,14 @@ gen_rtx_REG (enum machine_mode mode, unsigned int regno)
      Also don't do this when we are making new REGs in reload, since
      we don't want to get confused with the real pointers.  */
 
+#ifdef _BUILD_C30_
+   /* Pmode can vary based on command line switches;
+    * machine_Pmode is always the pmode for a hardware instruction indirection
+    */
+  if (mode == machine_Pmode && !reload_in_progress)
+#else
   if (mode == Pmode && !reload_in_progress)
+#endif
     {
       if (regno == FRAME_POINTER_REGNUM
 	  && (!reload_completed || frame_pointer_needed))
@@ -638,10 +645,30 @@ rtx
 gen_rtx_MEM (enum machine_mode mode, rtx addr)
 {
   rtx rt = gen_rtx_raw_MEM (mode, addr);
+  rtx base = NULL_RTX;
 
   /* This field is not cleared by the mere allocation of the rtx, so
      we clear it here.  */
   MEM_ATTRS (rt) = 0;
+#ifdef _BUILD_C30_
+  if ((TARGET_EDS) && (TARGET_EDS_MODE == P32UMMmode) && addr) {
+    if (GET_CODE(addr) == REG) {
+      base = addr;
+    } else if (GET_CODE(addr) == PLUS) {
+      base = XEXP(addr,0);
+    }
+    if ((base) && GET_CODE(base) == REG) {
+      if ((REGNO(base) == STACK_POINTER_REGNUM) ||
+          (REGNO(base) == REGNO(virtual_incoming_args_rtx)) ||
+          (REGNO(base) == REGNO(virtual_stack_vars_rtx)) ||
+          (REGNO(base) == REGNO(virtual_stack_dynamic_rtx)) ||
+          (REGNO(base) == REGNO(virtual_outgoing_args_rtx)) ||
+          (REGNO(base) == REGNO(virtual_cfa_rtx))) {
+        set_mem_addr_space(rt, pic30_space_stack);
+      }
+    }
+  }
+#endif
 
   return rt;
 }
@@ -1556,6 +1583,7 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
      the final type... its the address space of the ref... 
      Just like some of the other memory settings we make. (CW) */
   addr_space_t as;
+  addr_space_t mem_as;
 #endif
 
   /* It can happen that type_for_mode was given a mode for which there
@@ -1570,6 +1598,7 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
 
 #if defined(_BUILD_C30_) && 1
   as = TYPE_ADDR_SPACE(type);
+  mem_as = MEM_ADDR_SPACE(ref);
 #endif
   /* If we have already set DECL_RTL = ref, get_alias_set will get the
      wrong answer, as it assumes that DECL_RTL already has the right alias
@@ -1824,6 +1853,14 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
 
   /* Now set the attributes we computed above.  */
 #if defined(_BUILD_C30_) && 1
+  /* in UMM, things located on the stack have a unique address space which is
+        not determined by type... don't change it unless we have excplicitly
+        made it something else */
+  if (as != mem_as) {
+    if ((as == ADDR_SPACE_GENERIC) && (mem_as == pic30_space_stack)) {
+       as = mem_as;
+    }
+  }
   MEM_ATTRS (ref)
     = get_mem_attrs (alias, expr, offset, size, align, as, GET_MODE (ref));
 #else
@@ -5718,6 +5755,21 @@ init_emit_regs (void)
   /* Assign register numbers to the globally defined register rtx.  */
   pc_rtx = gen_rtx_PC (VOIDmode);
   cc0_rtx = gen_rtx_CC0 (VOIDmode);
+#ifdef _BUILD_C30_
+  stack_pointer_rtx = gen_raw_REG (STACK_Pmode, STACK_POINTER_REGNUM);
+  frame_pointer_rtx = gen_raw_REG (STACK_Pmode, FRAME_POINTER_REGNUM);
+  hard_frame_pointer_rtx = gen_raw_REG (STACK_Pmode, HARD_FRAME_POINTER_REGNUM);
+  arg_pointer_rtx = gen_raw_REG (STACK_Pmode, ARG_POINTER_REGNUM);
+  virtual_incoming_args_rtx =
+    gen_raw_REG (STACK_Pmode, VIRTUAL_INCOMING_ARGS_REGNUM);
+  virtual_stack_vars_rtx =
+    gen_raw_REG (STACK_Pmode, VIRTUAL_STACK_VARS_REGNUM);
+  virtual_stack_dynamic_rtx =
+    gen_raw_REG (STACK_Pmode, VIRTUAL_STACK_DYNAMIC_REGNUM);
+  virtual_outgoing_args_rtx =
+    gen_raw_REG (STACK_Pmode, VIRTUAL_OUTGOING_ARGS_REGNUM);
+  virtual_cfa_rtx = gen_raw_REG (STACK_Pmode, VIRTUAL_CFA_REGNUM);
+#else /*_BUILD_C30_*/
   stack_pointer_rtx = gen_raw_REG (Pmode, STACK_POINTER_REGNUM);
   frame_pointer_rtx = gen_raw_REG (Pmode, FRAME_POINTER_REGNUM);
   hard_frame_pointer_rtx = gen_raw_REG (Pmode, HARD_FRAME_POINTER_REGNUM);
@@ -5731,19 +5783,28 @@ init_emit_regs (void)
   virtual_outgoing_args_rtx =
     gen_raw_REG (Pmode, VIRTUAL_OUTGOING_ARGS_REGNUM);
   virtual_cfa_rtx = gen_raw_REG (Pmode, VIRTUAL_CFA_REGNUM);
-
+#endif /*_BUILD_C30_*/
   /* Initialize RTL for commonly used hard registers.  These are
      copied into regno_reg_rtx as we begin to compile each function.  */
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     static_regno_reg_rtx[i] = gen_raw_REG (reg_raw_mode[i], i);
 
 #ifdef RETURN_ADDRESS_POINTER_REGNUM
+#ifdef _BUILD_C30_
+  return_address_pointer_rtx
+    = gen_raw_REG (STACK_Pmode, RETURN_ADDRESS_POINTER_REGNUM);
+#else /*_BUILD_C30_*/
   return_address_pointer_rtx
     = gen_raw_REG (Pmode, RETURN_ADDRESS_POINTER_REGNUM);
+#endif /*_BUILD_C30_*/
 #endif
 
   if ((unsigned) PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)
+#ifdef _BUILD_C30_
+    pic_offset_table_rtx = gen_raw_REG (STACK_Pmode, PIC_OFFSET_TABLE_REGNUM);
+#else /*_BUILD_C30_*/
     pic_offset_table_rtx = gen_raw_REG (Pmode, PIC_OFFSET_TABLE_REGNUM);
+#endif /*_BUILD_C30_*/
   else
     pic_offset_table_rtx = NULL_RTX;
 }
@@ -5802,7 +5863,7 @@ init_emit_once (void)
     }
 
 #if _BUILD_C30_
-  ptr_mode = Pmode;
+  ptr_mode = STACK_Pmode;
 #else
   ptr_mode = mode_for_size (POINTER_SIZE, GET_MODE_CLASS (Pmode), 0);
 #endif
@@ -5877,6 +5938,7 @@ init_emit_once (void)
       const_tiny_rtx[i][P32EDSmode] = GEN_INT(i);
       const_tiny_rtx[i][P16APSVmode] = GEN_INT(i);
       const_tiny_rtx[i][P32DFmode] = GEN_INT(i);
+      const_tiny_rtx[i][P32UMMmode] = GEN_INT(i);
 #endif
 
     }

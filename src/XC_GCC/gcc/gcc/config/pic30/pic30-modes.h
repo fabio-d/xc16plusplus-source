@@ -37,4 +37,5 @@ TARGET_POINTER_MODE(P32EXT,  32, 4);  /* __external__ pointer */
 TARGET_POINTER_MODE(P32EDS,  32, 4);  /* __eds__ pointer */
 TARGET_POINTER_MODE(P32PEDS, 32, 4);  /* paged __eds__ pointer */
 TARGET_POINTER_MODE(P32DF,   32, 4);  /* __packed data flash pointer */
+TARGET_POINTER_MODE(P32UMM,  32, 4);  /* UMM pointer mode */
 

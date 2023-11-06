@@ -1,8 +1,8 @@
 
 excerpt from xc16-objdump (-h option):
 
-  2 bss_7600      00000400  00007600  00007600  000000c8  2**1
+2 bss_7600 00000400 00007600 00007600
                   ALLOC, ABSOLUTE
-  3 bss_dma       00000002  00007a00  00007a00  000000c8  2**1
+3 bss_dma 00000002 00007a00 00007a00
                   ALLOC, DMA
 

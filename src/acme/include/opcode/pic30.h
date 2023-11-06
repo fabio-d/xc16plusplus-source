@@ -50,7 +50,9 @@ enum pic30_modifier
   PIC30_PACKED_HI_FOUND,
   PIC30_PACKED_LO_FOUND,
   PIC30_ADDR_LO_FOUND,
-  PIC30_ADDR_HI_FOUND
+  PIC30_ADDR_HI_FOUND,
+  PIC30_UNIFIED_LO_FOUND,
+  PIC30_UNIFIED_HI_FOUND,
 };
 
 /******************************************************************************/

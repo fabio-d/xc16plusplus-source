@@ -3536,7 +3536,7 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 { 
   unsigned opb = bfd_arch_mach_octets_per_byte (ldfile_output_architecture,
 						ldfile_output_machine);
-
+  
   /* Size up the sections from their constituent parts.  */
   for (; s != (lang_statement_union_type *) NULL; s = s->header.next)
     { int in_aivt_section=0;
@@ -3673,11 +3673,12 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
 		if (os->section_alignment != -1)
 		  dot = align_power (dot, os->section_alignment);
 
-                /* DEBUG */
+#if 0
+        /* DEBUG */
 		if (pic30_debug)
 		  printf("seq alloc %s, start = %lx\n",
 		     bfd_get_section_name (output_bfd, os->bfd_section), dot);
-
+#endif
                 /* BEWARE: bfd_set_section_vma() sets the lma also... */
 		bfd_set_section_vma (0, os->bfd_section, dot);
 
@@ -3762,8 +3763,8 @@ lang_size_sections_1 (s, output_section_statement, prev, fill, dot, relax,
         pic30_set_output_section_flags(os);
         if (pic30_debug) {
           if (os->region) {
-            printf("\n  sequential section %s in region %s"
-                   "\n    [orgin = %x, dot = %x, length = %x]\n",
+            printf("\nSequential section %s in region '%s'"
+                   "\n    [origin = %x, dot = %x, length = %x]\n",
                     os->bfd_section->name, os->region->name, 
                     os->region->origin, dot, 
                     os->region->origin + os->region->length);

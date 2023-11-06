@@ -27,10 +27,10 @@ do
 done
 
 rm -f t.exe
-$GCC30 -o t.exe t1.s || exit 99
+$GCC30 -mcpu=30F6014 -o t.exe t1.s || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GCC30 -o t.exe t1.s"
+    echo "$GCC30 -mcpu=30F6014 -o t.exe t1.s"
     echo $err
 fi
 

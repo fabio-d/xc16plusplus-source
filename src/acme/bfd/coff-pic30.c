@@ -3581,15 +3581,19 @@ pic30_coff_perform_data_directive (abfd, reloc_entry, symbol, data,
       reloc_target_output_section = symbol->section->output_section;
       output_base = reloc_target_output_section->vma;
 
-#if 0
+#if 1
+      if (pic30_debug) {
       /* DEBUG */
-      printf ("symbol->name = %s\n", symbol->name);
-      printf ("symbol->value = 0x%x\n", symbol->value);
-      printf ("output_base = 0x%x\n", output_base);
-      printf ("reloc_target_output_section->lma = 0x%x\n",
+      printf ("\nRelocating data directive symbol '%s'\n", symbol->name);
+      printf ("  symbol->value = 0x%x\n", symbol->value);
+      printf ("  output_base = 0x%x\n", output_base);
+      printf ("  reloc_target_output_section->lma = 0x%x\n",
               reloc_target_output_section->lma);
-      printf ("symbol->section->output_offset = 0x%x\n",
+      printf ("  symbol->section->output_offset = 0x%x\n",
               symbol->section->output_offset);
+      printf ("  data = 0x%x\n", data);
+      printf ("  octets = 0x%x\n", octets);
+      }
 #endif
 
       relocation += symbol->section->output_offset;
@@ -3602,8 +3606,10 @@ pic30_coff_perform_data_directive (abfd, reloc_entry, symbol, data,
 
       relocation >>= (bfd_vma) howto->rightshift;
 
-#if 0
-      printf("relocation = 0x%x\n", (long) relocation);
+#if 1
+      if (pic30_debug) {
+      printf("  %d final relocation = 0x%x at 0x%x\n", __LINE__, (long) relocation, octets);
+      }
 #endif
 
       /* Extract offset data from the encoded instruction. */
@@ -4964,14 +4970,16 @@ pic30_coff_perform_generic (abfd, reloc_entry, symbol, data,
       /* Add in supplied addend.  */
       relocation += reloc_entry->addend;
 
-#if 0
-  printf("\nsymbol->name = %s\n", symbol->name);
-  printf("symbol->value = %x\n", symbol->value);
-  printf("output_base = %x\n", output_base);
-  printf("symbol->section->output_offset = %x\n", symbol->section->output_offset);
-  printf("reloc_entry->address = %x\n", reloc_entry->address);
-  printf("reloc_entry->addend = %x\n", reloc_entry->addend);
-  printf("relocation = %x\n", relocation);
+#if 1
+  if (pic30_debug) {
+  printf("\nRelocating generic symbol '%s'\n", symbol->name);
+  printf("  symbol->value = 0x%x\n", symbol->value);
+  printf("  output_base = 0x%x\n", output_base);
+  printf("  symbol->section->output_offset = 0x%x\n", symbol->section->output_offset);
+  printf("  reloc_entry->address = 0x%x\n", reloc_entry->address);
+  printf("  reloc_entry->addend = 0x%x\n", reloc_entry->addend);
+  printf("  relocation = 0x%x\n", relocation);
+  }
 #endif
 
       /* Here the variable relocation holds the final address of the
@@ -5019,8 +5027,10 @@ pic30_coff_perform_generic (abfd, reloc_entry, symbol, data,
       /* apply the rightshift parameter */
       relocation >>= (bfd_vma) howto->rightshift;
 
-#if 0
-      printf("Final relocation = %lx at %lx\n", relocation, octets);
+#if 1
+      if (pic30_debug) {
+      printf("  final relocation = 0x%lx at 0x%lx\n", relocation, octets);
+      }
 #endif
 
       /* Call the pic30-specific range check routine */

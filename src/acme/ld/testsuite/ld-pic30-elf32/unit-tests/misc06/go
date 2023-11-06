@@ -27,18 +27,19 @@ do
 done
 
 rm -f t1.o
-$GAS30 -o t1.o t1.s 2> /dev/null
+$GAS30 -o t1.o -p30F6014 t1.s 2> /dev/null
+#$GAS30 -o t1.o t1.s 2> /dev/null
 err=$?
 if [ $vflag = "on" ]; then
     
     echo
-    echo "$GAS30 -o t1.o t1.s"
+    echo "$GAS30 -p30F6014 -o t1.o t1.s"
     echo $err
 fi
 
 
 rm -f t.exe
-$GLD30 -o t.exe t1.o --script=t.lkr --no-pack-data || exit 99
+$GLD30 -o t.exe t1.o --script=t.lkr --no-pack-data --debug > debug.out 2>&1 || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo "$GLD30 -o t.exe t1.o --script=t.lkr --no-pack-data"

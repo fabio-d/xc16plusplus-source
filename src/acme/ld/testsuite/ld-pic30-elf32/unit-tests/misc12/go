@@ -74,7 +74,8 @@ if [ $vflag = "on" ]; then
     echo "$SIM30 run.cmd"
     echo $err
 fi
-cp UartOut.txt test.out
+#remove the first column (addresses that might change)
+cut -d ' ' -f 2 UartOut.txt > test.out
 rm -f UartOut.txt
 
 if [ $vflag = "on" ]; then

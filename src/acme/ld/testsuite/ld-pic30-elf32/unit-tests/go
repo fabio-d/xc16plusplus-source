@@ -24,10 +24,24 @@ else {
     $home = getcwd();
 }
 
-print "\n----------------\n";
-print "GLD30 Unit Tests\n";
-print "----------------\n";
+if (defined $ENV{'BINDIR'}) {
+  $ENV{'PIC30_CD'}="$ENV{'BINDIR'}/..";
+}
+elsif (!defined $ENV{PIC30_CD}) {
+  print "You must define \$BINDIR or \$PIC30_CD\n";
+  exit;
+}
+
+$ENV{'COMPILER'}="$ENV{PIC30_CD}";
+if ( ! -x "$COMPILER" ) {
+  print "$COMPILER is not executable\n"
+}
+
+print "\n-----------------\n";
+print "Linker Unit Tests\n";
+print "-----------------\n";
 print "\nTest Directory = $home\n";
+print "BINDIR = $ENV{BINDIR}\n";
 print "PIC30_CD = $ENV{PIC30_CD}\n";
 print "PATH = $ENV{PATH}\n";
 
@@ -80,9 +94,9 @@ foreach $d (@dirlist) {
 closedir DOT;
 
 # print summary
-print "-----------------------\n";
-print "GLD30 Unit Test Summary\n";
-print "-----------------------\n\n";
+print "------------------------\n";
+print "Linker Unit Test Summary\n";
+print "------------------------\n\n";
 print "$num_tests Total tests in $home\n";
 print "$num_pass Tests PASS\n";
 print "$num_fail Tests FAIL\n\n";

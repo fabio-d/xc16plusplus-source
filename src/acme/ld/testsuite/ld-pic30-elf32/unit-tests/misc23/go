@@ -59,6 +59,9 @@ rm -f UartOut.txt
 } >> test.out
 rm -f t.exe
 $GCC30 -mcpu=30F6014 -o t.exe t.c -Wl,--heap=512  -Tt2.gld >> test.out 2>&1
+# clean up by removing the "Info:" line
+sed -i "/\b\(Info\)\b/d" test.out
+
 err=$?
 if [ $vflag = "on" ]; then
     echo "$GCC30 -o t.exe t.c -Wl,--heap=512  -Tt2.gld"

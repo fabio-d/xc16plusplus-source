@@ -1703,6 +1703,20 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
 		    tree type, tree rhs1, enum tree_code code, tree rhs2)
 {
   tree res, chrec1, chrec2;
+  tree this_sizetype = sizetype;
+
+#ifdef _BUILD_C30_
+  this_sizetype = TARGET_POINTER_SIZETYPE(type);
+
+#if 0
+  if (TYPE_ADDR_SPACE(type) != ADDR_SPACE_GENERIC) {
+    this_sizetype = pic30_extended_pointer_integer_type(
+                      targetm.addr_space.address_mode(TYPE_ADDR_SPACE(type))
+                    );
+  }
+#endif
+#endif
+
 
   if (get_gimple_rhs_class (code) == GIMPLE_SINGLE_RHS)
     {
@@ -1729,7 +1743,7 @@ interpret_rhs_expr (struct loop *loop, gimple at_stmt,
       chrec1 = analyze_scalar_evolution (loop, rhs1);
       chrec2 = analyze_scalar_evolution (loop, rhs2);
       chrec1 = chrec_convert (type, chrec1, at_stmt);
-      chrec2 = chrec_convert (sizetype, chrec2, at_stmt);
+      chrec2 = chrec_convert (this_sizetype, chrec2, at_stmt);
       res = chrec_fold_plus (type, chrec1, chrec2);
       break;
 

@@ -4949,6 +4949,14 @@ print_expression (expressionP)
          fprintf (stdout, "addr_hi (");
          break;
 
+      case PIC30_UNIFIED_LO_FOUND:
+         fprintf (stdout, "unified_lo (");
+         break;
+
+      case PIC30_UNIFIED_HI_FOUND:
+         fprintf (stdout, "unified_hi (");
+         break;
+
       default:
          print_closing_paren = FALSE;
          break;
@@ -6193,6 +6201,8 @@ pic30_cons_fix_new (frag, where, nbytes, exp)
                (exp->X_md.modifier == PIC30_EDSOFFSET_FOUND) ? "edsoffset" :
                (exp->X_md.modifier == PIC30_ADDR_LO_FOUND) ? "addr_lo" :
                (exp->X_md.modifier == PIC30_ADDR_HI_FOUND) ? "addr_hi" :
+               (exp->X_md.modifier == PIC30_UNIFIED_LO_FOUND) ? "unified_lo" :
+               (exp->X_md.modifier == PIC30_UNIFIED_HI_FOUND) ? "unified_hi" :
                "none");
    } /* if (flag_debug) */
 
@@ -6335,6 +6345,15 @@ pic30_cons_fix_new (frag, where, nbytes, exp)
             type = (global_p_directive_active ? BFD_RELOC_PIC30_P_ADDR_HI
                                               : BFD_RELOC_PIC30_ADDR_HI);
             break;
+
+         case PIC30_UNIFIED_LO_FOUND:
+            type = BFD_RELOC_PIC30_UNIFIED_LO;
+            break;
+
+         case PIC30_UNIFIED_HI_FOUND:
+            type = BFD_RELOC_PIC30_UNIFIED_HI;
+            break;
+
          default:
             break;
       } /* switch (exp->X_md.modifier) */
@@ -6859,6 +6878,14 @@ pic30_apply_operator (type, value, applying_fixups)
          value = PIC30_HANDLE (value);
          break;
 
+      case BFD_RELOC_PIC30_UNIFIED_LO:
+         value = PIC30_UNIFIED_LO(value);
+         break;
+
+      case BFD_RELOC_PIC30_UNIFIED_HI:
+         value = PIC30_UNIFIED_HI(value);
+         break;
+
       default:
          break;
    } /* switch (type) */
@@ -7004,6 +7031,8 @@ pic30_expr (expr_to_populate, data_allocation)
    PARSE_OPERATOR("packed_lo", PIC30_PACKED_LO_FOUND);
    PARSE_OPERATOR("addr_lo", PIC30_ADDR_LO_FOUND);
    PARSE_OPERATOR("addr_hi", PIC30_ADDR_HI_FOUND);
+   PARSE_OPERATOR("unified_lo", PIC30_UNIFIED_LO_FOUND);
+   PARSE_OPERATOR("unified_hi", PIC30_UNIFIED_HI_FOUND);
 
    /* Reset comma */
    if (comma_location)
@@ -7059,7 +7088,12 @@ pic30_expr (expr_to_populate, data_allocation)
                  (expr_to_populate->X_md.modifier ==
                   PIC30_ADDR_LO_FOUND) ? "addr_lo" : 
                  (expr_to_populate->X_md.modifier ==
-                  PIC30_ADDR_HI_FOUND) ? "addr_hi" : "handle");
+                  PIC30_ADDR_HI_FOUND) ? "addr_hi" : 
+                 (expr_to_populate->X_md.modifier ==
+                  PIC30_UNIFIED_LO_FOUND) ? "unified_lo" : 
+                 (expr_to_populate->X_md.modifier ==
+                  PIC30_UNIFIED_HI_FOUND) ? "unified_hi" : 
+                                                     "handle");
       } /* else if (!data_allocation) */
 
       if ((expr_to_populate->X_md.modifier == PIC30_PADDR_FOUND) &&
@@ -7268,6 +7302,10 @@ pic30_expr (expr_to_populate, data_allocation)
         case PIC30_DMAOFFSET_FOUND: type = BFD_RELOC_PIC30_DMAOFFSET;
           break;
         case PIC30_PADDR_FOUND: type = BFD_RELOC_PIC30_PADDR;
+          break;
+        case PIC30_UNIFIED_LO_FOUND: type = BFD_RELOC_PIC30_UNIFIED_LO;
+          break;
+        case PIC30_UNIFIED_HI_FOUND: type = BFD_RELOC_PIC30_UNIFIED_HI;
           break;
         default:
           /* some operators don't map directly to reloc types */
@@ -8303,6 +8341,17 @@ pic30_create_insn (opcode, operands, operand_count)
                         value = (value >> 16);
                         break;
 
+                     case PIC30_UNIFIED_LO_FOUND:
+                        /* if literal, we can only assume PSV ness :(
+                              don't use literals */
+                        value = PIC30_UNIFIED_LO(value);
+                        break;
+
+                     case PIC30_UNIFIED_HI_FOUND:
+                        /* bit 15 is set iff value > 32767, ie its paged */
+                        value = PIC30_UNIFIED_HI(value);
+                        break;
+
                      default:
                         break;
                   } /* switch (operands[i].X_md.modifier) */
@@ -8598,6 +8647,36 @@ pic30_create_insn (opcode, operands, operand_count)
                                            output_frag - frag_now->fr_literal,
                                            2, &(operands[i]), FALSE,
                                            BFD_RELOC_PIC30_WORD_ADDR_HI);
+                    } /* else if (PIC30_ADDR_LO_FOUND) */
+                  else if (operands[i].X_md.modifier == PIC30_UNIFIED_LO_FOUND)
+                    {
+                      if (flag_debug)
+                        fprintf (stdout, "    pic30_create_insn::UNIFIED_LO\n");
+
+                      if (reloc.value != BFD_RELOC_PIC30_WORD ) {
+                        as_bad (_("%s%s"), "UNIFIED_LO", err_str);
+                        break;
+                      }
+                      else
+                        fix = fix_new_exp (frag_now,
+                                           output_frag - frag_now->fr_literal,
+                                           2, &(operands[i]), FALSE,
+                                           BFD_RELOC_PIC30_WORD_UNIFIED_LO);
+                    } /* else if (PIC30_ADDR_LO_FOUND) */
+                 else if (operands[i].X_md.modifier == PIC30_UNIFIED_HI_FOUND)
+                    {
+                      if (flag_debug)
+                        fprintf (stdout, "    pic30_create_insn::UNIFIED_HI\n");
+
+                      if (reloc.value != BFD_RELOC_PIC30_WORD ) {
+                        as_bad (_("%s%s"), "UNIFIED_HI", err_str);
+                        break;
+                      }
+                      else
+                        fix = fix_new_exp (frag_now,
+                                           output_frag - frag_now->fr_literal,
+                                           2, &(operands[i]), FALSE,
+                                           BFD_RELOC_PIC30_WORD_UNIFIED_HI);
                     } /* else if (PIC30_ADDR_LO_FOUND) */
                   else
                   {
@@ -9735,6 +9814,8 @@ md_apply_fix3(fixP, valueP, seg)
             case BFD_RELOC_16:
             case BFD_RELOC_PIC30_PWORD:
             case BFD_RELOC_32:
+            case BFD_RELOC_PIC30_WORD_UNIFIED_LO:
+            case BFD_RELOC_PIC30_WORD_UNIFIED_HI:
 #ifdef BFD64
             case BFD_RELOC_64:
 #endif

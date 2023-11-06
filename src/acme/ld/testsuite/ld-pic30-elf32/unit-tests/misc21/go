@@ -9,7 +9,7 @@ if [ -z "$PIC30_CD" ]; then
 fi
 
 GAS30="$PIC30_CD/bin/xc16-as -omf=elf -W"
-GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
+GLD30="$PIC30_CD/bin/xc16-ld -omf=elf -mno-info-linker"
 GLD=$PIC30_CD/support/dsPIC30F/gld
 
 #
@@ -52,9 +52,9 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
-grep "Total program memory used" temp > test.out
+grep 'Total "program" memory used' temp > test.out
 grep "Total data EEPROM used" temp >> test.out
-grep "Total data memory used" temp >> test.out
+grep 'Total "data" memory used' temp >> test.out
 
 echo
 echo `head -1 info.txt`

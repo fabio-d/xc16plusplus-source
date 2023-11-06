@@ -2000,7 +2000,7 @@ bfd_pic30_add_handle_sym(sym, flags)
   if (handle) {
     if ((pic30_debug) && (flags != handle->flags)) {
       printf("Hash handle for %s exists oldflags = 0x%x, new == 0x%x\n",
-             handle->flags, flags);
+             sym, handle->flags, flags);
     }
     return; /* simply return */
   }
@@ -2874,6 +2874,10 @@ bfd_pic30_create_user_init_bfd  (bfd *parent)
   /* finish it */
   if (!bfd_make_readable (abfd)) abort();
 
+  /* must set this attribute last, because the call to
+     bfd_make_readable() loses extended attributes */
+  PIC30_SET_KEEP_ATTR(abfd->sections);
+
   return abfd;
 } /* static bfd * bfd_pic30_create_user_init_bfd (...)*/
 
@@ -3470,10 +3474,10 @@ bfd_pic30_skip_data_section (sect, p)
 static void
 bfd_pic30_print_section_header()
 {
-  printf("  %8s %5s %6s %6s %6s\n",
-         " section", "flags", "   VMA", "   LMA", "length");
-  printf("  %8s %4s %6s %6s %6s\n",
-         " -------", "-----", "------", "------", "------");
+  printf("  %16s %8s %6s %6s %6s\n",
+         " section name", "flags", "   VMA", "   LMA", "length");
+  printf("  %16s %8s %6s %6s %6s\n",
+         " ------------", "-----", "---", "---", "------");
 }
 
 static void
@@ -3481,8 +3485,9 @@ bfd_pic30_report_sections (abfd, sect, fp)
      bfd *abfd;
      asection *sect;
      PTR fp ATTRIBUTE_UNUSED ;
+
 {
-  printf("  %8s %5x %6x %6x %6x %s\n", sect->name, sect->flags,
+  printf("  %16s %8x %6x %6x %6x %s\n", sect->name, sect->flags,
          (unsigned int) sect->vma,
          (unsigned int) sect->lma,
          (unsigned int) sect->_raw_size / bfd_octets_per_byte (abfd),
@@ -3648,6 +3653,17 @@ bfd_pic30_remove_archive_module (name)
   }
 }
 
+/* This is a repair for XC16-1472 and XC16-1027
+ * allowing the customer to define a boot segment
+ * that consumes all of program memory. This
+ * situation was not deemed to be valid when
+ * CodeGuard security was first designed,
+ * but there could be a way to make it work
+ * and we shouldn't limit the customer's
+ * ability to try.
+ */
+#define OFF_BY 2
+
 void
 get_aivt_base ()
 {
@@ -3711,12 +3727,6 @@ get_aivt_base ()
                 einfo(_("%P%X: Error: Cannot determine AIVT base address.\n"));
               }
               fbslim_address = aivt_base * pagesize;
-#ifdef FIX_XC16_1027
-/* do we want to move cheese for v1.32? */
-#define OFF_BY 2
-#else
-#define OFF_BY 0
-#endif
               if (((fbslim_address < program_base_address()) ||
                    (fbslim_address > OFF_BY+program_end_address())) &&
                    (fbslim_address != 0)) {
@@ -3774,7 +3784,7 @@ bfd_pic30_print_region_info (name)
   lang_memory_region_type *region;
 
   region = lang_memory_region_lookup (name);
-  printf("  %s: start = %x, len = %x, current = %x\n", region->name,
+  printf("  %10s: addr = %5x, len = %5x, current = %5x\n", region->name,
          (unsigned int) region->origin,
          (unsigned int) region->length,
          (unsigned int) region->current);
@@ -3826,7 +3836,10 @@ bfd_pic30_after_parse()
 #if 0
   fprintf( stderr, "after_parse\n");
 #endif
-
+  struct memory_region_struct *region;
+  bfd_boolean has_program_type = FALSE;
+  bfd_boolean has_data_type = FALSE;
+    
   if (pic30_startup0_file == 0) {
     if (pic30_is_eds_machine(global_PROCESSOR))
       pic30_startup0_file = "crt0_extended.o";
@@ -3858,7 +3871,44 @@ bfd_pic30_after_parse()
     einfo(_("%P: Warning: linker script did not specify CRT_STARTMODE file,"
             " default: %s\n"), pic30_startmode_file );
   }
-}
+  
+  if (pic30_debug)
+    printf("\nMemory regions defined in linker script:\n");
+  
+  region = pic30_all_regions();
+  for (; region; region = region->next) {
+    bfd_boolean is_program_type = FALSE;
+    bfd_boolean is_data_type = FALSE;
+    
+    if ((region->flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY)) {
+      is_program_type = TRUE;
+      has_program_type = TRUE;
+    }
+    else if ((region->flags & SEC_ALLOC) &&
+            ((region->not_flags & (SEC_CODE|SEC_READONLY))==(SEC_CODE|SEC_READONLY))) {
+      is_data_type = TRUE;
+      has_data_type = TRUE;
+    }
+    
+    if (pic30_debug) {
+      printf("  name = '%s', origin = 0x%x, length = 0x%x",
+            region->name, region->origin, region->length);
+      if (is_data_type)  printf(" (data-type)\n");
+      else if (is_program_type)  printf(" (program-type)\n");
+      else  printf(" (no type specified)\n");
+    }
+  }
+  
+/* Ensure we have valid definitions for data and program memory */
+  if (!has_data_type) {
+    einfo(_("%F%P: Error: linker script did not specify data-type memory."
+            " Use '(a!xr)' attribute string on memory region definition.\n"));
+  }
+  if (!has_program_type) {
+    einfo(_("%F%P: Error: linker script did not specify program-type memory."
+            " Use '(xr)' attribute string on memory region definition\n"));
+  }
+} /* bfd_pic30_after_parse */
 
 
 /*
@@ -4931,6 +4981,7 @@ bfd_pic30_finish(void)
   struct bfd_link_hash_entry *h;
   int FLASH_mask = pic30_is_eds_machine(global_PROCESSOR) ? 0x200 : 0x000;
   char *alias_name = 0;
+  asection *heap_section = 0;
 
   const char **psname;
   const char *pic30_codesecs[] =
@@ -5019,7 +5070,9 @@ bfd_pic30_finish(void)
   /* if heap is required, make sure one is specified */
   if (pic30_heap_required && !heap_section_defined && !pic30_has_heap_option
       && !pic30_mno_info_linker) {
-      einfo(_("Info: Heap not specified, using heap size of 0. Refer to \"Heap Allocation\" in MPLAB XC16 Assembler, Linker and Utilities User's Guide.\n"));
+      einfo(_("Info: Heap not specified, using heap size of 0. Refer to "
+              "\"Heap Allocation\" in MPLAB XC16 Assembler, Linker and "
+              "Utilities User's Guide.\n"));
   }
     
   /*
@@ -5092,24 +5145,26 @@ bfd_pic30_finish(void)
   if (!heap_section_defined) {
     heap_base = 0;
     heap_limit = 0;
+    heap_section = bfd_abs_section_ptr;
   }
   else {
-    asection *sec;
 
-    for (sec = heap_bfd->sections; sec != 0; sec = sec->next)
-      if (PIC30_IS_HEAP_ATTR(sec)) break;
+    for (heap_section = heap_bfd->sections; heap_section != 0; 
+         heap_section = heap_section->next)
+      if (PIC30_IS_HEAP_ATTR(heap_section)) break;
 
-    if (sec == 0)
+    if (heap_section == 0)
       einfo("%P%X Internal error: Could not find heap definition\n");
-    else if (sec->output_section == 0)
+    else if (heap_section->output_section == 0)
       einfo("%P%X Internal error: Heap was not allocated\n");
     else {
       if (pic30_debug)
         printf("\nHeap is defined as input section %s,"
                " in output section %s\n\n",
-               sec->name, sec->output_section->name);
-      heap_base = sec->output_section->lma + sec->output_offset;
-      heap_limit = heap_base + sec->_raw_size / 2;
+               heap_section->name, heap_section->output_section->name);
+      heap_base = heap_section->output_section->lma + 
+                  heap_section->output_offset;
+      heap_limit = heap_base + heap_section->_raw_size / 2;
     }
   }
 
@@ -5128,12 +5183,12 @@ bfd_pic30_finish(void)
   if (pic30_debug)
     printf("Creating __heap = %x\n", heap_base);
   link_add_one_symbol (&link_info, output_bfd, "__heap",
-                                    BSF_GLOBAL, bfd_abs_section_ptr,
+                                    BSF_GLOBAL, heap_section,
                                     heap_base, "__heap", 1, 0, 0);
   if (pic30_debug)
     printf("Creating __eheap = %x\n", heap_limit);
   link_add_one_symbol (&link_info, output_bfd, "__eheap",
-                                    BSF_GLOBAL, bfd_abs_section_ptr,
+                                    BSF_GLOBAL, heap_section,
                                     heap_limit, "__eheap", 1, 0, 0);
 
   /*
@@ -7470,6 +7525,7 @@ gld${EMULATION_NAME}_before_allocation()
   extern bfd_boolean aivt_enabled;
   extern bfd_vma aivt_len;
   extern int ivt_elements;
+  struct memory_region_struct *region;
 
   if (pic30_debug)
     {
@@ -7480,12 +7536,14 @@ gld${EMULATION_NAME}_before_allocation()
     }
 
   {
+    /* (GM) Does this need to be generalized for multiple "program" regions? */
     lang_memory_region_type *region = region_lookup("program");
 
     /* adjust the program region location counters, for CodeGuard */
-    if (region->current != base_address[GENERALx][FLASHx]) {
+    if (region->current < base_address[GENERALx][FLASHx]) {
       if (pic30_debug)
-        printf("\nChanging the current location of region 'program' to 0x%lx\n",
+        printf("\nChanging the current location of region 'program'"
+               " to 0x%lx to satisfy CodeGuard requirements\n",
                base_address[GENERALx][FLASHx]);
       region->current = base_address[GENERALx][FLASHx];
     }
@@ -7509,9 +7567,11 @@ gld${EMULATION_NAME}_before_allocation()
       bfd_pic30_print_section_header();
       bfd_map_over_sections(output_bfd, &bfd_pic30_report_sections, 0);
 
-      printf("\nMemory Regions\n");
-      bfd_pic30_print_region_info("data");
-      bfd_pic30_print_region_info("program");
+      printf("\nMemory Regions:\n");
+      region = pic30_all_regions();
+      for (; region; region = region->next) {
+        bfd_pic30_print_region_info(region->name);
+      }
     }
 
 } /*static void gld${EMULATION_NAME}_before_allocation ()*/
@@ -7537,6 +7597,7 @@ static void
 gld${EMULATION_NAME}_after_allocation()
 {
   asection *sec;
+  struct memory_region_struct *region;
 
   {
     struct bfd_link_hash_entry *h;
@@ -7661,14 +7722,16 @@ gld${EMULATION_NAME}_after_allocation()
   }
 
   if (pic30_debug)
-    {
+    {      
       printf("\nAfter sequential allocation:\n");
       bfd_pic30_print_section_header();
       bfd_map_over_sections(output_bfd, &bfd_pic30_report_sections, 0);
 
-      printf("\nMemory Regions\n");
-      bfd_pic30_print_region_info("data");
-      bfd_pic30_print_region_info("program");
+      printf("\nMemory Regions:\n");
+      region = pic30_all_regions();
+      for (; region; region = region->next) {
+        bfd_pic30_print_region_info(region->name);
+      }
     }
 
   /* 
@@ -7683,9 +7746,11 @@ gld${EMULATION_NAME}_after_allocation()
         bfd_pic30_print_section_header();
         bfd_map_over_sections(output_bfd, &bfd_pic30_report_sections, 0);
 
-        printf("\nMemory Regions\n");
-        bfd_pic30_print_region_info("data");
-        bfd_pic30_print_region_info("program");
+        printf("\nMemory Regions:\n");
+        region = pic30_all_regions();
+        for (; region; region = region->next) {
+          bfd_pic30_print_region_info(region->name);
+        }
       }
 #if 0
     {
@@ -7715,6 +7780,8 @@ gld${EMULATION_NAME}_after_allocation()
 static void  
 gld${EMULATION_NAME}_finish()
 {
+  struct memory_region_struct *region;
+
   if (pic30_debug)
     {
       printf("\nBefore finish:\n");
@@ -7728,9 +7795,11 @@ gld${EMULATION_NAME}_finish()
       bfd_pic30_print_section_header();
       bfd_map_over_sections(output_bfd, &bfd_pic30_report_sections, 0);
 
-      printf("\nMemory Regions\n");
-      bfd_pic30_print_region_info("data");
-      bfd_pic30_print_region_info("program");
+      printf("\nMemory Regions:\n");
+      region = pic30_all_regions();
+      for (; region; region = region->next) {
+        bfd_pic30_print_region_info(region->name);
+      }
 
       printf("\nDynamic Memory\n");
       printf("  heap:  %x bytes, %x to %x\n",
@@ -7973,6 +8042,9 @@ elf_link_check_archive_element (name, abfd, info, new_mask_bits, new_set_bits)
     }
     return FALSE;
   }
+  if (pic30_debug) {
+    printf("\n%s matches bfd_default_compatible\n", abfd->filename);
+  }
 
   /* Temporary check for instruction set compatibility. xc16-783*/
    if ((global_PROCESSOR != 0) &&
@@ -8091,12 +8163,15 @@ elf_link_check_archive_element (name, abfd, info, new_mask_bits, new_set_bits)
     if (undefsyms) {
       usym = pic30_undefsym_lookup(undefsyms, name, 0, 0);
       if (usym) {
-        if (usym->external_options_mask)
-          if (global_signature_set && !usym->options_set)
+        if (usym->external_options_mask) {
+          if ((global_signature_set & usym->external_options_mask) !=
+               usym->options_set) {
             einfo (_("%FLink Error: %s compilation options are not"
                      " compatible with the project global compilation"
                      " options.\n"), 
                      usym ->most_recent_reference->filename);
+          }
+        }
         usym->external_options_mask |= global_signature_mask;
         usym->options_set |= global_signature_set;
       }
@@ -8113,36 +8188,82 @@ elf_link_check_archive_element (name, abfd, info, new_mask_bits, new_set_bits)
 
     /* If the archive object has a signature,
        compare it to the undefined symbol entry */
-    if (usym && has_sig) {
-      mask = signature_mask & usym->external_options_mask;
-      if ((mask & signature_set) == (mask & usym->options_set)) {
-        unsigned int new_mask = global_signature_mask | signature_mask;
-        unsigned int new_mask_delta = new_mask ^ global_signature_mask;
-        unsigned int new_bits_in_mask = pic30_count_ones(new_mask_delta);
 
-        unsigned int new_set = global_signature_set | signature_set;
-        unsigned int new_set_delta = new_set ^ global_signature_set;
-        unsigned int new_bits_in_set = pic30_count_ones(new_set_delta);
-        
+    /* the archive object entry must care about at least the same bits
+     *   as the undefined symbol -
+     *
+     *  ie, if current signature mask bit 1 is set (ie, we care about it)
+     *      then object file signature_mask bit 1 must also be set
+     *
+     *  if that is true, then the bits we care about must not change value 
+     *    in the above example, current options_set bit 1 must match object file
+     *    options_set bit 1
+     */
 
-        /* new_bits_set are the number of bits that need to be added to
-         *   the signature mask in order to choose this symbol ...
-         *   it may not be the best option and it does distinguish between
-         *   adding a requirement (and that requirement is clear) and adding
-         *   a must-have requirement (1,0) == (1,1) for these purposes
-         *
-         * in either case it represents a further restriction on future
-         * object selection 
-         */
+    /*
+     * if we are looking at an symbol which doesn't have a usym, we should
+     *   still check the current object vs the current mask 
+     *
+     */
+
+    if (has_sig) {
+      unsigned int library_object_mask = signature_mask;
+      unsigned int library_object_set = signature_set;
+      unsigned int undefined_sym_mask = global_signature_mask;
+      unsigned int undefined_sym_set = global_signature_set;
+
+      if (usym) {
+        undefined_sym_mask |= usym->external_options_mask;
+        undefined_sym_set |= usym->options_set;
+      }
+
+      if (library_object_mask == 0) {
         if (pic30_debug)
-          printf("OK [+%d bits, +%d]\n", new_bits_in_mask, new_bits_in_set);
-        *new_mask_bits = new_bits_in_mask;
-        *new_set_bits = new_bits_in_set;
+          printf("New object is a honey badger\n");
         result = TRUE;
+      } else if ((undefined_sym_mask & library_object_mask) == 
+                  undefined_sym_mask) {
+        // new object cares about at least the same things as our current set
+        if ((undefined_sym_set & undefined_sym_mask) ==
+            (library_object_set & undefined_sym_mask)) {
+          // the bits we currently care about still match...
+          // determine how many new bits we are adding to the mix
+          unsigned int new_mask_delta = library_object_mask ^ 
+                                           undefined_sym_mask;
+          unsigned int new_bits_in_mask = pic30_count_ones(new_mask_delta);
+          // how many of those bits are set?
+          unsigned int new_set_delta = library_object_set ^ 
+                                           undefined_sym_set;
+          unsigned int new_bits_in_set = pic30_count_ones(new_set_delta);
+          if (pic30_debug)
+            printf("OK [+%d bits, +%d]\n", new_bits_in_mask, new_bits_in_set);
+          *new_mask_bits = new_bits_in_mask;
+          *new_set_bits = new_bits_in_set;
+          result = TRUE;
+        } else {
+          if (pic30_debug)
+            printf("We share the same value for the important stuff\n");
+          result = FALSE;
+        }
       } else {
-        result = FALSE;
+        unsigned int agreed_mask = signature_mask & undefined_sym_mask;
+
         if (pic30_debug)
-          printf(" not compatible\n");
+          printf("We don't agree on whats important\n");
+        if ((undefined_sym_set & agreed_mask) == 
+            (library_object_set & agreed_mask)) {
+          // the bits we currently care about still match...
+          // determine how many new bits we are adding to the mix
+          unsigned int new_mask_delta = library_object_mask ^ 
+                                           undefined_sym_mask;
+          unsigned int new_bits_in_mask = pic30_count_ones(new_mask_delta);
+          unsigned int all_set_mask = undefined_sym_set | library_object_set;
+          if (pic30_debug)
+            printf("OK [+%d bits, +%d]\n", new_bits_in_mask, 0);
+          *new_mask_bits = new_bits_in_mask;
+          *new_set_bits = pic30_count_ones(all_set_mask & new_bits_in_mask);
+          result = TRUE;
+        } else result = FALSE;
       }
     }
   }

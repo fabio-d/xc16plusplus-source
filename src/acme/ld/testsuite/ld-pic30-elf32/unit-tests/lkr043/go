@@ -31,11 +31,11 @@ do
 done
 
 rm -f t1.out t2.out
-$GCC30 t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
+$GCC30 t1.c -o t1.exe -mcpu=30F6014 -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GCC30 t1.c -o t1.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
+    echo "$GCC30 t1.c -o t1.exe -mcpu=30F6014 -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
     echo $err
 fi
 
@@ -44,20 +44,20 @@ if [ $err -ne 0 ]; then
 fi
 
 rm -f t1.hex
-$BIN2HEX t1.exe -v > t1.out
+$BIN2HEX t1.exe -v > t1.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$BIN2HEX t1.exe -v >t1.out"
+    echo "$BIN2HEX t1.exe -v >t1.out 2>&1"
     echo $err
 fi
 
 
-$GCC30 t2.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
+$GCC30 t2.c -o t2.exe -mcpu=30F6014 -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GCC30 t2.c -o t2.exe -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
+    echo "$GCC30 t2.c -o t2.exe -mcpu=30F6014 -isystem $PIC30_CD/include -Wl,--heap=256,--no-smart-io"
     echo $err
 fi
 
@@ -66,11 +66,11 @@ if [ $err -ne 0 ]; then
 fi
 
 rm -f t2.hex
-$BIN2HEX t2.exe -v > t2.out
+$BIN2HEX t2.exe -v > t2.out 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$BIN2HEX t2.exe -v >t2.out"
+    echo "$BIN2HEX t2.exe -v >t2.out 2>&1"
     echo $err
 fi
 

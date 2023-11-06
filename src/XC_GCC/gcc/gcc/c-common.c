@@ -3819,8 +3819,7 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
 
     if (TYPE_PRECISION (TREE_TYPE (intop)) != TYPE_PRECISION (result_type)
         || TYPE_UNSIGNED (TREE_TYPE (intop)) != TYPE_UNSIGNED (result_type))
-      result_sizetype = c_common_type_for_size(TYPE_PRECISION(result_type),
-                                               TYPE_UNSIGNED(TREE_TYPE(intop)));
+      result_sizetype = pic30_target_pointer_sizetype(result_type);
       intop = convert(result_sizetype,intop);
   } else
 #endif

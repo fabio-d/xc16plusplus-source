@@ -5,8 +5,8 @@ Disassembly of section .text:
 
 00000100 <__reset>:
  100:	2f 80 20    	mov.w     #0x802, w15
- 102:	00 00 07    	rcall     0x104 <_main>
-Disassembly of section .text:
+ 102:	01 00 07    	rcall     0x106 <_main>
 
-00000104 <_main>:
- 104:	00 28 ef    	clr.w     0x800
+00000104 <__crt_start_mode>:
+ 104:	00 00 05    	retlw.w   #0x0, w0
+Disassembly of section .text:

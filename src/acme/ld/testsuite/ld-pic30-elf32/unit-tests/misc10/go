@@ -8,7 +8,7 @@ if [ -z "$PIC30_CD" ]; then
     exit 1;
 fi
 
-XGCC="$PIC30_CD/bin/xc16-gcc -omf=elf"
+XGCC="$PIC30_CD/bin/xc16-gcc -mcpu=30F6015 -omf=elf"
 GLD30="$PIC30_CD/bin/xc16-ld -omf=elf"
 OBJDUMP="$PIC30_CD/bin/xc16-objdump -omf=elf"
 READELF=$PIC30_CD/bin/xc16-readelf

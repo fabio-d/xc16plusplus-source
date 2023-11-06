@@ -2954,6 +2954,24 @@ find_reloads (rtx insn, int replace, int ind_levels, int live_known,
 				   && &SET_DEST (set) == recog_data.operand_loc[i],
 				   insn,
 				   &address_reloaded[i]);
+#ifdef _BUILD_C30_
+          if (GET_CODE(op) == SUBREG) {
+            /* attempt to simplify the subreg */
+            rtx new_reg = SUBREG_REG(op), new_op;
+
+            if (new_reg != reg) {
+              new_op = simplify_subreg(GET_MODE(recog_data.operand[i]),
+                                       new_reg, GET_MODE(new_reg), 
+                                       SUBREG_BYTE(op));
+              if (new_op) {
+                 if (GET_CODE(new_op) == MEM) {
+                   new_op = eliminate_regs(new_op, GET_MODE(new_op), 0);
+                 }
+                 op = new_op;
+              }
+            }
+          }
+#endif
 
 	  /* If we made a MEM to load (a part of) the stackslot of a pseudo
 	     that didn't get a hard register, emit a USE with a REG_EQUAL

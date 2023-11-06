@@ -181,6 +181,12 @@ void pic30_cpu_cpp_builtins(void *pfile_v) {
     cpp_define(pfile,buffer);
   }
 
+  if (TARGET_EDS) {
+    sprintf(buffer,"__XC16_UMM__=1");
+    cpp_define(pfile,buffer);
+  }
+   
+
   mchp_init_cci(pfile_v);
 }
 

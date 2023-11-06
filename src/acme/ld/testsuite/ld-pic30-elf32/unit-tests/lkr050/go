@@ -61,10 +61,15 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
+# lift some info from objdump, but not the section file offset which tends to change
 LINE1=`awk '/bss_810/' temp`
+LINE1=`echo $LINE1 | perl -n -e 'if (/(.*)\s+\w+\s+2\*\*1$/) {print "$1"}' -`
 LINE2=`awk '/data_820/' temp`
+LINE2=`echo $LINE2 | perl -n -e 'if (/(.*)\s+\w+\s+2\*\*1$/) {print "$1"}' -`
 LINE3=`awk '/code_210/' temp`
+LINE3=`echo $LINE3 | perl -n -e 'if (/(.*)\s+\w+\s+2\*\*1$/) {print "$1"}' -`
 LINE4=`awk '/psv_220/' temp`
+LINE4=`echo $LINE4 | perl -n -e 'if (/(.*)\s+\w+\s+2\*\*1$/) {print "$1"}' -`
 
 {
 echo

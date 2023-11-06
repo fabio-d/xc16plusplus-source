@@ -235,19 +235,9 @@ enum pic30_builtins
 #undef   LIB_SPEC
 #define  ALT_LIB_SPECS
 #if (PIC30_DWARF2)
-#define   LIB_SPEC   "-start-group -lpic30-elf -lm-elf -lc-elf -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group -lpic30-elf -lfastm-elf -lc-elf -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group -lpic30-elf -lrcfastm-elf -lc-elf -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group -llega-pic30-elf -lm-elf -llega-c-elf -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group -llega-pic30-elf -lfastm-elf -llega-c-elf -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group -llega-pic30-elf -lrcfastm-elf -llega-c-elf -end-group"
+#define   ALT_C99_LIB_SPEC  "-start-group -lc99-pic30-elf -lm-elf -lc99-elf -end-group"
 #else
-#define   LIB_SPEC   "-start-group  -lpic30-coff -lm-coff -lc-coff -end-group"
-#define   ALT_FM_LIB_SPEC   "-start-group  -lpic30-coff -lfastm-coff -lc-coff -end-group"
-#define   ALT_RM_LIB_SPEC   "-start-group  -lpic30-coff -lrcfastm-coff -lc-coff -end-group"
-#define   ALT_LC_LIB_SPEC   "-start-group  -llega-pic30-coff -lm-coff -llega-c-coff -end-group"
-#define   ALT_FMLC_LIB_SPEC "-start-group  -llega-pic30-coff -lfastm-coff -llega-c-coff -end-group"
-#define   ALT_RMLC_LIB_SPEC "-start-group  -llega-pic30-coff -lrcfastm-coff -llega-c-coff -end-group"
+#define   ALT_C99_LIB_SPEC  "-start-group -lc99-pic30-coff -lm-coff -lc99-coff -end-group"
 #endif
 
 /*
@@ -505,13 +495,17 @@ extern int         pic30_clear_fn_list;
 ** the result of subtracting two pointers. The typedef name ptrdiff_t is
 ** defined using the contents of the string.
 */
-#define PTRDIFF_TYPE      "int"
+#define PTRDIFF_TYPE      ((TARGET_EDS) ? \
+                             "long int" : \
+                             "int")
 
 /*
 ** Type to use for `size_t'. If undefined, uses `long unsigned int'.
 */
-#define SIZE_TYPE      ((TARGET_BIG || TARGET_EDS) ? \
-                           "long unsigned int" :            \
+#define SIZE_TYPE      ((TARGET_BIG) ?              \
+                         "long unsigned int" :      \
+                         (TARGET_EDS) ?             \
+                           "long unsigned int" :    \
                            "unsigned int")
 
 /*
@@ -543,6 +537,11 @@ extern int         pic30_clear_fn_list;
 ** Boundary (in *bits*) on which stack pointer should be aligned.
 */
 #define STACK_BOUNDARY      16
+
+/*
+**  Default mode for SFR accesses
+*/ 
+#define SFR_MODE            HImode
 
 /*
 ** Allocation boundary (in *bits*) for the code of a function.
@@ -814,7 +813,8 @@ extern int         pic30_clear_fn_list;
 ** this macro to return nonzero in as many cases as possible since doing so
 ** will allow GCC to perform better register allocation.
 */
-#define MODES_TIEABLE_P(MODE1, MODE2)   1
+#define MODES_TIEABLE_P(MODE1, MODE2)  \
+   ((MODE1 != P32UMMmode) && (MODE2 != P32UMMmode)) 
 
 /*
 ** Specify the registers used for certain standard purposes.
@@ -1114,7 +1114,7 @@ enum reg_class
  F   - const double vector
  g   - 
  G   - const double
- h   - unused
+ h   - const int matching PN for P32UMM
  H   - const double
  i   - integer
  I   - const int matching CONST_tK_FOR_CONSTRAINT_P
@@ -1338,6 +1338,8 @@ enum reg_class
       -31 <= ((HOST_WIDE_INT)VALUE) && ((HOST_WIDE_INT)VALUE) < 0 :         \
    (C) == 'O' ?                                                             \
       ((HOST_WIDE_INT)VALUE) == 0 :                                         \
+   (C) == 'h' ?                                                             \
+      -15 <= ((HOST_WIDE_INT)VALUE) && ((HOST_WIDE_INT)VALUE) <= 15 :       \
    (C) == 'P' ?                                                             \
       0 <= ((HOST_WIDE_INT)VALUE) && ((HOST_WIDE_INT)VALUE) <= 31 :         \
    (C) == 'W' ?                                                             \
@@ -1382,7 +1384,7 @@ enum reg_class
 /* unfortunately this dumb macro must be an expression -
    why it can't just default to looking for a ',' or NULL I don't know... */
 #define CONSTRAINT_LEN(C,STR) \
-     ((C) == 'f' ? 2 : DEFAULT_CONSTRAINT_LEN(C,STR))
+     ((C) == 'f' ? 2 : ((C) == 'q') ? 2 : DEFAULT_CONSTRAINT_LEN(C,STR))
 
 
 /*
@@ -1390,11 +1392,26 @@ enum reg_class
  *  but we do need to set these things so that asm statements can refer to
  *  memory address contraint letters :(
  */
+
+#if 0
+#define EXTRA_MEMORY_CONSTRAINT(C, STR)                  \
+ (                                                       \
+  ((C) == 'Q')                          \
+ )
+#endif
+
+#if 0
+#define EXTRA_ADDRESS_CONSTRAINT(C, STR) \
+  (((C) == 'q'))
+#endif
+
 #define EXTRA_MEMORY_CONSTRAINT(C, STR) \
   (reload_in_progress ?  0 : (((C) == 'S') || ((C) == 'T') || ((C) == 'U')))
 
 #define EXTRA_ADDRESS_CONSTRAINT(C, STR) \
   (reload_in_progress ?  0 : (((C) == 'q')))
+
+
 
 
 /************************************************************************/
@@ -1975,16 +1992,17 @@ typedef struct pic30_args
 ** Width in bits of a pointer.
 ** See also the macro `Pmode' defined below.
 */
-#define POINTER_SIZE      (TARGET_EDS ? 32 : 16)
+#define TARGET_EDS_MODE P32UMMmode
+extern unsigned int pic30_pointer_size;
+extern enum machine_mode pic30_pmode;
 
-#define Pmode (TARGET_EDS ? P32PEDSmode : HImode )
+#define POINTER_SIZE      pic30_pointer_size
+#define Pmode             pic30_pmode
+
 #if 1
-#define STACK_Pmode HImode
-#define FN_Pmode HImode
+#define STACK_Pmode machine_Pmode
+#define FN_Pmode    machine_Pmode
 #define TARGET_CONSTANT_PMODE (TARGET_TRACK_PSVPAG ? P16APSVmode : Pmode)
-#endif
-#if 0
-#define TARGET_CONSTANT_PMODE P16APSVmode
 #endif
 
 
@@ -2847,6 +2865,7 @@ extern int pic30_license_valid;
 #define TARGET_POINTER_MODE(TYPE,DECL) (pic30_pointer_mode(TYPE,DECL))
 #define TARGET_POINTER_SIZE(TYPE) (GET_MODE_SIZE(pic30_pointer_mode(TYPE)))
 #define TARGET_CONVERT_POINTER    pic30_convert_pointer
+#if 0
 #define TARGET_IS_POINTER_MODE(MODE) ((MODE == Pmode) || \
                                       (MODE == P24PROGmode) || \
                                       (MODE == P16PMPmode) || \
@@ -2856,6 +2875,7 @@ extern int pic30_license_valid;
                                       (MODE == P16APSVmode) || \
                                       (MODE == P24PSVmode) || \
                                       (MODE == P32DFmode))
+#endif
 
 enum pic30_address_space {
   /* ADDR_SPACE_GENERIC = 0 */
@@ -2866,7 +2886,8 @@ enum pic30_address_space {
   pic30_space_eds,
   pic30_space_packed,
   pic30_space_data_flash,
-  pic30_space_const            // for pic30_addr_space_subset_p
+  pic30_space_const,           // for pic30_addr_space_subset_p
+  pic30_space_stack,           // always on the stack
 };
 
 #define TARGET_ADDR_SPACE_KEYWORDS \
@@ -2876,6 +2897,7 @@ enum pic30_address_space {
   ADDR_SPACE_KEYWORD("__external__", pic30_space_external),  \
   ADDR_SPACE_KEYWORD("__eds__", pic30_space_eds),            \
   ADDR_SPACE_KEYWORD("__const__", pic30_space_const),        \
+  ADDR_SPACE_KEYWORD("__auto__", pic30_space_stack),        \
   ADDR_SPACE_KEYWORD("__pack_upper_byte", pic30_space_packed)
 
 enum pic30_set_psv_results {
@@ -2925,8 +2947,8 @@ typedef union {
   unsigned int mask;
   struct {
     unsigned int unsigned_long_size_t:1;  /* true if size_t is unsigned long */
-    unsigned int dummy1:1;                /* place holder */
-    unsigned int dummy2:1;                /* place holder */
+    unsigned int unified_memory:1;        /* true if using unified memory model */
+    unsigned int no_short_double:1;       /* true if -fno-short-double is used */
     unsigned int dummy3:1;                /* place holder */
     unsigned int dummy4:1;                /* place holder */
     unsigned int dummy5:1;                /* place holder */
@@ -2996,9 +3018,9 @@ extern const char *mchp_config_data_dir;
  * some modes don't have a linear address map, so its not okay just to convert
  * them by gen_lowpart - there may be some 'work' required.
  */
-/* all modes are linera, bar EDS */
+/* all modes are linear, bar EDS and UMM */
 #define TARGET_LINEAR_MODE(mode) \
-  (!((mode == P32PEDSmode) || (mode == P32EDSmode)))
+  (!((mode == P32PEDSmode) || (mode == P32EDSmode) || (mode == P32UMMmode)))
 
 
 /* handle this pragma */
@@ -3077,6 +3099,7 @@ extern struct pic30_mem_info_ pic30_mem_info;
 /* stealing this function from varasm.c */
 extern bool bss_initializer_p (const_tree decl);
 
+extern tree pic30_target_pointer_sizetype(tree);
 #define TARGET_POINTER_SIZETYPE pic30_target_pointer_sizetype
 
 extern int pic30_type_suffix(tree type, int* is_long);

@@ -57,13 +57,13 @@ if [ $vflag = "on" ]; then
 fi
 
 # extract info about sections
-LINE1=`perl -n -e 'if (/(^Idx.*Size.*VMA.*LMA).*$/) {print "$1\n"}' temp`
-LINE2=`perl -n -e 'if (/(.*low_data\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
-LINE3=`perl -n -e 'if (/(.*high_data\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
-LINE4=`perl -n -e 'if (/(.*low_code\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
-LINE5=`perl -n -e 'if (/(.*high_code\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
-LINE6=`perl -n -e 'if (/(.*low_eedata\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
-LINE7=`perl -n -e 'if (/(.*high_eedata\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE1=`perl -n -e 'if (/(Name.*Size.*VMA.*LMA).*$/) {print "$1\n"}' temp`
+LINE2=`perl -n -e 'if (/.*(low_data\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE3=`perl -n -e 'if (/.*(high_data\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE4=`perl -n -e 'if (/.*(low_code\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE5=`perl -n -e 'if (/.*(high_code\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE6=`perl -n -e 'if (/.*(low_eedata\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
+LINE7=`perl -n -e 'if (/.*(high_eedata\s+\w+\s+\w+\s+\w+).*$/) {print "$1\n"}' temp`
 
 # build an output file
 rm -f test.out

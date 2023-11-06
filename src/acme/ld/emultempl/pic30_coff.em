@@ -2699,7 +2699,7 @@ bfd_pic30_create_user_init_bfd  (bfd *parent)
 
   /* create a bare-bones section */
   sec = bfd_pic30_create_section (abfd, ".user_init",
-                                  SEC_HAS_CONTENTS|SEC_IN_MEMORY | SEC_CODE, 1);
+                                  SEC_HAS_CONTENTS|SEC_IN_MEMORY|SEC_CODE|SEC_KEEP, 1);
   size = (bfd_size_type) 4;
   bfd_set_section_size (abfd, sec, size);
 
@@ -2724,6 +2724,10 @@ bfd_pic30_create_user_init_bfd  (bfd *parent)
 
   /* finish it */
   if (!bfd_make_readable (abfd)) abort();
+
+  /* must set this attribute last, because the call to
+     bfd_make_readable() loses extended attributes */
+  PIC30_SET_KEEP_ATTR(abfd->sections);
 
   return abfd;
 } /* static bfd * bfd_pic30_create_user_init_bfd (...)*/
@@ -3402,6 +3406,17 @@ bfd_pic30_remove_archive_module (name)
     }
 } /* static void bfd_pic30_remove_archive_module (.) */
 
+/* This is a repair for XC16-1472 and XC16-1027
+ * allowing the customer to define a boot segment
+ * that consumes all of program memory. This
+ * situation was not deemed to be valid when
+ * CodeGuard security was first designed,
+ * but there could be a way to make it work
+ * and we shouldn't limit the customer's
+ * ability to try. GM 5/5/21
+ */
+#define OFF_BY 2
+
 void
 get_aivt_base ()
 {
@@ -3457,12 +3472,6 @@ get_aivt_base ()
                 einfo(_("%P%X: Error: Cannot determine AIVT base address.\n"));
               }
               fbslim_address = aivt_base * pagesize;
-#ifdef FIX_XC16_1027
-/* do we want to move cheese for v1.32? */
-#define OFF_BY 2
-#else
-#define OFF_BY 0
-#endif
               if (((fbslim_address < program_base_address()) ||
                    (fbslim_address > OFF_BY+program_end_address())) &&
                   (fbslim_address != 0)) {
@@ -6755,12 +6764,14 @@ gld${EMULATION_NAME}_before_allocation()
     }
 
   {
+    /* (GM) Does this need to be generalized for multiple "program" regions? */
     lang_memory_region_type *region = region_lookup("program");
 
     /* adjust the program region location counters, for CodeGuard */
-    if (region->current != base_address[GENERALx][FLASHx]) {
+    if (region->current < base_address[GENERALx][FLASHx]) {
       if (pic30_debug)
-        printf("\nChanging the current location of region 'program' to 0x%lx\n",
+        printf("\nChanging the current location of region 'program'"
+               " to 0x%lx to satisfy CodeGuard requirements\n",
                base_address[GENERALx][FLASHx]);
       region->current = base_address[GENERALx][FLASHx];
     }

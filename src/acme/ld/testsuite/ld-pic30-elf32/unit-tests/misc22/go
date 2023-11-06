@@ -36,7 +36,7 @@ fi
 
 
 rm -f t.exe t.map
-$GLD30 -o t.exe t1.o > temp 2>&1
+$GLD30 --debug -o t.exe t1.o > temp 2>&1
 err=$?
 if [ $vflag = "on" ]; then
     echo
@@ -47,7 +47,7 @@ fi
 
 # keep part of the expected error message
 grep -o "Error.*" temp > test.out
-rm -f temp
+#rm -f temp
 
 if [ $vflag = "on" ]; then
     echo

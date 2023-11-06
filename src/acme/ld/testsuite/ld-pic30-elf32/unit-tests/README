@@ -2,8 +2,13 @@
 Running Linker Unit Tests 
 =========================
 
-Last updated on 2004-03-29 by GM
+Last updated on 2021-06-09 by GM
 
+This directory is a work in progress. The tests can be run remotely using the "run_tests" script in src/pic30_unit_tests/linker_unit_tests. Or they can be run locally, using the "go" script as described below.
+
+Current development is to convert usage of the old command-line simulator "sim30" to mdb.sh, which is part of the MPLABX installation directory.
+
+##
 
 The linker uses a test driver written in perl.  The test cases are found in subdirectories under $SRC_DIR/acme/ld/testsuite/ld-pic30-coff/unit-tests. The tests are run as a suite using the following commands:
 

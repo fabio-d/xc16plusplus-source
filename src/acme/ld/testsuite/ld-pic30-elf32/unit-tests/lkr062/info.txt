@@ -2,14 +2,13 @@ lkr062: NOLOAD section is not initialized:
 
 The objective of this test is to verify that
 a section defined with the noload attribute is not
-initialized by the startup library. Note that
-an empty data init template has a size of 2.
+initialized by the startup library. 
 
 How to execute the test:
 
-1. Set the environment variable $ACME_BIN
+1. Set the environment variable $PIC30_CD
     to your pic30 tools binary directory
-2. Export $ACME_BIN
+2. Export $PIC30_CD
 3. Edit the Configuration section of file "go"
 4. Execute "go"
 

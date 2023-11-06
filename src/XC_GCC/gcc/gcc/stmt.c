@@ -178,7 +178,11 @@ expand_computed_goto (tree exp)
 {
   rtx x = expand_normal (exp);
 
+#ifdef _BUILD_C30_
+  x = convert_memory_address (FN_Pmode, x);
+#else
   x = convert_memory_address (Pmode, x);
+#endif
 
   do_pending_stack_adjust ();
   emit_indirect_jump (x);

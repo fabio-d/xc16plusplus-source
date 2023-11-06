@@ -626,6 +626,8 @@ static void block_split(struct sa_block *b, bfd_vma offset,
   if (sa_debug & dbg_symbol_scanning) {
     fprintf(stderr,"Spliting block: %d at offset %x\n",
                    b->block_id, offset);
+    fprintf(stderr,"  range: 0x%x -> 0x%x (len == %d)\n", 
+            b->start_pc , b->end_pc, b->end_pc-b->start_pc);
     fprintf(stderr,"  prev block: %d\n", 
             b->link_prev ? b->link_prev->block_id : -1);
     fprintf(stderr,"  next block: %d\n",
@@ -706,9 +708,12 @@ void sa_gather_flash_symbols(asymbol **syms, long int symcount) {
   long int i;
 
   for (i = 0; i < symcount; i++) {
+    bfd_vma section_end; 
+    struct sa_block *b;
+
     /* check symbol/section information is valid */
     { asymbol *label;
-      bfd_vma section_end, addr;
+      bfd_vma addr;
 
       label = syms[i];
       section_end = (label->section->vma + label->section->_raw_size/opb);
@@ -729,7 +734,6 @@ void sa_gather_flash_symbols(asymbol **syms, long int symcount) {
         if ((strstr(section_name,".ivt") == section_name) ||
             (strstr(section_name,".aivt") == section_name)) {
           // vector table section; we want to read this...
-          struct sa_block *b;
 
           b = block_lookup(syms[i], bfd_asymbol_value(syms[i]));
           if (b) {
@@ -750,8 +754,10 @@ void sa_gather_flash_symbols(asymbol **syms, long int symcount) {
                   i, bfd_asymbol_name(syms[i]));
         }
         if (target_check_symbol(target_invalid_symbols,
-                                bfd_asymbol_name(syms[i])))
-           (void) block_lookup(syms[i], bfd_asymbol_value(syms[i]));
+                                bfd_asymbol_name(syms[i]))) {
+           b = block_lookup(syms[i], bfd_asymbol_value(syms[i]));
+           b->end_pc = section_end;
+        }
       }
     } else if (sa_debug & dbg_symbol_scanning) {
       fprintf(stderr,"(%d) skipping 'other' symbol: %s\n",
@@ -2104,7 +2110,7 @@ get_license (enum check_license_flag type)
   char kopt[] = "-full-checkout-for-compilers";
 #endif
   char ccov_kopt[] = "-full-checkout-for-compilers";
-  char  product_xccov[] = "swxc-cov";
+  char  product_xccov[] = "swanaly";
   char  version_xccov[4] = "1.0";
   char date[] = __DATE__;
   int mchp_license_valid;
@@ -2203,7 +2209,10 @@ get_license (enum check_license_flag type)
       } else {
         mchp_license_valid = WEXITSTATUS(status);
         /* return FREE if we dont' have CCOV license */
-        if (mchp_license_valid != MCHP_XCLM_VALID_CCOV_LICENSE) {
+        if ((mchp_license_valid == MCHP_XCLM_VALID_CCOV_LICENSE) ||
+            (mchp_license_valid == MCHP_XCLM_VALID_ANATS_LICENSE)) {
+          /* good license */
+        } else {
           mchp_license_valid = MCHP_XCLM_FREE_LICENSE;
         }
       }

@@ -1,2 +1,3 @@
 Error: Could not allocate section .bss, size = 32768 bytes, attributes = bss 
+Error: Could not allocate section .bss
 Error: Could not allocate data memory

@@ -40,6 +40,9 @@ extern bfd_boolean pic30_elf_backend_section_from_bfd_section
 #define PIC30_HANDLE(value)		((value) & 0xFFFF)
 #define PIC30_PSVPTR(value) ((((value) & 0xFFFF8000) << 1) | \
         (((value) & 0x7FFF) << 1) | 0x1 )
+#define PIC30_UNIFIED_LO(value)         ((((value) & 0x7FFF) << 1) || \
+                                         (((value) & 0xFFF8000) != 0))
+#define PIC30_UNIFIED_HI(value)         (((value) >> 15) & 0xFFFF)
 
 /************************************************************************/
 /*   names of "special" sections					*/
@@ -225,6 +228,10 @@ START_RELOC_NUMBERS (elf_pic30_reloc_type)
   RELOC_NUMBER (R_PIC30_WORD_ADDR_LO,           93)
   RELOC_NUMBER (R_PIC30_WORD_ADDR_HI,           94)
   RELOC_NUMBER (R_PIC30_BRANCH_ABSOLUTE6,       95)
+  RELOC_NUMBER (R_PIC30_UNIFIED_LO,             96)
+  RELOC_NUMBER (R_PIC30_UNIFIED_HI,             97)
+  RELOC_NUMBER (R_PIC30_WORD_UNIFIED_LO,        98)
+  RELOC_NUMBER (R_PIC30_WORD_UNIFIED_HI,        99)
 
 
 END_RELOC_NUMBERS (R_PIC30_maxext)

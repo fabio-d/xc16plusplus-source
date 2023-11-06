@@ -474,9 +474,13 @@ elf_link_add_archive_symbols (abfd, info)
               if (new_mask_bits == 0) {
                 if (pic30_debug) {
                   printf("...perfect match\n");
+                  debug_deferred_archive_members();
                 }
-                pic30_remove_archive(symdef, NULL);
+                pic30_remove_archive(symdef, NULL,element);
               } else {
+                if (pic30_debug) {
+                  printf("...defer match\n");
+                }
                 pic30_defer_archive(symdef, NULL, element, info, 
                                     new_mask_bits, new_set_bits, i);
                 continue;
@@ -1468,8 +1472,9 @@ elf_link_add_object_symbols (abfd, info)
 #endif
 
 #ifdef PIC30
-  if (pic30_debug)
+  if (pic30_debug) {
     printf("\nLoading symbols from %s\n", abfd->filename);
+  }
 
   /*
   ** If pic30_select_objects is enabled, look for a signature section.
@@ -1488,10 +1493,10 @@ elf_link_add_object_symbols (abfd, info)
 
     if (pic30_debug) {
       if (has_sig)
-        printf("(signature: %d 0x%x 0x%x)", signature_pairs,
+        printf("  signature: %d 0x%x 0x%x", signature_pairs,
                signature_mask, signature_set);
       else
-        printf("(no signature)");
+        printf("  (no signature)");
     }
   }
 

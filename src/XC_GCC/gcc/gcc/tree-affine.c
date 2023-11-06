@@ -112,8 +112,9 @@ aff_combination_scale (aff_tree *comb, double_int scale)
   if (comb->rest)
     {
       tree type = comb->type;
-      if (POINTER_TYPE_P (type))
+      if (POINTER_TYPE_P (type)) {
 	type = sizetype;
+      }
       if (comb->n < MAX_AFF_ELTS)
 	{
 	  comb->elts[comb->n].coef = scale;
@@ -174,8 +175,13 @@ aff_combination_add_elt (aff_tree *comb, tree elt, double_int scale)
     }
 
   type = comb->type;
-  if (POINTER_TYPE_P (type))
+  if (POINTER_TYPE_P (type)) {
+#ifdef _BUILD_C30_
+    type = TARGET_POINTER_SIZETYPE(type);
+#else
     type = sizetype;
+#endif
+  }
 
   if (double_int_one_p (scale))
     elt = fold_convert (type, elt);
@@ -277,11 +283,16 @@ tree_to_aff_combination (tree expr, tree type, aff_tree *comb)
       aff_combination_const (comb, type, tree_to_double_int (expr));
       return;
 
-    case POINTER_PLUS_EXPR:
+    case POINTER_PLUS_EXPR: {
+      tree this_sizetype = sizetype;
+#ifdef _BUILD_C30_
+      this_sizetype = TARGET_POINTER_SIZETYPE(type);
+#endif
       tree_to_aff_combination (TREE_OPERAND (expr, 0), type, comb);
-      tree_to_aff_combination (TREE_OPERAND (expr, 1), sizetype, &tmp);
+      tree_to_aff_combination (TREE_OPERAND (expr, 1), this_sizetype, &tmp);
       aff_combination_add (comb, &tmp);
       return;
+    }
 
     case PLUS_EXPR:
     case MINUS_EXPR:
@@ -354,6 +365,7 @@ add_elt_to_tree (tree expr, tree type, tree elt, double_int scale,
   if (POINTER_TYPE_P (type))
 #ifdef TARGET_POINTER_SIZETYPE
     {
+       static int noted = 0;
        /* sizetype is not good enough for pointers in ADDRESS_SPACES 
           on dsPIC; some pointers are larger than 'sizetype' (CAW) */
        type1 = TARGET_POINTER_SIZETYPE(type);
@@ -422,8 +434,13 @@ aff_combination_to_tree (aff_tree *comb)
   unsigned i;
   double_int off, sgn;
   tree type1 = type;
-  if (POINTER_TYPE_P (type))
+  if (POINTER_TYPE_P (type)) {
+#ifdef _BUILD_C30_
+    type1 = TARGET_POINTER_SIZETYPE(type);
+#else
     type1 = sizetype;
+#endif
+  }
 
   gcc_assert (comb->n == MAX_AFF_ELTS || comb->rest == NULL_TREE);
 
@@ -847,21 +864,26 @@ get_inner_reference_aff (tree ref, aff_tree *addr, double_int *size)
   enum machine_mode mode;
   int uns, vol;
   aff_tree tmp;
+  tree this_sizetype = sizetype;
+
   tree base = get_inner_reference (ref, &bitsize, &bitpos, &toff, &mode,
 				   &uns, &vol, false);
   tree base_addr = build_fold_addr_expr (base);
 
   /* ADDR = &BASE + TOFF + BITPOS / BITS_PER_UNIT.  */
 
-  tree_to_aff_combination (base_addr, sizetype, addr);
+#ifdef _BUILD_C30_
+  this_sizetype = TARGET_POINTER_SIZETYPE(TREE_TYPE(base_addr));
+#endif
+  tree_to_aff_combination (base_addr, this_sizetype, addr);
 
   if (toff)
     {
-      tree_to_aff_combination (toff, sizetype, &tmp);
+      tree_to_aff_combination (toff, this_sizetype, &tmp);
       aff_combination_add (addr, &tmp);
     }
 
-  aff_combination_const (&tmp, sizetype,
+  aff_combination_const (&tmp, this_sizetype,
 			 shwi_to_double_int (bitpos / BITS_PER_UNIT));
   aff_combination_add (addr, &tmp);
 

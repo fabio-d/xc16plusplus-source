@@ -65,8 +65,7 @@ LINE1=`awk '/foo/ { print $2,$3,$4,$5 }' temp`
 LINE2=`awk '/NEVER_LOAD/ { print $1,$2,$3,$4,$5 }' temp`
 
 head -47 t.map > temp2
-SIZE1=`perl -n -e 'if (/^\.dinit\s+\w+\s+0x(\w+)/) {print $1}' temp2`
-SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' temp2`
+SIZE=`perl -n -e 'if (/Total "data" memory used \(bytes\):\s+(\w+)/) {print $1}' temp2`
 {
 echo
 echo "excerpt from xc16-objdump (-h option):"
@@ -74,8 +73,7 @@ echo
 echo "$LINE1"
 echo "$LINE2"
 echo
-echo "size of section .dinit (should be 2):    $SIZE1"
-echo "total data memory used (should be 0):    $SIZE2"
+echo "total data memory used (should be 0):    $SIZE"
 } > test.out
 
 echo

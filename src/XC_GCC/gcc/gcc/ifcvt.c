@@ -2272,7 +2272,7 @@ noce_emit_skip (struct noce_if_info *if_info, rtx x, enum rtx_code code,
     start_sequence();
     tmp = emit_insn(tmp);
     insn_code = recog_memoized(tmp);
-    if (insn_code > 0) {
+    if (insn_code > -1) {
       extract_insn(tmp);
       if (!constrain_operands(1)) {
         insn_code = -1;

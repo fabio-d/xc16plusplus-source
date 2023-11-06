@@ -11,5 +11,3 @@ Disassembly of section .text:
  106:	00 00 00 
 Disassembly of section .text:
 Disassembly of section .isr:
-Disassembly of section .dinit:
-Disassembly of section .shared.dinit:

@@ -21,7 +21,7 @@ File Descriptions:
 -----------------
 info.txt - this file
 go - shell script to automate testing
-t1.c, t2.s - source files
+t1.s, t2.s - source files
 run.cmd - command file for the simulator
 test.out - output of the test
 expect.out - correct output

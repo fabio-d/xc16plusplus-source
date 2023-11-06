@@ -236,6 +236,12 @@
                                      "support" DIR_SEPARATOR_STR \
                                      "generic" DIR_SEPARATOR_STR \
                                      "h"
+#define MPLABC30_C99_COMMON_INCLUDE_PATH ".." DIR_SEPARATOR_STR \
+                                     "include" PATH_SEPARATOR_STR \
+                                     ".." DIR_SEPARATOR_STR \
+                                     "support" DIR_SEPARATOR_STR \
+                                     "generic" DIR_SEPARATOR_STR \
+                                     "h"
 #define MPLABC30_PIC24F_INCLUDE_PATH ".." DIR_SEPARATOR_STR \
                                      "support" DIR_SEPARATOR_STR \
                                      "PIC24F" DIR_SEPARATOR_STR \

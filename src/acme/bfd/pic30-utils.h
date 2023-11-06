@@ -513,9 +513,10 @@ extern void pic30_defer_archive(carsym *symdef,
                                 unsigned int new_mask_bits, 
                                 unsigned int new_set_bits,
                                 symindex aye);
-extern void pic30_remove_archive(carsym *symdef,asymbol *sym);
+extern void pic30_remove_archive(carsym *symdef,asymbol *sym,bfd *abfd);
 extern struct pic30_deferred_archive_members *pic30_pop_tail_archive(void);
 extern void pic30_clear_deferred(void);
+extern void debug_deferred_archive_members(void);
 extern int pic30_count_ones(unsigned int a);
 
 extern void build_aivt_free_block_list(bfd_vma start, bfd_vma length);

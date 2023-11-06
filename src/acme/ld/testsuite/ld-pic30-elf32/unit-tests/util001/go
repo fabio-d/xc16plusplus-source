@@ -168,7 +168,7 @@ fi
 #} >> test.out
 
 #verify xc16-strings
-$STRINGS -tx -a -f t1.o > temp
+$STRINGS -tx -f t1.o > temp 2>temp2
 if [ $vflag = "on" ]; then
     echo
     cat temp

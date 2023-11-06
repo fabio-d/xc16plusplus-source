@@ -26,10 +26,10 @@ do
 done
 
 rm -f t.exe
-$AS30 -o t1.o t1.s || exit 99
+$AS30 -p30F6014 -o t1.o t1.s || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$AS30 -o t1.o t1.s"
+    echo "$AS30 -p30F6014 -o t1.o t1.s"
     echo $err
 fi
 

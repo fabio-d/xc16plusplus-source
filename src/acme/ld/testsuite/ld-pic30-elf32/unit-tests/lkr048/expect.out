@@ -1,7 +1,7 @@
 
 excerpt from xc16-objdump (-h option):
 
-  1 foo           00000002  00008100  00000100  0000009c  2**1
+  1 foo           00000002  00008100  00000100
                   CONTENTS, ALLOC, LOAD, READONLY, PSV, ABSOLUTE
 
 total data memory used (should be 0):    0

@@ -50,8 +50,10 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
-rm -f test.out
-$OBJDUMP -h t.exe > test.out
+rm -f temp test.out
+$OBJDUMP -h t.exe > temp
+# remove file offsets from objdump output
+perl -n -e 'if (/(.*)\s+\w+\s+2\*\*1$/) {print "$1\n"} else {print}' temp > test.out
 $OBJDUMP -s t.exe >> test.out
 
 echo

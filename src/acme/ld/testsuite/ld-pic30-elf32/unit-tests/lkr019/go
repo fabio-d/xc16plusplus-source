@@ -56,7 +56,7 @@ echo
 
 #head -12 t.map >> test.out
 
-awk 'BEGIN { output=0; } /^Program Memory/ { output=1; } /.*Total program/ { output=0; print $0 } { if (output == 1) print $0 }' t.map >> test.out
+awk 'BEGIN { output=0; } /^"program" Memory/ { output=1; } /.*Total "program"/ { output=0; print $0 } { if (output == 1) print $0 }' t.map >> test.out
 
 if [ $vflag = "on" ]; then
     echo

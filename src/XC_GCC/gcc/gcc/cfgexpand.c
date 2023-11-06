@@ -778,6 +778,14 @@ expand_one_stack_var_at (tree decl, HOST_WIDE_INT offset)
     }
 
   set_mem_attributes (x, SSAVAR (decl), true);
+#ifdef _BUILD_C30_
+  if ((TARGET_EDS) && (TARGET_EDS_MODE==P32UMMmode)) {
+    // unless already set by set_mem_attributes
+    if (MEM_ADDR_SPACE(x) == ADDR_SPACE_GENERIC) {
+      set_mem_addr_space(x,pic30_space_stack);
+    }
+  }
+#endif
   set_rtl (decl, x);
 }
 

@@ -73,9 +73,8 @@ if [ $vflag = "on" ]; then
 fi
 
 head -31 t.map > temp3
-DESC1=`perl -n -e 'if (/(.*foo.*)/../(.*EEDATA.*)/) {print "$1\n"}' temp2`
-SIZE1=`perl -n -e 'if (/^\.dinit\s+\w+\s+0x(\w+)/) {print $1}' temp3`
-SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' t.map`
+DESC1=`perl -n -e 'if (/(.*foo\s+\w+\s+\w+\s+\w+).*$/../(.*EEDATA.*)/) {print "$1\n"}' temp2`
+SIZE=`perl -n -e 'if (/Total "data" memory used \(bytes\):\s+(\w+)/) {print $1}' t.map`
 
 {
 echo
@@ -83,8 +82,7 @@ echo "excerpt from xc16-objdump (-h option):"
 echo
 echo "$DESC1"
 echo
-echo "size of section .dinit (should be 2):    $SIZE1"
-echo "total data memory used (should be 0):    $SIZE2"
+echo "total data memory used (should be 0):    $SIZE"
 } > test.out
 
 echo

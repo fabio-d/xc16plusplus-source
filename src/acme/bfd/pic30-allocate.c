@@ -206,6 +206,9 @@ report_allocation_error(struct pic30_section *s) {
       char *s1 = pic30_section_size_string(t->sec);
       char *s2 = pic30_section_attr_string(t->sec);
 
+      if ( t->sec->_raw_size == 0 ) /* don't report zero-length sections */
+        continue;
+      
       error_reported++;
       /* report the file name, unless its a temp file */
       if (strncmp(t->sec->owner->filename, PREFIX, strlen(PREFIX)) != 0) {
@@ -536,6 +539,9 @@ allocate_program_memory() {
     if (entry->next == NULL) result |= tmp_result;
   )
 
+  if (pic30_debug) {
+    printf("\nCreating unified free block list for 'program' type memory...\n");
+  }
   /* save the free blocks list */
   program_memory_free_blocks = 0;
   mem_block = 0;
@@ -550,7 +556,7 @@ allocate_program_memory() {
       while (mem_block->next) {
         mem_block = mem_block->next;
         if (pic30_debug) {
-          printf("Attaching %x (%x bytes) from region '%s'\n",
+          printf("  attaching %x (%x bytes) from region '%s'\n",
                  mem_block->addr, mem_block->size,
                  region->name);
         }
@@ -819,7 +825,7 @@ allocate_data_memory() {
 
   /* save the free blocks list, concat all regions together */
   if (pic30_debug) {
-    printf("\nCreating unified free block list...\n");
+    printf("\nCreating unified free block list for 'data' type memory...\n");
   }
   mem_block = 0;
   data_memory_free_blocks = 0;
@@ -834,7 +840,7 @@ allocate_data_memory() {
       while (mem_block->next) {
         mem_block = mem_block->next;
         if (pic30_debug) {
-          printf("Attaching %x (%x bytes) from region '%s'\n",
+          printf("  attaching %x (%x bytes) from region '%s'\n",
                  mem_block->addr, mem_block->size,
                  region->name);
         }
@@ -884,6 +890,10 @@ allocate_default_stack() {
   bfd_vma under,over;
 
   bfd_vma max_addr = get_max_stack();
+  
+  if (data_memory_free_blocks == 0)
+    einfo(_("%P%X%F:  Link Error: Could not allocate default stack"
+            " because no data memory is available\n\n"));
 
   /* if a free block straddles the upper limit, divide it */
   for (b = data_memory_free_blocks; b != NULL; b = next) {
@@ -917,7 +927,7 @@ allocate_default_stack() {
 
   if (pic30_debug) {
     printf("  selecting block at %lx\n", big_block->addr);
-    printf("  stack base = %x, stack limit = %x\n", stack_base, stack_limit);
+    printf("  stack base = %x, stack limit = %x\n\n", stack_base, stack_limit);
   }
 
   /* remove the block that we just used */
@@ -2675,6 +2685,7 @@ create_remainder_blocks(struct pic30_memory *lst,
 
   bfd_vma remainder;
 
+  /* (GM) Does this need to be generalized for multiple "program" regions? */
   if ((strcmp(region->name,"program") == 0) && aivt_base && 
       (s->sec->linker_generated == 0)) {
     /* if we create a block that uses part of the aivt, then fill the rest...*/

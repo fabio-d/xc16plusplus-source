@@ -14,10 +14,10 @@ __t2:
         addc.b    #symB5, w5
 
         .equiv  symB1, 0x01
-        .equiv  symB2, -128
+        ;;.equiv  symB2, -128 ;; does not work after v1.50
         .equiv  symB3, 127
         .equiv  symB4, 0
-        .equiv  symB5, -1
+        ;;.equiv  symB5, -1
 
         .global symB1,symB2,symB3,symB4,symB5
         

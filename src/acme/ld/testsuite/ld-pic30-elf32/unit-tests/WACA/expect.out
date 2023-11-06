@@ -35,11 +35,11 @@ MPLAB XC16 ASSEMBLY Listing:  t1.s 			page 1
   27              	
   28              	;;SACD
   29 000020  02 00 DC 	        sac.d A, w2
-  30 000022  42 02 DC 	        sac.d A, #4, [--w2]
+  30 000022  02 22 DC 	        sac.d A, #4, [--w2]
   31              	
   32              	;;FLIM
   33 000024  15 30 E4 	        flim w6, [w5]
-  34 000026  95 33 E4 	        flim w6, [w5], w7
+  34 000026  95 33 E5 	        flim w6, [w5], w7
   35 000028  95 B3 E5 	        flim.v w6, [w5], w7
   36              	
   37              	;;DIV

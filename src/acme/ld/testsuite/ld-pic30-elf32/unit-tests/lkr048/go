@@ -72,8 +72,8 @@ if [ $vflag = "on" ]; then
     echo
 fi
 
-DESC1=`perl -n -e 'if (/(.*foo.*)/../(.*PSV.*)/) {print "$1\n"}' temp2`
-SIZE1=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' temp3`
+DESC1=`perl -n -e 'if (/(.*foo\s+\w+\s+\w+\s+\w+).*$/../(.*PSV.*)/) {print "$1\n"}' temp2`
+SIZE1=`perl -n -e 'if (/Total "data" memory used \(bytes\):\s+(\w+)/) {print $1}' temp3`
 
 {
 echo

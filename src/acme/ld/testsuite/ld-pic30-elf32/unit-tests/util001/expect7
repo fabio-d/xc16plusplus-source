@@ -10,27 +10,26 @@ ELF Header:
   Version:                           0x1
   Entry point address:               0x0
   Start of program headers:          52 (bytes into file)
-  Start of section headers:          284 (bytes into file)
+  Start of section headers:          276 (bytes into file)
   Flags:                             0x0
   Size of this header:               52 (bytes)
   Size of program headers:           32 (bytes)
   Number of program headers:         3
   Size of section headers:           40 (bytes)
-  Number of section headers:         10
-  Section header string table index: 7
+  Number of section headers:         9
+  Section header string table index: 6
 
 Section Headers:
   [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
   [ 0]                   NULL            00000000 000000 000000 00      0   0  0
   [ 1] .reset            PROGBITS        00000000 000094 000008 00 AXp  0   0  2
-  [ 2] .bss              NOBITS          00000800 0000dc 0000c0 00  WA  0   0  2
+  [ 2] .bss              NOBITS          00000800 0000d8 0000c0 00  WA  0   0  2
   [ 3] .dinit            PROGBITS        00000100 00009c 00001c 00 AXp  0   0  2
   [ 4] .text             PROGBITS        0000010e 0000b8 000018 00 AXp  0   0  2
   [ 5] .isr              PROGBITS        0000011a 0000d0 000008 00 AXp  0   0  2
-  [ 6] .shared.dinit     PROGBITS        0000011e 0000d8 000004 00 AXp  0   0  2
-  [ 7] .shstrtab         STRTAB          00000000 0000dc 000040 00      0   0  1
+  [ 6] .shstrtab         STRTAB          00000000 0000d8 000039 00      0   0  1
 <symtab>
-  [ 9] .strtab           STRTAB          00000000 000ddc 0005c5 00      0   0  1
+  [ 8] .strtab           STRTAB          00000000 000dfc 00061d 00      0   0  1
 Key to Flags:
   W (write), A (alloc), X (execute), M (merge), S (strings)
   I (info), L (link order), G (group), x (unknown)
@@ -39,13 +38,13 @@ Key to Flags:
 Program Headers:
   Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
   LOAD           0x000094 0x00000000 0x00000000 0x00008 0x00008 R E 0x2
-  LOAD           0x00009c 0x00000100 0x00000100 0x00040 0x00040 R E 0x2
-  LOAD           0x0000dc 0x00000800 0x00000800 0x00000 0x000c0 RW  0x2
+  LOAD           0x00009c 0x00000100 0x00000100 0x0003c 0x0003c R E 0x2
+  LOAD           0x0000d8 0x00000800 0x00000800 0x00000 0x000c0 RW  0x2
 
  Section to Segment mapping:
   Segment Sections...
    00     .reset 
-   01     .dinit .text .isr .shared.dinit 
+   01     .dinit .text .isr 
    02     .bss 
 
 There is no dynamic segment in this file.
@@ -56,6 +55,11 @@ There are no unwind sections in this file.
 
 <symtab>
    Num:    Value  Size Type    Bind   Vis      Ndx Name
+<sym>
+<sym>
+<sym>
+<sym>
+<sym>
 <sym>
 <sym>
 <sym>

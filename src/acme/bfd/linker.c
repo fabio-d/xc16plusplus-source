@@ -1506,8 +1506,9 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
               if (new_mask_bits == 0) {
                 if (pic30_debug) {
                   printf("...perfect match\n");
+                  debug_deferred_archive_members();
                 }
-                pic30_remove_archive(NULL,p);
+                pic30_remove_archive(NULL,p,abfd);
               } else if (deferred_member) {
                 if (pic30_debug) {
                   printf("...taken match\n");
@@ -1555,7 +1556,7 @@ generic_link_check_archive_element (abfd, info, pneeded, collect)
             if (pic30_debug) {
               printf("...perfect match\n");
             }
-            pic30_remove_archive(NULL, p);
+            pic30_remove_archive(NULL, p,abfd);
           } else if (deferred_member) {
             if (pic30_debug) {
               printf("...taken match\n");
@@ -1704,10 +1705,10 @@ generic_link_add_symbol_list (abfd, info, symbol_count, symbols, collect)
  
     if (pic30_debug) {
       if (has_sig)
-        printf("(signature: %d 0x%x 0x%x)", signature_pairs,
+        printf("  signature: %d 0x%x 0x%x", signature_pairs,
                signature_mask, signature_set);
       else
-        printf("(no signature)");
+        printf("  (no signature)");
     }
   }
 

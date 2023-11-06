@@ -31,11 +31,11 @@ do
 done
 
 rm -f t1.exe
-$GCC30 -o t1.exe t1.c -Wl,--heap=128 || exit 99
+$GCC30 -mcpu=30F6014 -o t1.exe t1.c -Wl,--heap=128 || exit 99
 err=$?
 if [ $vflag = "on" ]; then
     echo
-    echo "$GCC30 -o t1.exe t1.c -Wl,--heap=128"
+    echo "$GCC30 -mcpu=30F6014 -o t1.exe t1.c -Wl,--heap=128"
     echo $err
 fi
 

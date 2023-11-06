@@ -1,7 +1,11 @@
+CRT0_STARTUP(crt0_standard.o)
+CRT1_STARTUP(crt1_standard.o)
+CRT_STARTMODE(crt_start_mode_normal)
+
 MEMORY
 {
   program (rx) : ORIGIN = 0,    LENGTH = 0x8000
-  data  (!rx)  : ORIGIN = 0,    LENGTH = 0x8000
+  data  (a!rx)  : ORIGIN = 0,    LENGTH = 0x8000
 }
 
 INCLUDE provides.lkr

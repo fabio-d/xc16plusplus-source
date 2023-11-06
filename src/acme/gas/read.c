@@ -1655,8 +1655,7 @@ s_app_file (appfile)
 
   /* .file here implies DWARF-2 */
 #if defined (TC_PIC30) && defined(OBJ_ELF)
-void
-s_pic30_file (int x ATTRIBUTE_UNUSED)
+void s_pic30_file (int x ATTRIBUTE_UNUSED)
 {
   static int first_file_directive = 0;
 

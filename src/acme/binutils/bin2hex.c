@@ -8,6 +8,7 @@
 #include <string.h>
 /* malloc.h should be stdlib.h for POSIX compliance */
 #include <stdlib.h>
+#include <time.h>
 #include "bucomm.h"
 #include "libiberty.h"
 #include "pic30-utils.h"

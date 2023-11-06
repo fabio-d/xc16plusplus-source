@@ -2,6 +2,10 @@ OUTPUT_FORMAT("elf32-pic30")
 OUTPUT_ARCH("pic30")
 ENTRY(part1)
 
+CRT0_STARTUP(crt0_standard.o)
+CRT1_STARTUP(crt1_standard.o)
+CRT_STARTMODE(crt_start_mode_normal)
+
 MEMORY
 {
   data (a!xr) : ORIGIN = 0x800, LENGTH = 0xF800

@@ -76,7 +76,7 @@ LINE2=`awk '/scn1/ { print $2,$3,$4,$5 }' temp`
 
 head -31 t.map > temp2
 SIZE1=`perl -n -e 'if (/^\.dinit\s+\w+\s+(\w+)/) {print $1}' temp2`
-SIZE2=`perl -n -e 'if (/Total data memory used \(bytes\):\s+(\w+)/) {print $1}' t.map`
+SIZE2=`perl -n -e 'if (/Total "data" memory used \(bytes\):\s+(\w+)/) {print $1}' t.map`
 {
 echo
 echo "excerpt from xc16-objdump (-h option):"

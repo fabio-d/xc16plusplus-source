@@ -1688,6 +1688,37 @@ static int move2add_last_label_luid;
        && TRULY_NOOP_TRUNCATION (GET_MODE_BITSIZE (OUTMODE), \
 				 GET_MODE_BITSIZE (INMODE))))
 
+#ifdef _BUILD_C30_
+void move2add_invalidate_registers(int set_regno, enum machine_mode mode) {
+  /* we have just written to SET_REGNO in MODE; invalidate the neighbours we
+   * might cross... ie
+   *    reg 0 in mode X may consume 4 slots, so writing to
+   *     reg 0,1,2,3 will invalidate the data for reg 0
+   *    a writing to reg 4 might use two slots, so we need to invalidate reg 5
+   *      too
+   */
+  unsigned int set_endreg = set_regno + hard_regno_nregs[set_regno][mode];
+  unsigned int i;
+  
+  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++) {
+    if (reg_set_luid[set_regno] > move2add_last_label_luid) {
+      // we have valid data
+      unsigned int check_endreg = i + hard_regno_nregs[i][reg_mode[i]];
+
+      if ((i <= set_regno) && (check_endreg > set_regno)) {
+        reg_set_luid[i] = 0;
+      } else if (i < set_endreg) {
+        reg_set_luid[i] = 0;
+      }
+    }
+  }
+  return;
+}
+#endif
+
+
+      
+
 /* This function is called with INSN that sets REG to (SYM + OFF),
    while REG is known to already have value (SYM + offset).
    This function tries to change INSN into an add instruction
@@ -1762,6 +1793,9 @@ move2add_use_add2_insn (rtx reg, rtx sym, rtx off, rtx insn)
   reg_mode[regno] = GET_MODE (reg);
   reg_symbol_ref[regno] = sym;
   reg_offset[regno] = INTVAL (off);
+#ifdef _BUILD_C30_
+  move2add_invalidate_registers(regno,GET_MODE(reg));
+#endif
   return changed;
 }
 
@@ -1838,6 +1872,9 @@ move2add_use_add3_insn (rtx reg, rtx sym, rtx off, rtx insn)
   reg_mode[regno] = GET_MODE (reg);
   reg_symbol_ref[regno] = sym;
   reg_offset[regno] = INTVAL (off);
+#ifdef _BUILD_C30_
+  move2add_invalidate_registers(regno,GET_MODE(reg));
+#endif
   return changed;
 }
 
@@ -2148,6 +2185,9 @@ move2add_note_store (rtx dst, const_rtx set, void *data)
 	  reg_offset[regno] = off;
 	  reg_mode[regno] = mode;
 	  reg_set_luid[regno] = move2add_luid;
+#ifdef _BUILD_C30_
+          move2add_invalidate_registers(regno,mode);
+#endif
 	  return;
 	}
     }
@@ -2219,6 +2259,9 @@ move2add_note_store (rtx dst, const_rtx set, void *data)
 	  /* We assign the same luid to all registers set to constants.  */
 	  reg_set_luid[regno] = move2add_last_label_luid + 1;
 	  reg_mode[regno] = mode;
+#ifdef _BUILD_C30_
+          move2add_invalidate_registers(regno,mode);
+#endif
 	  return;
 
 	default:
@@ -2255,14 +2298,21 @@ move2add_note_store (rtx dst, const_rtx set, void *data)
       reg_offset[regno] = trunc_int_for_mode (offset
 					      + reg_offset[base_regno],
 					      dst_mode);
+#ifdef _BUILD_C30_
+      move2add_invalidate_registers(regno,dst_mode);
+#endif
     }
   else
     {
+#ifdef _BUILD_C30_
+      move2add_invalidate_registers(regno,mode);
+#else
       unsigned int endregno = regno + nregs;
 
       for (i = regno; i < endregno; i++)
 	/* Reset the information about this register.  */
 	reg_set_luid[i] = 0;
+#endif
     }
 }
 

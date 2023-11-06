@@ -111,6 +111,7 @@ extern rtx pic30_addr_space_convert(rtx, tree, tree);
 
 extern char *pic30_section_base(rtx x, int operand, rtx *);
 extern int pic30_isav4_target(void);
+extern int pic30_extended_ram_target(void);
 extern int pic30_eds_target(void);
 extern int pic30_dsp_target(void);
 extern int pic30_ecore_target(void);
@@ -149,6 +150,8 @@ extern int pic30_mem_df_operand(rtx op, enum machine_mode mode);
 extern int pic30_mem_eds_operand(rtx op, enum machine_mode mode);
 extern int pic30_mem_peds_operand(rtx op, enum machine_mode mode);
 extern int pic30_eds_operand(rtx op, enum machine_mode mode);
+extern int pic30_mem_umm_operand(rtx op, enum machine_mode mode);
+extern int pic30_mem_wtumm_operand(rtx op, enum machine_mode mode);
 extern int pic30_valid_operator(rtx op, enum machine_mode mode);
 extern int pic30_volatile_operand(rtx opnd, enum machine_mode mode);
 extern int pic30_stack_dereference(rtx op, enum machine_mode mode);
@@ -337,7 +340,7 @@ extern int  pic30_mode2mres_operand(rtx, enum machine_mode);
 extern int  pic30_mode2mres_APSV_operand(rtx, enum machine_mode);
 extern int  pic30_mode2_or_P_operand(rtx, enum machine_mode);
 extern int  pic30_mode2_or_P_APSV_operand(rtx, enum machine_mode);
-extern int  pic30_mode3_operand_helper(rtx, enum machine_mode, int unified_ok);
+extern int  pic30_mode3_operand_helper(rtx, enum machine_mode);
 extern int  pic30_mode3_operand(rtx, enum machine_mode);
 extern int  pic30_modek_possible_operand(rtx, enum machine_mode);
 extern int  pic30_modek_operand(rtx, enum machine_mode);
@@ -386,8 +389,7 @@ extern void pic30_asm_output_case_end(FILE *, int, rtx);
 extern int  pic30_mode1MinMax_operand(rtx op, enum machine_mode mode,
                                       int nMin,int nMax);
 extern int  pic30_modek_APSV_possible_operand(rtx op, enum machine_mode mode);
-extern int pic30_modek_operand_helper(rtx op, enum machine_mode mode, 
-                                      int unified_ok);
+extern int pic30_modek_operand_helper(rtx op, enum machine_mode mode);
 extern int pic30_modek_APSV_operand_helper(rtx op, enum machine_mode mode);
 extern int pic30_mode3_APSV_operand_helper(rtx op, enum machine_mode mode);
 extern int pic30_sfr_operand_helper(rtx op);
@@ -463,11 +465,17 @@ extern bool pic30_valid_pointer_mode(enum machine_mode);
 
 extern int pic30_modes_tieable(enum machine_mode mode1, 
                                enum machine_mode mode2);
-
+extern int pic30_trace_all_addresses(void);
 extern char *pic30_repeat_errata_push_init(void);
 extern char *pic30_repeat_errata_pop_init(void);
 rtx pic30_get_psv_value(void);
 extern int set_psv_called;
+
+bool pic30_do_not_force_space(tree);
+rtx pic30_form_UMM_address(rtx);
+rtx pic30_base_rtx(rtx);
+
+char *pic30_skip(rtx,rtx*,int,int);
 
 #ifdef GCC_C_PRAGMA_H
 #endif

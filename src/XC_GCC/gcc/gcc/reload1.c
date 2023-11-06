@@ -2626,10 +2626,24 @@ eliminate_regs_1 (rtx x, enum machine_mode mem_mode, rtx insn,
 		if (mem_mode != 0 && CONST_INT_P (XEXP (x, 1))
 		    && INTVAL (XEXP (x, 1)) == - ep->previous_offset)
 		  return ep->to_rtx;
-		else
+		else {
+#ifdef _BUILD_C30_
+                  if ((REGNO(ep->to_rtx) == SP_REGNO) ||
+                      (REGNO(ep->to_rtx) == FP_REGNO)) {
+		    return gen_rtx_PLUS (STACK_Pmode, ep->to_rtx,
+		  		       plus_constant (XEXP (x, 1),
+						      ep->previous_offset));
+                  } else {
+		    return gen_rtx_PLUS (Pmode, ep->to_rtx,
+		  		       plus_constant (XEXP (x, 1),
+						      ep->previous_offset));
+                  }
+#else /*_BUILD_C30_ */
 		  return gen_rtx_PLUS (Pmode, ep->to_rtx,
 				       plus_constant (XEXP (x, 1),
 						      ep->previous_offset));
+#endif /*_BUILD_C30_ */
+                }
 	      }
 
 	  /* If the register is not eliminable, we are done since the other
@@ -4113,8 +4127,19 @@ init_elim_table (void)
   for (ep = reg_eliminate; ep < &reg_eliminate[NUM_ELIMINABLE_REGS]; ep++)
     {
       num_eliminable += ep->can_eliminate;
+#ifdef _BUILD_C30_
+      { enum machine_mode m = Pmode;
+
+        if ((ep->from == SP_REGNO) || (ep->from == FP_REGNO)) m = STACK_Pmode;
+        ep->from_rtx = gen_rtx_REG (m, ep->from);
+        m = Pmode;
+        if ((ep->to == SP_REGNO) || (ep->to == FP_REGNO)) m = STACK_Pmode;
+        ep->to_rtx = gen_rtx_REG (m, ep->to);
+      }
+#else
       ep->from_rtx = gen_rtx_REG (Pmode, ep->from);
       ep->to_rtx = gen_rtx_REG (Pmode, ep->to);
+#endif
     }
 }
 
@@ -5677,10 +5702,10 @@ reloads_conflict (int r1, int r2)
 
 #ifdef _BUILD_C30_
   /* see other comments about this in this file */
-  if (rld[r1].secondary_in_reload > 0) {
+  if (rld[r1].secondary_in_reload >= 0) {
     r1_type = RELOAD_OTHER;
   } 
-  if (rld[r2].secondary_in_reload > 0) {
+  if (rld[r2].secondary_in_reload >= 0) {
     r2_type = RELOAD_OTHER;
   } 
 #endif
@@ -6129,7 +6154,7 @@ set_reload_reg (int i, int r)
                scratch regsiter that is allocated doesn't overlap -
                reload_reg_free_p() also has a matching change */
 	    mark_reload_reg_in_use (spill_regs[i], rld[r].opnum,
-				    rld[r].secondary_in_reload > 0 ? 
+                                    rld[r].secondary_in_reload >= 0 ? 
                                       RELOAD_OTHER :
                                       rld[r].when_needed, 
                                     rld[r].mode);
@@ -6209,7 +6234,7 @@ allocate_reload_reg (struct insn_chain *chain ATTRIBUTE_UNUSED, int r,
           when_needed = rld[r].when_needed;
 
 #ifdef _BUILD_C30_
-          if (rld[r].secondary_in_reload > 0) {
+          if (rld[r].secondary_in_reload >= 0) {
             when_needed = RELOAD_OTHER;
             // rld[r].when_needed = RELOAD_OTHER;
           }
@@ -6910,7 +6935,7 @@ choose_reload_regs (struct insn_chain *chain)
 	}
 
       /* Loop around and try without any inheritance.  */
-    }
+   }
 
   if (! win)
     {

@@ -3301,7 +3301,8 @@ pointer_diff (location_t loc, tree op0, tree op1)
   {
     tree target_inttype = inttype;
     extern tree eds_ptr_type;
-    if (!ADDR_SPACE_GENERIC_P(as0)) {
+    // if (!ADDR_SPACE_GENERIC_P(as0)) 
+    {
       target_inttype = pic30_extended_pointer_integer_type(
                          TYPE_MODE(TREE_TYPE(op0)));
     }

@@ -1576,7 +1576,7 @@ make_decl_rtl (tree decl)
           tree type = TREE_TYPE(decl);
   
           if (TREE_CODE(type) == FUNCTION_TYPE) {
-            address_mode = HImode;
+            address_mode = FN_Pmode;
           } else if (TARGET_EDS) {
             address_mode = pic30_unified_mode(decl);
           } else if (TREE_READONLY(type)) {
@@ -2352,6 +2352,11 @@ assemble_variable (tree decl, int top_level ATTRIBUTE_UNUSED,
 
   /* Make sure targetm.encode_section_info is invoked before we set
      ASM_WRITTEN.  */
+#ifdef _BUILD_C30_
+  /* Fix for XC16-1613. Reset decl because some of the initialization 
+     information is not present yet. */ 
+  SET_DECL_RTL (decl, NULL_RTX);
+#endif
   decl_rtl = DECL_RTL (decl);
 
   TREE_ASM_WRITTEN (decl) = 1;

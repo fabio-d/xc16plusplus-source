@@ -36,19 +36,12 @@ if [ $vflag = "on" ]; then
     echo $err
 fi
 
-rm -f t2.o
-$GAS30 -o t2.o t2.s
-err=$?
-if [ $vflag = "on" ]; then
-    echo "$GAS30 -o t2.o t2.s"
-    echo $err
-fi
-
 rm -f t.exe
-$GLD30 -o t.exe t1.o t2.o || exit 99
+$GLD30 -o t.exe t1.o --defsym symLO=-8388608 --defsym symHI=16777215 || exit 99
 err=$?
 if [ $vflag = "on" ]; then
-    echo "$GLD30 -o t.exe t1.o t2.o"
+    #echo "$GLD30 -o t.exe t1.o t2.o"
+    echo "$GLD30 -o t.exe t1.o --defsym symLO=-8388608 --defsym symHI=16777215"
     echo $err
 fi
 

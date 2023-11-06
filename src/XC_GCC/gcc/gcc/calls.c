@@ -175,9 +175,21 @@ prepare_call_address (tree fndecl, rtx funexp, rtx static_chain_value,
   if (GET_CODE (funexp) != SYMBOL_REF)
     /* If we are using registers for parameters, force the
        function address into a register now.  */
+#ifndef _BUILD_C30_
     funexp = ((SMALL_REGISTER_CLASSES && reg_parm_seen)
 	      ? force_not_mem (memory_address (FUNCTION_MODE, funexp))
 	      : memory_address (FUNCTION_MODE, funexp));
+#else
+    /* by default the above code pushes the fn-pointer to the 'generic' address
+         space, which will convert this pointer to P32UMMmode --- which we
+         have to undo to call */
+    funexp = ((SMALL_REGISTER_CLASSES && reg_parm_seen)
+	      ? force_not_mem (
+                  memory_address_addr_space (FUNCTION_MODE, funexp,
+                                            pic30_space_stack))
+	      : memory_address_addr_space (FUNCTION_MODE, funexp,
+                                            pic30_space_stack));
+#endif
   else if (! sibcallp)
     {
 #ifndef NO_FUNCTION_CSE
@@ -269,7 +281,11 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
      and we don't want to load it into a register as an optimization,
      because prepare_call_address already did it if it should be done.  */
   if (GET_CODE (funexp) != SYMBOL_REF)
+#ifndef _BUILD_C30_
     funexp = memory_address (FUNCTION_MODE, funexp);
+#else
+    funexp = memory_address_addr_space (FUNCTION_MODE,funexp,pic30_space_stack);
+#endif
 
 #if defined (HAVE_sibcall_pop) && defined (HAVE_sibcall_value_pop)
   if ((ecf_flags & ECF_SIBCALL)

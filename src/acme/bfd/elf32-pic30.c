@@ -1754,6 +1754,60 @@ static reloc_howto_type elf_pic30_howto_table_rel[] =
          SRC_MASK(0x003f0),             /* src_mask */
          0x003F0,                       /* dst_mask */
          TRUE),                         /* pcrel_offset? */
+  HOWTO(R_PIC30_UNIFIED_LO,             /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "UNIFIED_LO",                  /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_UNIFIED_HI,             /* type */
+         0,                             /* rightshift */
+         1,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         0,                             /* bitpos */
+         complain_overflow_bitfield,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "UNIFIED_HI",                  /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_WORD_UNIFIED_LO,        /* type */
+         0,                             /* rightshift */
+         2,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_dont,        /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "WORD - UNIFIED_LO",           /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+  HOWTO(R_PIC30_WORD_UNIFIED_HI,        /* type */
+         0,                             /* rightshift */
+         2,                             /* size (0=byte, 1=short, 2=long) */
+         16,                            /* bitsize */
+         FALSE,                         /* pc_relative? */
+         4,                             /* bitpos */
+         complain_overflow_bitfield,    /* complain_on_overflow */
+         RELOC_SPECIAL_FN_OPERATORS,    /* special_function */
+         "WORD - UNIFIED_HI",              /* name */
+         PIC30_PIP,                     /* partial_inplace? */
+         SRC_MASK(0x0ffff0),            /* src_mask */
+         0x0ffff0,                      /* dst_mask */
+         FALSE),                        /* pcrel_offset? */
+
+
 };
 
 /* A mapping from BFD reloc types to PIC30 ELF reloc types.  */
@@ -1860,6 +1914,10 @@ static const struct elf_reloc_map pic30_reloc_map[] =
   { BFD_RELOC_PIC30_P_ADDR_HI,              R_PIC30_P_ADDR_HI },
   { BFD_RELOC_PIC30_WORD_ADDR_LO,           R_PIC30_WORD_ADDR_LO },
   { BFD_RELOC_PIC30_WORD_ADDR_HI,           R_PIC30_WORD_ADDR_HI },
+  { BFD_RELOC_PIC30_UNIFIED_LO,             R_PIC30_UNIFIED_LO },
+  { BFD_RELOC_PIC30_UNIFIED_HI,             R_PIC30_UNIFIED_HI },
+  { BFD_RELOC_PIC30_WORD_UNIFIED_LO,        R_PIC30_WORD_UNIFIED_LO },
+  { BFD_RELOC_PIC30_WORD_UNIFIED_HI,        R_PIC30_WORD_UNIFIED_HI },
   { BFD_RELOC_PIC30_BRANCH_ABSOLUTE6,       R_PIC30_BRANCH_ABSOLUTE6 },
 };
 
@@ -2176,7 +2234,7 @@ pic30_bfd_elf32_set_section_contents (abfd, section, location, offset, count)
       }
       pic30_location = p2;
       if (pic30_debug)
-        printf("expanding %#x bytes into %s at %#lx\n",
+        printf("\nExpanding %#x bytes into section '%s' at offset %#lx\n",
                (unsigned int) count, section->name, offset);
   }
 
@@ -2223,7 +2281,7 @@ pic30_elf32_bfd_get_section_contents(abfd, section, location, offset, count)
   bfd_size_type count;
 {
   if (pic30_debug) {
-    printf("--> pic30_elf32_bfd_get_section_contents '%s'\n", section->name);
+    printf("\nLoading contents of input section '%s'\n", section->name);
   }
   if ((pic30_linking == TRUE) && pic30_display_as_readonly_memory_p(section)) {
     char *ps,*pd;
@@ -2342,6 +2400,10 @@ pic30_adjustable_against_section (type)
    case R_PIC30_P_ADDR_HI:
    case R_PIC30_WORD_ADDR_LO:
    case R_PIC30_WORD_ADDR_HI:
+   case R_PIC30_UNIFIED_LO:
+   case R_PIC30_UNIFIED_HI:
+   case R_PIC30_WORD_UNIFIED_LO:
+   case R_PIC30_WORD_UNIFIED_HI:
          rc = 0;
          break;
 
@@ -2693,7 +2755,7 @@ pic30_debug_section_list(asection *sect) {
 void find_section(asection *sec, const char *name) {
   while (sec) {
      if (strcmp(sec->name, name) == 0) {
-       printf("found seciton %s\n", name);
+       printf("found section %s\n", name);
        break;
      }
      sec = sec->next;
@@ -3613,8 +3675,8 @@ pic30_bfd_reloc_range_check(howto, relocation, abfd, symbol, error_msg)
         break;
       case R_PIC30_DSP_6:
         /* valid range is [-16..16] */
-        if ((relocation > 0x10) && ~(relocation | 0xF))
-          rc = bfd_reloc_overflow;
+        if (abs( (signed long) relocation ) > 16)
+            rc = bfd_reloc_overflow;
         break;
    }
 
@@ -3951,13 +4013,13 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
 
 #if 1
   if (pic30_debug) {
-  printf("\nsymbol->name = %s\n", symbol->name);
-  printf("symbol->value = %x\n", symbol->value);
-  printf("output_base = %x\n", output_base);
-  printf("symbol->section->output_offset = %x\n", symbol->section->output_offset);
-  printf("reloc_entry->address = %x\n", reloc_entry->address);
-  printf("reloc_entry->addend = %x\n", reloc_entry->addend);
-  printf("relocation = %x\n", relocation);
+  printf("\nRelocating generic symbol '%s'\n", symbol->name);
+  printf("  symbol->value = 0x%x\n", symbol->value);
+  printf("  output_base = 0x%x\n", output_base);
+  printf("  symbol->section->output_offset = 0x%x\n", symbol->section->output_offset);
+  printf("  reloc_entry->address = 0x%x\n", reloc_entry->address);
+  printf("  reloc_entry->addend = 0x%x\n", reloc_entry->addend);
+  printf("  relocation = 0x%x\n", relocation);
   }
 #endif
 
@@ -4008,7 +4070,7 @@ pic30_elf32_perform_generic (abfd, reloc_entry, symbol, data,
 
 #if 1
       if (pic30_debug) {
-      printf("Final relocation = %lx at %lx\n", relocation, octets);
+      printf("  final relocation = 0x%lx at 0x%lx\n", relocation, octets);
       }
 #endif
 
@@ -4144,15 +4206,15 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
 #if 1
       if (pic30_debug) {
       /* DEBUG */
-      printf ("symbol->name = %s\n", symbol->name);
-      printf ("symbol->value = 0x%x\n", symbol->value);
-      printf ("output_base = 0x%x\n", output_base);
-      printf ("reloc_target_output_section->lma = 0x%x\n",
+      printf ("\nRelocating data directive symbol '%s'\n", symbol->name);
+      printf ("  symbol->value = 0x%x\n", symbol->value);
+      printf ("  output_base = 0x%x\n", output_base);
+      printf ("  reloc_target_output_section->lma = 0x%x\n",
               reloc_target_output_section->lma);
-      printf ("symbol->section->output_offset = 0x%x\n",
+      printf ("  symbol->section->output_offset = 0x%x\n",
               symbol->section->output_offset);
-      printf ("data = 0x%x\n", data);
-      printf ("octets = 0x%x\n", octets);
+      printf ("  data = 0x%x\n", data);
+      printf ("  octets = 0x%x\n", octets);
       }
 #endif
 
@@ -4168,7 +4230,7 @@ pic30_elf32_perform_data_directive (abfd, reloc_entry, symbol, data,
 
 #if 1
       if (pic30_debug) {
-      printf("%d relocation = 0x%x\n", __LINE__, (long) relocation);
+      printf("  %d final relocation = 0x%x at 0x%x\n", __LINE__, (long) relocation, octets);
       }
 #endif
 
@@ -4391,6 +4453,8 @@ operator_is_instruction (unsigned int reloc) {
     case R_PIC30_UNSIGNED_10_HANDLE:
     case R_PIC30_WORD_ADDR_LO:
     case R_PIC30_WORD_ADDR_HI:
+    case R_PIC30_WORD_UNIFIED_LO:
+    case R_PIC30_WORD_UNIFIED_HI:
       return TRUE;
     default:
       return FALSE;
@@ -4403,6 +4467,33 @@ operator_is_instruction (unsigned int reloc) {
   sprintf(*error_msg, (s),               \
           howto->name, symbol->name);    \
   return bfd_reloc_dangerous;            \
+}
+
+static bfd_boolean
+pic30_has_psv_bit(asymbol *symbol, bfd_vma raw_address) {
+  int needs_psv = 0;
+
+  needs_psv += symbol->section->flags & SEC_READONLY;
+  needs_psv += symbol->section->flags & SEC_CODE;
+  needs_psv += symbol->section->flags & SEC_ROM;
+  needs_psv += symbol->section->psv;
+  needs_psv += symbol->section->auxpsv;
+  needs_psv += symbol->section->auxflash;
+
+  if ((needs_psv == 0) && (raw_address > 0x7FFF)) {
+    // this must be in EDS
+    if ((pic30_debug) && (symbol->section->eds == 0)) {
+      printf("*** Caution, address is in EDS space, bit not set: %s\n", 
+             symbol->name);
+    }
+    needs_psv = 1;
+  }
+
+  if ((pic30_debug) && (symbol->section->vma != symbol->section->lma) && 
+      (needs_psv == 0)) {
+    printf("*** Caution, we may need a psv for symbol: %s\n", symbol->name);
+  }
+  return (needs_psv != 0);
 }
 
 /*****************************************************************************
@@ -4491,22 +4582,38 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
       */
       switch (howto->type)
         {
+        case R_PIC30_UNIFIED_LO:
+        case R_PIC30_UNIFIED_HI:
+        case R_PIC30_WORD_UNIFIED_LO:
+        case R_PIC30_WORD_UNIFIED_HI:
+        case R_PIC30_ADDR_LO:
+        case R_PIC30_WORD_ADDR_LO:
+        case R_PIC30_ADDR_HI:
+        case R_PIC30_WORD_ADDR_HI:
+          break;
+
         case R_PIC30_EDSPAGE:
         case R_PIC30_WORD_EDSPAGE:
         case R_PIC30_UNSIGNED_10_EDSPAGE:
         case R_PIC30_EDSOFFSET:
         case R_PIC30_WORD_EDSOFFSET:
         case R_PIC30_UNSIGNED_10_EDSOFFSET:
-        case R_PIC30_ADDR_LO:
-        case R_PIC30_ADDR_HI:
-        case R_PIC30_WORD_ADDR_LO:
-        case R_PIC30_WORD_ADDR_HI:
+          /*
+           * CAW - historical check, not sure why we need this.
+           *       certainly we will want to be able to take the address
+           *       of SFRs for unified... (SFRs are 'absolute' since they
+           *       get their addresses from .gld 
+           */ 
+          break;
+
+#if 0
           /*
           ** Allow targets in any data or code section,
           ** but not external memory, or absolute sections.
           */
-          if (bfd_is_abs_section (symbol->section))
+          if (bfd_is_abs_section (symbol->section) && (symbol->value != 0))
             RETURN_ERROR("Cannot use %s on an absolute symbol (%s).")
+#endif
 
           break;
 
@@ -4652,12 +4759,17 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
         case R_PIC30_UNSIGNED_10_PSVOFFSET:
           relocation = PIC30_PSVOFFSET (relocation);
           break;
-        case R_PIC30_PSVPAGE:
         case R_PIC30_WORD_PSVPAGE:
-        case R_PIC30_UNSIGNED_10_PSVPAGE:
         case R_PIC30_EDSPAGE:
         case R_PIC30_WORD_EDSPAGE:
         case R_PIC30_UNSIGNED_10_EDSPAGE:
+          if (bfd_is_abs_section(symbol->section)) {
+            /* don't adjust the relocation */
+            break;
+          }
+          /* FALLSTHROUGH */
+        case R_PIC30_PSVPAGE:
+        case R_PIC30_UNSIGNED_10_PSVPAGE:
           relocation = PIC30_PSVPAGE (relocation);
           if (pic30_is_eds_machine(global_PROCESSOR) &&
               (PIC30_SECTION_IN_PROGRAM_MEMORY(reloc_target_output_section) ||
@@ -4666,7 +4778,7 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
           else if ((relocation == 0) &&
               PIC30_SECTION_IN_DATA_MEMORY(reloc_target_output_section))
             relocation = 0;
-           if ((relocation == 0) &&
+          if ((relocation == 0) &&
               ((howto->type == R_PIC30_EDSPAGE) ||
                (howto->type == R_PIC30_WORD_EDSPAGE) ||
                (howto->type == R_PIC30_UNSIGNED_10_EDSPAGE)))
@@ -4675,9 +4787,12 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
         case R_PIC30_EDSOFFSET:
         case R_PIC30_WORD_EDSOFFSET:
         case R_PIC30_UNSIGNED_10_EDSOFFSET:
+          if (bfd_is_abs_section(symbol->section)) {
+              /* use true address */
+          } else 
           if (PIC30_SECTION_IN_DATA_MEMORY(reloc_target_output_section) &&
               ((relocation & ~ (bfd_vma)0x7FFF) == 0))
-            {} /* use true address */
+            { /* use true address */ }
           else
             relocation = PIC30_EDSOFFSET (relocation);
           break;
@@ -4695,6 +4810,26 @@ pic30_elf32_perform_operators (abfd, reloc_entry, symbol, data,
         case R_PIC30_WORD_ADDR_HI:
           relocation = (relocation >> 16);
           break;
+        case R_PIC30_UNIFIED_LO:
+        case R_PIC30_WORD_UNIFIED_LO:
+#if 1
+          /* bit 0 == PSV bit */
+          relocation = ((relocation << 1) | 
+                        (pic30_has_psv_bit(symbol,relocation)));
+#endif
+          relocation &= 0xFFFF;
+          break;
+        case R_PIC30_UNIFIED_HI:
+        case R_PIC30_WORD_UNIFIED_HI:
+          /* need to also set the designated PSV bit if the symbol is in 
+             FLASH page 0 */
+          relocation = PIC30_PSVPAGE (relocation);
+          if (PIC30_SECTION_IN_PROGRAM_MEMORY(reloc_target_output_section) ||
+              PIC30_SECTION_IN_PSV_MEMORY(reloc_target_output_section)) {
+            relocation |= 0x200;
+          }
+          break;
+
         case R_PIC30_PSVPTR:
         case R_PIC30_L_PSVPTR:
         case R_PIC30_WORD_PSVPTR:
