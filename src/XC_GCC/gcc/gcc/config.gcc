@@ -2045,7 +2045,7 @@ pic30-*-coff)
         c_target_objs=pic30-c.o
         cxx_target_objs=pic30-c.o
         extra_objs="${extra_objs} cci-backend.o mchp_sha.o sha256.o"
-        LANGUAGES="c"
+        LANGUAGES="c,c++"
         LIBGCCMK=
         ;;
 pic30-*-elf)
@@ -2059,7 +2059,7 @@ pic30-*-elf)
         c_target_objs=pic30-c.o
         cxx_target_objs=pic30-c.o
         extra_objs="${extra_objs} cci-backend.o mchp_sha.o sha256.o"
-        LANGUAGES="c"
+        LANGUAGES="c,c++"
         LIBGCCMK=
         ;;
 pic32*-mchp-elf*)
